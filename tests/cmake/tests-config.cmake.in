@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+# Add any public dependencies
+@tests_PUBLIC_DEPENDENCIES@
+
+include("${CMAKE_CURRENT_LIST_DIR}/tests-targets.cmake")
+check_required_components(tests)

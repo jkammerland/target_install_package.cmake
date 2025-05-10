@@ -1,6 +1,7 @@
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# ~~~
 # Function to create a CMake installation target for a given library or executable.
 # This function sets up installation rules for headers, libraries, config files,
 # and CMake export files for a target. It is intended to be used in projects that
@@ -17,6 +18,7 @@ include(CMakePackageConfigHelpers)
 #   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}`).
 #   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime").
 #   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
+# ~~~
 function(target_install_package TARGET_NAME)
   # Parse function arguments
   set(oneValueArgs

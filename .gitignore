@@ -1,0 +1,13 @@
+.idea/*
+.vscode/*
+libs/*
+bin/*
+build/*
+.cache/*
+cmake-build-*/
+include/cbor_tags/cbor_reflection_impl.h
+scratch/*
+python-bindings/testenv/*
+.vs/*
+out/
+CMakeSettings.json

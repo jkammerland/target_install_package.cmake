@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+# Add any public dependencies
+@shared1_PUBLIC_DEPENDENCIES@
+
+include("${CMAKE_CURRENT_LIST_DIR}/shared1-targets.cmake")
+check_required_components(shared1)
