@@ -4,8 +4,9 @@ project_log(VERBOSE "HELLO")
 
 add_library(static1 STATIC)
 target_sources(static1 PRIVATE src1.cpp)
-target_include_directories(static1 PUBLIC include)
+target_include_directories(static1 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_definitions(static1 PUBLIC "STATIC=1")
+target_install_package(static1)
 
 add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)
