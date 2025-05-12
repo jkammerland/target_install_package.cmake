@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28) # 3.28 for CXX_MODULES
 
 project(target_install_package VERSION 1.0.0)
 
@@ -8,13 +8,13 @@ get_property(
   PROPERTY CPM_INITIALIZED
   SET)
 if(CPM_INITIALIZED)
-  cpmaddpackage("gh:jkammerland/project_log.cmake@1.0.2")
+  cpmaddpackage("gh:jkammerland/project_log.cmake@1.0.4")
 else()
   include(FetchContent)
   FetchContent_Declare(
     project_log
     GIT_REPOSITORY https://github.com/jkammerland/project_log.cmake.git
-    GIT_TAG v1.0.2 # or branch/commit
+    GIT_TAG v1.0.4 # or branch/commit
   )
   FetchContent_MakeAvailable(project_log)
 endif()

@@ -14,6 +14,7 @@ include(CMakePackageConfigHelpers)
 #   [EXPORT_NAME: Name of the CMake export file (default: `${TARGET_NAME}-targets`).
 #   [CONFIG_TEMPLATE]: Path to a CMake config template file (default: auto-detected, falls back to generic).
 #   [INCLUDE_DESTINATION]: Destination path for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}`).
+#   [MODULE_DESTINATION]: Destination path for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules`).
 #   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}`).
 #   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime").
 #   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
@@ -29,6 +30,7 @@ function(target_install_package TARGET_NAME)
       EXPORT_NAME
       CONFIG_TEMPLATE
       INCLUDE_DESTINATION
+      MODULE_DESTINATION
       CMAKE_CONFIG_DESTINATION
       COMPONENT)
   set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS)
@@ -81,6 +83,11 @@ function(target_install_package TARGET_NAME)
     project_log(DEBUG "  Include destination not provided, using default: ${ARG_INCLUDE_DESTINATION}")
   endif()
 
+  if(NOT DEFINED ARG_MODULE_DESTINATION)
+    set(ARG_MODULE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules")
+    project_log(DEBUG "  Module destination not provided, using default: ${ARG_MODULE_DESTINATION}")
+  endif()
+
   if(NOT DEFINED ARG_CMAKE_CONFIG_DESTINATION)
     set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}")
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
@@ -110,7 +117,10 @@ function(target_install_package TARGET_NAME)
     PUBLIC_HEADER
       DESTINATION ${ARG_INCLUDE_DESTINATION}
       FILE_SET HEADERS
-      DESTINATION ${ARG_INCLUDE_DESTINATION})
+      DESTINATION ${ARG_INCLUDE_DESTINATION}
+      # Add C++20 modules support
+      FILE_SET CXX_MODULES
+      DESTINATION ${ARG_MODULE_DESTINATION})
 
   # Check if project has a generated config header
   set(POTENTIAL_CONFIG_HEADER "${CMAKE_CURRENT_BINARY_DIR}/include/${TARGET_NAME}/${TARGET_NAME}_config.h")
