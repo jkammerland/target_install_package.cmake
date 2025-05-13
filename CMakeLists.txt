@@ -19,7 +19,7 @@ else()
   )
   FetchContent_MakeAvailable(project_log)
 endif()
-project_include_guard()
+project_include_guard() # Guard against multiple add_subdirectory
 
 # Include the target install package function
 include(${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake)

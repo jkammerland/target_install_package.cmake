@@ -93,6 +93,62 @@ function(target_install_package TARGET_NAME)
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
+  # Process any configure sources that may have been registered with the target
+  foreach(SCOPE PRIVATE PUBLIC INTERFACE)
+    get_target_property(CONFIGURE_SOURCES ${TARGET_NAME} ${SCOPE}_CONFIGURE_SOURCES)
+
+    if(CONFIGURE_SOURCES)
+      project_log(DEBUG "Processing ${SCOPE} configure sources for target ${TARGET_NAME}")
+
+      # Get custom destination or use default
+      get_target_property(CUSTOM_DEST ${TARGET_NAME} CONFIGURE_DESTINATION)
+      if(NOT CUSTOM_DEST)
+        set(CUSTOM_DEST "${ARG_INCLUDE_DESTINATION}")
+      endif()
+
+      foreach(SOURCE_FILE ${CONFIGURE_SOURCES})
+        # Make sure the source path is absolute
+        if(NOT IS_ABSOLUTE "${SOURCE_FILE}")
+          set(SOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE_FILE}")
+        endif()
+
+        # Check if file exists
+        if(NOT EXISTS "${SOURCE_FILE}")
+          project_log(WARNING "Configure source file not found: ${SOURCE_FILE}")
+          continue()
+        endif()
+
+        # Determine output file path based on whether it's a .in file
+        get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
+        get_filename_component(FILE_PATH "${SOURCE_FILE}" DIRECTORY)
+        get_filename_component(FILE_EXT "${SOURCE_FILE}" EXT)
+
+        # If it's a .in file, remove that extension
+        if(FILE_EXT STREQUAL ".in")
+          string(REGEX REPLACE "\\.in$" "" FILE_NAME "${FILE_NAME}")
+        else()
+          project_log(DEBUG "File extension for file: ${FILE_NAME} is not .in. Will not modify file name extension.")
+        endif()
+
+        # Determine output path
+        set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/configured/${FILE_NAME}")
+
+        # Configure the file
+        configure_file("${SOURCE_FILE}" "${OUTPUT_FILE}" @ONLY)
+        project_log(DEBUG "  Configured: ${SOURCE_FILE} -> ${OUTPUT_FILE}")
+
+        # Only install public and interface files
+        if(NOT SCOPE STREQUAL "PRIVATE")
+          install(
+            FILES "${OUTPUT_FILE}"
+            DESTINATION "${CUSTOM_DEST}"
+            ${COMPONENT_ARGS})
+          project_log(DEBUG "  Will install configured file to: ${CUSTOM_DEST}")
+        endif()
+      endforeach()
+    endif()
+  endforeach()
+
   # Get the source directory for this target
   get_target_property(TARGET_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
