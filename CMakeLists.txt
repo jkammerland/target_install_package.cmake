@@ -22,6 +22,7 @@ endif()
 project_include_guard() # Guard against multiple add_subdirectory
 
 # Include the target install package function
+include(${CMAKE_CURRENT_LIST_DIR}/target_configure_sources.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake)
 
 # TESTS - Include guard, this must be root dir

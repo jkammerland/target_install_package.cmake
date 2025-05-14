@@ -4,6 +4,15 @@ add_library(static2 STATIC)
 target_sources(static2 PRIVATE src2.cpp)
 target_include_directories(static2 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_definitions(static2 PUBLIC "STATIC=1")
+target_configure_sources(
+  static2
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in
+  DESTINATION
+  ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
+target_include_directories(static2 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
 target_install_package(static2 EXPORT_NAME "my_static_package")
 
 add_library(static1 STATIC)

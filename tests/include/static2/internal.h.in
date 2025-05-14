@@ -1,0 +1,3 @@
+#pragma once
+
+#cmakedefine STATIC2_VERSION @PROJECT_VERSION@

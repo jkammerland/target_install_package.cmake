@@ -121,13 +121,14 @@ function(target_install_package TARGET_NAME)
         # Determine output file path based on whether it's a .in file
         get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
         get_filename_component(FILE_PATH "${SOURCE_FILE}" DIRECTORY)
-        get_filename_component(FILE_EXT "${SOURCE_FILE}" EXT)
 
-        # If it's a .in file, remove that extension
-        if(FILE_EXT STREQUAL ".in")
+        # Check if the file name ends with .in
+        string(REGEX MATCH "\\.in$" IS_IN_FILE "${FILE_NAME}")
+        if(IS_IN_FILE)
           string(REGEX REPLACE "\\.in$" "" FILE_NAME "${FILE_NAME}")
+          project_log(DEBUG "  Removing .in extension from ${FILE_NAME}")
         else()
-          project_log(DEBUG "File extension for file: ${FILE_NAME} is not .in. Will not modify file name extension.")
+          project_log(DEBUG "  File does not have .in extension: ${FILE_NAME}")
         endif()
 
         # Determine output path
