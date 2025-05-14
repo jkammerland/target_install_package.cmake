@@ -93,12 +93,12 @@ function(target_install_package TARGET_NAME)
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
-  # Process any configure sources that may have been registered with the target
-  foreach(SCOPE PRIVATE PUBLIC INTERFACE)
-    get_target_property(CONFIGURE_SOURCES ${TARGET_NAME} ${SCOPE}_CONFIGURE_SOURCES)
+  # Process any configured files
+  foreach(SCOPE PUBLIC INTERFACE) # Note: PRIVATE files not installed
+    get_target_property(CONFIGURED_FILES ${TARGET_NAME} ${SCOPE}_CONFIGURED_FILES)
 
-    if(CONFIGURE_SOURCES)
-      project_log(DEBUG "Processing ${SCOPE} configure sources for target ${TARGET_NAME}")
+    if(CONFIGURED_FILES)
+      project_log(DEBUG "Installing ${SCOPE} configured files for target ${TARGET_NAME}")
 
       # Get custom destination or use default
       get_target_property(CUSTOM_DEST ${TARGET_NAME} CONFIGURE_DESTINATION)
@@ -106,46 +106,16 @@ function(target_install_package TARGET_NAME)
         set(CUSTOM_DEST "${ARG_INCLUDE_DESTINATION}")
       endif()
 
-      foreach(SOURCE_FILE ${CONFIGURE_SOURCES})
-        # Make sure the source path is absolute
-        if(NOT IS_ABSOLUTE "${SOURCE_FILE}")
-          set(SOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE_FILE}")
-        endif()
+      # Install the configured files
+      foreach(FILE_PATH ${CONFIGURED_FILES})
+        # Get the base filename without the full path
+        get_filename_component(FILE_NAME "${FILE_PATH}" NAME)
 
-        # Check if file exists
-        if(NOT EXISTS "${SOURCE_FILE}")
-          project_log(WARNING "Configure source file not found: ${SOURCE_FILE}")
-          continue()
-        endif()
-
-        # Determine output file path based on whether it's a .in file
-        get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
-        get_filename_component(FILE_PATH "${SOURCE_FILE}" DIRECTORY)
-
-        # Check if the file name ends with .in
-        string(REGEX MATCH "\\.in$" IS_IN_FILE "${FILE_NAME}")
-        if(IS_IN_FILE)
-          string(REGEX REPLACE "\\.in$" "" FILE_NAME "${FILE_NAME}")
-          project_log(DEBUG "  Removing .in extension from ${FILE_NAME}")
-        else()
-          project_log(DEBUG "  File does not have .in extension: ${FILE_NAME}")
-        endif()
-
-        # Determine output path
-        set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/configured/${FILE_NAME}")
-
-        # Configure the file
-        configure_file("${SOURCE_FILE}" "${OUTPUT_FILE}" @ONLY)
-        project_log(DEBUG "  Configured: ${SOURCE_FILE} -> ${OUTPUT_FILE}")
-
-        # Only install public and interface files
-        if(NOT SCOPE STREQUAL "PRIVATE")
-          install(
-            FILES "${OUTPUT_FILE}"
-            DESTINATION "${CUSTOM_DEST}"
-            ${COMPONENT_ARGS})
-          project_log(DEBUG "  Will install configured file to: ${CUSTOM_DEST}")
-        endif()
+        install(
+          FILES "${FILE_PATH}"
+          DESTINATION "${CUSTOM_DEST}"
+          ${COMPONENT_ARGS})
+        project_log(DEBUG "  Will install configured file to: ${CUSTOM_DEST}/${FILE_NAME}")
       endforeach()
     endif()
   endforeach()
