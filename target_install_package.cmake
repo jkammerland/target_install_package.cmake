@@ -11,12 +11,20 @@ include(CMakePackageConfigHelpers)
 #   [NAMESPACE]: The CMake namespace for the export (default: `${TARGET_NAME}::`).
 #   [VERSION]: The version of the package (default: `${PROJECT_VERSION}`).
 #   [COMPATIBILITY]: Compatibility mode for version (default: `"SameMajorVersion"`).
-#   [EXPORT_NAME: Name of the CMake export file (default: `${TARGET_NAME}-targets`).
+#   [EXPORT_NAME]: Name of the CMake export file (default: `${TARGET_NAME}-targets`).
 #   [CONFIG_TEMPLATE]: Path to a CMake config template file (default: auto-detected, falls back to generic).
 #   [INCLUDE_DESTINATION]: Destination path for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}`).
 #   [MODULE_DESTINATION]: Destination path for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules`).
 #   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}`).
-#   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime").
+#
+#   Component parameters:
+#   [COMPONENT]: Optional component name for ALL installation items (legacy, prefer specific components below).
+#   [RUNTIME_COMPONENT]: Component for runtime artifacts like executables and shared libraries (default: "Runtime").
+#   [LIBRARY_COMPONENT]: Component for shared libraries on non-DLL platforms (default: "Runtime").
+#   [ARCHIVE_COMPONENT]: Component for static libraries and import libraries (default: "Development").
+#   [HEADER_COMPONENT]: Component for header files and public interfaces (default: "Development").
+#   [CONFIG_COMPONENT]: Component for CMake configuration files (default: "Development").
+#
 #   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
 #   [ADDITIONAL_TARGETS]: List of additional targets to include in the same export set.
 # ~~~
@@ -32,7 +40,12 @@ function(target_install_package TARGET_NAME)
       INCLUDE_DESTINATION
       MODULE_DESTINATION
       CMAKE_CONFIG_DESTINATION
-      COMPONENT)
+      COMPONENT
+      RUNTIME_COMPONENT
+      LIBRARY_COMPONENT
+      ARCHIVE_COMPONENT
+      HEADER_COMPONENT
+      CONFIG_COMPONENT)
   set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -52,6 +65,7 @@ function(target_install_package TARGET_NAME)
   endif()
 
   project_log(DEBUG "Creating installation target for '${TARGET_NAME}'...")
+
   # Set default values if not provided
   if(NOT DEFINED ARG_NAMESPACE)
     set(ARG_NAMESPACE "${TARGET_NAME}::")
@@ -93,6 +107,50 @@ function(target_install_package TARGET_NAME)
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
+  # Handle component configuration If a global COMPONENT is specified, use it for everything
+  if(DEFINED ARG_COMPONENT AND ARG_COMPONENT)
+    set(COMPONENT_RUNTIME ${ARG_COMPONENT})
+    set(COMPONENT_LIBRARY ${ARG_COMPONENT})
+    set(COMPONENT_ARCHIVE ${ARG_COMPONENT})
+    set(COMPONENT_HEADER ${ARG_COMPONENT})
+    set(COMPONENT_CONFIG ${ARG_COMPONENT})
+    project_log(DEBUG "  Using global component '${ARG_COMPONENT}' for all installation types")
+  else()
+    # Set default components if not provided
+    if(NOT DEFINED ARG_RUNTIME_COMPONENT)
+      set(ARG_RUNTIME_COMPONENT "Runtime")
+    endif()
+
+    if(NOT DEFINED ARG_LIBRARY_COMPONENT)
+      set(ARG_LIBRARY_COMPONENT "Runtime")
+    endif()
+
+    if(NOT DEFINED ARG_ARCHIVE_COMPONENT)
+      set(ARG_ARCHIVE_COMPONENT "Development")
+    endif()
+
+    if(NOT DEFINED ARG_HEADER_COMPONENT)
+      set(ARG_HEADER_COMPONENT "Development")
+    endif()
+
+    if(NOT DEFINED ARG_CONFIG_COMPONENT)
+      set(ARG_CONFIG_COMPONENT "Development")
+    endif()
+
+    set(COMPONENT_RUNTIME ${ARG_RUNTIME_COMPONENT})
+    set(COMPONENT_LIBRARY ${ARG_LIBRARY_COMPONENT})
+    set(COMPONENT_ARCHIVE ${ARG_ARCHIVE_COMPONENT})
+    set(COMPONENT_HEADER ${ARG_HEADER_COMPONENT})
+    set(COMPONENT_CONFIG ${ARG_CONFIG_COMPONENT})
+
+    project_log(DEBUG "  Using component-specific installation:")
+    project_log(DEBUG "    Runtime: ${COMPONENT_RUNTIME}")
+    project_log(DEBUG "    Library: ${COMPONENT_LIBRARY}")
+    project_log(DEBUG "    Archive: ${COMPONENT_ARCHIVE}")
+    project_log(DEBUG "    Header:  ${COMPONENT_HEADER}")
+    project_log(DEBUG "    Config:  ${COMPONENT_CONFIG}")
+  endif()
+
   # Process any configured files
   foreach(SCOPE PUBLIC INTERFACE) # Note: PRIVATE files not installed
     get_target_property(CONFIGURED_FILES ${TARGET_NAME} ${SCOPE}_CONFIGURED_FILES)
@@ -114,8 +172,8 @@ function(target_install_package TARGET_NAME)
         install(
           FILES "${FILE_PATH}"
           DESTINATION "${CUSTOM_DEST}"
-          ${COMPONENT_ARGS})
-        project_log(DEBUG "  Will install configured file to: ${CUSTOM_DEST}/${FILE_NAME}")
+          COMPONENT ${COMPONENT_HEADER})
+        project_log(DEBUG "  Will install configured file to: ${CUSTOM_DEST}/${FILE_NAME} (${COMPONENT_HEADER})")
       endforeach()
     endif()
   endforeach()
@@ -124,30 +182,25 @@ function(target_install_package TARGET_NAME)
   get_target_property(TARGET_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
 
-  # Define component if specified
-  set(COMPONENT_ARGS "")
-  if(DEFINED ARG_COMPONENT AND ARG_COMPONENT)
-    set(COMPONENT_ARGS COMPONENT ${ARG_COMPONENT})
-    project_log(DEBUG "  Installing target with component: ${ARG_COMPONENT}")
-  endif()
-
-  # Install the target with appropriate destinations
+  # Install the target with appropriate destinations and components
   install(
     TARGETS ${TARGET_NAME} ${ARG_ADDITIONAL_TARGETS}
     EXPORT ${ARG_EXPORT_NAME}
-    ${COMPONENT_ARGS}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT ${COMPONENT_RUNTIME}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT ${COMPONENT_LIBRARY}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT ${COMPONENT_ARCHIVE}
     INCLUDES
     DESTINATION ${ARG_INCLUDE_DESTINATION}
     PUBLIC_HEADER
       DESTINATION ${ARG_INCLUDE_DESTINATION}
+      COMPONENT ${COMPONENT_HEADER}
       FILE_SET HEADERS
       DESTINATION ${ARG_INCLUDE_DESTINATION}
+      COMPONENT ${COMPONENT_HEADER}
       # Add C++20 modules support
       FILE_SET CXX_MODULES
-      DESTINATION ${ARG_MODULE_DESTINATION})
+      DESTINATION ${ARG_MODULE_DESTINATION}
+      COMPONENT ${COMPONENT_HEADER})
 
   # Check if project has a generated config header
   set(POTENTIAL_CONFIG_HEADER "${CMAKE_CURRENT_BINARY_DIR}/include/${TARGET_NAME}/${TARGET_NAME}_config.h")
@@ -156,7 +209,7 @@ function(target_install_package TARGET_NAME)
     install(
       FILES "${POTENTIAL_CONFIG_HEADER}"
       DESTINATION ${ARG_INCLUDE_DESTINATION}
-      ${COMPONENT_ARGS})
+      COMPONENT ${COMPONENT_HEADER})
   else()
     project_log(DEBUG "  No generated config header found for target: ${TARGET_NAME}, expected at: ${POTENTIAL_CONFIG_HEADER}")
   endif()
@@ -180,8 +233,8 @@ function(target_install_package TARGET_NAME)
       install(
         FILES "${SRC_FILE_PATH}"
         DESTINATION "${ARG_INCLUDE_DESTINATION}/${FILE_INSTALL_DIR}"
-        ${COMPONENT_ARGS})
-      project_log(DEBUG "  Installing additional file: ${SRC_FILE_PATH} to ${ARG_INCLUDE_DESTINATION}/${FILE_INSTALL_DIR}")
+        COMPONENT ${COMPONENT_HEADER})
+      project_log(DEBUG "  Installing additional file: ${SRC_FILE_PATH} to ${ARG_INCLUDE_DESTINATION}/${FILE_INSTALL_DIR} (${COMPONENT_HEADER})")
     endforeach()
   endif()
 
@@ -191,7 +244,7 @@ function(target_install_package TARGET_NAME)
     FILE ${ARG_EXPORT_NAME}.cmake
     NAMESPACE ${ARG_NAMESPACE}
     DESTINATION ${ARG_CMAKE_CONFIG_DESTINATION}
-    ${COMPONENT_ARGS})
+    COMPONENT ${COMPONENT_CONFIG})
 
   # Create package version file
   write_basic_package_version_file(
@@ -254,7 +307,7 @@ function(target_install_package TARGET_NAME)
   install(
     FILES "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}-config.cmake" "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}-config-version.cmake"
     DESTINATION ${ARG_CMAKE_CONFIG_DESTINATION}
-    ${COMPONENT_ARGS})
+    COMPONENT ${COMPONENT_CONFIG})
 
   project_log(STATUS "Installation target for '${TARGET_NAME}' configured successfully.")
 endfunction(target_install_package)
