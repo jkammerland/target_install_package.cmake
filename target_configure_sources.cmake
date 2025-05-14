@@ -93,7 +93,7 @@ function(target_configure_sources TARGET_NAME)
 
         # For PUBLIC and INTERFACE, use generator expressions to handle build vs install paths
         project_log(DEBUG "  Adding ${SCOPE} include directory for ${TARGET_NAME}: ${CONFIG_OUTPUT_DIR} (build) -> ${CUSTOM_DEST} (install)")
-        target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${CONFIG_OUTPUT_DIR}> $<INSTALL_INTERFACE:${CUSTOM_DEST}>)
+        target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/configured> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
         # Only add to FILE_SET if it's not an executable and we have files
         get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
