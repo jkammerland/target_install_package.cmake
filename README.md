@@ -81,7 +81,7 @@ target_install_package(static_lib EXPORT_NAME "my_package")
 ```
 # Multi-Static Library Installation Example
 
-This example demonstrates how to properly install multiple static libraries that depend on each other using the `target_install_package` utility.
+This example demonstrates how to install multiple static libraries that depend on each other using the `target_install_package` utility.
 
 ## Project Structure
 
@@ -112,22 +112,6 @@ my_project/
     │       └── version.h.in
     └── src/
         └── utils.cpp
-```
-
-## Main CMakeLists.txt
-
-```cmake
-cmake_minimum_required(VERSION 3.28)
-project(my_project VERSION 1.0.0)
-
-# Include utility functions
-include(path/to/target_configure_sources.cmake)
-include(path/to/target_install_package.cmake)
-
-# Add subdirectories for libraries
-add_subdirectory(core)
-add_subdirectory(math)
-add_subdirectory(utils)
 ```
 
 ## Approach 1: Using ADDITIONAL_TARGETS
