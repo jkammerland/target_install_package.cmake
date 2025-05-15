@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.28) # 3.28 for CXX_MODULES
+cmake_minimum_required(VERSION 3.25) # 3.25 for CXX_MODULES
 
-project(target_install_package VERSION 1.0.2)
+project(target_install_package VERSION 1.0.3)
 
 # Get the project log package
 set(PROJECT_LOG_VERSION "1.0.5")

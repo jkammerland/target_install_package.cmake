@@ -13,7 +13,7 @@ target_configure_sources(
   DESTINATION
   ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
 target_include_directories(static2 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
-target_install_package(static2 EXPORT_NAME "my_static_package")
+target_install_package(static2 EXPORT_NAME "my_static_package") # Same as static2
 
 add_library(static1 STATIC)
 target_sources(static1 PRIVATE src1.cpp)
@@ -26,7 +26,7 @@ target_sources(static1 PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE
 target_link_libraries(static1 PRIVATE static2)
 
 # target_install_package(static1 ADDITIONAL_TARGETS static2)
-target_install_package(static1 EXPORT_NAME "my_static_package")
+target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static2
 
 add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)

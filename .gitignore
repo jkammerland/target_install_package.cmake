@@ -10,5 +10,5 @@ scratch/*
 python-bindings/testenv/*
 .vs/*
 out/
-.continue/
+.continue/*
 CMakeSettings.json
