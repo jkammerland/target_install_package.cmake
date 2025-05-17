@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 1.0.6)
+project(target_install_package VERSION 1.1.0)
 
 # Get the project log package
 set(PROJECT_LOG_VERSION "1.0.5")

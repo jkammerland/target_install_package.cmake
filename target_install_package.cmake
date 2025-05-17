@@ -89,6 +89,9 @@ function(target_install_package TARGET_NAME)
   endif()
 
   if(NOT DEFINED ARG_CMAKE_CONFIG_DESTINATION)
+    if(NOT DEFINED CMAKE_INSTALL_DATADIR)
+      set(CMAKE_INSTALL_DATADIR "${CMAKE_INSTALL_PREFIX}/share")
+    endif()
     set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}")
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
@@ -165,16 +168,25 @@ function(target_install_package TARGET_NAME)
         DESTINATION ${ARG_INCLUDE_DESTINATION})
   endif()
 
-  # Check if project has a generated config header
-  set(POTENTIAL_CONFIG_HEADER "${CMAKE_CURRENT_BINARY_DIR}/include/${TARGET_NAME}/${TARGET_NAME}_config.h")
-  if(EXISTS "${POTENTIAL_CONFIG_HEADER}")
-    project_log(DEBUG "  Found generated config header for target: ${TARGET_NAME} at ${POTENTIAL_CONFIG_HEADER}")
-    install(
-      FILES "${POTENTIAL_CONFIG_HEADER}"
-      DESTINATION ${ARG_INCLUDE_DESTINATION}
-      ${COMPONENT_ARGS})
+  # Check for generated config headers (.h and .hpp)
+  set(CONFIG_HEADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/include/${TARGET_NAME}")
+  if(EXISTS "${CONFIG_HEADER_DIR}")
+    file(GLOB CONFIG_HEADERS "${CONFIG_HEADER_DIR}/*.h" "${CONFIG_HEADER_DIR}/*.hpp")
+    if(CONFIG_HEADERS)
+      project_log(DEBUG "  Found generated config headers for target: ${TARGET_NAME}")
+      foreach(HEADER_FILE ${CONFIG_HEADERS})
+        get_filename_component(HEADER_NAME "${HEADER_FILE}" NAME)
+        project_log(DEBUG "    - ${HEADER_NAME}")
+        install(
+          FILES "${HEADER_FILE}"
+          DESTINATION ${ARG_INCLUDE_DESTINATION}
+          ${COMPONENT_ARGS})
+      endforeach()
+    else()
+      project_log(DEBUG "  No generated config headers found for target: ${TARGET_NAME} in ${CONFIG_HEADER_DIR}")
+    endif()
   else()
-    project_log(DEBUG "  No generated config header found for target: ${TARGET_NAME}, expected at: ${POTENTIAL_CONFIG_HEADER}")
+    project_log(DEBUG "  Generated config header directory not found: ${CONFIG_HEADER_DIR}")
   endif()
 
   # Install any additional files
@@ -217,9 +229,11 @@ function(target_install_package TARGET_NAME)
 
   # Prepare public dependencies content for the config file template
   set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "")
-  if(${${TARGET_NAME}_PUBLIC_DEPENDENCIES})
-    string(JOIN "\n  " deps_string ${${TARGET_NAME}_PUBLIC_DEPENDENCIES})
-    set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "${deps_string}")
+  if(${TARGET_NAME}_PUBLIC_DEPENDENCIES)
+    set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "# Package dependencies\n")
+    foreach(dep ${${TARGET_NAME}_PUBLIC_DEPENDENCIES})
+      string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
+    endforeach()
     project_log(VERBOSE "Found public dependencies for target '${TARGET_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")
   endif()
 

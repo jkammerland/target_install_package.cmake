@@ -1,5 +1,8 @@
 project(tests VERSION 1.0.0)
 
+include(get_cpm.cmake)
+cpmaddpackage("gh:fmtlib/fmt#11.1.4")
+
 add_library(static2 STATIC)
 target_sources(static2 PRIVATE src2.cpp)
 target_include_directories(static2 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
@@ -23,7 +26,7 @@ target_compile_definitions(static1 PUBLIC "STATIC=1")
 target_sources(static1 PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/tests/header.h")
 
 # Link static2 to static1
-target_link_libraries(static1 PRIVATE static2)
+target_link_libraries(static1 PRIVATE static2 fmt)
 
 # target_install_package(static1 ADDITIONAL_TARGETS static2)
 target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static2
