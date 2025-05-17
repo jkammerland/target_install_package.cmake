@@ -15,7 +15,7 @@ include(CMakePackageConfigHelpers)
 #   [CONFIG_TEMPLATE]: Path to a CMake config template file (default: auto-detected, falls back to generic).
 #   [INCLUDE_DESTINATION]: Destination path for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}`).
 #   [MODULE_DESTINATION]: Destination path for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules`).
-#   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}`).
+#   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}`).
 #   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime").
 #   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
 #   [ADDITIONAL_TARGETS]: List of additional targets to include in the same export set.
@@ -89,7 +89,7 @@ function(target_install_package TARGET_NAME)
   endif()
 
   if(NOT DEFINED ARG_CMAKE_CONFIG_DESTINATION)
-    set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}")
+    set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}")
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 

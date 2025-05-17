@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.25) # 3.25 for CXX_MODULES
+cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 1.0.3)
+project(target_install_package VERSION 1.0.4)
 
 # Get the project log package
 set(PROJECT_LOG_VERSION "1.0.5")
@@ -25,8 +25,8 @@ project_include_guard() # Guard against multiple add_subdirectory
 include(${CMAKE_CURRENT_LIST_DIR}/target_configure_sources.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake)
 
-# TESTS - Include guard, this must be root dir
-if(NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_LIST_DIR})
+option(${PROJECT_NAME}_ENABLE_TESTS "Run the tests" OFF)
+if(${PROJECT_NAME}_TESTS)
   return()
 else()
   project_log(VERBOSE "Running standalone, including tests...")
