@@ -23,7 +23,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v1.1.0
+  GIT_TAG v2.0.0
 )
 FetchContent_MakeAvailable(target_install_package)
 ```

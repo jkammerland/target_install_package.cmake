@@ -2,17 +2,13 @@
 
 include(CMakeFindDependencyMacro)
 
-# Add any public dependencies.
-# PACKAGE_PUBLIC_DEPENDENCIES_CONTENT will be set in target_install_package.cmake
-# to the newline-separated list of find_dependency(...) calls.
+# Add dependencies
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@
 
-# Include the targets file.
-# ARG_EXPORT_NAME is the name of the export file, e.g., <TARGET_NAME>-targets.
-# TARGET_NAME is the name of the target being packaged.
-# Both are set in target_install_package.cmake.
+# Include additional CMake files
+@PACKAGE_PUBLIC_CMAKE_FILES@
+
+# Include the targets file
 include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@.cmake")
 
-# Check for required components for the package.
-# TARGET_NAME will be replaced by the actual target name.
 check_required_components(@TARGET_NAME@)

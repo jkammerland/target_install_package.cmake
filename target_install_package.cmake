@@ -1,5 +1,11 @@
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+
+# Set policy for install() DESTINATION path normalization if supported
+if(POLICY CMP0177)
+  cmake_policy(SET CMP0177 NEW)
+endif()
+
 # ~~~
 # Function to create a CMake installation target for a given library or executable.
 # This function sets up installation rules for headers, libraries, config files,
@@ -18,7 +24,9 @@ include(CMakePackageConfigHelpers)
 #   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}`).
 #   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime").
 #   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
+#   [ADDITIONAL_FILES_DESTINATION]: Destination subdirectory for additional files (default: `files`).
 #   [ADDITIONAL_TARGETS]: List of additional targets to include in the same export set.
+#   [PUBLIC_CMAKE_FILES]: List of additional files to install as public CMake files (default: auto-detected)
 # ~~~
 function(target_install_package TARGET_NAME)
   # Parse function arguments
@@ -32,8 +40,9 @@ function(target_install_package TARGET_NAME)
       INCLUDE_DESTINATION
       MODULE_DESTINATION
       CMAKE_CONFIG_DESTINATION
-      COMPONENT)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS)
+      COMPONENT
+      ADDITIONAL_FILES_DESTINATION)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_CMAKE_FILES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Check if target exists
@@ -191,6 +200,18 @@ function(target_install_package TARGET_NAME)
 
   # Install any additional files
   if(ARG_ADDITIONAL_FILES)
+    # Set default additional files destination if not specified
+    if(NOT DEFINED ARG_ADDITIONAL_FILES_DESTINATION)
+      set(ARG_ADDITIONAL_FILES_DESTINATION "files")
+      project_log(DEBUG "  Additional files destination not provided, using default: ${ARG_ADDITIONAL_FILES_DESTINATION}")
+    endif()
+    
+    # Prepare the destination path
+    set(ADDITIONAL_FILES_DEST_PATH "${ARG_INCLUDE_DESTINATION}")
+    if(ARG_ADDITIONAL_FILES_DESTINATION)
+      set(ADDITIONAL_FILES_DEST_PATH "${ARG_INCLUDE_DESTINATION}/${ARG_ADDITIONAL_FILES_DESTINATION}")
+    endif()
+
     foreach(FILE_PATH ${ARG_ADDITIONAL_FILES})
       if(IS_ABSOLUTE "${FILE_PATH}")
         set(SRC_FILE_PATH "${FILE_PATH}")
@@ -204,12 +225,11 @@ function(target_install_package TARGET_NAME)
       endif()
 
       get_filename_component(FILE_NAME ${FILE_PATH} NAME)
-      get_filename_component(FILE_INSTALL_DIR ${FILE_PATH} DIRECTORY)
       install(
         FILES "${SRC_FILE_PATH}"
-        DESTINATION "${ARG_INCLUDE_DESTINATION}/${FILE_INSTALL_DIR}"
+        DESTINATION "${ADDITIONAL_FILES_DEST_PATH}"
         ${COMPONENT_ARGS})
-      project_log(DEBUG "  Installing additional file: ${SRC_FILE_PATH} to ${ARG_INCLUDE_DESTINATION}/${FILE_INSTALL_DIR}")
+      project_log(DEBUG "  Installing additional file: ${SRC_FILE_PATH} to ${ADDITIONAL_FILES_DEST_PATH}")
     endforeach()
   endif()
 
@@ -272,6 +292,38 @@ function(target_install_package TARGET_NAME)
     else()
       project_log(FATAL_ERROR "No config template found. Generic template expected at ${CANDIDATE_CONFIG_TEMPLATE} but not found.")
     endif()
+  endif()
+
+  # Prepare public CMake files content
+  set(PACKAGE_PUBLIC_CMAKE_FILES "")
+  if(ARG_PUBLIC_CMAKE_FILES)
+    project_log(DEBUG "Processing public CMake files for target '${TARGET_NAME}':")
+    foreach(cmake_file ${ARG_PUBLIC_CMAKE_FILES})
+      # Validate the file exists
+      if(IS_ABSOLUTE "${cmake_file}")
+        set(SRC_CMAKE_FILE "${cmake_file}")
+      else()
+        set(SRC_CMAKE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${cmake_file}")
+      endif()
+
+      if(NOT EXISTS "${SRC_CMAKE_FILE}")
+        project_log(WARNING "  Public CMake file not found: ${SRC_CMAKE_FILE}")
+        continue()
+      endif()
+
+      # Extract just the filename
+      get_filename_component(file_name "${cmake_file}" NAME)
+
+      # Install the file
+      install(
+        FILES "${SRC_CMAKE_FILE}"
+        DESTINATION "${ARG_CMAKE_CONFIG_DESTINATION}"
+        ${COMPONENT_ARGS})
+      project_log(DEBUG "  Installing public CMake file: ${SRC_CMAKE_FILE} to ${ARG_CMAKE_CONFIG_DESTINATION}")
+
+      # Add include statement to the config content
+      string(APPEND PACKAGE_PUBLIC_CMAKE_FILES "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
+    endforeach()
   endif()
 
   # Configure and generate package config file
