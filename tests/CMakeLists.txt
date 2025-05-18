@@ -1,7 +1,9 @@
 project(tests VERSION 1.0.0)
 
 include(get_cpm.cmake)
+set(FMT_INSTALL ON)
 cpmaddpackage("gh:fmtlib/fmt#11.1.4")
+target_compile_options(fmt PRIVATE -fPIC)
 
 add_library(static2 STATIC)
 target_sources(static2 PRIVATE src2.cpp)
@@ -35,7 +37,9 @@ add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)
 target_include_directories(shared1 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_definitions(shared1 PRIVATE "SHARED=1") # PRIVATE FOR TESTING
-target_install_package(shared1)
+target_compile_options(shared1 PUBLIC -fPIC)
+target_link_libraries(shared1 PUBLIC fmt)
+target_install_package(shared1 PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED")
 
 add_library(interface1 INTERFACE)
 target_include_directories(interface1 INTERFACE include)

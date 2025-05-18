@@ -7,5 +7,6 @@ inline int foo_interface() { return 1337; }
 int foo_static();
 #endif
 #ifdef SHARED
+#include <fmt/format.h>
 int foo_shared();
 #endif

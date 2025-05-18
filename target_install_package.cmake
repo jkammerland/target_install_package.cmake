@@ -26,7 +26,8 @@ endif()
 #   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
 #   [ADDITIONAL_FILES_DESTINATION]: Destination subdirectory for additional files (default: `files`).
 #   [ADDITIONAL_TARGETS]: List of additional targets to include in the same export set.
-#   [PUBLIC_CMAKE_FILES]: List of additional files to install as public CMake files (default: auto-detected)
+#   [PUBLIC_DEPENDENCIES]: List of public dependencies to find and install.
+#   [PUBLIC_CMAKE_FILES]: List of additional files to install as public CMake files.
 # ~~~
 function(target_install_package TARGET_NAME)
   # Parse function arguments
@@ -42,7 +43,7 @@ function(target_install_package TARGET_NAME)
       CMAKE_CONFIG_DESTINATION
       COMPONENT
       ADDITIONAL_FILES_DESTINATION)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_CMAKE_FILES)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Check if target exists
@@ -205,7 +206,7 @@ function(target_install_package TARGET_NAME)
       set(ARG_ADDITIONAL_FILES_DESTINATION "files")
       project_log(DEBUG "  Additional files destination not provided, using default: ${ARG_ADDITIONAL_FILES_DESTINATION}")
     endif()
-    
+
     # Prepare the destination path
     set(ADDITIONAL_FILES_DEST_PATH "${ARG_INCLUDE_DESTINATION}")
     if(ARG_ADDITIONAL_FILES_DESTINATION)
@@ -249,9 +250,9 @@ function(target_install_package TARGET_NAME)
 
   # Prepare public dependencies content for the config file template
   set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "")
-  if(${TARGET_NAME}_PUBLIC_DEPENDENCIES)
+  if(ARG_PUBLIC_DEPENDENCIES) # Check the parsed argument
     set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "# Package dependencies\n")
-    foreach(dep ${${TARGET_NAME}_PUBLIC_DEPENDENCIES})
+    foreach(dep ${ARG_PUBLIC_DEPENDENCIES}) # Iterate over the parsed argument
       string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
     endforeach()
     project_log(VERBOSE "Found public dependencies for target '${TARGET_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")

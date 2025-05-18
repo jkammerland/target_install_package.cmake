@@ -23,6 +23,10 @@ add_library(${PROJECT_NAME} INTERFACE)
 # Use target_install_package to install itself and target_configure_sources
 target_install_package(
   ${PROJECT_NAME}
+  ADDITIONAL_FILES
+  ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in
+  ADDITIONAL_FILES_DESTINATION
+  "cmake"
   PUBLIC_CMAKE_FILES
   ${CMAKE_CURRENT_LIST_DIR}/cmake/list_file_include_guard.cmake
   ${CMAKE_CURRENT_LIST_DIR}/cmake/project_include_guard.cmake
@@ -39,8 +43,8 @@ target_install_package(
   INCLUDE_DESTINATION
   ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME})
 
-option(${PROJECT_NAME}_ENABLE_TESTS "Run the tests" OFF)
-if(${PROJECT_NAME}_ENABLE_TESTS)
+option(${PROJECT_NAME}_BUILD_TESTS "Run the tests" OFF)
+if(${PROJECT_NAME}_BUILD_TESTS)
   project_log(VERBOSE "Running standalone, including tests...")
   add_subdirectory(tests)
 endif()
