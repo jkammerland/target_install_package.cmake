@@ -12,3 +12,4 @@ python-bindings/testenv/*
 out/
 .continue/*
 CMakeSettings.json
+.aider*

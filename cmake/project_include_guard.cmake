@@ -1,4 +1,4 @@
-list_file_include_guard(VERSION 1.2.0)
+list_file_include_guard(VERSION 1.2.1)
 
 # ~~~
 # project_include_guard.cmake
@@ -32,44 +32,37 @@ macro(project_include_guard)
     message(FATAL_ERROR "project_include_guard: PROJECT_VERSION_MAJOR is not defined")
   endif()
 
-  set(_PIG_NAME ${PROJECT_NAME})
-  set(_PIG_VERSION ${PROJECT_VERSION})
-  set(_PIG_PROPERTY "${_PIG_NAME}_INITIALIZED")
-
-  # Define the property name for tracking inclusion
-  set(_PIG_INCLUDE_VAR "${_PIG_NAME}_INCLUDED")
-
   # Version checking without preventing inclusion
   get_property(
     _PIG_HAS_VERSION GLOBAL
-    PROPERTY ${_PIG_INCLUDE_VAR}
+    PROPERTY "${PROJECT_NAME}_INCLUDED"
     SET)
   if(_PIG_HAS_VERSION)
-    get_property(_PIG_INCLUDED_VERSION GLOBAL PROPERTY ${_PIG_INCLUDE_VAR})
+    get_property(_PIG_INCLUDED_VERSION GLOBAL PROPERTY "${PROJECT_NAME}_INCLUDED")
 
     string(REGEX MATCH "^[0-9]+" _PIG_INCLUDED_MAJOR "${_PIG_INCLUDED_VERSION}")
     if(NOT ${PROJECT_VERSION_MAJOR} VERSION_EQUAL ${_PIG_INCLUDED_MAJOR})
-      message(FATAL_ERROR "Project major version MISMATCH, included: ${PROJECT_NAME}[${_PIG_VERSION}] and currently used: ${PROJECT_NAME}[${_PIG_INCLUDED_VERSION}]")
-    elseif(${_PIG_VERSION} VERSION_GREATER ${_PIG_INCLUDED_VERSION})
-      message(WARNING "Included project ${_PIG_NAME} [${_PIG_VERSION}]. Current version is older [${_PIG_INCLUDED_VERSION}]. You may need to update if not forwards compatible.")
-    elseif(${_PIG_VERSION} VERSION_LESS ${_PIG_INCLUDED_VERSION})
-      message(VERBOSE "Included project ${_PIG_NAME} [${_PIG_VERSION}]. Current version is newer [${_PIG_INCLUDED_VERSION}]")
+      message(FATAL_ERROR "Project major version MISMATCH, included: ${PROJECT_NAME}[${PROJECT_VERSION}] and currently used: ${PROJECT_NAME}[${_PIG_INCLUDED_VERSION}]")
+    elseif(${PROJECT_VERSION} VERSION_GREATER ${_PIG_INCLUDED_VERSION})
+      message(WARNING "Included project ${PROJECT_NAME} [${PROJECT_VERSION}]. Current version is older [${_PIG_INCLUDED_VERSION}]. You may need to update if not forwards compatible.")
+    elseif(${PROJECT_VERSION} VERSION_LESS ${_PIG_INCLUDED_VERSION})
+      message(VERBOSE "Included project ${PROJECT_NAME} [${PROJECT_VERSION}]. Current version is newer [${_PIG_INCLUDED_VERSION}]")
     endif()
 
     get_property(
       _PIG_INITIALIZED GLOBAL
-      PROPERTY ${_PIG_PROPERTY}
+      PROPERTY "${PROJECT_NAME}_INITIALIZED"
       SET)
     if(_PIG_INITIALIZED)
       return()
     endif()
   else()
     # Mark as included with current version
-    set_property(GLOBAL PROPERTY ${_PIG_INCLUDE_VAR} ${_PIG_VERSION})
+    set_property(GLOBAL PROPERTY "${PROJECT_NAME}_INCLUDED" ${PROJECT_VERSION})
 
     # Only log VERBOSE the first time it's included
-    message(VERBOSE "Loaded module ${_PIG_NAME} [${_PIG_VERSION}]")
+    message(VERBOSE "Loaded module ${PROJECT_NAME} [${PROJECT_VERSION}]")
   endif()
 
-  set_property(GLOBAL PROPERTY ${_PIG_PROPERTY} true)
+  set_property(GLOBAL PROPERTY "${PROJECT_NAME}_INITIALIZED" true)
 endmacro()
