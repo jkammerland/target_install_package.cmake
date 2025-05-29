@@ -2,8 +2,7 @@
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-
-A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate.
+A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux, Windows, and macOS are supported. But other platforms should work as well if they can run CMake.
 
 ## Table of Contents
 
@@ -11,7 +10,7 @@ A collection of CMake utilities for configuring templated source files and creat
 2. [Integration](#integration)
 3. [Usage](#usage)
    - [Modern Header Installation with FILE_SET](#modern-header-installation-with-file_set-recommended)
-   - [Header Installation for Multiple Files and Public dependencies](#header-installation-for-multiple-files-and-public-dependencies)
+   - [Header Installation for Multiple Files and Public Dependencies](#header-installation-for-multiple-files-and-public-dependencies)
 4. [Component-Based Installation](#component-based-installation)
    - [Default Component Behavior](#default-component-behavior)
    - [Custom Component Names](#custom-component-names)
@@ -40,26 +39,26 @@ A collection of CMake utilities for configuring templated source files and creat
 - **Flexible destination paths** for headers and configured files
 - **Proper build and install interfaces** using generator expressions
 
-### TIPs:
+### Tips:
 > [!TIP]
-> Use colors and higher log level for more information about what is going on.
+> Use colors and higher log level for more information about what's going on.
 ```bash
 cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 ```
 
 > [!TIP]
-> Remember you can use CMake's built-in property for position independent code, for SHARED libraries. It is the most platform agnostic way to enable PIC.
+> Remember you can use CMake's built-in property for position independent code for SHARED libraries. It's the most platform-agnostic way to enable PIC.
 ```cmake
 set_target_properties(yourTarget PROPERTIES POSITION_INDEPENDENT_CODE ON)
 ```
+
 > [!TIP]
-> Windows-specific: ensure import library is generated (if you have don't have explicit dllimport/export definitions in your code)
+> Windows-specific: ensure import library is generated (if you don't have explicit dllimport/export definitions in your code)
 ```cmake
 if(WIN32)
   set_target_properties(yourTarget PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 ```
-
 
 ## Integration
 
@@ -171,7 +170,7 @@ target_install_package(
 )
 ```
 
-### Header Installation for Multiple Files and Public dependencies
+### Header Installation for Multiple Files and Public Dependencies
 
 For libraries with many headers, use file globbing:
 
@@ -210,7 +209,7 @@ target_install_package(graphics_lib
 # find_dependency(OpenGL 4.5 REQUIRED)
 # find_dependency(glfw3 3.3 REQUIRED EXACT)
 
-# The arguments are simply forwarded, so you can use any of the following arguments:
+# The arguments are simply forwarded, so you can use any of the following:
 # - `REQUIRED`
 # - `EXACT` 
 # - `QUIET`
