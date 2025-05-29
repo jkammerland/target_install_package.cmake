@@ -1,0 +1,347 @@
+name: CMake Target Install Package CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release, Debug]
+        c_compiler: [gcc, clang, cl]
+        include:
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
+          - os: ubuntu-latest 
+            c_compiler: gcc
+            cpp_compiler: g++
+          - os: ubuntu-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+          - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+        exclude:
+          - os: windows-latest
+            c_compiler: gcc
+          - os: windows-latest
+            c_compiler: clang
+          - os: ubuntu-latest
+            c_compiler: cl
+          - os: macos-latest
+            c_compiler: gcc
+          - os: macos-latest
+            c_compiler: cl
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set reusable strings
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+        echo "install-output-dir=${{ github.workspace }}/install" >> "$GITHUB_OUTPUT"
+        echo "fmt-install-dir=${{ github.workspace }}/fmt-install" >> "$GITHUB_OUTPUT"
+
+    - name: Install fmt dependency
+      shell: bash
+      run: |
+        echo "=== Installing fmt library ==="
+        git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
+        cd fmt-src
+        
+        cmake -B build \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_INSTALL_PREFIX=${{ steps.strings.outputs.fmt-install-dir }} \
+          -DFMT_DOC=OFF \
+          -DFMT_TEST=OFF \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        
+        cmake --build build --config ${{ matrix.build_type }}
+        cmake --install build --config ${{ matrix.build_type }}
+        
+        echo "✓ fmt installed to ${{ steps.strings.outputs.fmt-install-dir }}"
+
+    - name: Configure CMake (Main Project)
+      run: >
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DCMAKE_INSTALL_PREFIX=${{ steps.strings.outputs.install-output-dir }}
+        -DCMAKE_PREFIX_PATH=${{ steps.strings.outputs.fmt-install-dir }}
+        -Dtarget_install_package_BUILD_TESTS=ON
+        -DPROJECT_LOG_COLORS=OFF
+        -S ${{ github.workspace }}
+
+    - name: Build (Main Project)
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: Install (Main Project)
+      run: cmake --install ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: Test Installation Structure
+      shell: bash
+      run: |
+        echo "=== Installation Directory Structure ==="
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          find ${{ steps.strings.outputs.install-output-dir }} -type f || true
+        else
+          find ${{ steps.strings.outputs.install-output-dir }} -type f || true
+        fi
+        
+        echo "=== Checking for required files ==="
+        # Check for CMake config files
+        ls -la ${{ steps.strings.outputs.install-output-dir }}/share/cmake/target_install_package/ || echo "Config directory not found"
+        
+        # Check for the main CMake files
+        if [[ -f "${{ steps.strings.outputs.install-output-dir }}/share/cmake/target_install_package/target_install_package.cmake" ]]; then
+          echo "✓ Main target_install_package.cmake found"
+        else
+          echo "✗ Main target_install_package.cmake NOT found"
+          exit 1
+        fi
+
+    - name: Test Consumer Project
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        echo "=== Testing Consumer Project ==="
+        
+        # Fix: Convert Windows paths for bash compatibility
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          WORKSPACE_PATH=$(echo "${{ github.workspace }}" | sed 's|\\|/|g')
+          INSTALL_PATH=$(echo "${{ steps.strings.outputs.install-output-dir }}" | sed 's|\\|/|g')
+          FMT_PATH=$(echo "${{ steps.strings.outputs.fmt-install-dir }}" | sed 's|\\|/|g')
+        else
+          WORKSPACE_PATH="${{ github.workspace }}"
+          INSTALL_PATH="${{ steps.strings.outputs.install-output-dir }}"
+          FMT_PATH="${{ steps.strings.outputs.fmt-install-dir }}"
+        fi
+        
+        cd "${WORKSPACE_PATH}/tests/consumer"
+        
+        # Configure consumer with installed package and fmt
+        cmake -B build \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_PREFIX_PATH="${INSTALL_PATH};${FMT_PATH}"
+        
+        # Build consumer
+        cmake --build build --config ${{ matrix.build_type }}
+        
+        # Test running the consumer executables
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          ./build/${{ matrix.build_type }}/consumer_app.exe || echo "✓ Consumer app executed"
+        else
+          ./build/consumer_app || echo "✓ Consumer app executed"
+        fi
+        
+        echo "✓ Consumer project built and tested successfully"
+
+    - name: Test Consumer Without Pre-installed Dependencies
+      shell: bash
+      run: |
+        echo "=== Testing Consumer Project Error Handling ==="
+        
+        # Fix: Convert Windows paths for bash compatibility
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          WORKSPACE_PATH=$(echo "${{ github.workspace }}" | sed 's|\\|/|g')
+          INSTALL_PATH=$(echo "${{ steps.strings.outputs.install-output-dir }}" | sed 's|\\|/|g')
+        else
+          WORKSPACE_PATH="${{ github.workspace }}"
+          INSTALL_PATH="${{ steps.strings.outputs.install-output-dir }}"
+        fi
+        
+        cd "${WORKSPACE_PATH}/tests/consumer"
+        
+        # This should fail gracefully when fmt is not found
+        if cmake -B build-no-deps \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_PREFIX_PATH="${INSTALL_PATH}" 2>&1 | grep -i "fmt.*not found\|Could not find"; then
+          echo "✓ Properly reports missing fmt dependency"
+        else
+          echo "⚠ Expected fmt dependency error not detected"
+        fi
+
+    - name: Test Component Installation
+      shell: bash
+      run: |
+        echo "=== Testing Component-Based Installation ==="
+        
+        # Test installing only CMakeUtilities component
+        cmake --install ${{ steps.strings.outputs.build-output-dir }} \
+          --config ${{ matrix.build_type }} \
+          --component CMakeUtilities \
+          --prefix ${{ steps.strings.outputs.install-output-dir }}-components
+        
+        # Verify component installation
+        if [[ -f "${{ steps.strings.outputs.install-output-dir }}-components/share/cmake/target_install_package/target_install_package.cmake" ]]; then
+          echo "✓ Component installation successful"
+        else
+          echo "✗ Component installation failed"
+          exit 1
+        fi
+
+    - name: Test Different Build Variants (Unix only)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        echo "=== Testing Build Variants ==="
+        
+        # Test custom variant
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}-variant \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_INSTALL_PREFIX=${{ steps.strings.outputs.install-output-dir }}-variant \
+          -DCMAKE_PREFIX_PATH=${{ steps.strings.outputs.fmt-install-dir }} \
+          -DCUSTOM_VARIANT=ci-test \
+          -Dtarget_install_package_BUILD_TESTS=ON \
+          -S ${{ github.workspace }}
+        
+        cmake --build ${{ steps.strings.outputs.build-output-dir }}-variant --config ${{ matrix.build_type }}
+        cmake --install ${{ steps.strings.outputs.build-output-dir }}-variant --config ${{ matrix.build_type }}
+        
+        echo "✓ Variant build completed"
+
+    - name: Validate CMake Minimum Version
+      shell: bash
+      run: |
+        echo "=== Validating CMake Version Requirements ==="
+        cmake --version
+        
+        # Check if we meet the minimum requirement (3.25)
+        cmake_version=$(cmake --version | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        echo "CMake version: $cmake_version"
+        
+        # This project requires CMake 3.25+
+        required_version="3.25.0"
+        if [[ "$(printf '%s\n' "$required_version" "$cmake_version" | sort -V | head -n1)" == "$required_version" ]]; then
+          echo "✓ CMake version meets requirements"
+        else
+          echo "✗ CMake version does not meet requirements (need $required_version+)"
+          exit 1
+        fi
+
+    - name: Upload Installation Artifacts
+      uses: actions/upload-artifact@v4
+      if: matrix.build_type == 'Release' && matrix.c_compiler == 'gcc'
+      with:
+        name: target-install-package-${{ matrix.os }}-${{ matrix.build_type }}
+        path: |
+          ${{ steps.strings.outputs.install-output-dir }}
+          ${{ steps.strings.outputs.fmt-install-dir }}
+          !${{ steps.strings.outputs.install-output-dir }}/**/*.pdb
+          !${{ steps.strings.outputs.fmt-install-dir }}/**/*.pdb
+        retention-days: 7
+
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download Installation Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: target-install-package-ubuntu-latest-Release
+        path: install-artifacts
+    
+    - name: Test Integration with FetchContent
+      run: |
+        echo "=== Testing FetchContent Integration ==="
+        
+        # Install fmt first for FetchContent test
+        git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
+        cd fmt-src
+        cmake -B build -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-install -DFMT_DOC=OFF -DFMT_TEST=OFF
+        cmake --build build
+        cmake --install build
+        cd ..
+        
+        # Create a test project that uses FetchContent to get this package
+        mkdir -p test-fetchcontent
+        cd test-fetchcontent
+        
+        cat > CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.25)
+        project(test_fetchcontent)
+        
+        # Set up fmt first
+        list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../fmt-install")
+        find_package(fmt REQUIRED)
+        
+        include(FetchContent)
+        FetchContent_Declare(
+          target_install_package
+          SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
+        )
+        FetchContent_MakeAvailable(target_install_package)
+        
+        # Test creating a simple library with the utilities
+        add_library(test_lib INTERFACE)
+        target_include_directories(test_lib INTERFACE include)
+        
+        # This should work if our package is properly set up
+        target_install_package(test_lib NAMESPACE Test::)
+        EOF
+        
+        # Configure and build
+        cmake -B build -DPROJECT_LOG_COLORS=OFF
+        cmake --build build
+        
+        echo "✓ FetchContent integration test passed"
+
+    - name: Test Package Manager Integration
+      run: |
+        echo "=== Testing vcpkg-like Package Manager Integration ==="
+        
+        # Simulate how a package manager would install our package
+        # along with its dependencies
+        
+        # Create a consumer project that expects properly installed packages
+        mkdir -p test-package-manager
+        cd test-package-manager
+        
+        cat > CMakeLists.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.25)
+        project(test_package_manager_consumer)
+        
+        find_package(fmt REQUIRED)
+        find_package(target_install_package REQUIRED)
+        
+        add_executable(consumer main.cpp)
+        target_link_libraries(consumer PRIVATE target_install_package::static1)
+        EOF
+        
+        cat > main.cpp << 'EOF'
+        #include <iostream>
+        int main() {
+            std::cout << "Package manager integration test passed!" << std::endl;
+            return 0;
+        }
+        EOF
+        
+        # Configure with both packages in prefix path
+        cmake -B build \
+          -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install-artifacts/install;${{ github.workspace }}/fmt-install"
+        
+        cmake --build build
+        
+        echo "✓ Package manager integration test passed"

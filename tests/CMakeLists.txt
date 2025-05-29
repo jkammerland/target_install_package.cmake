@@ -3,7 +3,8 @@ project(tests VERSION 1.0.0)
 include(get_cpm.cmake)
 set(FMT_INSTALL ON)
 cpmaddpackage("gh:fmtlib/fmt#11.1.4")
-target_compile_options(fmt PRIVATE -fPIC)
+# Use CMake's built-in property for position independent code instead of -fPIC.
+set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_library(static2 STATIC)
 target_sources(static2 PRIVATE src2.cpp)
@@ -18,6 +19,7 @@ target_configure_sources(
   DESTINATION
   ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
 target_include_directories(static2 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
+target_compile_features(static2 PUBLIC cxx_std_17)
 target_install_package(static2 EXPORT_NAME "my_static_package") # Same as static2
 
 add_library(static1 STATIC)
@@ -30,6 +32,8 @@ target_sources(static1 PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE
 # Link static2 to static1
 target_link_libraries(static1 PRIVATE static2 fmt)
 
+target_compile_features(static1 PUBLIC cxx_std_17)
+
 # target_install_package(static1 ADDITIONAL_TARGETS static2)
 target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static2
 
@@ -37,8 +41,13 @@ add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)
 target_include_directories(shared1 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_definitions(shared1 PRIVATE "SHARED=1") # PRIVATE FOR TESTING
-target_compile_options(shared1 PUBLIC -fPIC)
+set_target_properties(shared1 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(shared1 PUBLIC fmt)
+# Windows-specific: ensure import library is generated
+if(WIN32)
+  set_target_properties(shared1 PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 target_install_package(shared1 PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED")
 
 add_library(interface1 INTERFACE)
@@ -62,5 +71,10 @@ target_link_libraries(component-devel PRIVATE fmt)
 target_include_directories(component-devel PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
                                                   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_sources(component-devel PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/component/component-devel.hpp")
+target_compile_features(component-devel PUBLIC cxx_std_17)
+# Windows-specific: ensure import library is generated
+if(WIN32)
+  set_target_properties(component-devel PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 
 target_install_package(component-devel DEVELOPMENT_COMPONENT "devel")

@@ -1,5 +1,8 @@
 # CMake Target Installation Utilities
 
+[![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
+
+
 A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate.
 
 ## Table of Contents
@@ -37,13 +40,32 @@ A collection of CMake utilities for configuring templated source files and creat
 - **Flexible destination paths** for headers and configured files
 - **Proper build and install interfaces** using generator expressions
 
-### TIP:
-Use colors and higher log level for more information about what is going on.
+### TIPs:
+> [!TIP]
+> Use colors and higher log level for more information about what is going on.
 ```bash
 cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 ```
 
+> [!TIP]
+> Remember you can use CMake's built-in property for position independent code, for SHARED libraries. It is the most platform agnostic way to enable PIC.
+```cmake
+set_target_properties(yourTarget PROPERTIES POSITION_INDEPENDENT_CODE ON)
+```
+> [!TIP]
+> Windows-specific: ensure import library is generated (if you have don't have explicit dllimport/export definitions in your code)
+```cmake
+if(WIN32)
+  set_target_properties(yourTarget PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+```
+
+
 ## Integration
+
+### FetchContent (Recommended)
+
+For most projects, use FetchContent to automatically download and configure the utilities:
 
 ```cmake
 include(FetchContent)
@@ -53,6 +75,54 @@ FetchContent_Declare(
   GIT_TAG v3.0.0
 )
 FetchContent_MakeAvailable(target_install_package)
+```
+
+### Manual Installation
+
+For system-wide installation or package manager integration, install the utilities manually:
+
+```bash
+# Clone the repository
+git clone https://github.com/jkammerland/target_install_package.cmake.git
+cd target_install_package.cmake
+
+# Configure and install
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build
+cmake --install build
+
+# Or install to a custom prefix
+cmake --install build --prefix /opt/cmake-utils
+```
+
+**Using the manually installed utilities:**
+
+```cmake
+# Find the installed package
+find_package(target_install_package REQUIRED)
+
+# Now you can use the functions
+add_library(my_library STATIC)
+target_sources(my_library PRIVATE src/library.cpp)
+target_sources(my_library PUBLIC 
+  FILE_SET HEADERS 
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  FILES "include/my_library/api.h"
+)
+
+# Use the installed utilities
+target_install_package(my_library NAMESPACE MyLib::)
+```
+
+**With custom installation prefix:**
+
+```cmake
+# Set CMAKE_PREFIX_PATH to find the utilities
+list(APPEND CMAKE_PREFIX_PATH "/opt/cmake-utils")
+find_package(target_install_package REQUIRED)
+
+# Or set it via command line
+# cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 ```
 
 ## Usage
