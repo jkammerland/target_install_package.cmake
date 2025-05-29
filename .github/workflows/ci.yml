@@ -46,11 +46,19 @@ jobs:
 
     - name: Set reusable strings
       id: strings
-      shell: bash
+      shell: bash # This shell environment does the sed
       run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-        echo "install-output-dir=${{ github.workspace }}/install" >> "$GITHUB_OUTPUT"
-        echo "fmt-install-dir=${{ github.workspace }}/fmt-install" >> "$GITHUB_OUTPUT"
+        ws_norm="${{ github.workspace }}"
+        # Normalize ws_norm to use forward slashes on Windows for consistency
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          ws_norm=$(echo "$ws_norm" | sed 's|\\|/|g')
+        fi
+        # Use the same output names as your original for minimal changes elsewhere
+        echo "build-output-dir=${ws_norm}/build" >> "$GITHUB_OUTPUT"
+        echo "install-output-dir=${ws_norm}/install" >> "$GITHUB_OUTPUT"
+        echo "fmt-install-dir=${ws_norm}/fmt-install" >> "$GITHUB_OUTPUT"
+        # Optionally, for -S argument if you prefer:
+        # echo "normalized-workspace=${ws_norm}" >> "$GITHUB_OUTPUT"
 
     - name: Install fmt dependency
       shell: bash
@@ -281,7 +289,7 @@ jobs:
         
         cat > CMakeLists.txt << 'EOF'
         cmake_minimum_required(VERSION 3.25)
-        project(test_fetchcontent)
+        project(test_fetchcontent VERSION 0.0.1)
         
         # Set up fmt first
         list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../fmt-install")
@@ -296,14 +304,14 @@ jobs:
         
         # Test creating a simple library with the utilities
         add_library(test_lib INTERFACE)
-        target_include_directories(test_lib INTERFACE include)
+        target_include_directories(test_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
         
         # This should work if our package is properly set up
         target_install_package(test_lib NAMESPACE Test::)
         EOF
         
         # Configure and build
-        cmake -B build -DPROJECT_LOG_COLORS=OFF
+        cmake -B build
         cmake --build build
         
         echo "✓ FetchContent integration test passed"
@@ -321,13 +329,12 @@ jobs:
         
         cat > CMakeLists.txt << 'EOF'
         cmake_minimum_required(VERSION 3.25)
-        project(test_package_manager_consumer)
+        project(test_package_manager_consumer VERSION 0.0.1)
         
-        find_package(fmt REQUIRED)
-        find_package(target_install_package REQUIRED)
+        find_package(target_install_package CONFIG REQUIRED)
         
         add_executable(consumer main.cpp)
-        target_link_libraries(consumer PRIVATE target_install_package::static1)
+        target_install_package(consumer)
         EOF
         
         cat > main.cpp << 'EOF'
