@@ -49,3 +49,18 @@ add_executable(${PROJECT_NAME} main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE static1 shared1 interface1)
 target_compile_definitions(${PROJECT_NAME} PRIVATE "SHARED=1") # Need to re-enable because it is PRIVATE above
 target_install_package(${PROJECT_NAME})
+
+add_executable(bin0)
+target_sources(bin0 PRIVATE src3.cpp)
+target_link_libraries(bin0 PRIVATE fmt)
+target_include_directories(bin0 PRIVATE include)
+target_install_package(bin0 RUNTIME_COMPONENT "bin")
+
+add_library(component-devel SHARED)
+target_sources(component-devel PRIVATE src4.cpp)
+target_link_libraries(component-devel PRIVATE fmt)
+target_include_directories(component-devel PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+                                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_sources(component-devel PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/component/component-devel.hpp")
+
+target_install_package(component-devel DEVELOPMENT_COMPONENT "devel")

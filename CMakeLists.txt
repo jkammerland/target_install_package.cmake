@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 2.0.0)
+project(target_install_package VERSION 3.0.0)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -41,7 +41,11 @@ target_install_package(
   ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
   # Override include destination to put modules in the cmake dir
   INCLUDE_DESTINATION
-  ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME})
+  ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
+  RUNTIME_COMPONENT
+  "CMakeUtilities"
+  DEVELOPMENT_COMPONENT
+  "CMakeUtilities")
 
 option(${PROJECT_NAME}_BUILD_TESTS "Run the tests" OFF)
 if(${PROJECT_NAME}_BUILD_TESTS)
