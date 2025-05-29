@@ -63,48 +63,41 @@ function(target_install_package TARGET_NAME)
   endif()
 
   project_log(DEBUG "Creating installation target for '${TARGET_NAME}'...")
-  # Set default values if not provided
-  if(NOT DEFINED ARG_NAMESPACE)
-    set(ARG_NAMESPACE "${TARGET_NAME}::")
-    project_log(DEBUG "  Namespace not provided, using TARGET_NAME: ${ARG_NAMESPACE}")
-  endif()
 
-  if(NOT DEFINED ARG_VERSION)
-    set(ARG_VERSION "${PROJECT_VERSION}") # Assumes PROJECT_VERSION is set in the calling scope
-    if(NOT DEFINED ARG_VERSION)
-      project_log(WARNING "  Version not provided and PROJECT_VERSION is not set. Defaulting to 0.0.0.")
-      set(ARG_VERSION "0.0.0")
-    else()
+  # Handle VERSION specially since it has PROJECT_VERSION fallback logic
+  if(NOT ARG_VERSION)
+    if(PROJECT_VERSION)
+      set(ARG_VERSION "${PROJECT_VERSION}")
       project_log(DEBUG "  Version not provided, using PROJECT_VERSION: ${ARG_VERSION}")
+    else()
+      set(ARG_VERSION "0.0.0")
+      project_log(WARNING "  Version not provided and PROJECT_VERSION is not set. Defaulting to 0.0.0.")
     endif()
   endif()
 
-  if(NOT DEFINED ARG_COMPATIBILITY)
-    set(ARG_COMPATIBILITY "SameMajorVersion")
-    project_log(DEBUG "  Compatibility not provided, using default: ${ARG_COMPATIBILITY}")
-  endif()
-
-  if(NOT DEFINED ARG_EXPORT_NAME)
-    set(ARG_EXPORT_NAME "${TARGET_NAME}-targets")
-    project_log(DEBUG "  Export name not provided, using default: ${ARG_EXPORT_NAME}")
-  endif()
-
-  if(NOT DEFINED ARG_INCLUDE_DESTINATION)
-    set(ARG_INCLUDE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}")
-    project_log(DEBUG "  Include destination not provided, using default: ${ARG_INCLUDE_DESTINATION}")
-  endif()
-
-  if(NOT DEFINED ARG_MODULE_DESTINATION)
-    set(ARG_MODULE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules")
-    project_log(DEBUG "  Module destination not provided, using default: ${ARG_MODULE_DESTINATION}")
-  endif()
-
-  if(NOT DEFINED ARG_CMAKE_CONFIG_DESTINATION)
-    if(NOT DEFINED CMAKE_INSTALL_DATADIR)
-      set(CMAKE_INSTALL_DATADIR "${CMAKE_INSTALL_PREFIX}/share")
+  # Handle CMAKE_CONFIG_DESTINATION specially since it depends on CMAKE_INSTALL_DATADIR
+  if(NOT ARG_CMAKE_CONFIG_DESTINATION)
+    if(NOT CMAKE_INSTALL_DATADIR)
+      set(CMAKE_INSTALL_DATADIR "share")
     endif()
     set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}")
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
+  endif()
+
+  # Set default values using the helper function
+  _set_default_args(
+    ARG_NAMESPACE "${TARGET_NAME}::" "Namespace"
+    ARG_COMPATIBILITY "SameMajorVersion" "Compatibility"
+    ARG_EXPORT_NAME "${TARGET_NAME}-targets" "Export name"
+    ARG_INCLUDE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}" "Include destination"
+    ARG_MODULE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules" "Module destination"
+    ARG_ADDITIONAL_FILES_DESTINATION "files" "Additional files destination"
+  )
+
+  # Validate compatibility parameter
+  set(VALID_COMPATIBILITY "AnyNewerVersion;SameMajorVersion;SameMinorVersion;ExactVersion")
+  if(NOT ARG_COMPATIBILITY IN_LIST VALID_COMPATIBILITY)
+    project_log(FATAL_ERROR "Invalid COMPATIBILITY '${ARG_COMPATIBILITY}'. Must be one of: ${VALID_COMPATIBILITY}")
   endif()
 
   # Process any configured files
@@ -122,9 +115,7 @@ function(target_install_package TARGET_NAME)
 
       # Install the configured files
       foreach(FILE_PATH ${CONFIGURED_FILES})
-        # Get the base filename without the full path
         get_filename_component(FILE_NAME "${FILE_PATH}" NAME)
-
         install(
           FILES "${FILE_PATH}"
           DESTINATION "${CUSTOM_DEST}"
@@ -140,43 +131,29 @@ function(target_install_package TARGET_NAME)
 
   # Define component if specified
   set(COMPONENT_ARGS "")
-  if(DEFINED ARG_COMPONENT AND ARG_COMPONENT)
+  if(ARG_COMPONENT)
     set(COMPONENT_ARGS COMPONENT ${ARG_COMPONENT})
     project_log(DEBUG "  Installing target with component: ${ARG_COMPONENT}")
   endif()
 
-  # Install the target with appropriate destinations Install the target with appropriate destinations Split the install command to handle C++20 modules conditionally
+  # Install the target - extract common parts to reduce duplication
+  set(INSTALL_COMMON_ARGS
+      TARGETS ${TARGET_NAME} ${ARG_ADDITIONAL_TARGETS}
+      EXPORT ${ARG_EXPORT_NAME}
+      ${COMPONENT_ARGS}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      INCLUDES DESTINATION ${ARG_INCLUDE_DESTINATION}
+      PUBLIC_HEADER DESTINATION ${ARG_INCLUDE_DESTINATION}
+      FILE_SET HEADERS DESTINATION ${ARG_INCLUDE_DESTINATION})
+
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
     install(
-      TARGETS ${TARGET_NAME} ${ARG_ADDITIONAL_TARGETS}
-      EXPORT ${ARG_EXPORT_NAME}
-      ${COMPONENT_ARGS}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      INCLUDES
-      DESTINATION ${ARG_INCLUDE_DESTINATION}
-      PUBLIC_HEADER
-        DESTINATION ${ARG_INCLUDE_DESTINATION}
-        FILE_SET HEADERS
-        DESTINATION ${ARG_INCLUDE_DESTINATION}
-        # Add C++20 modules support (CMake 3.28+ only)
-        FILE_SET CXX_MODULES
-        DESTINATION ${ARG_MODULE_DESTINATION})
+      ${INSTALL_COMMON_ARGS}
+      FILE_SET CXX_MODULES DESTINATION ${ARG_MODULE_DESTINATION})
   else()
-    install(
-      TARGETS ${TARGET_NAME} ${ARG_ADDITIONAL_TARGETS}
-      EXPORT ${ARG_EXPORT_NAME}
-      ${COMPONENT_ARGS}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      INCLUDES
-      DESTINATION ${ARG_INCLUDE_DESTINATION}
-      PUBLIC_HEADER
-        DESTINATION ${ARG_INCLUDE_DESTINATION}
-        FILE_SET HEADERS
-        DESTINATION ${ARG_INCLUDE_DESTINATION})
+    install(${INSTALL_COMMON_ARGS})
   endif()
 
   # Check for generated config headers (.h and .hpp)
@@ -202,12 +179,6 @@ function(target_install_package TARGET_NAME)
 
   # Install any additional files
   if(ARG_ADDITIONAL_FILES)
-    # Set default additional files destination if not specified
-    if(NOT DEFINED ARG_ADDITIONAL_FILES_DESTINATION)
-      set(ARG_ADDITIONAL_FILES_DESTINATION "files")
-      project_log(DEBUG "  Additional files destination not provided, using default: ${ARG_ADDITIONAL_FILES_DESTINATION}")
-    endif()
-
     # Prepare the destination path
     set(ADDITIONAL_FILES_DEST_PATH "${ARG_INCLUDE_DESTINATION}")
     if(ARG_ADDITIONAL_FILES_DESTINATION)
@@ -226,7 +197,6 @@ function(target_install_package TARGET_NAME)
         continue()
       endif()
 
-      get_filename_component(FILE_NAME ${FILE_PATH} NAME)
       install(
         FILES "${SRC_FILE_PATH}"
         DESTINATION "${ADDITIONAL_FILES_DEST_PATH}"
@@ -251,9 +221,9 @@ function(target_install_package TARGET_NAME)
 
   # Prepare public dependencies content for the config file template
   set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "")
-  if(ARG_PUBLIC_DEPENDENCIES) # Check the parsed argument
+  if(ARG_PUBLIC_DEPENDENCIES)
     set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "# Package dependencies\n")
-    foreach(dep ${ARG_PUBLIC_DEPENDENCIES}) # Iterate over the parsed argument
+    foreach(dep ${ARG_PUBLIC_DEPENDENCIES})
       string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
     endforeach()
     project_log(VERBOSE "Found public dependencies for target '${TARGET_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")
@@ -261,7 +231,7 @@ function(target_install_package TARGET_NAME)
 
   # Determine config template location
   set(CONFIG_TEMPLATE_TO_USE "")
-  if(DEFINED ARG_CONFIG_TEMPLATE AND ARG_CONFIG_TEMPLATE)
+  if(ARG_CONFIG_TEMPLATE)
     if(EXISTS "${ARG_CONFIG_TEMPLATE}")
       set(CONFIG_TEMPLATE_TO_USE "${ARG_CONFIG_TEMPLATE}")
       project_log(DEBUG "  Using user-provided config template: ${CONFIG_TEMPLATE_TO_USE}")
@@ -342,3 +312,42 @@ function(target_install_package TARGET_NAME)
 
   project_log(STATUS "Installation target for '${TARGET_NAME}' configured successfully.")
 endfunction(target_install_package)
+
+
+# ~~~
+# Helper function to set default values for multiple arguments
+# Takes triplets of: variable_name, default_value, log_description
+# Example: _set_default_args(ARG_NAMESPACE "${TARGET_NAME}::" "Namespace" ARG_VERSION "1.0.0" "Version")
+# ~~~
+function(_set_default_args)
+  set(args ${ARGN})
+  list(LENGTH args arg_count)
+  
+  # Process arguments in groups of 3
+  math(EXPR max_index "${arg_count} - 1")
+  set(index 0)
+  
+  while(index LESS_EQUAL max_index)
+    # Get the triplet
+    list(GET args ${index} var_name)
+    math(EXPR index "${index} + 1")
+    if(index GREATER max_index)
+      break()
+    endif()
+    
+    list(GET args ${index} default_value)
+    math(EXPR index "${index} + 1")
+    if(index GREATER max_index)
+      break()
+    endif()
+    
+    list(GET args ${index} description)
+    math(EXPR index "${index} + 1")
+    
+    # Set default if variable is not set in parent scope
+    if(NOT ${var_name})
+      set(${var_name} "${default_value}" PARENT_SCOPE)
+      project_log(DEBUG "  ${description} not provided, using default: ${default_value}")
+    endif()
+  endwhile()
+endfunction()
