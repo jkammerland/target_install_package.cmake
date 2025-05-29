@@ -1,8 +1,8 @@
-# CMake Target Installation Utilities
+# CMake Target Installation Utilities 🔧
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux, Windows, and macOS are supported. But other platforms should work as well if they can run CMake.
+A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms should work as well if they can run CMake.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ A collection of CMake utilities for configuring templated source files and creat
 7. [Key Benefits](#key-benefits-of-file_set-approach)
 8. [Migration Guide](#migration-from-legacy-approaches)
 
-## Features
+## Features ✨
 
 - **Templated source file configuration** with proper include paths
 - **Package installation** with automatic CMake config generation
@@ -39,7 +39,7 @@ A collection of CMake utilities for configuring templated source files and creat
 - **Flexible destination paths** for headers and configured files
 - **Proper build and install interfaces** using generator expressions
 
-### Tips:
+### Tips: 💡
 > [!TIP]
 > Use colors and higher log level for more information about what's going on.
 ```bash
@@ -60,9 +60,9 @@ if(WIN32)
 endif()
 ```
 
-## Integration
+## Integration 📦
 
-### FetchContent (Recommended)
+### FetchContent (quick and easy, cpm also works) ⭐
 
 For most projects, use FetchContent to automatically download and configure the utilities:
 
@@ -74,9 +74,11 @@ FetchContent_Declare(
   GIT_TAG v3.0.0
 )
 FetchContent_MakeAvailable(target_install_package)
+
+# Now you can directly use target_install_package(...)
 ```
 
-### Manual Installation
+### Manual Installation 🔨
 
 For system-wide installation or package manager integration, install the utilities manually:
 
@@ -124,9 +126,9 @@ find_package(target_install_package REQUIRED)
 # cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 ```
 
-## Usage
+## Usage 🚀
 
-### Modern Header Installation with FILE_SET (Recommended)
+### Modern Header Installation with FILE_SET (Recommended) ⭐
 
 The preferred approach for header installation uses CMake's FILE_SET feature (CMake 3.23+):
 
@@ -170,7 +172,7 @@ target_install_package(
 )
 ```
 
-### Header Installation for Multiple Files and Public Dependencies
+### Header Installation for Multiple Files and Public Dependencies 🔗
 
 For libraries with many headers, use file globbing:
 
@@ -209,7 +211,7 @@ target_install_package(graphics_lib
 # find_dependency(OpenGL 4.5 REQUIRED)
 # find_dependency(glfw3 3.3 REQUIRED EXACT)
 
-# The arguments are simply forwarded, so you can use any of the following:
+# The arguments are simply forwarded to find_dependency(), so you can use any of the following:
 # - `REQUIRED`
 # - `EXACT` 
 # - `QUIET`
@@ -217,11 +219,11 @@ target_install_package(graphics_lib
 # - `CONFIG`
 ```
 
-## Component-Based Installation
+## Component-Based Installation 🧩
 
 `target_install_package` supports component-based installation, allowing fine-grained control over what gets installed in different scenarios (runtime vs development).
 
-### Default Component Behavior
+### Default Component Behavior 📋
 
 By default, the function uses standard CMake component conventions:
 - **Runtime Component**: Contains shared libraries (.so, .dll) and executables
@@ -246,7 +248,7 @@ cmake --install . --component Runtime
 cmake --install . --component Development
 ```
 
-### Custom Component Names
+### Custom Component Names 🏷️
 
 You can specify custom component names for different installation scenarios:
 
@@ -273,7 +275,7 @@ cmake --install . --component plugins
 cmake --install . --component sdk
 ```
 
-### Specific Component Assignment
+### Specific Component Assignment 🎯
 
 You can override the default component for a specific target:
 
@@ -292,7 +294,7 @@ target_install_package(dev_tool
 cmake --install . --component tools
 ```
 
-### Multi-Component Library Example
+### Multi-Component Library Example 📚
 
 Here's a complete example showing a library with different components:
 
@@ -334,7 +336,7 @@ target_install_package(asset_converter
 )
 ```
 
-### Installing Specific Components
+### Installing Specific Components 📥
 
 ```bash
 # Install only what end users need
@@ -350,7 +352,7 @@ cmake --install . --component tools
 cmake --install .
 ```
 
-### Supported Components Feature
+### Supported Components Feature ✅
 
 For packages that want to validate which components consumers can request:
 
@@ -386,11 +388,11 @@ if(multimedia_lib_audio_FOUND)
 endif()
 ```
 
-## Build Variant Support
+## Build Variant Support 🎨
 
 For projects that need to support different build variants (debug/release/custom configurations), you can create separate packages for each variant.
 
-### Basic Variant Setup
+### Basic Variant Setup 🔧
 
 ```cmake
 # Set up variant suffix based on build type
@@ -422,7 +424,7 @@ target_install_package(my_library
 )
 ```
 
-### Custom Variants
+### Custom Variants ⚙️
 
 For more complex variant scenarios:
 
@@ -456,7 +458,7 @@ target_install_package(my_library
 )
 ```
 
-### Consumer Usage
+### Consumer Usage 🔌
 
 With variant support, consumers can specifically target the variant they need:
 
@@ -487,9 +489,9 @@ cmake --build build-custom
 cmake --install build-custom --prefix /usr/local
 ```
 
-## Complete Examples
+## Complete Examples 📖
 
-### Single Library Example
+### Single Library Example 📝
 
 ```cmake
 # Create a static library with templated headers
@@ -527,7 +529,7 @@ target_install_package(math_lib
 )
 ```
 
-### Multi-Library Project Examples
+### Multi-Library Project Examples 🏗️
 
 #### Approach 1: Main Library with Dependencies
 
@@ -646,7 +648,7 @@ target_link_libraries(my_game PRIVATE
 )
 ```
 
-### Interface Library Example
+### Interface Library Example 🔌
 
 For header-only libraries:
 
@@ -672,7 +674,7 @@ target_install_package(header_only_lib
 )
 ```
 
-## Key Benefits of FILE_SET Approach
+## Key Benefits of FILE_SET Approach 🌟
 
 - ✅ **Automatic Installation**: Headers are installed automatically by `target_install_package`
 - ✅ **Proper Dependencies**: CMake correctly tracks header file dependencies
@@ -682,7 +684,7 @@ target_install_package(header_only_lib
 - ✅ **Component Separation**: Clean separation between runtime and development files
 - ✅ **Variant Support**: Clean handling of different build configurations
 
-## Migration from Legacy Approaches
+## Migration from Legacy Approaches 🔄
 
 If you're upgrading from older CMake practices:
 
@@ -699,4 +701,4 @@ target_sources(my_library PUBLIC
 target_install_package(my_library)
 ```
 
-The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution for header installation with minimal boilerplate.
+The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution for header installation with minimal boilerplate. C++20 modules can also work, but I haven't tested it properly yet.
