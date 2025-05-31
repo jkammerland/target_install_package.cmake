@@ -1,3 +1,13 @@
+get_property(
+  _LFG_INITIALIZED GLOBAL
+  PROPERTY ${_LFG_PROPERTY}
+  SET)
+if(_LFG_INITIALIZED)
+  list_file_include_guard(VERSION 3.0.1)
+else()
+  include_guard(DIRECTORY)
+endif()
+
 # ~~~
 # Function to configure source files and automatically add them to a target's include paths and file sets.
 # This function processes template files, generates their configured versions in the build directory,

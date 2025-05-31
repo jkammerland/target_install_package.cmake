@@ -1,4 +1,15 @@
 cmake_minimum_required(VERSION 3.23)
+
+get_property(
+  _LFG_INITIALIZED GLOBAL
+  PROPERTY ${_LFG_PROPERTY}
+  SET)
+if(_LFG_INITIALIZED)
+  list_file_include_guard(VERSION 3.0.1)
+else()
+  include_guard(DIRECTORY)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
