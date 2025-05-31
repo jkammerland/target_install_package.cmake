@@ -4,6 +4,24 @@
 
 A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms should work as well if they can run CMake.
 
+## Shipped Functions & Files 📦
+
+| File/Function | Type | Description |
+|--------------|------|-------------|
+| **`target_install_package()`** | Function | Main utility for creating installable packages with automatic CMake config generation |
+| **`target_configure_sources()`** | Function | Configure template files and automatically add them to target's include paths and file sets |
+| **`generic-config.cmake.in`** | Template | Default CMake config template (can be overridden with custom templates) |
+| **`project_log()`** | Function | Enhanced logging with color support and project context |
+| **`project_include_guard()`** | Macro | Project-level include guard with version checking |
+| **`list_file_include_guard()`** | Macro | File-level include guard with version checking |
+
+### Template Override System 🎨
+The `target_install_package()` function searches for config templates in this order:
+1. User-provided `CONFIG_TEMPLATE` parameter
+2. `${TARGET_SOURCE_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
+3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
+4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` (fallback)
+
 ## Table of Contents
 
 1. [Features](#features)
@@ -45,6 +63,17 @@ A collection of CMake utilities for configuring templated source files and creat
 ```bash
 cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 ```
+
+> [!TIP]
+> Prefer FILE_SET
+```cmake
+# With this project: FILE_SET headers are automatically installed
+target_sources(my_library PUBLIC 
+  FILE_SET HEADERS 
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  FILES "include/my_library/api.h"
+)
+target_install_package(my_library)  # Automatically installs FILE_SET headers (if PUBLIC/INTERFACE)
 
 > [!TIP]
 > Remember you can use CMake's built-in property for position independent code for SHARED libraries. It's the most platform-agnostic way to enable PIC.
