@@ -1,4 +1,17 @@
-include_guard(DIRECTORY)
+# Get file name for identification (not the full path)
+get_filename_component(_LFG_FILENAME "${CMAKE_CURRENT_LIST_FILE}" NAME)
+
+# Create a sanitized name for properties
+string(MAKE_C_IDENTIFIER "${_LFG_FILENAME}" _LFG_FILE_ID)
+set(_LFG_PROPERTY "${_LFG_FILE_ID}_INITIALIZED")
+
+get_property(
+  _LFG_INITIALIZED GLOBAL
+  PROPERTY ${_LFG_PROPERTY}
+  SET)
+if(_LFG_INITIALIZED)
+  list_file_include_guard(VERSION 1.2.2)
+endif()
 
 # ~~~
 # list_file_include_guard.cmake
@@ -22,9 +35,12 @@ macro(list_file_include_guard)
   set(multiValueArgs "")
   cmake_parse_arguments(LFG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  # Ensure that VERSION is provided
+  # Ensure that VERSION is provided and in the correct format
   if(NOT DEFINED LFG_VERSION)
     message(FATAL_ERROR "list_file_include_guard: VERSION is not defined, use list_file_include_guard(VERSION x.y.z)")
+  endif()
+  if(NOT LFG_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "list_file_include_guard: VERSION '${LFG_VERSION}' for ${_LFG_FILENAME} is not in x.y.z format.")
   endif()
 
   # Get file name for identification (not the full path)
@@ -39,8 +55,13 @@ macro(list_file_include_guard)
 
   # Create a sanitized name for properties
   string(MAKE_C_IDENTIFIER "${_LFG_ID}" _LFG_FILE_ID)
-  set(_LFG_VERSION "${LFG_VERSION}")
-  string(REGEX MATCH "^[0-9]+" _LFG_VERSION_MAJOR "${_LFG_VERSION}")
+  set(_LFG_VERSION "${LFG_VERSION}") # Keep full version string
+
+  # Parse major and minor components for the current version
+  string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\1" _LFG_V_MAJOR "${_LFG_VERSION}")
+  string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\2" _LFG_V_MINOR "${_LFG_VERSION}")
+  # Note: The old string(REGEX MATCH "^[0-9]+" _LFG_VERSION_MAJOR "${_LFG_VERSION}") is no longer needed.
+
   set(_LFG_PROPERTY "${_LFG_FILE_ID}_INITIALIZED")
 
   # Define the property name for tracking inclusion
@@ -54,13 +75,26 @@ macro(list_file_include_guard)
   if(_LFG_HAS_VERSION)
     get_property(_LFG_INCLUDED_VERSION GLOBAL PROPERTY ${_LFG_INCLUDE_VAR})
 
-    string(REGEX MATCH "^[0-9]+" _LFG_INCLUDED_MAJOR "${_LFG_INCLUDED_VERSION}")
-    if(NOT ${_LFG_VERSION_MAJOR} VERSION_EQUAL ${_LFG_INCLUDED_MAJOR})
-      message(FATAL_ERROR "File major version MISMATCH for ${_LFG_FILENAME}[${_LFG_VERSION}] and previously loaded [${_LFG_INCLUDED_VERSION}]")
-    elseif(${_LFG_VERSION} VERSION_GREATER ${_LFG_INCLUDED_VERSION})
-      message(WARNING "Included ${_LFG_FILENAME} [${_LFG_VERSION}]. Current version is older [${_LFG_INCLUDED_VERSION}]. You may need to update if not forwards compatible.")
+    # Validate and parse stored version
+    if(NOT _LFG_INCLUDED_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+      message(FATAL_ERROR "list_file_include_guard: Stored version '${_LFG_INCLUDED_VERSION}' for ${_LFG_FILENAME} is not in x.y.z format. This indicates an internal issue.")
+    endif()
+    string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\1" _LFG_I_MAJOR "${_LFG_INCLUDED_VERSION}")
+    string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\2" _LFG_I_MINOR "${_LFG_INCLUDED_VERSION}")
+    # Note: The old string(REGEX MATCH "^[0-9]+" _LFG_INCLUDED_MAJOR "${_LFG_INCLUDED_VERSION}") is no longer needed.
+
+    if(NOT _LFG_V_MAJOR VERSION_EQUAL _LFG_I_MAJOR)
+      message(
+        FATAL_ERROR
+          "File major version MISMATCH for ${_LFG_FILENAME}. Attempting to load [${_LFG_VERSION}] (major ${_LFG_V_MAJOR}) but version [${_LFG_INCLUDED_VERSION}] (major ${_LFG_I_MAJOR}) was previously loaded."
+      )
+      # Major versions are equal, now check minor versions for warning
+    elseif(_LFG_V_MINOR VERSION_GREATER _LFG_I_MINOR)
+      message(
+        WARNING "Included ${_LFG_FILENAME} [${_LFG_VERSION}]. Previously loaded version [${_LFG_INCLUDED_VERSION}] has an older MINOR component. You may need to update if not forwards compatible.")
     elseif(${_LFG_VERSION} VERSION_LESS ${_LFG_INCLUDED_VERSION})
-      message(VERBOSE "Included ${_LFG_FILENAME} [${_LFG_VERSION}]. Current version is newer [${_LFG_INCLUDED_VERSION}]")
+      # This implies majors are equal, and either minor is less, or minor is equal and patch is less.
+      message(VERBOSE "Included ${_LFG_FILENAME} [${_LFG_VERSION}]. A newer version [${_LFG_INCLUDED_VERSION}] was already loaded.")
     endif()
 
     get_property(
@@ -80,3 +114,7 @@ macro(list_file_include_guard)
 
   set_property(GLOBAL PROPERTY ${_LFG_PROPERTY} true)
 endmacro()
+
+if(NOT _LFG_INITIALIZED)
+  list_file_include_guard(VERSION 1.2.2)
+endif()

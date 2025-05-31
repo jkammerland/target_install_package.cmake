@@ -2,18 +2,20 @@
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms should work as well if they can run CMake.
+A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms should work as well if they can run CMake. 
+
+This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below.
 
 ## Shipped Functions & Files 📦
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
-| **`target_install_package()`** | Function | Main utility for creating installable packages with automatic CMake config generation |
-| **`target_configure_sources()`** | Function | Configure template files and automatically add them to target's file sets |
+| **`target_install_package`** | Function | Main utility for creating installable packages with automatic CMake config generation |
+| **`target_configure_sources`** | Function | Configure template files and automatically add them to target's file sets |
 | **`generic-config.cmake.in`** | Template | Default CMake config template (can be overridden with custom templates) |
-| **`project_log()`** | Function | Enhanced logging with color support and project context |
-| **`project_include_guard()`** | Macro | Project-level include guard with version checking |
-| **`list_file_include_guard()`** | Macro | File-level include guard with version checking |
+| [project_log](https://github.com/jkammerland/project_log.cmake) | Function | Enhanced logging with color support and project context |
+| [project_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
+| [list_file_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | File-level include guard with version checking |
 
 >[!NOTE] 
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package. 
@@ -143,7 +145,11 @@ cmake --install build
 
 # Or install to a custom prefix
 cmake --install build --prefix /opt/cmake-utils
+
+# The package is now available for use in your CMake projects.
 ```
+
+This project installs itself via the `PUBLIC_CMAKE_FILES` option. See the main [CMakeLists.txt](CMakeLists.txt). An example of a pure cmake package.
 
 **Using the manually installed utilities:**
 
