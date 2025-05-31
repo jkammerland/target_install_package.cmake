@@ -9,14 +9,17 @@ A collection of CMake utilities for configuring templated source files and creat
 | File/Function | Type | Description |
 |--------------|------|-------------|
 | **`target_install_package()`** | Function | Main utility for creating installable packages with automatic CMake config generation |
-| **`target_configure_sources()`** | Function | Configure template files and automatically add them to target's include paths and file sets |
+| **`target_configure_sources()`** | Function | Configure template files and automatically add them to target's file sets |
 | **`generic-config.cmake.in`** | Template | Default CMake config template (can be overridden with custom templates) |
 | **`project_log()`** | Function | Enhanced logging with color support and project context |
 | **`project_include_guard()`** | Macro | Project-level include guard with version checking |
 | **`list_file_include_guard()`** | Macro | File-level include guard with version checking |
 
+>[!NOTE] 
+> The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package. 
+
 ### Template Override System 🎨
-The `target_install_package()` function searches for config templates in this order:
+The `target_install_package()` function searches for the targets config templates in this order:
 1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
 2. `${TARGET_SOURCE_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
 3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
@@ -90,7 +93,7 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
  target_install_package(my_library)  # Installs all HEADER file sets
  ```
 
- **Note:** Using `target_configure_sources()` with targets that also have `PUBLIC_HEADER` property will trigger a warning about potential duplicate installation.
+ **Note:** Using `target_configure_sources()` with targets that also have `PUBLIC_HEADER` property will trigger a warning about mixing the FILE_SETS and the PUBLIC_HEADER property.
 
 > [!TIP]
 > Remember you can use CMake's built-in property for position independent code for SHARED libraries. It's the most platform-agnostic way to enable PIC.
