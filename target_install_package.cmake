@@ -13,6 +13,12 @@ endif()
 # and CMake export files for a target. It is intended to be used in projects that
 # want to package their libraries and provide standardized installation paths.
 #
+# The function automatically detects and installs:
+# - File sets (HEADERS, CXX_MODULES) from both regular and INTERFACE properties
+# - PUBLIC_HEADER property (legacy support)
+# - Generated config headers
+# - Custom file sets with any name
+#
 # Parameters:
 #   TARGET_NAME: Name of the target to install.
 #   [NAMESPACE]: The CMake namespace for the export (default: `${TARGET_NAME}::`).
@@ -177,8 +183,8 @@ function(target_install_package TARGET_NAME)
   get_target_property(TARGET_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
 
-  # Install the target with proper component separation
-  set(INSTALL_COMMON_ARGS
+  # Build install arguments dynamically based on what the target actually has
+  set(INSTALL_ARGS
       TARGETS
       ${TARGET_NAME}
       ${ARG_ADDITIONAL_TARGETS}
@@ -201,31 +207,97 @@ function(target_install_package TARGET_NAME)
       ${ARG_RUNTIME_COMPONENT}
       INCLUDES
       DESTINATION
-      ${ARG_INCLUDE_DESTINATION}
+      ${ARG_INCLUDE_DESTINATION})
+
+  # Get all header file sets (both regular and interface)
+  get_target_property(HEADER_SETS ${TARGET_NAME} HEADER_SETS)
+  get_target_property(INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
+  get_target_property(PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
+
+  # Collect all unique header file sets (PUBLIC file sets appear in both lists)
+  set(ALL_HEADER_SETS "")
+  if(HEADER_SETS)
+    list(APPEND ALL_HEADER_SETS ${HEADER_SETS})
+  endif()
+  if(INTERFACE_HEADER_SETS)
+    list(APPEND ALL_HEADER_SETS ${INTERFACE_HEADER_SETS})
+  endif()
+
+  if(ALL_HEADER_SETS)
+    list(REMOVE_DUPLICATES ALL_HEADER_SETS)
+  endif()
+
+  # Warn on mixing old and new header installation methods (but allow it)
+  if(PUBLIC_HEADERS AND ALL_HEADER_SETS)
+    project_log(WARNING "Target '${TARGET_NAME}' has both PUBLIC_HEADER property and HEADER file sets. This may cause duplicate header installation. Consider using only file sets for modern CMake.")
+  endif()
+
+  # Install all unique header file sets
+  if(ALL_HEADER_SETS)
+    foreach(HEADER_SET ${ALL_HEADER_SETS})
+      list(
+        APPEND
+        INSTALL_ARGS
+        FILE_SET
+        ${HEADER_SET}
+        DESTINATION
+        ${ARG_INCLUDE_DESTINATION}
+        COMPONENT
+        ${ARG_DEVELOPMENT_COMPONENT})
+      project_log(DEBUG "  Installing HEADER file set '${HEADER_SET}' for ${TARGET_NAME}")
+    endforeach()
+  endif()
+
+  # Install PUBLIC_HEADER property (separately from file sets)
+  if(PUBLIC_HEADERS)
+    list(
+      APPEND
+      INSTALL_ARGS
       PUBLIC_HEADER
       DESTINATION
       ${ARG_INCLUDE_DESTINATION}
       COMPONENT
-      ${ARG_DEVELOPMENT_COMPONENT}
-      FILE_SET
-      HEADERS
-      DESTINATION
-      ${ARG_INCLUDE_DESTINATION}
-      COMPONENT
       ${ARG_DEVELOPMENT_COMPONENT})
-
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
-    install(
-      ${INSTALL_COMMON_ARGS}
-      FILE_SET
-      CXX_MODULES
-      DESTINATION
-      ${ARG_MODULE_DESTINATION}
-      COMPONENT
-      ${ARG_DEVELOPMENT_COMPONENT})
-  else()
-    install(${INSTALL_COMMON_ARGS})
+    project_log(DEBUG "  Installing PUBLIC_HEADER property for ${TARGET_NAME}")
   endif()
+
+  # Handle C++20 modules (CMake 3.28+)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
+    get_target_property(MODULE_SETS ${TARGET_NAME} CXX_MODULE_SETS)
+    get_target_property(INTERFACE_MODULE_SETS ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
+
+    # Collect all unique module file sets (PUBLIC file sets appear in both lists)
+    set(ALL_MODULE_SETS "")
+    if(MODULE_SETS)
+      list(APPEND ALL_MODULE_SETS ${MODULE_SETS})
+    endif()
+    if(INTERFACE_MODULE_SETS)
+      list(APPEND ALL_MODULE_SETS ${INTERFACE_MODULE_SETS})
+    endif()
+
+    if(ALL_MODULE_SETS)
+      list(REMOVE_DUPLICATES ALL_MODULE_SETS)
+    endif()
+
+    # Install all unique module file sets
+    if(ALL_MODULE_SETS)
+      foreach(MODULE_SET ${ALL_MODULE_SETS})
+        list(
+          APPEND
+          INSTALL_ARGS
+          FILE_SET
+          ${MODULE_SET}
+          DESTINATION
+          ${ARG_MODULE_DESTINATION}
+          COMPONENT
+          ${ARG_DEVELOPMENT_COMPONENT})
+        project_log(DEBUG "  Installing CXX_MODULE file set '${MODULE_SET}' for ${TARGET_NAME}")
+      endforeach()
+    endif()
+  endif()
+
+  # Execute the install command
+  install(${INSTALL_ARGS})
 
   # Check for generated config headers (.h and .hpp)
   set(CONFIG_HEADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/include/${TARGET_NAME}")

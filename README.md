@@ -17,7 +17,7 @@ A collection of CMake utilities for configuring templated source files and creat
 
 ### Template Override System 🎨
 The `target_install_package()` function searches for config templates in this order:
-1. User-provided `CONFIG_TEMPLATE` parameter
+1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
 2. `${TARGET_SOURCE_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
 3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
 4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` (fallback)
@@ -65,15 +65,32 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 ```
 
 > [!TIP]
-> Prefer FILE_SET
-```cmake
-# With this project: FILE_SET headers are automatically installed
-target_sources(my_library PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/my_library/api.h"
-)
-target_install_package(my_library)  # Automatically installs FILE_SET headers (if PUBLIC/INTERFACE)
+> **Prefer FILE_SET for Modern CMake**
+>
+> FILE_SET solves key limitations of `PUBLIC_HEADER`:
+> 1. preserves directory structure
+> 2. [provides proper IDE integration](https://cmake.org/cmake/help/latest/prop_tgt/HEADER_SETS.html)
+> 3. allows per-target header installation instead of installing entire directories
+> 4. same api for c++20 modules
+
+ ```cmake
+ # Manual FILE_SET usage
+ target_sources(my_library PUBLIC 
+   FILE_SET HEADERS 
+   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+   FILES "include/my_library/api.h"
+ )
+ 
+ # target_configure_sources automatically uses FILE_SET
+ target_configure_sources(my_library
+   PUBLIC "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
+ )
+ 
+ # Automatic installation - detects all HEADER_SETS
+ target_install_package(my_library)  # Installs all HEADER file sets
+ ```
+
+ **Note:** Using `target_configure_sources()` with targets that also have `PUBLIC_HEADER` property will trigger a warning about potential duplicate installation.
 
 > [!TIP]
 > Remember you can use CMake's built-in property for position independent code for SHARED libraries. It's the most platform-agnostic way to enable PIC.
