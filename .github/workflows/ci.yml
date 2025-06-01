@@ -122,7 +122,6 @@ jobs:
         fi
 
     - name: Test Consumer Project
-      if: runner.os != 'Windows'
       shell: bash
       run: |
         echo "=== Testing Consumer Project ==="
