@@ -10,9 +10,9 @@ This project requires some other cmake projects, but for ease of use, they have 
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
-| **`target_install_package`** | Function | Main utility for creating installable packages with automatic CMake config generation |
-| **`target_configure_sources`** | Function | Configure template files and automatically add them to target's file sets |
-| **`generic-config.cmake.in`** | Template | Default CMake config template (can be overridden with custom templates) |
+| [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
+| [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
+| [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
 | [project_log](https://github.com/jkammerland/project_log.cmake) | Function | Enhanced logging with color support and project context |
 | [project_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
 | [list_file_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | File-level include guard with version checking |
@@ -82,8 +82,8 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
  # Manual FILE_SET usage
  target_sources(my_library PUBLIC 
    FILE_SET HEADERS 
-   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-   FILES "include/my_library/api.h"
+   BASE_DIRS include
+   FILES include/my_library/api.h
  )
  
  # target_configure_sources automatically uses FILE_SET
