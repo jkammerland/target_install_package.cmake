@@ -75,7 +75,7 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 > FILE_SET solves key limitations of `PUBLIC_HEADER`:
 > 1. preserves directory structure
 > 2. [provides proper IDE integration](https://cmake.org/cmake/help/latest/prop_tgt/HEADER_SETS.html)
-> 3. allows per-target header installation instead of installing entire directories
+> 3. allows automatic per-target/file-set header installation instead of installing entire directories/files
 > 4. same api for c++20 modules
 
  ```cmake
@@ -122,7 +122,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v3.0.1
+  GIT_TAG v3.0.2
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -192,14 +192,7 @@ The preferred approach for header installation uses CMake's FILE_SET feature (CM
 add_library(my_library STATIC)
 target_sources(my_library PRIVATE src/my_library.cpp)
 
-# Set up include directories with proper generator expressions
-target_include_directories(my_library PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-# Declare public headers using FILE_SET (automatically installed)
+# Declare public headers using FILE_SET (BASE_DIRS automatically become include directories)
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -209,7 +202,7 @@ target_sources(my_library PUBLIC
     "include/my_library/api.h"
 )
 
-# Configure template files for version info
+# Configure template files for version info (also uses FILE_SET automatically)
 target_configure_sources(
   my_library
   PUBLIC
@@ -235,19 +228,13 @@ For libraries with many headers, use file globbing:
 add_library(graphics_lib SHARED)
 target_sources(graphics_lib PRIVATE src/renderer.cpp src/shader.cpp)
 
-target_include_directories(graphics_lib PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
 # Collect all public headers (using "GLOB/GLOB_RECURSE")
 file(GLOB_RECURSE GRAPHICS_HEADERS 
   "include/graphics/*.h" 
   "include/graphics/*.hpp"
 )
 
-# Declare all headers at once
+# Declare all headers at once (BASE_DIRS automatically become include directories)
 target_sources(graphics_lib PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -553,14 +540,7 @@ cmake --install build-custom --prefix /usr/local
 add_library(math_lib STATIC)
 target_sources(math_lib PRIVATE src/matrix.cpp src/vector.cpp)
 
-# Modern include directory setup
-target_include_directories(math_lib PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-# Declare public headers with FILE_SET
+# Declare public headers with FILE_SET (automatically sets up include directories)
 target_sources(math_lib PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -570,7 +550,7 @@ target_sources(math_lib PUBLIC
     "include/math/constants.h"
 )
 
-# Configure version header from template
+# Configure version header from template (also uses FILE_SET automatically)
 target_configure_sources(
   math_lib
   PUBLIC
@@ -594,10 +574,6 @@ When you have a primary library that depends on utility libraries:
 # Utility library
 add_library(core_utils STATIC)
 target_sources(core_utils PRIVATE src/logging.cpp src/config.cpp)
-target_include_directories(core_utils PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 target_sources(core_utils PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -607,10 +583,6 @@ target_sources(core_utils PUBLIC
 # Math library
 add_library(math_ops STATIC)
 target_sources(math_ops PRIVATE src/operations.cpp)
-target_include_directories(math_ops PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 target_sources(math_ops PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -620,10 +592,6 @@ target_sources(math_ops PUBLIC
 # Main library that uses both utilities
 add_library(my_engine STATIC)
 target_sources(my_engine PRIVATE src/engine.cpp)
-target_include_directories(my_engine PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 target_sources(my_engine PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -656,10 +624,6 @@ When libraries can be used independently but are part of the same package:
 # Independent graphics library
 add_library(graphics STATIC)
 target_sources(graphics PRIVATE src/renderer.cpp)
-target_include_directories(graphics PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 target_sources(graphics PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -669,10 +633,6 @@ target_sources(graphics PUBLIC
 # Independent audio library
 add_library(audio STATIC)
 target_sources(audio PRIVATE src/sound.cpp)
-target_include_directories(audio PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 target_sources(audio PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
@@ -710,13 +670,7 @@ For header-only libraries:
 ```cmake
 add_library(header_only_lib INTERFACE)
 
-# Interface libraries use different include directory syntax
-target_include_directories(header_only_lib INTERFACE 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-# Declare interface headers
+# Declare interface headers (BASE_DIRS automatically become interface include directories)
 file(GLOB_RECURSE HEADER_ONLY_HEADERS "include/header_lib/*.hpp")
 target_sources(header_only_lib INTERFACE 
   FILE_SET HEADERS 
@@ -732,28 +686,35 @@ target_install_package(header_only_lib
 ## Key Benefits of FILE_SET Approach 🌟
 
 - ✅ **Automatic Installation**: Headers are installed automatically by `target_install_package`
+- ✅ **Automatic Include Directories**: BASE_DIRS become include directories automatically
 - ✅ **Proper Dependencies**: CMake correctly tracks header file dependencies
 - ✅ **Transitive Properties**: Headers are properly propagated to consuming targets
 - ✅ **Modern CMake**: Follows current best practices (CMake 3.23+)
 - ✅ **IDE Support**: Better integration with IDEs for header file management
-- ✅ **Component Separation**: Clean separation between runtime and development files
-- ✅ **Variant Support**: Clean handling of different build configurations
+- ✅ **Component Separation**: Cleaner separation between runtime and development files
+- ✅ **Variant Support**: Cleaner handling of different build configurations
 
 ## Migration from Legacy Approaches 🔄
 
 If you're upgrading from older CMake practices:
 
 ```cmake
-# OLD WAY (don't do this)
+# OLD WAY (also fine)
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+target_include_directories(my_library PUBLIC 
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
-# NEW WAY (recommended)
+# NEW WAY (recommended) - include directories are automatic
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
   FILES ${HEADER_FILES}
 )
 target_install_package(my_library)
+
+# Note that target_include_directories can still be used with FILE_SET
 ```
 
 The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution for header installation with minimal boilerplate. C++20 modules can also work, but I haven't tested it properly yet.

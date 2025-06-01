@@ -10,7 +10,7 @@ get_property(
   PROPERTY ${_LFG_PROPERTY}
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 1.2.2)
+  list_file_include_guard(VERSION 1.2.3)
 endif()
 
 # ~~~
@@ -24,7 +24,7 @@ endif()
 #   VERSION - Required. The version of the file (format: x.y.z)
 #   ID      - Optional. Custom identifier if filename alone might cause conflicts
 #
-# Will WARN log on someone trying to use a newer version of the file.
+# Will WARN log on someone trying to use a newer minor version of the file.
 # Will VERBOSE log on including an older version of the file.
 # Will FATAL_ERROR on MAJOR VERSION MISMATCH.
 # ~~~
@@ -60,7 +60,6 @@ macro(list_file_include_guard)
   # Parse major and minor components for the current version
   string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\1" _LFG_V_MAJOR "${_LFG_VERSION}")
   string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\2" _LFG_V_MINOR "${_LFG_VERSION}")
-  # Note: The old string(REGEX MATCH "^[0-9]+" _LFG_VERSION_MAJOR "${_LFG_VERSION}") is no longer needed.
 
   set(_LFG_PROPERTY "${_LFG_FILE_ID}_INITIALIZED")
 
@@ -81,7 +80,6 @@ macro(list_file_include_guard)
     endif()
     string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\1" _LFG_I_MAJOR "${_LFG_INCLUDED_VERSION}")
     string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\2" _LFG_I_MINOR "${_LFG_INCLUDED_VERSION}")
-    # Note: The old string(REGEX MATCH "^[0-9]+" _LFG_INCLUDED_MAJOR "${_LFG_INCLUDED_VERSION}") is no longer needed.
 
     if(NOT _LFG_V_MAJOR VERSION_EQUAL _LFG_I_MAJOR)
       message(
@@ -116,5 +114,5 @@ macro(list_file_include_guard)
 endmacro()
 
 if(NOT _LFG_INITIALIZED)
-  list_file_include_guard(VERSION 1.2.2)
+  list_file_include_guard(VERSION 1.2.3)
 endif()
