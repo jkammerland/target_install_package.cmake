@@ -36,6 +36,8 @@ target_configure_sources(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/config/build_info.h.in
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/config/internal_config.h.in
+  DESTINATION
+    include/config # Need to override install destination because the target name does not match the base include dir
 )
 
 # Set C++ standard
