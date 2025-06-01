@@ -13,3 +13,4 @@ out/
 .continue/*
 CMakeSettings.json
 .aider*
+.claude/
