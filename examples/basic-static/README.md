@@ -84,19 +84,4 @@ int main() {
 }
 ```
 
-## Expected Debug Output
-
-When building with `--log-level=DEBUG`, you'll see detailed information about:
-
-- File set installation
-- Package configuration generation
-- Component assignment (Development for static libraries)
-- Installation paths and destinations
-
-## Key Files
-
-- **CMakeLists.txt**: Main build configuration
-- **include/math/calculator.h**: Public header interface
-- **src/math.cpp**: Implementation file
-
-This example shows the simplest use case of `target_install_package` for a static library with minimal configuration.
+This example showed the simplest use case of `target_install_package` for a static library with minimal configuration.

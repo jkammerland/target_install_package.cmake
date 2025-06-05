@@ -212,15 +212,6 @@ build/
 - **PRIVATE** configured files are never installed
 - Build and install interfaces are handled automatically
 
-## Expected Debug Output
-
-The debug output will show:
-
-- Template file processing and configuration
-- Generated file paths and destinations
-- Automatic FILE_SET integration for configured headers
-- Separation of PUBLIC vs PRIVATE configured files
-
 ## Common Use Cases
 
 ### Version Information

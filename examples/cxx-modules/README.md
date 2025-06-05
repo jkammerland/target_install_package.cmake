@@ -205,7 +205,6 @@ When building with `--log-level=DEBUG`, you'll see:
 ### Module Dependencies
 - `geometry` module imports `math` module
 - CMake automatically resolves build order
-- Cross-module function calls work seamlessly
 
 ### Export Declarations
 ```cpp
@@ -277,13 +276,6 @@ Based on current CMake module support:
 - Limited to interface module units
 - Requires supported generators only
 
-## Key Benefits of Modules
-
-1. **Faster Compilation**: No header parsing repetition
-2. **Better Encapsulation**: True module boundaries
-3. **Cleaner Dependencies**: Explicit import/export
-4. **IDE Integration**: Better symbol resolution
-
 ## Key Files
 
 - **CMakeLists.txt**: Module configuration with CXX_MODULES file set
@@ -292,21 +284,3 @@ Based on current CMake module support:
 - **src/math_impl.cpp**: Implementation support file
 
 This example demonstrates the future of C++ packaging with modules while working within current CMake limitations.
-
-## Expected Output
-
-```
-Math Module Demo:
-5 + 3 = 8
-2^10 = 1024
-sqrt(16) = 4
-PI = 3.14159
-
-Geometry Module Demo:
-Circle area: 78.5398
-Circle circumference: 31.4159
-Point (3,4) in circle: Yes
-Rectangle area: 50
-Rectangle perimeter: 30
-Triangle area: 6
-```

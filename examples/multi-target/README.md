@@ -171,15 +171,6 @@ target_link_libraries(my_utility PRIVATE
 - Unified versioning and compatibility
 - Reduced consumer configuration complexity
 
-## Expected Debug Output
-
-The debug output will show:
-
-- Multiple target installation under one export
-- Transitive dependency handling
-- Single package configuration generation
-- All targets using the same namespace
-
 ## Key Features
 
 - **ADDITIONAL_TARGETS**: Packages `core_utils` and `math_ops` with `game_engine`

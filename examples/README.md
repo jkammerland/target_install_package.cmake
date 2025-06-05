@@ -123,7 +123,6 @@ install/
 ### Cross-Platform Support
 
 - **GNUInstallDirs**: Standard installation directories
-- **Platform-Specific**: Windows DLL handling, Linux shared library versioning
 - **Component Separation**: Runtime vs development file organization
 
 ## 🛠️ Example-Specific Features
@@ -223,9 +222,6 @@ When adding new examples:
 
 ## 📚 Further Reading
 
-- [Main Project README](../README.md) - Complete feature documentation
 - [target_install_package.cmake](../target_install_package.cmake) - Function implementation
 - [target_configure_sources.cmake](../target_configure_sources.cmake) - Configuration utilities
 - [CMake Documentation](https://cmake.org/cmake/help/latest/) - Official CMake reference
-
-These examples provide a comprehensive foundation for understanding modern CMake packaging with `target_install_package`.

@@ -1,12 +1,12 @@
 # Basic Shared Library Example
 
-This example demonstrates creating and installing a shared library with proper versioning using `target_install_package`.
+This example shows how you can split runtime from development files, for different kind of consumers.
 
 ## Features Demonstrated
 
 - Shared library creation with versioning
 - Position Independent Code (PIC)
-- Windows export symbols support
+- CMake Windows export symbols
 - Runtime and development component separation
 - Modern header installation with FILE_SET
 
@@ -119,27 +119,3 @@ int main() {
     return 0;
 }
 ```
-
-## Expected Debug Output
-
-The debug output will show:
-
-- Shared library installation with versioning
-- Separate component assignments for runtime vs development files
-- Automatic handling of platform-specific library naming
-- FILE_SET header installation
-
-## Key Features
-
-- **Versioning**: The shared library includes version numbers (2.1.0)
-- **PIC**: Position Independent Code is enabled automatically
-- **Cross-platform**: Works on Linux, Windows, and macOS
-- **Components**: Separates runtime and development installations
-
-## Key Files
-
-- **CMakeLists.txt**: Build configuration with shared library settings
-- **include/utils/string_utils.h**: Public API header
-- **src/string_utils.cpp**: Implementation
-
-This example shows best practices for shared library packaging and installation.

@@ -4,7 +4,7 @@
 
 A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms should work as well if they can run CMake. 
 
-This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below.
+This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below or the [examples](examples/).
 
 ## Shipped Functions & Files 📦
 
