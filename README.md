@@ -88,7 +88,10 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
  
  # target_configure_sources automatically uses FILE_SET
  target_configure_sources(my_library
-   PUBLIC "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
+   PUBLIC
+   FILE_SET HEADERS
+   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+   FILES "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
  )
  
  # Automatic installation - detects all HEADER_SETS
@@ -203,12 +206,18 @@ target_sources(my_library PUBLIC
 )
 
 # Configure template files for version info (also uses FILE_SET automatically)
-target_configure_sources(
-  my_library
+target_configure_sources(my_library
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/version.h.in
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/version.h.in
+)
+
+target_configure_sources(my_library
   PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/internal_config.h.in
+  FILE_SET private_headers
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/internal_config.h.in
 )
 
 # Install the complete package
@@ -490,7 +499,9 @@ endif()
 # Configure variant-specific header
 target_configure_sources(my_library
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/variant_config.h.in
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/variant_config.h.in
 )
 
 target_install_package(my_library

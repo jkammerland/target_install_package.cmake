@@ -29,15 +29,21 @@ target_sources(config_lib PUBLIC
 )
 
 # Configure template files and add them to the target
-target_configure_sources(
-  config_lib
+target_configure_sources(config_lib
   PUBLIC
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/config
+  FILES 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/config/version.h.in
     ${CMAKE_CURRENT_SOURCE_DIR}/include/config/build_info.h.in
+)
+
+target_configure_sources(config_lib
   PRIVATE
+  FILE_SET private_config
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/config
+  FILES 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/config/internal_config.h.in
-  DESTINATION
-    include/config # Need to override install destination because the target name does not match the base include dir
 )
 
 # Set C++ standard

@@ -15,15 +15,19 @@ target_sources(
 # Test it works with both target_include_directories and FILE_SET
 target_include_directories(static2 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_definitions(static2 PUBLIC "STATIC=1")
-target_configure_sources(
-  static2
+target_configure_sources(static2
   PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/static2
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in
+)
+
+target_configure_sources(static2
   PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in
-  DESTINATION
-  ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
-target_include_directories(static2 PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include/static2)
+  FILE_SET private_headers
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/static2
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in
+)
 
 target_compile_features(static2 PUBLIC cxx_std_17)
 target_install_package(static2 EXPORT_NAME "my_static_package") # Same as static2
