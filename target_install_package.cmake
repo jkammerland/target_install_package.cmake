@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-list_file_include_guard(VERSION 3.0.2)
+list_file_include_guard(VERSION 3.0.3)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

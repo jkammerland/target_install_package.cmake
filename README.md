@@ -4,7 +4,7 @@
 
 A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms should work as well if they can run CMake. 
 
-This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below.
+This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below or the [examples](examples/).
 
 ## Shipped Functions & Files 📦
 
@@ -88,7 +88,10 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
  
  # target_configure_sources automatically uses FILE_SET
  target_configure_sources(my_library
-   PUBLIC "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
+   PUBLIC
+   FILE_SET HEADERS
+   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+   FILES "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
  )
  
  # Automatic installation - detects all HEADER_SETS
@@ -122,7 +125,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v3.0.2
+  GIT_TAG v3.0.3
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -203,12 +206,18 @@ target_sources(my_library PUBLIC
 )
 
 # Configure template files for version info (also uses FILE_SET automatically)
-target_configure_sources(
-  my_library
+target_configure_sources(my_library
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/version.h.in
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/version.h.in
+)
+
+target_configure_sources(my_library
   PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/internal_config.h.in
+  FILE_SET private_headers
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/internal_config.h.in
 )
 
 # Install the complete package
@@ -490,7 +499,9 @@ endif()
 # Configure variant-specific header
 target_configure_sources(my_library
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/variant_config.h.in
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/variant_config.h.in
 )
 
 target_install_package(my_library

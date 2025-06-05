@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 3.0.2)
+project(target_install_package VERSION 3.0.3)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -20,8 +20,11 @@ include(${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake)
 # Create an INTERFACE library to represent our modules
 add_library(${PROJECT_NAME} INTERFACE)
 
-# Use target_install_package to install itself and target_configure_sources
-target_install_package(
+# Only install if this is the main project or if explicitly enabled
+option(TARGET_INSTALL_PACKAGE_ENABLE_INSTALL "Create install configuration for ${PROJECT_NAME}" OFF)
+if(${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR} OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
+  # Use target_install_package to install itself and target_configure_sources
+  target_install_package(
   ${PROJECT_NAME}
   ADDITIONAL_FILES
   ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in
@@ -46,6 +49,7 @@ target_install_package(
   "CMakeUtilities"
   DEVELOPMENT_COMPONENT
   "CMakeUtilities")
+endif()
 
 option(${PROJECT_NAME}_BUILD_TESTS "Run the tests" OFF)
 if(${PROJECT_NAME}_BUILD_TESTS)

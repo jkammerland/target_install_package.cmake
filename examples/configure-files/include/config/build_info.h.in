@@ -1,0 +1,16 @@
+#pragma once
+
+// Build and configuration information
+#define CONFIG_LIB_DESCRIPTION "@LIBRARY_DESCRIPTION@"
+#define CONFIG_LIB_AUTHOR "@LIBRARY_AUTHOR@"
+
+// Feature toggles
+#cmakedefine ENABLE_LOGGING
+
+// Configuration values
+#define MAX_BUFFER_SIZE @MAX_BUFFER_SIZE@
+
+// Build system information
+#define CMAKE_VERSION "@CMAKE_VERSION@"
+#define CMAKE_SYSTEM_NAME "@CMAKE_SYSTEM_NAME@"
+#define CMAKE_CXX_COMPILER_ID "@CMAKE_CXX_COMPILER_ID@"
