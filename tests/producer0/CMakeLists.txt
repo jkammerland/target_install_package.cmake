@@ -8,7 +8,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v3.0.2)
+  GIT_TAG v3.0.3)
 FetchContent_MakeAvailable(target_install_package)
 
 add_executable(${PROJECT_NAME})
