@@ -1,7 +1,9 @@
-#include "config/build_info.h"
-#include "config/internal_config.h"
-#include "config/library.h"
-#include "config/version.h"
+
+#include "config_lib/build_info.h"
+#include "config_lib/internal_config.h"
+#include "config_lib/internal_non_config.h"
+#include "config_lib/library.h"
+#include "config_lib/version.h"
 #include <iostream>
 
 namespace config {
@@ -27,6 +29,7 @@ void Library::initialize() {
   std::cout << "Build system: CMake " << CMAKE_VERSION << std::endl;
   std::cout << "Platform: " << CMAKE_SYSTEM_NAME << std::endl;
   std::cout << "Compiler: " << CMAKE_CXX_COMPILER_ID << std::endl;
+  std::cout << "Nonconfig param: " << INTERNALINFO << std::endl;
 
 #if INTERNAL_LOGGING_ENABLED
   std::cout << "Logging: ENABLED" << std::endl;

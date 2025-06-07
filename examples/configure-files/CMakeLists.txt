@@ -24,26 +24,32 @@ target_sources(config_lib PRIVATE src/config_lib.cpp)
 # Declare regular headers using FILE_SET
 target_sources(config_lib PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/config/library.h"
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include/config_lib" 
+  FILES "include/config_lib/library.h"
 )
+
+# target_sources(config_lib PRIVATE
+#   FILE_SET private_config_no_configure
+#   BASE_DIRS include/config_lib/
+#   FILES include/config_lib/internal_non_config.h
+# )
 
 # Configure template files and add them to the target
 target_configure_sources(config_lib
   PUBLIC
   FILE_SET HEADERS
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/config
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/config_lib
   FILES 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/config/version.h.in
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/config/build_info.h.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/config_lib/version.h.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/config_lib/build_info.h.in
 )
 
 target_configure_sources(config_lib
   PRIVATE
   FILE_SET private_config
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/config
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/config_lib
   FILES 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/config/internal_config.h.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/config_lib/internal_config.h.in
 )
 
 # Set C++ standard
