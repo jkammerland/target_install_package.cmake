@@ -29,8 +29,8 @@ endif()
 #   [COMPATIBILITY]: Compatibility mode for version (default: `"SameMajorVersion"`).
 #   [EXPORT_NAME: Name of the CMake export file (default: `${TARGET_NAME}-targets`).
 #   [CONFIG_TEMPLATE]: Path to a CMake config template file (default: auto-detected, falls back to generic).
-#   [INCLUDE_DESTINATION]: Destination path for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}`).
-#   [MODULE_DESTINATION]: Destination path for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules`).
+#   [INCLUDE_DESTINATION]: Destination path for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
+#   [MODULE_DESTINATION]: Destination path for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}`).
 #   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime"). Defaults to DEVELOPMENT_COMPONENT.
 #   [RUNTIME_COMPONENT]: Component name for runtime files (default: "Runtime").
@@ -182,10 +182,7 @@ function(target_install_package TARGET_NAME)
       DESTINATION
       ${CMAKE_INSTALL_BINDIR}
       COMPONENT
-      ${ARG_RUNTIME_COMPONENT}
-      INCLUDES
-      DESTINATION
-      ${ARG_INCLUDE_DESTINATION})
+      ${ARG_RUNTIME_COMPONENT}) # Removed includes destination, use FILE_SETS!
 
   # Get only INTERFACE header file sets (PUBLIC/INTERFACE only, no PRIVATE)
   get_target_property(TARGET_INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
@@ -204,7 +201,7 @@ function(target_install_package TARGET_NAME)
     foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
       # Get files in this header set
       get_target_property(CURRENT_SET_FILES ${TARGET_NAME} HEADER_SET_${CURRENT_SET_NAME})
-      
+
       if(CURRENT_SET_FILES)
         # Check for duplicate files across file sets
         foreach(CURRENT_FILE_PATH ${CURRENT_SET_FILES})
@@ -262,7 +259,7 @@ function(target_install_package TARGET_NAME)
       foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
         # Get files in this module set
         get_target_property(CURRENT_MODULE_SET_FILES ${TARGET_NAME} CXX_MODULE_SET_${CURRENT_MODULE_SET_NAME})
-        
+
         if(CURRENT_MODULE_SET_FILES)
           # Check for duplicate files across module sets
           foreach(CURRENT_MODULE_FILE ${CURRENT_MODULE_SET_FILES})
@@ -288,7 +285,6 @@ function(target_install_package TARGET_NAME)
       endforeach()
     endif()
   endif()
-
 
   # Execute the install command
   install(${INSTALL_ARGS})
@@ -429,7 +425,6 @@ function(target_install_package TARGET_NAME)
         FILES "${SRC_CMAKE_FILE}"
         DESTINATION "${ARG_CMAKE_CONFIG_DESTINATION}"
         ${DEV_COMPONENT_ARGS})
-      project_log(DEBUG "  Installing public CMake file: ${SRC_CMAKE_FILE} to ${ARG_CMAKE_CONFIG_DESTINATION}")
 
       # Add include statement to the config content
       string(APPEND PACKAGE_PUBLIC_CMAKE_FILES "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")

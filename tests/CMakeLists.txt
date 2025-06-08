@@ -16,21 +16,29 @@ target_sources(
 
 # Test it works with both target_include_directories and FILE_SET
 target_compile_definitions(static2 PUBLIC "STATIC=1")
-target_configure_sources(static2
+target_configure_sources(
+  static2
   PUBLIC
-  OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/static2
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
-  FILE_SET HEADERS
-  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in
-)
+  OUTPUT_DIR
+  ${CMAKE_CURRENT_BINARY_DIR}/include/static2
+  BASE_DIRS
+  ${CMAKE_CURRENT_BINARY_DIR}/include
+  FILE_SET
+  HEADERS
+  FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in)
 
-target_configure_sources(static2
+target_configure_sources(
+  static2
   PRIVATE
-  OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/static2
-  FILE_SET private_headers
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
-  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in
-)
+  OUTPUT_DIR
+  ${CMAKE_CURRENT_BINARY_DIR}/include/static2
+  FILE_SET
+  private_headers
+  BASE_DIRS
+  ${CMAKE_CURRENT_BINARY_DIR}/include
+  FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in)
 
 target_compile_features(static2 PUBLIC cxx_std_17)
 target_install_package(static2 EXPORT_NAME "my_static_package")
@@ -62,7 +70,15 @@ target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static
 
 add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)
-target_include_directories(shared1 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_sources(
+  shared1
+  PUBLIC FILE_SET
+         HEADERS
+         BASE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/include"
+         "${CMAKE_CURRENT_BINARY_DIR}/include"
+         FILES
+         "include/tests/header.h")
 target_compile_definitions(shared1 PRIVATE "SHARED=1") # PRIVATE FOR TESTING
 set_target_properties(shared1 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(shared1 PUBLIC fmt)
@@ -91,16 +107,21 @@ target_install_package(bin0 RUNTIME_COMPONENT "bin")
 add_library(component-devel SHARED)
 target_sources(component-devel PRIVATE src4.cpp)
 target_link_libraries(component-devel PRIVATE fmt)
-target_include_directories(component-devel PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-                                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-
+target_sources(component-devel PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/component/component-devel.hpp")
 
 target_compile_features(component-devel PUBLIC cxx_std_17)
 # Windows-specific: ensure import library is generated
 if(WIN32)
   set_target_properties(component-devel PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
-target_configure_sources(component-devel PUBLIC OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/component BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include FILES include/component/configure_me.h)
-
+target_configure_sources(
+  component-devel
+  PUBLIC
+  OUTPUT_DIR
+  ${CMAKE_CURRENT_BINARY_DIR}/include/component
+  BASE_DIRS
+  ${CMAKE_CURRENT_BINARY_DIR}/include
+  FILES
+  include/component/configure_me.h)
 
 target_install_package(component-devel DEVELOPMENT_COMPONENT "devel")
