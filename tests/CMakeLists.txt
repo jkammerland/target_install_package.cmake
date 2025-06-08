@@ -19,7 +19,6 @@ target_compile_definitions(static2 PUBLIC "STATIC=1")
 target_configure_sources(static2
   PUBLIC
   OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/static2
-  INSTALL_INCLUDE_DIR static2
   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
   FILE_SET HEADERS
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in
@@ -28,14 +27,13 @@ target_configure_sources(static2
 target_configure_sources(static2
   PRIVATE
   OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/static2
-  INSTALL_INCLUDE_DIR static2
   FILE_SET private_headers
   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in
 )
 
 target_compile_features(static2 PUBLIC cxx_std_17)
-target_install_package(static2 EXPORT_NAME "my_static_package") # Same as static2
+target_install_package(static2 EXPORT_NAME "my_static_package")
 
 add_library(static1 STATIC)
 target_sources(static1 PRIVATE src1.cpp)

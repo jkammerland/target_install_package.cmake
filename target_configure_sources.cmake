@@ -17,7 +17,6 @@ endif()
 #   target_configure_sources(TARGET_NAME
 #     [PUBLIC|PRIVATE|INTERFACE]
 #     [OUTPUT_DIR directory]
-#     [INSTALL_INCLUDE_DIR relative_path]
 #     [SUBSTITUTION_MODE @ONLY|VARIABLES]
 #     [FILE_SET file_set_name [TYPE HEADERS]]
 #     [BASE_DIRS base_directories...]
@@ -29,9 +28,6 @@ endif()
 #   [PUBLIC|PRIVATE|INTERFACE]: Visibility scope for the configured files.
 #   [OUTPUT_DIR]: Directory where configured files will be generated.
 #                 Default: ${CMAKE_CURRENT_BINARY_DIR}/configured/${TARGET_NAME}
-#   [INSTALL_INCLUDE_DIR]: Relative path for installation (relative to CMAKE_INSTALL_INCLUDEDIR).
-#                          Default: ${TARGET_NAME} (results in include/${TARGET_NAME}/)
-#                          Use "." for direct CMAKE_INSTALL_INCLUDEDIR installation
 #   [SUBSTITUTION_MODE]: Configure file substitution mode (@ONLY or VARIABLES).
 #                        Default: @ONLY
 #   [FILE_SET file_set_name]: Name of the file set to add configured files to.
@@ -60,7 +56,6 @@ endif()
 #   target_configure_sources(my_library
 #     PUBLIC
 #     OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_lib
-#     INSTALL_INCLUDE_DIR my_lib
 #     FILES src/version.h.in src/config.h.in
 #   )
 #
@@ -74,7 +69,7 @@ endif()
 # ~~~
 function(target_configure_sources TARGET_NAME)
   set(visibility_options PUBLIC PRIVATE INTERFACE)
-  set(oneValueArgs OUTPUT_DIR INSTALL_INCLUDE_DIR SUBSTITUTION_MODE FILE_SET TYPE)
+  set(oneValueArgs OUTPUT_DIR SUBSTITUTION_MODE FILE_SET TYPE)
   set(multiValueArgs BASE_DIRS FILES)
   cmake_parse_arguments(ARGS "${visibility_options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
