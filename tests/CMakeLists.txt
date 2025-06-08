@@ -22,7 +22,6 @@ target_configure_sources(static2
   INSTALL_INCLUDE_DIR static2
   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
   FILE_SET HEADERS
-
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/version.h.in
 )
 
@@ -96,11 +95,14 @@ target_sources(component-devel PRIVATE src4.cpp)
 target_link_libraries(component-devel PRIVATE fmt)
 target_include_directories(component-devel PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
                                                   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_sources(component-devel PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/component/component-devel.hpp")
+
+
 target_compile_features(component-devel PUBLIC cxx_std_17)
 # Windows-specific: ensure import library is generated
 if(WIN32)
   set_target_properties(component-devel PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
+target_configure_sources(component-devel PUBLIC OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/component BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include FILES include/component/configure_me.h)
+
 
 target_install_package(component-devel DEVELOPMENT_COMPONENT "devel")

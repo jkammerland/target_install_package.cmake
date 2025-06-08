@@ -48,7 +48,6 @@ endif()
 # - PUBLIC and INTERFACE files are automatically installed when using target_install_package
 # - PRIVATE files are never installed
 # - Include paths are set up with generator expressions to work correctly for both build and install
-# - The function communicates with target_install_package via target properties
 #
 # Examples:
 #   # Basic usage - creates files in build/configured/my_library/
@@ -122,6 +121,16 @@ function(target_configure_sources TARGET_NAME)
     set(ARGS_TYPE "HEADERS")
   endif()
 
+  # Validate substitution mode earlier
+  if(ARGS_SUBSTITUTION_MODE AND NOT "${ARGS_SUBSTITUTION_MODE}" MATCHES "^(@ONLY|VARIABLES)$")
+    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES")
+  endif()
+
+  # Validate file set type
+  if(NOT ARGS_TYPE STREQUAL "HEADERS")
+    project_log(WARNING "target_configure_sources: Only HEADERS type is currently well-tested")
+  endif()
+
   if(NOT ARGS_BASE_DIRS)
     set(ARGS_BASE_DIRS "${ARGS_OUTPUT_DIR}")
   endif()
@@ -136,17 +145,19 @@ function(target_configure_sources TARGET_NAME)
   project_log(DEBUG "target_configure_sources: Created output directory: ${ARGS_OUTPUT_DIR}")
 
   # Process template files
-  set(CONFIGURED_FILES)
+  set(CONFIGURED_FILES "")
   foreach(SOURCE_FILE IN LISTS ARGS_FILES)
     if(NOT IS_ABSOLUTE "${SOURCE_FILE}")
-      # Suggestion 2: Use CMAKE_CURRENT_LIST_DIR for more intuitive relative paths
-      set(SOURCE_FILE "${CMAKE_CURRENT_LIST_DIR}/${SOURCE_FILE}")
+      set(SOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE_FILE}")
     endif()
 
     if(NOT EXISTS "${SOURCE_FILE}")
       project_log(WARNING "target_configure_sources: Template file not found: ${SOURCE_FILE}")
       continue()
     endif()
+
+    # Add dependency tracking
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SOURCE_FILE}")
 
     get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
     string(REGEX REPLACE "\\.in$" "" OUTPUT_FILE_NAME "${FILE_NAME}")
@@ -161,15 +172,6 @@ function(target_configure_sources TARGET_NAME)
   if(NOT CONFIGURED_FILES)
     project_log(WARNING "target_configure_sources: No files were successfully configured for target ${TARGET_NAME}")
     return()
-  endif()
-
-  # Suggestion 1: Use APPEND to allow multiple calls to this function
-  set_property(TARGET ${TARGET_NAME} APPEND PROPERTY ${SCOPE}_CONFIGURED_FILES ${CONFIGURED_FILES})
-  
-  if(NOT SCOPE STREQUAL "PRIVATE")
-    # Note: This property will be overwritten on subsequent calls. This is a design limitation.
-    set_property(TARGET ${TARGET_NAME} PROPERTY CONFIGURED_INSTALL_INCLUDE_DIR "${ARGS_INSTALL_INCLUDE_DIR}")
-    project_log(DEBUG "  Stored install include dir for ${TARGET_NAME}: ${ARGS_INSTALL_INCLUDE_DIR}")
   endif()
 
   if("${ARGS_INSTALL_INCLUDE_DIR}" STREQUAL ".")
