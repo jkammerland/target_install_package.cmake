@@ -91,8 +91,10 @@ target_install_package(bin0 RUNTIME_COMPONENT "bin")
 add_library(component-devel SHARED)
 target_sources(component-devel PRIVATE src4.cpp)
 target_link_libraries(component-devel PRIVATE fmt)
-target_include_directories(component-devel PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-                                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+# Only specify BUILD_INTERFACE - let target_install_package handle INSTALL_INTERFACE automatically
+target_include_directories(component-devel PUBLIC 
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>)
 
 
 target_compile_features(component-devel PUBLIC cxx_std_17)
