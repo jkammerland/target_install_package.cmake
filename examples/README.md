@@ -135,7 +135,7 @@ install/
 ### Shared Library ([basic-shared](basic-shared/))
 - Library versioning (VERSION, SOVERSION)
 - Runtime/Development component separation
-- Cross-platform shared library support
+- Building and packaging shared libraries for different platforms
 
 ### Interface Library ([basic-interface](basic-interface/))
 - Header-only template library
@@ -200,7 +200,7 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 find install/ -type f | sort
 
 # Check CMake config files
-cat install/share/cmake/*/package-config.cmake
+cat install/share/cmake/*/*-config.cmake
 ```
 
 ### Test Package Finding

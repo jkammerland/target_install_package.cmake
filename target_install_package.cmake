@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-list_file_include_guard(VERSION 3.0.3)
+list_file_include_guard(VERSION 4.0.0)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -126,10 +126,10 @@ function(target_install_package TARGET_NAME)
     "${TARGET_NAME}-targets"
     "Export name"
     ARG_INCLUDE_DESTINATION
-    "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}"
+    "${CMAKE_INSTALL_INCLUDEDIR}"
     "Include destination"
     ARG_MODULE_DESTINATION
-    "${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}/modules"
+    "${CMAKE_INSTALL_INCLUDEDIR}"
     "Module destination"
     ARG_ADDITIONAL_FILES_DESTINATION
     "files"
@@ -156,31 +156,6 @@ function(target_install_package TARGET_NAME)
   if(ARG_COMPONENT)
     set(COMPONENT_ARGS COMPONENT ${ARG_COMPONENT})
   endif()
-
-  # Process any configured files
-  foreach(SCOPE PUBLIC INTERFACE) # Note: PRIVATE files not installed
-    get_target_property(CONFIGURED_FILES ${TARGET_NAME} ${SCOPE}_CONFIGURED_FILES)
-
-    if(CONFIGURED_FILES)
-      project_log(DEBUG "Installing ${SCOPE} configured files for target ${TARGET_NAME}")
-
-      # Get custom destination or use default
-      get_target_property(CUSTOM_DEST ${TARGET_NAME} CONFIGURE_DESTINATION)
-      if(NOT CUSTOM_DEST)
-        set(CUSTOM_DEST "${ARG_INCLUDE_DESTINATION}")
-      endif()
-
-      # Install the configured files with development component
-      foreach(FILE_PATH ${CONFIGURED_FILES})
-        get_filename_component(FILE_NAME "${FILE_PATH}" NAME)
-        install(
-          FILES "${FILE_PATH}"
-          DESTINATION "${CUSTOM_DEST}"
-          ${DEV_COMPONENT_ARGS})
-        project_log(DEBUG "  Will install configured file to: ${CUSTOM_DEST}/${FILE_NAME}")
-      endforeach()
-    endif()
-  endforeach()
 
   # Get the source directory for this target
   get_target_property(TARGET_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)
@@ -212,47 +187,61 @@ function(target_install_package TARGET_NAME)
       DESTINATION
       ${ARG_INCLUDE_DESTINATION})
 
-  # Get all header file sets (both regular and interface)
-  get_target_property(HEADER_SETS ${TARGET_NAME} HEADER_SETS)
-  get_target_property(INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
-  get_target_property(PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
+  # Get only INTERFACE header file sets (PUBLIC/INTERFACE only, no PRIVATE)
+  get_target_property(TARGET_INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
+  get_target_property(TARGET_PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
 
-  # Collect all unique header file sets (PUBLIC file sets appear in both lists)
-  set(ALL_HEADER_SETS "")
-  if(HEADER_SETS)
-    list(APPEND ALL_HEADER_SETS ${HEADER_SETS})
-  endif()
-  if(INTERFACE_HEADER_SETS)
-    list(APPEND ALL_HEADER_SETS ${INTERFACE_HEADER_SETS})
-  endif()
-
-  if(ALL_HEADER_SETS)
-    list(REMOVE_DUPLICATES ALL_HEADER_SETS)
-  endif()
+  # Track all files being installed to detect duplicates
+  set(ALL_INSTALLED_FILES "")
 
   # Warn on mixing old and new header installation methods (but allow it)
-  if(PUBLIC_HEADERS AND ALL_HEADER_SETS)
+  if(TARGET_PUBLIC_HEADERS AND TARGET_INTERFACE_HEADER_SETS)
     project_log(WARNING "Target '${TARGET_NAME}' has both PUBLIC_HEADER property and HEADER file sets. This may cause duplicate header installation. Consider using only file sets for modern CMake.")
   endif()
 
-  # Install all unique header file sets
-  if(ALL_HEADER_SETS)
-    foreach(HEADER_SET ${ALL_HEADER_SETS})
+  # Install INTERFACE header file sets (PUBLIC/INTERFACE only) and check for duplicates
+  if(TARGET_INTERFACE_HEADER_SETS)
+    foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
+      # Get files in this header set
+      get_target_property(CURRENT_SET_FILES ${TARGET_NAME} HEADER_SET_${CURRENT_SET_NAME})
+      
+      if(CURRENT_SET_FILES)
+        # Check for duplicate files across file sets
+        foreach(CURRENT_FILE_PATH ${CURRENT_SET_FILES})
+          get_filename_component(CURRENT_ABS_PATH "${CURRENT_FILE_PATH}" ABSOLUTE)
+          if(CURRENT_ABS_PATH IN_LIST ALL_INSTALLED_FILES)
+            project_log(WARNING "Duplicate file detected across file sets: ${CURRENT_ABS_PATH} (in file set '${CURRENT_SET_NAME}')")
+          else()
+            list(APPEND ALL_INSTALLED_FILES "${CURRENT_ABS_PATH}")
+          endif()
+        endforeach()
+      endif()
+
       list(
         APPEND
         INSTALL_ARGS
         FILE_SET
-        ${HEADER_SET}
+        ${CURRENT_SET_NAME}
         DESTINATION
         ${ARG_INCLUDE_DESTINATION}
         COMPONENT
         ${ARG_DEVELOPMENT_COMPONENT})
-      project_log(DEBUG "  Installing HEADER file set '${HEADER_SET}' for ${TARGET_NAME}")
+      project_log(DEBUG "  Installing INTERFACE HEADER file set '${CURRENT_SET_NAME}' for ${TARGET_NAME}")
     endforeach()
   endif()
 
-  # Install PUBLIC_HEADER property (separately from file sets)
-  if(PUBLIC_HEADERS)
+  # Install PUBLIC_HEADER property (separately from file sets) and check for duplicates
+  if(TARGET_PUBLIC_HEADERS)
+    # Check if any PUBLIC_HEADER files conflict with file set files
+    foreach(CURRENT_PUBLIC_HEADER ${TARGET_PUBLIC_HEADERS})
+      get_filename_component(CURRENT_PUBLIC_ABS_PATH "${CURRENT_PUBLIC_HEADER}" ABSOLUTE)
+      if(CURRENT_PUBLIC_ABS_PATH IN_LIST ALL_INSTALLED_FILES)
+        project_log(WARNING "Duplicate file detected between PUBLIC_HEADER and file sets: ${CURRENT_PUBLIC_ABS_PATH}")
+      else()
+        list(APPEND ALL_INSTALLED_FILES "${CURRENT_PUBLIC_ABS_PATH}")
+      endif()
+    endforeach()
+
     list(
       APPEND
       INSTALL_ARGS
@@ -264,64 +253,45 @@ function(target_install_package TARGET_NAME)
     project_log(DEBUG "  Installing PUBLIC_HEADER property for ${TARGET_NAME}")
   endif()
 
-  # Handle C++20 modules (CMake 3.28+)
+  # Handle C++20 modules (CMake 3.28+) - only INTERFACE modules
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
-    get_target_property(MODULE_SETS ${TARGET_NAME} CXX_MODULE_SETS)
-    get_target_property(INTERFACE_MODULE_SETS ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
+    get_target_property(TARGET_INTERFACE_MODULE_SETS ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
 
-    # Collect all unique module file sets (PUBLIC file sets appear in both lists)
-    set(ALL_MODULE_SETS "")
-    if(MODULE_SETS)
-      list(APPEND ALL_MODULE_SETS ${MODULE_SETS})
-    endif()
-    if(INTERFACE_MODULE_SETS)
-      list(APPEND ALL_MODULE_SETS ${INTERFACE_MODULE_SETS})
-    endif()
+    # Install INTERFACE module file sets and check for duplicates
+    if(TARGET_INTERFACE_MODULE_SETS)
+      foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
+        # Get files in this module set
+        get_target_property(CURRENT_MODULE_SET_FILES ${TARGET_NAME} CXX_MODULE_SET_${CURRENT_MODULE_SET_NAME})
+        
+        if(CURRENT_MODULE_SET_FILES)
+          # Check for duplicate files across module sets
+          foreach(CURRENT_MODULE_FILE ${CURRENT_MODULE_SET_FILES})
+            get_filename_component(CURRENT_MODULE_ABS_PATH "${CURRENT_MODULE_FILE}" ABSOLUTE)
+            if(CURRENT_MODULE_ABS_PATH IN_LIST ALL_INSTALLED_FILES)
+              project_log(WARNING "Duplicate file detected across module sets: ${CURRENT_MODULE_ABS_PATH} (in module set '${CURRENT_MODULE_SET_NAME}')")
+            else()
+              list(APPEND ALL_INSTALLED_FILES "${CURRENT_MODULE_ABS_PATH}")
+            endif()
+          endforeach()
+        endif()
 
-    if(ALL_MODULE_SETS)
-      list(REMOVE_DUPLICATES ALL_MODULE_SETS)
-    endif()
-
-    # Install all unique module file sets
-    if(ALL_MODULE_SETS)
-      foreach(MODULE_SET ${ALL_MODULE_SETS})
         list(
           APPEND
           INSTALL_ARGS
           FILE_SET
-          ${MODULE_SET}
+          ${CURRENT_MODULE_SET_NAME}
           DESTINATION
           ${ARG_MODULE_DESTINATION}
           COMPONENT
           ${ARG_DEVELOPMENT_COMPONENT})
-        project_log(DEBUG "  Installing CXX_MODULE file set '${MODULE_SET}' for ${TARGET_NAME}")
+        project_log(DEBUG "  Installing INTERFACE CXX_MODULE file set '${CURRENT_MODULE_SET_NAME}' for ${TARGET_NAME}")
       endforeach()
     endif()
   endif()
+
 
   # Execute the install command
   install(${INSTALL_ARGS})
-
-  # Check for generated config headers (.h and .hpp)
-  set(CONFIG_HEADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/include/${TARGET_NAME}")
-  if(EXISTS "${CONFIG_HEADER_DIR}")
-    file(GLOB CONFIG_HEADERS "${CONFIG_HEADER_DIR}/*.h" "${CONFIG_HEADER_DIR}/*.hpp")
-    if(CONFIG_HEADERS)
-      project_log(DEBUG "  Found generated config headers for target: ${TARGET_NAME}")
-      foreach(HEADER_FILE ${CONFIG_HEADERS})
-        get_filename_component(HEADER_NAME "${HEADER_FILE}" NAME)
-        project_log(DEBUG "    - ${HEADER_NAME}")
-        install(
-          FILES "${HEADER_FILE}"
-          DESTINATION ${ARG_INCLUDE_DESTINATION}
-          ${DEV_COMPONENT_ARGS})
-      endforeach()
-    else()
-      project_log(DEBUG "  No generated config headers found for target: ${TARGET_NAME} in ${CONFIG_HEADER_DIR}")
-    endif()
-  else()
-    project_log(DEBUG "  Generated config header directory not found: ${CONFIG_HEADER_DIR}")
-  endif()
 
   # Install any additional files with development component
   if(ARG_ADDITIONAL_FILES)

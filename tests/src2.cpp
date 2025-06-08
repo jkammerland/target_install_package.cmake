@@ -1,5 +1,5 @@
-#include "internal.h"
 #include "static2/header.h"
+#include "static2/internal.h"
 #include "static2/version.h"
 
 std::string get_string() {
