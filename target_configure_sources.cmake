@@ -100,10 +100,6 @@ function(target_configure_sources TARGET_NAME)
     set(ARGS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/configured/${TARGET_NAME}")
   endif()
 
-  if(NOT DEFINED ARGS_INSTALL_INCLUDE_DIR) # Use DEFINED check to allow empty string
-    set(ARGS_INSTALL_INCLUDE_DIR "${TARGET_NAME}")
-  endif()
-
   if(NOT ARGS_SUBSTITUTION_MODE)
     set(ARGS_SUBSTITUTION_MODE "@ONLY")
   endif()
@@ -152,7 +148,10 @@ function(target_configure_sources TARGET_NAME)
     endif()
 
     # Add dependency tracking
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SOURCE_FILE}")
+    set_property(
+      DIRECTORY
+      APPEND
+      PROPERTY CMAKE_CONFIGURE_DEPENDS "${SOURCE_FILE}")
 
     get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
     string(REGEX REPLACE "\\.in$" "" OUTPUT_FILE_NAME "${FILE_NAME}")
@@ -169,19 +168,11 @@ function(target_configure_sources TARGET_NAME)
     return()
   endif()
 
-  if("${ARGS_INSTALL_INCLUDE_DIR}" STREQUAL ".")
-    set(INSTALL_INTERFACE_PATH "\${CMAKE_INSTALL_INCLUDEDIR}")
-  else()
-    set(INSTALL_INTERFACE_PATH "\${CMAKE_INSTALL_INCLUDEDIR}/${ARGS_INSTALL_INCLUDE_DIR}")
-  endif()
-
   if(SCOPE STREQUAL "PRIVATE")
     target_include_directories(${TARGET_NAME} PRIVATE "${ARGS_OUTPUT_DIR}")
     project_log(DEBUG "  Added PRIVATE include directory: ${ARGS_OUTPUT_DIR}")
   else()
-    target_include_directories(${TARGET_NAME} ${SCOPE} 
-      $<BUILD_INTERFACE:${ARGS_OUTPUT_DIR}>
-      $<INSTALL_INTERFACE:${INSTALL_INTERFACE_PATH}>)
+    target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${ARGS_OUTPUT_DIR}> $<INSTALL_INTERFACE:${INSTALL_INTERFACE_PATH}>)
     project_log(DEBUG "  Added ${SCOPE} include directories: ${ARGS_OUTPUT_DIR} (build) -> ${INSTALL_INTERFACE_PATH} (install)")
   endif()
 
@@ -192,11 +183,14 @@ function(target_configure_sources TARGET_NAME)
     target_sources(
       ${TARGET_NAME}
       ${SCOPE}
-      FILE_SET ${ARGS_FILE_SET}
-      TYPE ${ARGS_TYPE}
-      BASE_DIRS ${ARGS_BASE_DIRS}
-      FILES ${CONFIGURED_FILES}
-    )
+      FILE_SET
+      ${ARGS_FILE_SET}
+      TYPE
+      ${ARGS_TYPE}
+      BASE_DIRS
+      ${ARGS_BASE_DIRS}
+      FILES
+      ${CONFIGURED_FILES})
     list(LENGTH CONFIGURED_FILES FILE_COUNT)
     project_log(DEBUG "  Successfully added ${FILE_COUNT} files to FILE_SET ${ARGS_FILE_SET}")
   else()
