@@ -116,7 +116,7 @@ clean_all_examples() {
 
 # Main script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXAMPLES_DIR="$SCRIPT_DIR/examples"
+EXAMPLES_DIR="$SCRIPT_DIR"
 
 # List of examples to build (in order)
 EXAMPLES=(
