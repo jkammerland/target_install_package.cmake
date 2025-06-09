@@ -9,23 +9,23 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Check for C++20 modules support
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
-        message(WARNING "GCC 14.0 or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-        return()
-    endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.0")
-        message(WARNING "Clang 19.0 or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-        return()
-    endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
-        message(WARNING "MSVC 19.29 (Visual Studio 2019 16.10) or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-        return()
-    endif()
-else()
-    message(WARNING "C++20 modules support may not be available with ${CMAKE_CXX_COMPILER_ID}. Skipping modules example.")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
+    message(WARNING "GCC 14.0 or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
     return()
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.0")
+    message(WARNING "Clang 19.0 or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
+    return()
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
+    message(WARNING "MSVC 19.29 (Visual Studio 2019 16.10) or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
+    return()
+  endif()
+else()
+  message(WARNING "C++20 modules support may not be available with ${CMAKE_CXX_COMPILER_ID}. Skipping modules example.")
+  return()
 endif()
 
 # Include target_install_package utilities
@@ -33,36 +33,37 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v4.0.0
-)
+  GIT_TAG v4.0.1)
 FetchContent_MakeAvailable(target_install_package)
 
 # Create a library with C++20 modules
 add_library(math_modules STATIC)
 
 # Add implementation sources
-target_sources(math_modules PRIVATE 
-  src/math_impl.cpp
-)
+target_sources(math_modules PRIVATE src/math_impl.cpp)
 
 # Add C++20 modules using FILE_SET
-target_sources(math_modules PUBLIC
-  FILE_SET CXX_MODULES 
-  TYPE CXX_MODULES
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/modules"
-  FILES 
-    "modules/math.cppm"
-    "modules/geometry.cppm"
-)
+target_sources(
+  math_modules
+  PUBLIC FILE_SET
+         CXX_MODULES
+         TYPE
+         CXX_MODULES
+         BASE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/modules"
+         FILES
+         "modules/math.cppm"
+         "modules/geometry.cppm")
 
 # Set module-specific properties
-set_target_properties(math_modules PROPERTIES
-  CXX_SCAN_FOR_MODULES ON
-)
+set_target_properties(math_modules PROPERTIES CXX_SCAN_FOR_MODULES ON)
 
 # Install the library with module support
-target_install_package(math_modules
-  NAMESPACE MathModules::
-  VERSION ${PROJECT_VERSION}
-  MODULE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/math_modules/modules"
-)
+target_install_package(
+  math_modules
+  NAMESPACE
+  MathModules::
+  VERSION
+  ${PROJECT_VERSION}
+  MODULE_DESTINATION
+  "${CMAKE_INSTALL_INCLUDEDIR}/math_modules/modules")

@@ -3,7 +3,7 @@ get_property(
   PROPERTY ${_LFG_PROPERTY}
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 4.0.0)
+  list_file_include_guard(VERSION 4.0.1)
 else()
   include_guard(DIRECTORY)
 endif()
