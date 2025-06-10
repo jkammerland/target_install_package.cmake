@@ -9,50 +9,47 @@ else()
 endif()
 
 # ~~~
-# Function to configure source files and automatically add them to a target's include paths and file sets.
-# This function processes template files, generates their configured versions in the build directory,
-# and sets up the appropriate include paths for both build and install time.
+# Configure source files and add them to a target's include paths and file sets.
+#
+# This function processes template files, generates their configured versions in the
+# build directory, and sets up include paths for both build and install time.
 #
 # API:
-#   target_configure_sources(TARGET_NAME
-#     [PUBLIC|PRIVATE|INTERFACE]
-#     [OUTPUT_DIR directory]
+#   target_configure_sources(<TARGET_NAME>
+#     <PUBLIC|PRIVATE|INTERFACE>
+#     [OUTPUT_DIR <directory>]
 #     [SUBSTITUTION_MODE @ONLY|VARIABLES]
-#     [FILE_SET file_set_name [TYPE HEADERS]]
-#     [BASE_DIRS base_directories...]
-#     [FILES template_files...]
-#   )
+#     [FILE_SET <file_set_name>]
+#     [TYPE HEADERS]
+#     [BASE_DIRS <base_directories...>]
+#     [FILES <template_files...>])
 #
 # Parameters:
-#   TARGET_NAME: Name of the target to configure sources for.
-#   [PUBLIC|PRIVATE|INTERFACE]: Visibility scope for the configured files.
-#   [OUTPUT_DIR]: Directory where configured files will be generated.
-#                 Default: ${CMAKE_CURRENT_BINARY_DIR}/configured/${TARGET_NAME}
-#   [SUBSTITUTION_MODE]: Configure file substitution mode (@ONLY or VARIABLES).
-#                        Default: @ONLY
-#   [FILE_SET file_set_name]: Name of the file set to add configured files to.
-#                             Default: HEADERS
-#   [TYPE HEADERS]: Type of the file set (currently only HEADERS is supported).
-#   [BASE_DIRS base_directories]: Base directories for the file set where configured files are located.
-#                                 Default: uses OUTPUT_DIR
-#   [FILES template_files]: List of template files to configure.
+#   TARGET_NAME             - Name of the target to configure sources for.
+#   PUBLIC|PRIVATE|INTERFACE - Visibility scope for the configured files.
+#   OUTPUT_DIR              - Directory for generated files (default: configured/TARGET_NAME).
+#   SUBSTITUTION_MODE       - Configure mode (@ONLY or VARIABLES, default: @ONLY).
+#   FILE_SET                - Name of the file set (default: HEADERS).
+#   TYPE                    - Type of file set (currently only HEADERS is supported).
+#   BASE_DIRS               - Base directories for the file set (default: OUTPUT_DIR).
+#   FILES                   - List of template files to configure.
 #
 # Behavior:
-# - Template files are configured using CMake's configure_file()
-# - .in extension is automatically stripped from output filenames
-# - Configured files are stored in OUTPUT_DIR
-# - PUBLIC and INTERFACE files are automatically installed when using target_install_package
-# - PRIVATE files are never installed
-# - Include paths are set up with generator expressions to work correctly for both build and install
+#   - Template files are configured using configure_file().
+#   - .in extension is stripped from output filenames.
+#   - Configured files are stored in OUTPUT_DIR.
+#   - PUBLIC/INTERFACE files are installed with target_install_package.
+#   - PRIVATE files are not installed.
+#   - Include paths use generator expressions for build/install correctness.
 #
 # Examples:
-#   # Basic usage - creates files in build/configured/my_library/
+#   # Basic usage
 #   target_configure_sources(my_library
 #     PUBLIC
 #     FILES include/my_lib/version.h.in include/my_lib/config.h.in
 #   )
 #
-#   # Custom output directory and install path
+#   # Custom output directory
 #   target_configure_sources(my_library
 #     PUBLIC
 #     OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_lib

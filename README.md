@@ -90,7 +90,7 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
  target_configure_sources(my_library
    PUBLIC
    FILE_SET HEADERS
-   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
    FILES "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
  )
  
@@ -208,15 +208,17 @@ target_sources(my_library PUBLIC
 # Configure template files for version info (also uses FILE_SET automatically)
 target_configure_sources(my_library
   PUBLIC
+  OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
   FILE_SET HEADERS
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/version.h.in
 )
 
 target_configure_sources(my_library
   PRIVATE
+  OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
   FILE_SET private_headers
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/internal_config.h.in
 )
 
@@ -499,8 +501,9 @@ endif()
 # Configure variant-specific header
 target_configure_sources(my_library
   PUBLIC
+  OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
   FILE_SET HEADERS
-  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
   FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/variant_config.h.in
 )
 
@@ -728,4 +731,4 @@ target_install_package(my_library)
 # Note that target_include_directories can still be used with FILE_SET
 ```
 
-The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution for header installation with minimal boilerplate. C++20 modules can also work, but I haven't tested it properly yet.
+The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution with minimal boilerplate.

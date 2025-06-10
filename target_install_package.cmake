@@ -11,36 +11,77 @@ if(POLICY CMP0177)
 endif()
 
 # ~~~
-# Function to create a CMake installation target for a given library or executable.
+# Create a CMake installation target for a given library or executable.
+#
 # This function sets up installation rules for headers, libraries, config files,
 # and CMake export files for a target. It is intended to be used in projects that
 # want to package their libraries and provide standardized installation paths.
 #
-# The function automatically detects and installs:
-# - File sets (HEADERS, CXX_MODULES) from both regular and INTERFACE properties
-# - PUBLIC_HEADER property (legacy support)
-# - Generated config headers
-# - Custom file sets with any name
+# API:
+#   target_install_package(<TARGET_NAME>
+#     [NAMESPACE <namespace>]
+#     [VERSION <version>]
+#     [COMPATIBILITY <compatibility>]
+#     [EXPORT_NAME <export_name>]
+#     [CONFIG_TEMPLATE <template_path>]
+#     [INCLUDE_DESTINATION <include_dest>]
+#     [MODULE_DESTINATION <module_dest>]
+#     [CMAKE_CONFIG_DESTINATION <config_dest>]
+#     [COMPONENT <component>]
+#     [RUNTIME_COMPONENT <runtime_component>]
+#     [DEVELOPMENT_COMPONENT <dev_component>]
+#     [ADDITIONAL_FILES <files...>]
+#     [ADDITIONAL_FILES_DESTINATION <dest>]
+#     [ADDITIONAL_TARGETS <targets...>]
+#     [PUBLIC_DEPENDENCIES <deps...>]
+#     [PUBLIC_CMAKE_FILES <files...>]
+#     [SUPPORTED_COMPONENTS <components...>])
 #
 # Parameters:
-#   TARGET_NAME: Name of the target to install.
-#   [NAMESPACE]: The CMake namespace for the export (default: `${TARGET_NAME}::`).
-#   [VERSION]: The version of the package (default: `${PROJECT_VERSION}`).
-#   [COMPATIBILITY]: Compatibility mode for version (default: `"SameMajorVersion"`).
-#   [EXPORT_NAME: Name of the CMake export file (default: `${TARGET_NAME}-targets`).
-#   [CONFIG_TEMPLATE]: Path to a CMake config template file (default: auto-detected, falls back to generic).
-#   [INCLUDE_DESTINATION]: Destination path for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
-#   [MODULE_DESTINATION]: Destination path for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
-#   [CMAKE_CONFIG_DESTINATION]: Destination path for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}`).
-#   [COMPONENT]: Optional component name for installation (e.g., "dev", "runtime"). Defaults to DEVELOPMENT_COMPONENT.
-#   [RUNTIME_COMPONENT]: Component name for runtime files (default: "Runtime").
-#   [DEVELOPMENT_COMPONENT]: Component name for development files (default: "Development").
-#   [ADDITIONAL_FILES]: List of additional files to install, with paths relative to the source directory.
-#   [ADDITIONAL_FILES_DESTINATION]: Destination subdirectory for additional files (default: `files`).
-#   [ADDITIONAL_TARGETS]: List of additional targets to include in the same export set.
-#   [PUBLIC_DEPENDENCIES]: List of public dependencies to find and install.
-#   [PUBLIC_CMAKE_FILES]: List of additional files to install as public CMake files.
-#   [SUPPORTED_COMPONENTS]: List of supported component names for validation.
+#   TARGET_NAME             - Name of the target to install.
+#   NAMESPACE               - CMake namespace for the export (default: `${TARGET_NAME}::`).
+#   VERSION                 - Version of the package (default: `${PROJECT_VERSION}`).
+#   COMPATIBILITY           - Version compatibility mode (default: "SameMajorVersion").
+#   EXPORT_NAME             - Name of the CMake export file (default: `${TARGET_NAME}-targets`).
+#   CONFIG_TEMPLATE         - Path to a CMake config template (default: auto-detected).
+#   INCLUDE_DESTINATION     - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
+#   MODULE_DESTINATION      - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
+#   CMAKE_CONFIG_DESTINATION- Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}`).
+#   COMPONENT               - Component name for installation (default: DEVELOPMENT_COMPONENT).
+#   RUNTIME_COMPONENT       - Component for runtime files (default: "Runtime").
+#   DEVELOPMENT_COMPONENT   - Component for development files (default: "Development").
+#   ADDITIONAL_FILES        - Additional files to install, relative to source dir.
+#   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "files").
+#   ADDITIONAL_TARGETS      - Additional targets to include in the same export set.
+#   PUBLIC_DEPENDENCIES     - Public dependencies to find and install.
+#   PUBLIC_CMAKE_FILES      - Additional CMake files to install as public.
+#   SUPPORTED_COMPONENTS    - List of supported component names for validation.
+#
+# Behavior:
+#   - Installs headers, libraries, and config files for the target.
+#   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
+#   - Supports C++20 modules (CMake 3.28+).
+#   - Generates CMake config files with version and dependency handling.
+#   - Validates component names if SUPPORTED_COMPONENTS is specified.
+#   - Allows custom installation destinations and component separation.
+#
+# Examples:
+#   # Basic installation
+#   target_install_package(my_library)
+#
+#   # Custom version and component
+#   target_install_package(my_library
+#     VERSION 1.2.3
+#     COMPONENT Runtime
+#     RUNTIME_COMPONENT "Runtime"
+#     DEVELOPMENT_COMPONENT "Dev")
+#
+#   # Install additional files
+#   target_install_package(my_library
+#     ADDITIONAL_FILES
+#     "docs/readme.md"
+#     "docs/license.txt"
+#     ADDITIONAL_FILES_DESTINATION "doc")
 # ~~~
 function(target_install_package TARGET_NAME)
   # Parse function arguments
