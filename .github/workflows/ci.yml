@@ -315,6 +315,47 @@ jobs:
         
         echo "✓ FetchContent integration test passed"
 
+    - name: Test Standalone Examples
+      runs-on: ${{ matrix.os }}
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Set reusable strings
+          id: strings
+          shell: bash
+          run: |
+            ws_norm="${{ github.workspace }}"
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              ws_norm=$(echo "$ws_norm" | sed 's|\\|/|g')
+            fi
+            echo "build-output-dir=${ws_norm}/examples-build" >> "$GITHUB_OUTPUT"
+            echo "install-output-dir=${ws_norm}/examples-install" >> "$GITHUB_OUTPUT"
+
+        - name: Navigate to examples directory
+          run: |
+            cd examples
+
+        - name: Configure CMake (Examples)
+          run: |
+            cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+              -DCMAKE_INSTALL_PREFIX="${{ steps.strings.outputs.install-output-dir }}" \
+              -DCMAKE_PREFIX_PATH="${{ steps.strings.outputs.install-output-dir }}" \
+              -Dtarget_install_package_BUILD_TESTS=ON \
+              -DPROJECT_LOG_COLORS=OFF
+
+        - name: Build Examples
+          run: |
+            cmake --build "${{ steps.strings.outputs.build-output-dir }}" --config ${{ matrix.build_type }}
+
+        - name: Verify Build Success
+          run: |
+            if [ -f "${{ steps.strings.outputs.build-output-dir }}/CMakeCache.txt" ]; then
+              echo "✓ Examples CMake configuration and build succeeded"
+            else
+              echo "✗ Examples CMake configuration failed"
+              exit 1
+            fi
+
     - name: Test Package Manager Integration
       run: |
         echo "=== Testing vcpkg-like Package Manager Integration ==="
