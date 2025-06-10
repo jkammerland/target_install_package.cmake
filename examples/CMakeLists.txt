@@ -1,18 +1,28 @@
 cmake_minimum_required(VERSION 3.23)
 project(examples-test VERSION 0.1.0)
 
-include(CTest)
-enable_testing()
+# ~~~
+# Step 1: Run the build script
+#
+message(STATUS "Running build script, this may take some time...")
+execute_process(
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
+  RESULT_VARIABLE build_result
+  OUTPUT_VARIABLE build_output
+  ERROR_VARIABLE build_error)
 
-add_test(
-  NAME build_all_examples_test
-  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/build_all_examples.sh
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+# Step 2: Handle build result
+if(NOT build_result EQUAL 0)
+  message(FATAL_ERROR "Failed to build examples:\n${build_error}")
+else()
+  message(STATUS "Examples built successfully:\n${build_output}")
+endif()
+# ~~~
 
-# Step 1: Collect all items in the examples directory
+# Step 3: Collect all items in the examples directory
 file(GLOB example_items "${CMAKE_CURRENT_SOURCE_DIR}/*")
 
-# Step 2: Filter out only directories and exclude 'build'
+# Step 4: Filter out only directories and exclude 'build'
 set(EXAMPLE_DIRECTORIES "")
 message(STATUS "Adding example directory:")
 foreach(item IN LISTS example_items)
@@ -28,8 +38,29 @@ foreach(item IN LISTS example_items)
   endif()
 endforeach()
 
-# Step 3: Foreach directory, add CMAKE_PREFIX_PATH
+# Step 5: Foreach directory, add CMAKE_PREFIX_PATH
 foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
-  message(STATUS "Adding example path: ${CMAKE_CURRENT_SOURCE_DIR}/${example_dir}/build/install")
-  list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${example_dir}/build/install")
+  message(VERBOSE "Adding example path: ${example_dir}/build/install")
+  list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
 endforeach()
+
+# Step 6: Find all packages
+find_package(algorithms CONFIG REQUIRED)
+find_package(string_utils CONFIG REQUIRED)
+find_package(math_lib CONFIG REQUIRED)
+find_package(media_core CONFIG REQUIRED)
+find_package(media_dev_tools CONFIG REQUIRED)
+find_package(asset_converter CONFIG REQUIRED)
+find_package(config_lib CONFIG REQUIRED)
+find_package(math_modules CONFIG REQUIRED)
+find_package(game_engine CONFIG REQUIRED)
+
+message(STATUS "Found package algorithms: ${algorithms_FOUND}")
+message(STATUS "Found package string_utils: ${string_utils_FOUND}")
+message(STATUS "Found package math_lib: ${math_lib_FOUND}")
+message(STATUS "Found package media_core: ${media_core_FOUND}")
+message(STATUS "Found package media_dev_tools: ${media_dev_tools_FOUND}")
+message(STATUS "Found package asset_converter: ${asset_converter_FOUND}")
+message(STATUS "Found package config_lib: ${config_lib_FOUND}")
+message(STATUS "Found package math_modules: ${math_modules_FOUND}")
+message(STATUS "Found package game_engine: ${game_engine_FOUND}")
