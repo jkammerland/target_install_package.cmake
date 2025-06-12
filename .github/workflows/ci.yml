@@ -2,9 +2,9 @@ name: CMake Target Install Package CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "integration", "master" ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "integration", "master" ]
 
 jobs:
   build:
@@ -351,3 +351,84 @@ jobs:
         cmake --build build
         
         echo "✓ Package manager integration test passed"
+
+
+  test-examples:
+    name: Test Example Installation and Discovery
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release]
+        # Define the compilers we will use on each OS
+        include:
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
+          - os: ubuntu-latest 
+            c_compiler: gcc-14
+            cpp_compiler: g++-14
+          - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # This action configures the environment for all subsequent steps.
+      - name: Setup MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      # Now, 'cl.exe' will be in the PATH.
+
+      - name: Install Modern GCC on Ubuntu (for C++ Modules)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 g++-14
+
+      - name: Configure and Verify Examples
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+        shell: bash
+        run: |
+          # The build script needs execute permissions on Unix-like systems.
+          if [[ "${{ runner.os }}" != "Windows" ]]; then
+            chmod +x examples/build_all_examples.sh
+          fi
+
+          # Now, when this script runs, any 'cmake' command inside it will
+          # automatically pick up the CC and CXX environment variables.
+          examples/build_all_examples.sh
+
+          # Cross-platform directory tree output for debugging
+          echo "--- Repository Root Contents After Build ---"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # 'tree' is not available on Windows runners by default
+            powershell -Command "Get-ChildItem -Path .. -Recurse | Select-Object FullName"
+          else
+            # 'tree' might need to be installed on some minimal runners
+            sudo apt-get install -y tree || brew install tree || true
+            tree ../
+          fi
+
+          # Create a build directory for the verification step.
+          mkdir examples-build
+          cd examples-build
+
+          # This step now primarily verifies that find_package works correctly
+          # after the build script has run with the correct compilers.
+          # We still pass the variables here for consistency, although the
+          # environment variables would also work.
+          cmake ../examples \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DRUN_BUILD_ALL_EXAMPLES=OFF \
+            --log-level=VERBOSE
+          
+          echo "✓ CMake configuration of examples/CMakeLists.txt succeeded."
+          echo "✓ This confirms the build script ran and all packages were found as expected."

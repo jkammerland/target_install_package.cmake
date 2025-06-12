@@ -1,23 +1,31 @@
 cmake_minimum_required(VERSION 3.23)
 project(examples-test VERSION 0.1.0)
 
-# ~~~
-# Step 1: Run the build script
-#
-message(STATUS "Running build script, this may take some time...")
-execute_process(
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
-  RESULT_VARIABLE build_result
-  OUTPUT_VARIABLE build_output
-  ERROR_VARIABLE build_error)
+message(NOTICE "Current CMAKE_VERSION: ${CMAKE_VERSION}")
 
-# Step 2: Handle build result
-if(NOT build_result EQUAL 0)
-  message(FATAL_ERROR "Failed to build examples:\n${build_error}")
+option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
+
+if(RUN_BUILD_ALL_EXAMPLES)
+  # ~~~
+  # Step 1: Run the build script
+  #
+  message(STATUS "Running build script, this may take some time...")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
+    RESULT_VARIABLE build_result
+    OUTPUT_VARIABLE build_output
+    ERROR_VARIABLE build_error)
+
+  # Step 2: Handle build result
+  if(NOT build_result EQUAL 0)
+    message(FATAL_ERROR "Failed to build examples:\n${build_error}")
+  else()
+    message(STATUS "Examples built successfully:\n${build_output}")
+  endif()
+  # ~~~
 else()
-  message(STATUS "Examples built successfully:\n${build_output}")
+  message(NOTICE "Make sure to run build_all_examples.sh first!")
 endif()
-# ~~~
 
 # Step 3: Collect all items in the examples directory
 file(GLOB example_items "${CMAKE_CURRENT_SOURCE_DIR}/*")
@@ -44,6 +52,25 @@ foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
   list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
 endforeach()
 
+# ~~~
+# This logic *must mirror* the logic in cxx-modules/CMakeLists.txt
+# It determines if we should find_package(math_modules).
+# ~~~
+set(SHOULD_TEST_CXX_MODULES FALSE)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
+    set(SHOULD_TEST_CXX_MODULES TRUE)
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
+    set(SHOULD_TEST_CXX_MODULES TRUE)
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29")
+    set(SHOULD_TEST_CXX_MODULES TRUE)
+  endif()
+endif()
+
 # Step 6: Find all packages
 find_package(algorithms CONFIG REQUIRED)
 find_package(string_utils CONFIG REQUIRED)
@@ -52,9 +79,17 @@ find_package(media_core CONFIG REQUIRED)
 find_package(media_dev_tools CONFIG REQUIRED)
 find_package(asset_converter CONFIG REQUIRED)
 find_package(config_lib CONFIG REQUIRED)
-find_package(math_modules CONFIG REQUIRED)
 find_package(game_engine CONFIG REQUIRED)
 
+# Conditionally find the modules package
+if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+  message(STATUS "Compiler supports C++ Modules. Verifying find_package(math_modules)...")
+  find_package(math_modules CONFIG REQUIRED)
+else()
+  message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) check.")
+endif()
+
+message(STATUS "--- Verification Summary ---")
 message(STATUS "Found package algorithms: ${algorithms_FOUND}")
 message(STATUS "Found package string_utils: ${string_utils_FOUND}")
 message(STATUS "Found package math_lib: ${math_lib_FOUND}")
@@ -62,5 +97,9 @@ message(STATUS "Found package media_core: ${media_core_FOUND}")
 message(STATUS "Found package media_dev_tools: ${media_dev_tools_FOUND}")
 message(STATUS "Found package asset_converter: ${asset_converter_FOUND}")
 message(STATUS "Found package config_lib: ${config_lib_FOUND}")
-message(STATUS "Found package math_modules: ${math_modules_FOUND}")
 message(STATUS "Found package game_engine: ${game_engine_FOUND}")
+if(SHOULD_TEST_CXX_MODULES)
+  message(STATUS "Found package math_modules: ${math_modules_FOUND}")
+else()
+  message(STATUS "Skipped package math_modules: OK")
+endif()
