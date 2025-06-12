@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 4.0.2)
+project(target_install_package VERSION 4.0.3)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
