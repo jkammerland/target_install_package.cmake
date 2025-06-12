@@ -7,7 +7,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v4.0.1)
+  GIT_TAG v4.0.2)
 FetchContent_MakeAvailable(target_install_package)
 
 # Core runtime library (shared)
