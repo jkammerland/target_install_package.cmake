@@ -50,7 +50,7 @@ The `target_install_package()` function searches for the targets config template
    - [Multi-Library Project Examples](#multi-library-project-examples-)
    - [Interface Library Example](#interface-library-example-)
 7. [Key Benefits](#key-benefits-of-file_set-approach-)
-8. [Migration Guide](#migration-from-legacy-approaches-)
+8. [Notes](#FILE_SET-vs-target-include)
 
 ## Features ✨
 
@@ -74,27 +74,19 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 >
 > FILE_SET solves key limitations of `PUBLIC_HEADER`:
 > 1. preserves directory structure
-> 2. [provides proper IDE integration](https://cmake.org/cmake/help/latest/prop_tgt/HEADER_SETS.html)
+> 2. [provides integration with IDEs](https://cmake.org/cmake/help/latest/prop_tgt/HEADER_SETS.html)
 > 3. allows automatic per-target/file-set header installation instead of installing entire directories/files
 > 4. same api for c++20 modules
 
  ```cmake
- # Manual FILE_SET usage
+ # FILE_SET usage for automatic header install and includes
  target_sources(my_library PUBLIC 
    FILE_SET HEADERS 
    BASE_DIRS include
    FILES include/my_library/api.h
  )
  
- # target_configure_sources automatically uses FILE_SET
- target_configure_sources(my_library
-   PUBLIC
-   FILE_SET HEADERS
-   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
-   FILES "include/my_library/version.h.in"    # Auto-added to HEADER_SETS
- )
- 
- # Automatic installation - detects all HEADER_SETS
+ # Automatic installation - detects all HEADER_SETS (not only HEADERS)
  target_install_package(my_library)  # Installs all HEADER file sets
  ```
 
@@ -114,7 +106,7 @@ if(WIN32)
 endif()
 ```
 
-## Integration 📦
+## Installation 
 
 ### FetchContent (quick and easy, cpm also works) ⭐
 
@@ -184,7 +176,7 @@ find_package(target_install_package REQUIRED)
 # cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 ```
 
-## Usage 🚀
+## Usage 🚂
 
 ### Modern Header Installation with FILE_SET (Recommended) ⭐
 
@@ -206,6 +198,7 @@ target_sources(my_library PUBLIC
 )
 
 # Configure template files for version info (also uses FILE_SET automatically)
+# NOTE: Only OUTPUT_DIR and BASE_DIRS truly matter, FILES can be any path because they are copied to the output directory
 target_configure_sources(my_library
   PUBLIC
   OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
@@ -230,6 +223,9 @@ target_install_package(
   EXPORT_NAME my_lib
 )
 ```
+
+> [!NOTE]
+> For target_configure_sources, only OUTPUT_DIR and BASE_DIRS truly matter, FILES can be any path because they are copied to the output directory, hence why BASE_DIRS should point to ${CMAKE_CURRENT_BINARY_DIR}/whatever/configure/files/include. 
 
 ### Header Installation for Multiple Files and Public Dependencies 🔗
 
@@ -498,7 +494,7 @@ else()
     set(VARIANT_SUFFIX "")
 endif()
 
-# Configure variant-specific header
+# Configure variant-specific header 
 target_configure_sources(my_library
   PUBLIC
   OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
@@ -568,7 +564,10 @@ target_sources(math_lib PUBLIC
 target_configure_sources(
   math_lib
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/math/version.h.in
+  OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/math/
+  FILE_SET HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
+  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/math/version.h.in
 )
 
 # Make it installable
@@ -708,9 +707,9 @@ target_install_package(header_only_lib
 - ✅ **Component Separation**: Cleaner separation between runtime and development files
 - ✅ **Variant Support**: Cleaner handling of different build configurations
 
-## Migration from Legacy Approaches 🔄
+## FILE_SET vs target include
 
-If you're upgrading from older CMake practices:
+Manual install with target_include_directories
 
 ```cmake
 # OLD WAY (also fine)

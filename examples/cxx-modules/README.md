@@ -2,20 +2,19 @@
 
 This example demonstrates creating and installing a library using C++20 modules with `target_install_package`.
 
-## ⚠️ Requirements and Limitations
+## ⚠️ Requirements
 
 ### CMake Version
 - **CMake 3.28+** is required for C++20 modules support
 
 ### Compiler Support
-- **MSVC 14.34+** (Visual Studio 2022 17.4+)
-- **Clang 16.0+** 
+- **MSVC 19.29+**
+- **Clang 19.0+** 
 - **GCC 14+**
 
 ### Generator Support
 - **Ninja** (recommended, requires Ninja 1.11+)
-- **Ninja Multi-Config**
-- **Visual Studio 17 2022**
+- **Visual Studio ...**
 
 ### C++ Standard
 - **C++20** is required
@@ -51,23 +50,7 @@ math_modules library:
 
 ## Building and Installing
 
-### Step 1: Check Prerequisites
-
-```bash
-# Verify CMake version
-cmake --version  # Should be 3.28+
-
-# Verify compiler support
-# For GCC:
-g++ --version    # Should be 14+
-# For Clang:
-clang++ --version # Should be 16+
-
-# Verify Ninja (if using)
-ninja --version  # Should be 1.11+
-```
-
-### Step 2: Configure and Build
+### Step 1: Configure and Build
 
 ```bash
 # Create build directory
@@ -83,26 +66,14 @@ cmake .. -G Ninja \
 cmake --build .
 ```
 
-### Alternative: Visual Studio Generator (Windows)
-
-```bash
-# Windows with Visual Studio 2022
-cmake .. -G "Visual Studio 17 2022" \
-         -DCMAKE_INSTALL_PREFIX=./install \
-         -DPROJECT_LOG_COLORS=ON \
-         --log-level=DEBUG
-
-cmake --build . --config Release
-```
-
-### Step 3: Install the Package
+### Step 2: Install the Package
 
 ```bash
 # Install modules and library
 cmake --install .
 ```
 
-### Step 4: Verify Installation
+### Step 3: Verify Installation
 
 After installation, you should see:
 
@@ -110,9 +81,8 @@ After installation, you should see:
 install/
 ├── include/
 │   └── math_modules/
-│       └── modules/           # MODULE_DESTINATION
-│           ├── math.cppm
-│           └── geometry.cppm
+│       ├── math.cppm
+│       └── geometry.cppm
 ├── lib/
 │   └── libmath_modules.a
 └── share/
@@ -193,12 +163,7 @@ int main() {
 
 ## Expected Debug Output
 
-When building with `--log-level=DEBUG`, you'll see:
-
-- Module scanning and dependency resolution
-- CXX_MODULES file set installation
-- Module destination configuration
-- Automatic module compilation ordering
+# TODO:
 
 ## Key Module Features
 
@@ -221,50 +186,16 @@ import <iostream>;     // Import standard library header
 import <cmath>;        // Import standard library header
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Compiler Not Supported**
-   ```
-   Error: CXX_SCAN_FOR_MODULES is not supported
-   ```
-   Solution: Use a supported compiler (GCC 14+, Clang 16+, MSVC 14.34+)
-
-2. **CMake Version Too Old**
-   ```
-   Error: Unknown file set type: CXX_MODULES
-   ```
-   Solution: Upgrade to CMake 3.28+
-
-3. **Generator Not Supported**
-   ```
-   Warning: Modules not supported with this generator
-   ```
-   Solution: Use Ninja or Visual Studio 17 2022
-
-4. **Ninja Version Too Old**
-   ```
-   Error: Ninja version too old for modules
-   ```
-   Solution: Upgrade to Ninja 1.11+
-
 ### Platform-Specific Notes
 
 #### Linux (GCC/Clang)
 ```bash
-# Ensure recent compiler
+# Ensure recent compiler, e.g
 sudo apt update
-sudo apt install gcc-14 g++-14  # or clang-16
+sudo apt install gcc-14 g++-14  # or clang-19
 
 # Use specific compiler
 cmake .. -DCMAKE_CXX_COMPILER=g++-14
-```
-
-#### Windows (MSVC)
-```bash
-# Use Visual Studio 2022 with latest updates
-cmake .. -G "Visual Studio 17 2022" -A x64
 ```
 
 ## Limitations
@@ -283,4 +214,4 @@ Based on current CMake module support:
 - **modules/geometry.cppm**: Geometry module interface unit (imports math)
 - **src/math_impl.cpp**: Implementation support file
 
-This example demonstrates the future of C++ packaging with modules while working within current CMake limitations.
+This example demonstrates the future of C++ packaging with modules.
