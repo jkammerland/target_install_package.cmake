@@ -1,11 +1,11 @@
 get_property(
   _LFG_INITIALIZED GLOBAL
-  PROPERTY ${_LFG_PROPERTY}
+  PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
   list_file_include_guard(VERSION 4.0.3)
 else()
-  include_guard(DIRECTORY)
+  include_guard()
 endif()
 
 # ~~~
@@ -197,3 +197,26 @@ function(target_configure_sources TARGET_NAME)
   list(LENGTH CONFIGURED_FILES TOTAL_FILES)
   project_log(DEBUG "target_configure_sources: Successfully configured ${TOTAL_FILES} files for ${TARGET_NAME} (${SCOPE})")
 endfunction()
+
+get_property(
+  PL_INITIALIZED GLOBAL
+  PROPERTY "PROJECT_LOG_INITIALIZED"
+  SET)
+if(NOT PL_INITIALIZED)
+  function(project_log level)
+    # Simplified mock implementation
+
+    # Default context if PROJECT_NAME is not set
+    set(context "cmake")
+
+    # Collect all arguments after the level
+    set(msg "")
+    if(ARGV)
+      list(REMOVE_AT ARGV 0) # Remove the level argument
+      string(JOIN " " msg ${ARGV})
+    endif()
+
+    # Construct and output the message
+    message(${level} "[${context}][${level}] ${msg}")
+  endfunction()
+endif()

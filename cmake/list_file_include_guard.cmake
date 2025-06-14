@@ -1,16 +1,20 @@
-# Get file name for identification (not the full path)
+# Get this file name
 get_filename_component(_LFG_FILENAME "${CMAKE_CURRENT_LIST_FILE}" NAME)
-
-# Create a sanitized name for properties
 string(MAKE_C_IDENTIFIER "${_LFG_FILENAME}" _LFG_FILE_ID)
 set(_LFG_PROPERTY "${_LFG_FILE_ID}_INITIALIZED")
-
+# message(TRACE "_LFG_PROPERTY: ${_LFG_PROPERTY}")
+# ~~~
+# You can use this property to check if this file has been included before.
+# ->"list_file_include_guard_cmake_INITIALIZED"
+# Useful for falling back to normal include_guard()
+# ~~~
 get_property(
   _LFG_INITIALIZED GLOBAL
   PROPERTY ${_LFG_PROPERTY}
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 1.2.3)
+  # This will handle any logs/warnings from other mismatched LFG includes
+  list_file_include_guard(VERSION 1.2.4)
 endif()
 
 # ~~~
@@ -35,16 +39,22 @@ macro(list_file_include_guard)
   set(multiValueArgs "")
   cmake_parse_arguments(LFG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+  # Get the current file's name
+  get_filename_component(_LFG_FILENAME "${CMAKE_CURRENT_LIST_FILE}" NAME)
+  if(${_LFG_FILENAME} STREQUAL "CMakeLists.txt" AND NOT LFG_ID)
+    message(FATAL_ERROR "Cannot include guard a plain CMakeLists.txt, did you missplace the call?")
+  endif()
+
   # Ensure that VERSION is provided and in the correct format
   if(NOT DEFINED LFG_VERSION)
     message(FATAL_ERROR "list_file_include_guard: VERSION is not defined, use list_file_include_guard(VERSION x.y.z)")
   endif()
-  if(NOT LFG_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+  if(NOT LFG_VERSION MATCHES "^v?[0-9]+\\.[0-9]+\\.[0-9]+.*$")
+    # Valid formats: [1.0.0 v1.0.0 v1.0.0-alpha1]
+    # -------------
+    # Not valid: [1.0 rc1-1.0.0 v1.0-rc1]
     message(FATAL_ERROR "list_file_include_guard: VERSION '${LFG_VERSION}' for ${_LFG_FILENAME} is not in x.y.z format.")
   endif()
-
-  # Get file name for identification (not the full path)
-  get_filename_component(_LFG_FILENAME "${CMAKE_CURRENT_LIST_FILE}" NAME)
 
   # Use custom ID if provided, otherwise use the filename
   if(DEFINED LFG_ID)
@@ -114,5 +124,5 @@ macro(list_file_include_guard)
 endmacro()
 
 if(NOT _LFG_INITIALIZED)
-  list_file_include_guard(VERSION 1.2.3)
+  list_file_include_guard(VERSION 1.2.4)
 endif()

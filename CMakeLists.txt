@@ -9,7 +9,7 @@ project(target_install_package VERSION 4.0.3)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/list_file_include_guard.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/project_include_guard.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/project_log.cmake)
-project_include_guard() # Guard against multiple add_subdirectory
+project_include_guard() # Guard against multiple add_subdirectory (e.g git submodules)
 
 # ~~~
 # This projects cmake functions!

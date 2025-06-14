@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.23)
 
-list_file_include_guard(VERSION 4.0.3)
+get_property(
+  _LFG_INITIALIZED GLOBAL
+  PROPERTY "list_file_include_guard_cmake_INITIALIZED"
+  SET)
+if(_LFG_INITIALIZED)
+  list_file_include_guard(VERSION 4.0.3)
+else()
+  include_guard()
+endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -531,3 +539,26 @@ function(_set_default_args)
     endif()
   endwhile()
 endfunction()
+
+get_property(
+  PL_INITIALIZED GLOBAL
+  PROPERTY "PROJECT_LOG_INITIALIZED"
+  SET)
+if(NOT PL_INITIALIZED)
+  function(project_log level)
+    # Simplified mock implementation
+
+    # Default context if PROJECT_NAME is not set
+    set(context "cmake")
+
+    # Collect all arguments after the level
+    set(msg "")
+    if(ARGV)
+      list(REMOVE_AT ARGV 0) # Remove the level argument
+      string(JOIN " " msg ${ARGV})
+    endif()
+
+    # Construct and output the message
+    message(${level} "[${context}][${level}] ${msg}")
+  endfunction()
+endif()
