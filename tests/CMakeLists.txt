@@ -41,7 +41,7 @@ target_configure_sources(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/static2/internal.h.in)
 
 target_compile_features(static2 PUBLIC cxx_std_17)
-target_install_package(static2 EXPORT_NAME "my_static_package")
+target_prepare_package(static2 EXPORT_NAME "my_static_package")
 
 add_library(static1 STATIC)
 target_sources(static1 PRIVATE src1.cpp)
@@ -66,7 +66,8 @@ target_link_libraries(static1 PRIVATE static2 fmt)
 target_compile_features(static1 PUBLIC cxx_std_17)
 
 # target_install_package(static1 ADDITIONAL_TARGETS static2)
-target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static2
+target_prepare_package(static1 EXPORT_NAME "my_static_package") # Same as static2
+finalize_package(EXPORT_NAME my_static_package)
 
 add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)
