@@ -29,6 +29,7 @@ else()
 endif()
 
 # Include target_install_package utilities
+set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)
 
 # Create a library with C++20 modules

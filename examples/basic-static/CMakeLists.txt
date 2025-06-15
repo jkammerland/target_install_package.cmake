@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 project(basic_static_example VERSION 1.0.0)
 
 # Include target_install_package utilities
+set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)
 
 # Create a static library

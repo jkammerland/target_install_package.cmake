@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 project(configure_files_example VERSION 2.3.1)
 
 # Include target_install_package utilities
+set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)
 
 # Set some project variables for configuration
