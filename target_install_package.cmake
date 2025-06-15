@@ -474,16 +474,6 @@ function(_set_default_args)
   endwhile()
 endfunction()
 
-define_property(
-  TARGET
-  PROPERTY RUNTIME_COMPONENT
-  BRIEF_DOCS "Required files for runtime")
-
-define_property(
-  TARGET
-  PROPERTY DEVELOPMENT_COMPONENT
-  BRIEF_DOCS "Required files for development")
-
 get_property(
   PL_INITIALIZED GLOBAL
   PROPERTY "PROJECT_LOG_INITIALIZED"
