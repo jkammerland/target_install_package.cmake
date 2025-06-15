@@ -3,12 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 project(basic_interface_example VERSION 1.5.0)
 
 # Include target_install_package utilities
-include(FetchContent)
-FetchContent_Declare(
-  target_install_package
-  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v4.0.3)
-FetchContent_MakeAvailable(target_install_package)
+include(../../CMakeLists.txt)
 
 # Create an interface (header-only) library
 add_library(algorithms INTERFACE)

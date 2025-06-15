@@ -29,12 +29,7 @@ else()
 endif()
 
 # Include target_install_package utilities
-include(FetchContent)
-FetchContent_Declare(
-  target_install_package
-  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v4.0.3)
-FetchContent_MakeAvailable(target_install_package)
+include(../../CMakeLists.txt)
 
 # Create a library with C++20 modules
 add_library(math_modules STATIC)
