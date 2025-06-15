@@ -94,15 +94,18 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION "doc")
 # ~~~
 function(target_install_package TARGET_NAME)
+  # Parse arguments to extract EXPORT_NAME if provided
+  set(options "")
+  set(oneValueArgs EXPORT_NAME)
+  set(multiValueArgs "")
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
   # Forward all arguments to target_prepare_package
   target_prepare_package(${TARGET_NAME} ${ARGN})
 
-  # Extract EXPORT_NAME from arguments to call finalize_package
-  set(oneValueArgs EXPORT_NAME)
-  cmake_parse_arguments(ARG "" "${oneValueArgs}" "" ${ARGN})
-
+  # Use the same default as target_prepare_package
   if(NOT ARG_EXPORT_NAME)
-    set(ARG_EXPORT_NAME "${TARGET_NAME}-targets")
+    set(ARG_EXPORT_NAME "${TARGET_NAME}")
   endif()
 
   finalize_package(EXPORT_NAME ${ARG_EXPORT_NAME})

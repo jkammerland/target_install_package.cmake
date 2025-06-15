@@ -97,12 +97,24 @@ function(target_prepare_package TARGET_NAME)
     endif()
   endif()
 
-  # Handle CMAKE_CONFIG_DESTINATION specially since it depends on CMAKE_INSTALL_DATADIR
+  # EXPORT_NAME defaults to target name
+  if(NOT ARG_EXPORT_NAME)
+    set(ARG_EXPORT_NAME "${TARGET_NAME}")
+    project_log(DEBUG "  Export name not provided, using target name: ${ARG_EXPORT_NAME}")
+  endif()
+
+  # NAMESPACE defaults to EXPORT_NAME::
+  if(NOT ARG_NAMESPACE)
+    set(ARG_NAMESPACE "${ARG_EXPORT_NAME}::")
+    project_log(DEBUG "  Namespace not provided, using export name: ${ARG_NAMESPACE}")
+  endif()
+
+  # Handle CMAKE_CONFIG_DESTINATION using EXPORT_NAME instead of TARGET_NAME
   if(NOT ARG_CMAKE_CONFIG_DESTINATION)
     if(NOT CMAKE_INSTALL_DATADIR)
       set(CMAKE_INSTALL_DATADIR "share")
     endif()
-    set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/${TARGET_NAME}")
+    set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/${ARG_EXPORT_NAME}")
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
@@ -122,17 +134,11 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Component not provided, using development component: ${ARG_COMPONENT}")
   endif()
 
-  # Set default values using the helper function
+  # Set default values using the helper function (skip NAMESPACE and EXPORT_NAME as they're already handled)
   _set_default_args(
-    ARG_NAMESPACE
-    "${TARGET_NAME}::"
-    "Namespace"
     ARG_COMPATIBILITY
     "SameMajorVersion"
     "Compatibility"
-    ARG_EXPORT_NAME
-    "${TARGET_NAME}-targets"
-    "Export name"
     ARG_INCLUDE_DESTINATION
     "${CMAKE_INSTALL_INCLUDEDIR}"
     "Include destination"
@@ -161,9 +167,8 @@ function(target_prepare_package TARGET_NAME)
   endif()
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
-  # Store all configuration
+  # Store all configuration (namespace and common settings at export level)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PRIMARY_TARGET" "${TARGET_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE" "${ARG_NAMESPACE}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION" "${ARG_VERSION}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPATIBILITY" "${ARG_COMPATIBILITY}")
@@ -246,7 +251,6 @@ function(finalize_package)
   endif()
 
   # Get all stored properties
-  get_property(PRIMARY_TARGET GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PRIMARY_TARGET")
   get_property(NAMESPACE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE")
   get_property(VERSION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION")
   get_property(COMPATIBILITY GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPATIBILITY")
@@ -264,7 +268,13 @@ function(finalize_package)
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
 
-  project_log(DEBUG "  Finalizing installation for export '${ARG_EXPORT_NAME}' with targets: ${TARGETS}")
+  list(LENGTH TARGETS target_count)
+  if(target_count EQUAL 1)
+    set(target_label "target")
+  else()
+    set(target_label "targets")
+  endif()
+  project_log(DEBUG "  Export '${ARG_EXPORT_NAME}' with ${target_count} ${target_label}: [${TARGETS}] is being finalized")
 
   # Define component args for different installation types
   set(RUNTIME_COMPONENT_ARGS "")
@@ -391,9 +401,9 @@ function(finalize_package)
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${DEV_COMPONENT_ARGS})
 
-  # Create package version file
+  # Create package version file using EXPORT_NAME
   write_basic_package_version_file(
-    "${CURRENT_BINARY_DIR}/${PRIMARY_TARGET}-config-version.cmake"
+    "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
     VERSION ${VERSION}
     COMPATIBILITY ${COMPATIBILITY})
 
@@ -407,7 +417,7 @@ function(finalize_package)
     project_log(VERBOSE "Public dependencies for export '${ARG_EXPORT_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")
   endif()
 
-  # Determine config template location
+  # Determine config template location using EXPORT_NAME
   set(CONFIG_TEMPLATE_TO_USE "")
   if(CONFIG_TEMPLATE)
     if(EXISTS "${CONFIG_TEMPLATE}")
@@ -418,22 +428,24 @@ function(finalize_package)
     endif()
   endif()
 
-  # Get the source directory for primary target
-  get_target_property(TARGET_SOURCE_DIR ${PRIMARY_TARGET} SOURCE_DIR)
-
+  # Try to find config template based on export name
   if(NOT CONFIG_TEMPLATE_TO_USE)
-    set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${PRIMARY_TARGET}-config.cmake.in")
+    # Get first target's source dir for template search
+    list(GET TARGETS 0 FIRST_TARGET)
+    get_target_property(TARGET_SOURCE_DIR ${FIRST_TARGET} SOURCE_DIR)
+
+    set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
     if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
       set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using target-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+      project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
     endif()
   endif()
 
   if(NOT CONFIG_TEMPLATE_TO_USE)
-    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${PRIMARY_TARGET}-config.cmake.in")
+    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
     if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
       set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using target-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+      project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
     endif()
   endif()
 
@@ -450,7 +462,7 @@ function(finalize_package)
   # Prepare public CMake files content
   set(PACKAGE_PUBLIC_CMAKE_FILES "")
   if(PUBLIC_CMAKE_FILES)
-    project_log(DEBUG "  Processing public CMake files for export '${ARG_EXPORT_NAME}':")
+    project_log(DEBUG "Processing public CMake files for export '${ARG_EXPORT_NAME}':")
     foreach(cmake_file ${PUBLIC_CMAKE_FILES})
       if(IS_ABSOLUTE "${cmake_file}")
         set(SRC_CMAKE_FILE "${cmake_file}")
@@ -474,19 +486,19 @@ function(finalize_package)
     endforeach()
   endif()
 
-  # Configure and generate package config file
+  # Configure and generate package config file using EXPORT_NAME
   configure_package_config_file(
-    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${PRIMARY_TARGET}-config.cmake"
+    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake"
     INSTALL_DESTINATION ${CMAKE_CONFIG_DESTINATION}
     PATH_VARS CMAKE_INSTALL_PREFIX)
 
-  # Install config files
+  # Install config files using EXPORT_NAME
   install(
-    FILES "${CURRENT_BINARY_DIR}/${PRIMARY_TARGET}-config.cmake" "${CURRENT_BINARY_DIR}/${PRIMARY_TARGET}-config-version.cmake"
+    FILES "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${DEV_COMPONENT_ARGS})
 
-  project_log(VERBOSE "Finalized installation for export '${ARG_EXPORT_NAME}'")
+  project_log(DEBUG "  Finalized installation for export '${ARG_EXPORT_NAME}'")
 
   # Clean up global properties (optional, but good practice)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "")
