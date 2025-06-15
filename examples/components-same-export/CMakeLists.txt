@@ -7,24 +7,24 @@ set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)
 
 # Core runtime library (shared)
-add_library(media_core SHARED)
-target_sources(media_core PRIVATE src/media_core.cpp)
-target_sources(media_core PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/media/core.h")
+add_library(media_core2 SHARED)
+target_sources(media_core2 PRIVATE src/media_core.cpp)
+target_sources(media_core2 PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/media/core.h")
 set_target_properties(
-  media_core
+  media_core2
   PROPERTIES POSITION_INDEPENDENT_CODE ON
              VERSION ${PROJECT_VERSION}
              SOVERSION ${PROJECT_VERSION_MAJOR})
 if(WIN32)
-  set_target_properties(media_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  set_target_properties(media_core2 PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
-target_compile_features(media_core PUBLIC cxx_std_17)
+target_compile_features(media_core2 PUBLIC cxx_std_17)
 
 # Developer utilities (static)
-add_library(media_dev_tools STATIC)
-target_sources(media_dev_tools PRIVATE src/dev_tools.cpp)
-target_sources(media_dev_tools PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/media/dev_tools.h")
-target_compile_features(media_dev_tools PUBLIC cxx_std_17)
+add_library(media_dev_tools2 STATIC)
+target_sources(media_dev_tools2 PRIVATE src/dev_tools.cpp)
+target_sources(media_dev_tools2 PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/media/dev_tools.h")
+target_compile_features(media_dev_tools2 PUBLIC cxx_std_17)
 
 # db
 add_library(storage SHARED)
@@ -42,14 +42,14 @@ if(WIN32)
 endif()
 
 # Asset converter tool (executable)
-add_executable(asset_converter)
-target_sources(asset_converter PRIVATE src/asset_converter.cpp)
+add_executable(asset_converter2)
+target_sources(asset_converter2 PRIVATE src/asset_converter.cpp)
 
 # Install with custom components
 target_prepare_package(
-  media_core
+  media_core2
   EXPORT_NAME
-  "ENGINE"
+  "engine2"
   NAMESPACE
   Media::
   RUNTIME_COMPONENT
@@ -58,9 +58,9 @@ target_prepare_package(
   "devel1")
 
 target_prepare_package(
-  media_dev_tools
+  media_dev_tools2
   EXPORT_NAME
-  "ENGINE"
+  "engine2"
   NAMESPACE
   Media::
   DEVELOPMENT_COMPONENT
@@ -70,17 +70,17 @@ target_prepare_package(
 target_prepare_package(
   storage
   EXPORT_NAME
-  "ENGINE"
+  "engine2"
   NAMESPACE
-  DB::
+  Media::
   DEVELOPMENT_COMPONENT
   "devel3" # Static lib goes to devel
 )
 
 target_prepare_package(
-  asset_converter
+  asset_converter2
   EXPORT_NAME
-  "ENGINE"
+  "engine2"
   NAMESPACE
   Media::
   COMPONENT
@@ -88,4 +88,4 @@ target_prepare_package(
   RUNTIME_COMPONENT
   "tools")
 
-finalize_package(EXPORT_NAME "ENGINE")
+finalize_package(EXPORT_NAME "engine2")
