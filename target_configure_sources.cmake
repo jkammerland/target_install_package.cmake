@@ -5,7 +5,12 @@ get_property(
 if(_LFG_INITIALIZED)
   list_file_include_guard(VERSION 4.0.3)
 else()
-  include_guard()
+  message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+
+  # ~~~
+  # Include guard won't work if you have 2 files defining the same function, as it works per file (and not filename).
+  # include_guard()
+  # ~~~
 endif()
 
 # ~~~
@@ -15,14 +20,14 @@ endif()
 # build directory, and sets up include paths for both build and install time.
 #
 # API:
-#   target_configure_sources(<TARGET_NAME>
+#   target_configure_sources(TARGET_NAME
 #     <PUBLIC|PRIVATE|INTERFACE>
-#     [OUTPUT_DIR <directory>]
-#     [SUBSTITUTION_MODE @ONLY|VARIABLES]
-#     [FILE_SET <file_set_name>]
-#     [TYPE HEADERS]
-#     [BASE_DIRS <base_directories...>]
-#     [FILES <template_files...>])
+#     OUTPUT_DIR <directory>
+#     SUBSTITUTION_MODE @ONLY|VARIABLES
+#     FILE_SET <file_set_name>
+#     TYPE HEADERS
+#     BASE_DIRS <base_directories...>
+#     FILES <template_files...>)
 #
 # Parameters:
 #   TARGET_NAME             - Name of the target to configure sources for.

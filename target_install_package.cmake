@@ -7,7 +7,12 @@ get_property(
 if(_LFG_INITIALIZED)
   list_file_include_guard(VERSION 4.0.3)
 else()
-  include_guard()
+  message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+
+  # ~~~
+  # Include guard won't work if you have 2 files defining the same function, as it works per file (and not filename).
+  # include_guard()
+  # ~~~
 endif()
 
 include(GNUInstallDirs)
@@ -26,24 +31,24 @@ endif()
 # want to package their libraries and provide standardized installation paths.
 #
 # API:
-#   target_install_package(<TARGET_NAME>
-#     [NAMESPACE <namespace>]
-#     [VERSION <version>]
-#     [COMPATIBILITY <compatibility>]
-#     [EXPORT_NAME <export_name>]
-#     [CONFIG_TEMPLATE <template_path>]
-#     [INCLUDE_DESTINATION <include_dest>]
-#     [MODULE_DESTINATION <module_dest>]
-#     [CMAKE_CONFIG_DESTINATION <config_dest>]
-#     [COMPONENT <component>]
-#     [RUNTIME_COMPONENT <runtime_component>]
-#     [DEVELOPMENT_COMPONENT <dev_component>]
-#     [ADDITIONAL_FILES <files...>]
-#     [ADDITIONAL_FILES_DESTINATION <dest>]
-#     [ADDITIONAL_TARGETS <targets...>]
-#     [PUBLIC_DEPENDENCIES <deps...>]
-#     [PUBLIC_CMAKE_FILES <files...>]
-#     [SUPPORTED_COMPONENTS <components...>])
+#   target_install_package(TARGET_NAME
+#     NAMESPACE <namespace>
+#     VERSION <version>
+#     COMPATIBILITY <compatibility>
+#     EXPORT_NAME <export_name>
+#     CONFIG_TEMPLATE <template_path>
+#     INCLUDE_DESTINATION <include_dest>
+#     MODULE_DESTINATION <module_dest>
+#     CMAKE_CONFIG_DESTINATION <config_dest>
+#     COMPONENT <component>
+#     RUNTIME_COMPONENT <runtime_component>
+#     DEVELOPMENT_COMPONENT <dev_component>
+#     ADDITIONAL_FILES <files...>
+#     ADDITIONAL_FILES_DESTINATION <dest>
+#     ADDITIONAL_TARGETS <targets...>
+#     PUBLIC_DEPENDENCIES <deps...>
+#     PUBLIC_CMAKE_FILES <files...>
+#     SUPPORTED_COMPONENTS <components...>)
 #
 # Parameters:
 #   TARGET_NAME             - Name of the target to install.
