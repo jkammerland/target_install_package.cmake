@@ -277,29 +277,29 @@ function(finalize_package)
     set(DEV_COMPONENT_ARGS COMPONENT ${DEVELOPMENT_COMPONENT})
   endif()
 
-  # Install all targets together
-  set(INSTALL_ARGS
-      TARGETS
-      ${TARGETS}
-      EXPORT
-      ${ARG_EXPORT_NAME}
-      LIBRARY
-      DESTINATION
-      ${CMAKE_INSTALL_LIBDIR}
-      ${RUNTIME_COMPONENT_ARGS}
-      ARCHIVE
-      DESTINATION
-      ${CMAKE_INSTALL_LIBDIR}
-      COMPONENT
-      ${DEVELOPMENT_COMPONENT}
-      RUNTIME
-      DESTINATION
-      ${CMAKE_INSTALL_BINDIR}
-      ${RUNTIME_COMPONENT_ARGS})
-
-  # Process each target for file sets
+  # Install each target separately to avoid FILE_SET conflicts
   foreach(TARGET_NAME ${TARGETS})
-    # Get INTERFACE header file sets
+    # Build install arguments for this specific target
+    set(INSTALL_ARGS
+        TARGETS
+        ${TARGET_NAME}
+        EXPORT
+        ${ARG_EXPORT_NAME}
+        LIBRARY
+        DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}
+        ${RUNTIME_COMPONENT_ARGS}
+        ARCHIVE
+        DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT
+        ${DEVELOPMENT_COMPONENT}
+        RUNTIME
+        DESTINATION
+        ${CMAKE_INSTALL_BINDIR}
+        ${RUNTIME_COMPONENT_ARGS})
+
+    # Get INTERFACE header file sets for this target
     get_target_property(TARGET_INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
     get_target_property(TARGET_PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
 
@@ -351,10 +351,10 @@ function(finalize_package)
         endforeach()
       endif()
     endif()
-  endforeach()
 
-  # Execute the install command
-  install(${INSTALL_ARGS})
+    # Execute the install command for this target
+    install(${INSTALL_ARGS})
+  endforeach()
 
   # Install additional files
   if(ADDITIONAL_FILES)
