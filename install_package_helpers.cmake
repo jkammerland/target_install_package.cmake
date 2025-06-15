@@ -167,7 +167,12 @@ function(target_prepare_package TARGET_NAME)
   endif()
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
-  # Store all configuration (namespace and common settings at export level)
+  # Store per-target component configuration
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${ARG_RUNTIME_COMPONENT}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
+
+  # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE" "${ARG_NAMESPACE}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION" "${ARG_VERSION}")
@@ -176,11 +181,14 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CMAKE_CONFIG_DESTINATION" "${ARG_CMAKE_CONFIG_DESTINATION}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT" "${ARG_COMPONENT}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_RUNTIME_COMPONENT" "${ARG_RUNTIME_COMPONENT}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
+
+  # For config files, use the first target's development component as default
+  get_property(EXISTING_CONFIG_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
+  if(NOT EXISTING_CONFIG_COMPONENT)
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
+  endif()
 
   # Store lists
   if(ARG_ADDITIONAL_FILES)
@@ -211,7 +219,7 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES" "${EXISTING_CMAKE_FILES}")
   endif()
 
-  project_log(STATUS "'${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
+  project_log(STATUS "'${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}' (runtime: ${ARG_RUNTIME_COMPONENT}, dev: ${ARG_DEVELOPMENT_COMPONENT})")
 endfunction(target_prepare_package)
 
 # ~~~
@@ -258,9 +266,7 @@ function(finalize_package)
   get_property(INCLUDE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION")
   get_property(MODULE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION")
   get_property(CMAKE_CONFIG_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CMAKE_CONFIG_DESTINATION")
-  get_property(COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT")
-  get_property(RUNTIME_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_RUNTIME_COMPONENT")
-  get_property(DEVELOPMENT_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEVELOPMENT_COMPONENT")
+  get_property(CONFIG_DEV_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   get_property(CURRENT_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR")
   get_property(CURRENT_BINARY_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR")
   get_property(ADDITIONAL_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES")
@@ -268,27 +274,79 @@ function(finalize_package)
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
 
+  # Collect all components used across targets for logging and component mapping
+  set(ALL_RUNTIME_COMPONENTS "")
+  set(ALL_DEVELOPMENT_COMPONENTS "")
+  set(ALL_COMPONENTS "")
+  set(COMPONENT_TARGET_MAP "")
+
+  foreach(TARGET_NAME ${TARGETS})
+    get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
+    get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
+    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
+
+    if(TARGET_RUNTIME_COMP)
+      list(APPEND ALL_RUNTIME_COMPONENTS ${TARGET_RUNTIME_COMP})
+      list(APPEND COMPONENT_TARGET_MAP "${TARGET_RUNTIME_COMP}:${TARGET_NAME}")
+    endif()
+    if(TARGET_DEV_COMP)
+      list(APPEND ALL_DEVELOPMENT_COMPONENTS ${TARGET_DEV_COMP})
+      list(APPEND COMPONENT_TARGET_MAP "${TARGET_DEV_COMP}:${TARGET_NAME}")
+    endif()
+    if(TARGET_COMP AND NOT TARGET_COMP STREQUAL TARGET_DEV_COMP)
+      list(APPEND ALL_COMPONENTS ${TARGET_COMP})
+      list(APPEND COMPONENT_TARGET_MAP "${TARGET_COMP}:${TARGET_NAME}")
+    endif()
+  endforeach()
+
+  # Remove duplicates and log
+  if(ALL_RUNTIME_COMPONENTS)
+    list(REMOVE_DUPLICATES ALL_RUNTIME_COMPONENTS)
+  endif()
+  if(ALL_DEVELOPMENT_COMPONENTS)
+    list(REMOVE_DUPLICATES ALL_DEVELOPMENT_COMPONENTS)
+  endif()
+  if(ALL_COMPONENTS)
+    list(REMOVE_DUPLICATES ALL_COMPONENTS)
+  endif()
+
   list(LENGTH TARGETS target_count)
   if(target_count EQUAL 1)
     set(target_label "target")
   else()
     set(target_label "targets")
   endif()
-  project_log(DEBUG "  Export '${ARG_EXPORT_NAME}' with ${target_count} ${target_label}: [${TARGETS}] is being finalized")
 
-  # Define component args for different installation types
-  set(RUNTIME_COMPONENT_ARGS "")
-  if(RUNTIME_COMPONENT)
-    set(RUNTIME_COMPONENT_ARGS COMPONENT ${RUNTIME_COMPONENT})
+  project_log(STATUS "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
+  project_log(STATUS "Components in export '${ARG_EXPORT_NAME}':")
+  if(ALL_RUNTIME_COMPONENTS)
+    project_log(STATUS "  Runtime: ${ALL_RUNTIME_COMPONENTS}")
+  endif()
+  if(ALL_DEVELOPMENT_COMPONENTS)
+    project_log(STATUS "  Development: ${ALL_DEVELOPMENT_COMPONENTS}")
+  endif()
+  if(ALL_COMPONENTS)
+    project_log(STATUS "  Other: ${ALL_COMPONENTS}")
   endif()
 
-  set(DEV_COMPONENT_ARGS "")
-  if(DEVELOPMENT_COMPONENT)
-    set(DEV_COMPONENT_ARGS COMPONENT ${DEVELOPMENT_COMPONENT})
-  endif()
-
-  # Install each target separately to avoid FILE_SET conflicts
+  # Install each target separately with its own components
   foreach(TARGET_NAME ${TARGETS})
+    get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
+    get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
+
+    # Build component args for this target
+    set(TARGET_RUNTIME_COMPONENT_ARGS "")
+    if(TARGET_RUNTIME_COMP)
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
+    endif()
+
+    set(TARGET_DEV_COMPONENT_ARGS "")
+    if(TARGET_DEV_COMP)
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
+    endif()
+
+    project_log(VERBOSE "  Installing '${TARGET_NAME}' (runtime: ${TARGET_RUNTIME_COMP}, dev: ${TARGET_DEV_COMP})")
+
     # Build install arguments for this specific target
     set(INSTALL_ARGS
         TARGETS
@@ -298,22 +356,21 @@ function(finalize_package)
         LIBRARY
         DESTINATION
         ${CMAKE_INSTALL_LIBDIR}
-        ${RUNTIME_COMPONENT_ARGS}
+        ${TARGET_RUNTIME_COMPONENT_ARGS}
         ARCHIVE
         DESTINATION
         ${CMAKE_INSTALL_LIBDIR}
-        COMPONENT
-        ${DEVELOPMENT_COMPONENT}
+        ${TARGET_DEV_COMPONENT_ARGS}
         RUNTIME
         DESTINATION
         ${CMAKE_INSTALL_BINDIR}
-        ${RUNTIME_COMPONENT_ARGS})
+        ${TARGET_RUNTIME_COMPONENT_ARGS})
 
     # Get INTERFACE header file sets for this target
     get_target_property(TARGET_INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
     get_target_property(TARGET_PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
 
-    # Install INTERFACE header file sets
+    # Install INTERFACE header file sets with target's development component
     if(TARGET_INTERFACE_HEADER_SETS)
       foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
         list(
@@ -323,26 +380,18 @@ function(finalize_package)
           ${CURRENT_SET_NAME}
           DESTINATION
           ${INCLUDE_DESTINATION}
-          COMPONENT
-          ${DEVELOPMENT_COMPONENT})
+          ${TARGET_DEV_COMPONENT_ARGS})
         project_log(DEBUG "  Installing INTERFACE HEADER file set '${CURRENT_SET_NAME}' for ${TARGET_NAME}")
       endforeach()
     endif()
 
-    # Install PUBLIC_HEADER property (if present)
+    # Install PUBLIC_HEADER property with target's development component
     if(TARGET_PUBLIC_HEADERS)
-      list(
-        APPEND
-        INSTALL_ARGS
-        PUBLIC_HEADER
-        DESTINATION
-        ${INCLUDE_DESTINATION}
-        COMPONENT
-        ${DEVELOPMENT_COMPONENT})
+      list(APPEND INSTALL_ARGS PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION} ${TARGET_DEV_COMPONENT_ARGS})
       project_log(DEBUG "  Installing PUBLIC_HEADER property for ${TARGET_NAME}")
     endif()
 
-    # Handle C++20 modules (CMake 3.28+)
+    # Handle C++20 modules (CMake 3.28+) with target's development component
     if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
       get_target_property(TARGET_INTERFACE_MODULE_SETS ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
 
@@ -355,8 +404,7 @@ function(finalize_package)
             ${CURRENT_MODULE_SET_NAME}
             DESTINATION
             ${MODULE_DESTINATION}
-            COMPONENT
-            ${DEVELOPMENT_COMPONENT})
+            ${TARGET_DEV_COMPONENT_ARGS})
           project_log(DEBUG "  Installing INTERFACE CXX_MODULE file set '${CURRENT_MODULE_SET_NAME}' for ${TARGET_NAME}")
         endforeach()
       endif()
@@ -366,7 +414,13 @@ function(finalize_package)
     install(${INSTALL_ARGS})
   endforeach()
 
-  # Install additional files
+  # Set up component args for config files
+  set(CONFIG_COMPONENT_ARGS "")
+  if(CONFIG_DEV_COMPONENT)
+    set(CONFIG_COMPONENT_ARGS COMPONENT ${CONFIG_DEV_COMPONENT})
+  endif()
+
+  # Install additional files with config component
   if(ADDITIONAL_FILES)
     set(ADDITIONAL_FILES_DEST_PATH "${INCLUDE_DESTINATION}")
     if(ADDITIONAL_FILES_DESTINATION)
@@ -388,18 +442,18 @@ function(finalize_package)
       install(
         FILES "${SRC_FILE_PATH}"
         DESTINATION "${ADDITIONAL_FILES_DEST_PATH}"
-        ${DEV_COMPONENT_ARGS})
+        ${CONFIG_COMPONENT_ARGS})
       project_log(DEBUG "  Installing additional file: ${SRC_FILE_PATH} to ${ADDITIONAL_FILES_DEST_PATH}")
     endforeach()
   endif()
 
-  # Install targets export file
+  # Install targets export file with config component
   install(
     EXPORT ${ARG_EXPORT_NAME}
     FILE ${ARG_EXPORT_NAME}.cmake
     NAMESPACE ${NAMESPACE}
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    ${DEV_COMPONENT_ARGS})
+    ${CONFIG_COMPONENT_ARGS})
 
   # Create package version file using EXPORT_NAME
   write_basic_package_version_file(
@@ -415,6 +469,15 @@ function(finalize_package)
       string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
     endforeach()
     project_log(VERBOSE "Public dependencies for export '${ARG_EXPORT_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")
+  endif()
+
+  # Store component information for config template
+  set(PACKAGE_COMPONENT_TARGET_MAP "")
+  if(COMPONENT_TARGET_MAP)
+    set(PACKAGE_COMPONENT_TARGET_MAP "# Component to target mapping\n")
+    foreach(mapping ${COMPONENT_TARGET_MAP})
+      string(APPEND PACKAGE_COMPONENT_TARGET_MAP "# ${mapping}\n")
+    endforeach()
   endif()
 
   # Determine config template location using EXPORT_NAME
@@ -480,7 +543,7 @@ function(finalize_package)
       install(
         FILES "${SRC_CMAKE_FILE}"
         DESTINATION "${CMAKE_CONFIG_DESTINATION}"
-        ${DEV_COMPONENT_ARGS})
+        ${CONFIG_COMPONENT_ARGS})
 
       string(APPEND PACKAGE_PUBLIC_CMAKE_FILES "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
     endforeach()
@@ -492,13 +555,13 @@ function(finalize_package)
     INSTALL_DESTINATION ${CMAKE_CONFIG_DESTINATION}
     PATH_VARS CMAKE_INSTALL_PREFIX)
 
-  # Install config files using EXPORT_NAME
+  # Install config files using EXPORT_NAME with config component
   install(
     FILES "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    ${DEV_COMPONENT_ARGS})
+    ${CONFIG_COMPONENT_ARGS})
 
-  project_log(DEBUG "  Finalized installation for export '${ARG_EXPORT_NAME}'")
+  project_log(STATUS "Finalized installation for export '${ARG_EXPORT_NAME}' (config component: ${CONFIG_DEV_COMPONENT})")
 
   # Clean up global properties (optional, but good practice)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "")

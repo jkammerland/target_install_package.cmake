@@ -40,15 +40,7 @@ target_install_package(
   DEVELOPMENT_COMPONENT
   "devel")
 
-target_install_package(
-  media_dev_tools
-  NAMESPACE
-  Media::
-  DEVELOPMENT_COMPONENT
-  "devel" # Static lib goes to devel
-  EXPORT_NAME
-  "media_core-targets" # Share the same export
-)
+target_install_package(media_dev_tools NAMESPACE Media:: DEVELOPMENT_COMPONENT "devel")
 
 target_install_package(
   asset_converter

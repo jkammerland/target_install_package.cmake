@@ -53,9 +53,9 @@ target_prepare_package(
   NAMESPACE
   Media::
   RUNTIME_COMPONENT
-  "runtime"
+  "runtime1"
   DEVELOPMENT_COMPONENT
-  "devel")
+  "devel1")
 
 target_prepare_package(
   media_dev_tools
@@ -64,7 +64,7 @@ target_prepare_package(
   NAMESPACE
   Media::
   DEVELOPMENT_COMPONENT
-  "devel" # Static lib goes to devel
+  "devel2" # Static lib goes to devel
 )
 
 target_prepare_package(
@@ -74,7 +74,7 @@ target_prepare_package(
   NAMESPACE
   DB::
   DEVELOPMENT_COMPONENT
-  "devel" # Static lib goes to devel
+  "devel3" # Static lib goes to devel
 )
 
 target_prepare_package(
