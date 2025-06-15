@@ -239,32 +239,14 @@ function(target_install_package TARGET_NAME)
   get_target_property(TARGET_INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
   get_target_property(TARGET_PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
 
-  # Track all files being installed to detect duplicates
-  set(ALL_INSTALLED_FILES "")
-
   # Warn on mixing old and new header installation methods (but allow it)
   if(TARGET_PUBLIC_HEADERS AND TARGET_INTERFACE_HEADER_SETS)
     project_log(WARNING "Target '${TARGET_NAME}' has both PUBLIC_HEADER property and HEADER file sets. This may cause duplicate header installation. Consider using only file sets for modern CMake.")
   endif()
 
-  # Install INTERFACE header file sets (PUBLIC/INTERFACE only) and check for duplicates
+  # Install INTERFACE header file sets (PUBLIC/INTERFACE only)
   if(TARGET_INTERFACE_HEADER_SETS)
     foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
-      # Get files in this header set
-      get_target_property(CURRENT_SET_FILES ${TARGET_NAME} HEADER_SET_${CURRENT_SET_NAME})
-
-      if(CURRENT_SET_FILES)
-        # Check for duplicate files across file sets
-        foreach(CURRENT_FILE_PATH ${CURRENT_SET_FILES})
-          get_filename_component(CURRENT_ABS_PATH "${CURRENT_FILE_PATH}" ABSOLUTE)
-          if(CURRENT_ABS_PATH IN_LIST ALL_INSTALLED_FILES)
-            project_log(WARNING "Duplicate file detected across file sets: ${CURRENT_ABS_PATH} (in file set '${CURRENT_SET_NAME}')")
-          else()
-            list(APPEND ALL_INSTALLED_FILES "${CURRENT_ABS_PATH}")
-          endif()
-        endforeach()
-      endif()
-
       list(
         APPEND
         INSTALL_ARGS
@@ -278,18 +260,8 @@ function(target_install_package TARGET_NAME)
     endforeach()
   endif()
 
-  # Install PUBLIC_HEADER property (separately from file sets) and check for duplicates
+  # Install PUBLIC_HEADER property (if present)
   if(TARGET_PUBLIC_HEADERS)
-    # Check if any PUBLIC_HEADER files conflict with file set files
-    foreach(CURRENT_PUBLIC_HEADER ${TARGET_PUBLIC_HEADERS})
-      get_filename_component(CURRENT_PUBLIC_ABS_PATH "${CURRENT_PUBLIC_HEADER}" ABSOLUTE)
-      if(CURRENT_PUBLIC_ABS_PATH IN_LIST ALL_INSTALLED_FILES)
-        project_log(WARNING "Duplicate file detected between PUBLIC_HEADER and file sets: ${CURRENT_PUBLIC_ABS_PATH}")
-      else()
-        list(APPEND ALL_INSTALLED_FILES "${CURRENT_PUBLIC_ABS_PATH}")
-      endif()
-    endforeach()
-
     list(
       APPEND
       INSTALL_ARGS
@@ -305,24 +277,9 @@ function(target_install_package TARGET_NAME)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
     get_target_property(TARGET_INTERFACE_MODULE_SETS ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
 
-    # Install INTERFACE module file sets and check for duplicates
+    # Install INTERFACE module file sets
     if(TARGET_INTERFACE_MODULE_SETS)
       foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
-        # Get files in this module set
-        get_target_property(CURRENT_MODULE_SET_FILES ${TARGET_NAME} CXX_MODULE_SET_${CURRENT_MODULE_SET_NAME})
-
-        if(CURRENT_MODULE_SET_FILES)
-          # Check for duplicate files across module sets
-          foreach(CURRENT_MODULE_FILE ${CURRENT_MODULE_SET_FILES})
-            get_filename_component(CURRENT_MODULE_ABS_PATH "${CURRENT_MODULE_FILE}" ABSOLUTE)
-            if(CURRENT_MODULE_ABS_PATH IN_LIST ALL_INSTALLED_FILES)
-              project_log(WARNING "Duplicate file detected across module sets: ${CURRENT_MODULE_ABS_PATH} (in module set '${CURRENT_MODULE_SET_NAME}')")
-            else()
-              list(APPEND ALL_INSTALLED_FILES "${CURRENT_MODULE_ABS_PATH}")
-            endif()
-          endforeach()
-        endif()
-
         list(
           APPEND
           INSTALL_ARGS
@@ -516,6 +473,16 @@ function(_set_default_args)
     endif()
   endwhile()
 endfunction()
+
+define_property(
+  TARGET
+  PROPERTY RUNTIME_COMPONENT
+  BRIEF_DOCS "Required files for runtime")
+
+define_property(
+  TARGET
+  PROPERTY DEVELOPMENT_COMPONENT
+  BRIEF_DOCS "Required files for development")
 
 get_property(
   PL_INITIALIZED GLOBAL
