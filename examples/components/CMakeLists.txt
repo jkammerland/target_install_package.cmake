@@ -42,10 +42,6 @@ target_install_package(
   RUNTIME_COMPONENT
   "runtime"
   DEVELOPMENT_COMPONENT
-  "devel"
-  SUPPORTED_COMPONENTS
-  "core"
-  "runtime"
   "devel")
 
 target_install_package(

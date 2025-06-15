@@ -5,9 +5,6 @@ include(CMakeFindDependencyMacro)
 # Add dependencies
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@
 
-# Component support
-@PACKAGE_SUPPORTED_COMPONENTS_CONTENT@
-
 # Include additional CMake files
 @PACKAGE_PUBLIC_CMAKE_FILES@
 

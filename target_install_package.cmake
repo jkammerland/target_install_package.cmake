@@ -47,8 +47,7 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>
-#     SUPPORTED_COMPONENTS <components...>)
+#     PUBLIC_CMAKE_FILES <files...>)
 #
 # Parameters:
 #   TARGET_NAME             - Name of the target to install.
@@ -68,14 +67,12 @@ endif()
 #   ADDITIONAL_TARGETS      - Additional targets to include in the same export set.
 #   PUBLIC_DEPENDENCIES     - Public dependencies to find and install.
 #   PUBLIC_CMAKE_FILES      - Additional CMake files to install as public.
-#   SUPPORTED_COMPONENTS    - List of supported component names for validation.
 #
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
-#   - Validates component names if SUPPORTED_COMPONENTS is specified.
 #   - Allows custom installation destinations and component separation.
 #
 # Examples:
@@ -112,7 +109,7 @@ function(target_install_package TARGET_NAME)
       RUNTIME_COMPONENT
       DEVELOPMENT_COMPONENT
       ADDITIONAL_FILES_DESTINATION)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES SUPPORTED_COMPONENTS)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Check if target exists
@@ -395,28 +392,6 @@ function(target_install_package TARGET_NAME)
     project_log(VERBOSE "Found public dependencies for target '${TARGET_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")
   endif()
 
-  # Generate component validation for config template
-  set(PACKAGE_SUPPORTED_COMPONENTS_CONTENT "")
-  if(ARG_SUPPORTED_COMPONENTS)
-    set(PACKAGE_SUPPORTED_COMPONENTS_CONTENT "# Supported components validation\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "set(_${TARGET_NAME}_supported_components ${ARG_SUPPORTED_COMPONENTS})\n\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "# Initialize component found variables\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "foreach(_comp \${_${TARGET_NAME}_supported_components})\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "  set(${TARGET_NAME}_\${_comp}_FOUND FALSE)\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "endforeach()\n\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "# Validate requested components\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "foreach(_comp \${${TARGET_NAME}_FIND_COMPONENTS})\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "  if(NOT _comp IN_LIST _${TARGET_NAME}_supported_components)\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "    set(${TARGET_NAME}_FOUND False)\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "    set(${TARGET_NAME}_NOT_FOUND_MESSAGE \"Unsupported component: \${_comp}\")\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "    return()\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "  else()\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "    set(${TARGET_NAME}_\${_comp}_FOUND TRUE)\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "  endif()\n")
-    string(APPEND PACKAGE_SUPPORTED_COMPONENTS_CONTENT "endforeach()\n")
-    project_log(DEBUG "Generated component support for: ${ARG_SUPPORTED_COMPONENTS}")
-  endif()
-
   # Determine config template location
   set(CONFIG_TEMPLATE_TO_USE "")
   if(ARG_CONFIG_TEMPLATE)
@@ -498,9 +473,6 @@ function(target_install_package TARGET_NAME)
     ${DEV_COMPONENT_ARGS})
 
   project_log(STATUS "Installation target for '${TARGET_NAME}' configured successfully.")
-  if(ARG_SUPPORTED_COMPONENTS)
-    project_log(VERBOSE "  Supported components: ${ARG_SUPPORTED_COMPONENTS}")
-  endif()
   project_log(VERBOSE "  Runtime component: ${ARG_RUNTIME_COMPONENT}")
   project_log(VERBOSE "  Development component: ${ARG_DEVELOPMENT_COMPONENT}")
 endfunction(target_install_package)

@@ -149,7 +149,6 @@ install/
 
 ### Components ([components](components/))
 - Custom component names
-- SUPPORTED_COMPONENTS validation
 - Mixed target types (shared, static, executable)
 
 ### Configure Files ([configure-files](configure-files/))
