@@ -40,7 +40,6 @@ The `target_install_package()` function searches for the targets config template
    - [Specific Component Assignment](#specific-component-assignment-)
    - [Multi-Component Library Example](#multi-component-library-example-)
    - [Installing Specific Components](#installing-specific-components-)
-   - [Supported Components Feature](#supported-components-feature-)
 5. [Build Variant Support](#build-variant-support-)
    - [Basic Variant Setup](#basic-variant-setup-)
    - [Custom Variants](#custom-variants-)
@@ -399,42 +398,6 @@ cmake --install . --component tools
 
 # Install everything
 cmake --install .
-```
-
-### Supported Components Feature ✅
-
-For packages that want to validate which components consumers can request:
-
-```cmake
-add_library(multimedia_lib SHARED)
-target_sources(multimedia_lib PRIVATE src/multimedia.cpp)
-target_sources(multimedia_lib PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/multimedia/api.h"
-)
-
-# Define which components this package supports
-target_install_package(multimedia_lib
-  NAMESPACE Multimedia::
-  SUPPORTED_COMPONENTS "core" "audio" "video" "codecs"
-  RUNTIME_COMPONENT "core"
-  DEVELOPMENT_COMPONENT "devel"
-)
-```
-
-**Consumer usage with component validation:**
-```cmake
-# This will work - 'core' is supported
-find_package(multimedia_lib REQUIRED COMPONENTS core)
-
-# This will fail - 'graphics' is not in SUPPORTED_COMPONENTS
-find_package(multimedia_lib REQUIRED COMPONENTS graphics)
-
-# Check if specific components were found
-if(multimedia_lib_audio_FOUND)
-  message(STATUS "Audio component available")
-endif()
 ```
 
 ## Build Variant Support 🎨
