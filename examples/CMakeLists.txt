@@ -133,3 +133,7 @@ if(SHOULD_TEST_CXX_MODULES)
 else()
   message(STATUS "Skipped package math_modules: OK")
 endif()
+
+
+add_executable(test_examples_main test_examples_main.cpp)
+target_link_libraries(test_examples_main PRIVATE MyLib::core_lib)
