@@ -29,6 +29,10 @@ endif()
 # This function validates and prepares installation rules for a target, storing
 # the configuration for later finalization with finalize_package().
 #
+# Use this function when you have multiple targets that should be part of the same
+# export with aggregated dependencies. Call this for each target, then call
+# finalize_package() once with the shared EXPORT_NAME.
+#
 # API:
 #   target_prepare_package(TARGET_NAME
 #     NAMESPACE <namespace>
@@ -223,10 +227,95 @@ function(target_prepare_package TARGET_NAME)
 endfunction(target_prepare_package)
 
 # ~~~
+# Helper: Collect component information from all targets in an export.
+#
+# This internal helper function gathers component assignments across all targets 
+# in an export for logging and debugging purposes. It abstracts the complex
+# component collection logic from the main finalize_package() flow.
+#
+# Returns via parent scope variables:
+#   ALL_RUNTIME_COMPONENTS - List of unique runtime components
+#   ALL_DEVELOPMENT_COMPONENTS - List of unique development components  
+#   ALL_COMPONENTS - List of unique other components
+#   COMPONENT_TARGET_MAP - List of "component:target" mappings for debugging
+# ~~~
+function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
+  set(ALL_RUNTIME_COMPONENTS "")
+  set(ALL_DEVELOPMENT_COMPONENTS "")
+  set(ALL_COMPONENTS "")
+  set(COMPONENT_TARGET_MAP "")
+
+  foreach(TARGET_NAME ${TARGETS})
+    get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
+    get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
+    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
+
+    if(TARGET_RUNTIME_COMP)
+      list(APPEND ALL_RUNTIME_COMPONENTS ${TARGET_RUNTIME_COMP})
+      list(APPEND COMPONENT_TARGET_MAP "${TARGET_RUNTIME_COMP}:${TARGET_NAME}")
+    endif()
+    if(TARGET_DEV_COMP)
+      list(APPEND ALL_DEVELOPMENT_COMPONENTS ${TARGET_DEV_COMP})
+      list(APPEND COMPONENT_TARGET_MAP "${TARGET_DEV_COMP}:${TARGET_NAME}")
+    endif()
+    if(TARGET_COMP AND NOT TARGET_COMP STREQUAL TARGET_DEV_COMP)
+      list(APPEND ALL_COMPONENTS ${TARGET_COMP})
+      list(APPEND COMPONENT_TARGET_MAP "${TARGET_COMP}:${TARGET_NAME}")
+    endif()
+  endforeach()
+
+  # Remove duplicates
+  if(ALL_RUNTIME_COMPONENTS)
+    list(REMOVE_DUPLICATES ALL_RUNTIME_COMPONENTS)
+  endif()
+  if(ALL_DEVELOPMENT_COMPONENTS)
+    list(REMOVE_DUPLICATES ALL_DEVELOPMENT_COMPONENTS)
+  endif()
+  if(ALL_COMPONENTS)
+    list(REMOVE_DUPLICATES ALL_COMPONENTS)
+  endif()
+
+  # Return values to parent scope
+  set(ALL_RUNTIME_COMPONENTS "${ALL_RUNTIME_COMPONENTS}" PARENT_SCOPE)
+  set(ALL_DEVELOPMENT_COMPONENTS "${ALL_DEVELOPMENT_COMPONENTS}" PARENT_SCOPE)
+  set(ALL_COMPONENTS "${ALL_COMPONENTS}" PARENT_SCOPE)
+  set(COMPONENT_TARGET_MAP "${COMPONENT_TARGET_MAP}" PARENT_SCOPE)
+endfunction(_collect_export_components)
+
+# ~~~
+# Helper: Build CMake component arguments for install() commands.
+#
+# This internal helper function converts component names into CMake install() 
+# argument format, handling empty components gracefully. It abstracts the
+# repetitive component args building logic used throughout finalize_package().
+#
+# Parameters:
+#   VAR_PREFIX - Variable name prefix for the output arguments
+#   COMPONENT_NAME - Component name (can be empty)
+#
+# Returns via parent scope:
+#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT dev")
+# ~~~
+function(_build_component_args VAR_PREFIX COMPONENT_NAME)
+  if(COMPONENT_NAME)
+    set(${VAR_PREFIX}_ARGS COMPONENT ${COMPONENT_NAME} PARENT_SCOPE)
+  else()
+    set(${VAR_PREFIX}_ARGS "" PARENT_SCOPE)
+  endif()
+endfunction(_build_component_args)
+
+# ~~~
 # Finalize and install a prepared package export.
 #
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
+#
+# Under the hood:
+# 1. Collects all targets and their configurations from global properties
+# 2. Aggregates PUBLIC_DEPENDENCIES from all targets (with deduplication)
+# 3. Generates unified CMake export files containing all targets
+# 4. Creates package config files with all aggregated dependencies
+# 5. Installs each target with its individual component assignments
 #
 # API:
 #   finalize_package(EXPORT_NAME <export_name>)
@@ -235,9 +324,10 @@ endfunction(target_prepare_package)
 #   EXPORT_NAME - Name of the export to finalize (required)
 #
 # Example:
-#   target_prepare_package(my_library EXPORT_NAME my_project)
-#   target_prepare_package(my_executable EXPORT_NAME my_project)
+#   target_prepare_package(my_library EXPORT_NAME my_project PUBLIC_DEPENDENCIES "fmt REQUIRED")
+#   target_prepare_package(my_executable EXPORT_NAME my_project PUBLIC_DEPENDENCIES "spdlog REQUIRED")
 #   finalize_package(EXPORT_NAME my_project)
+#   # Result: Config file contains both fmt and spdlog dependencies
 # ~~~
 function(finalize_package)
   # Parse arguments
@@ -274,41 +364,8 @@ function(finalize_package)
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
 
-  # Collect all components used across targets for logging and component mapping
-  set(ALL_RUNTIME_COMPONENTS "")
-  set(ALL_DEVELOPMENT_COMPONENTS "")
-  set(ALL_COMPONENTS "")
-  set(COMPONENT_TARGET_MAP "")
-
-  foreach(TARGET_NAME ${TARGETS})
-    get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
-    get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
-    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
-
-    if(TARGET_RUNTIME_COMP)
-      list(APPEND ALL_RUNTIME_COMPONENTS ${TARGET_RUNTIME_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_RUNTIME_COMP}:${TARGET_NAME}")
-    endif()
-    if(TARGET_DEV_COMP)
-      list(APPEND ALL_DEVELOPMENT_COMPONENTS ${TARGET_DEV_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_DEV_COMP}:${TARGET_NAME}")
-    endif()
-    if(TARGET_COMP AND NOT TARGET_COMP STREQUAL TARGET_DEV_COMP)
-      list(APPEND ALL_COMPONENTS ${TARGET_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_COMP}:${TARGET_NAME}")
-    endif()
-  endforeach()
-
-  # Remove duplicates and log
-  if(ALL_RUNTIME_COMPONENTS)
-    list(REMOVE_DUPLICATES ALL_RUNTIME_COMPONENTS)
-  endif()
-  if(ALL_DEVELOPMENT_COMPONENTS)
-    list(REMOVE_DUPLICATES ALL_DEVELOPMENT_COMPONENTS)
-  endif()
-  if(ALL_COMPONENTS)
-    list(REMOVE_DUPLICATES ALL_COMPONENTS)
-  endif()
+  # Collect component information for logging and debugging
+  _collect_export_components("${EXPORT_PROPERTY_PREFIX}" "${TARGETS}")
 
   list(LENGTH TARGETS target_count)
   if(target_count EQUAL 1)
@@ -334,16 +391,9 @@ function(finalize_package)
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Build component args for this target
-    set(TARGET_RUNTIME_COMPONENT_ARGS "")
-    if(TARGET_RUNTIME_COMP)
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
-    endif()
-
-    set(TARGET_DEV_COMPONENT_ARGS "")
-    if(TARGET_DEV_COMP)
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
-    endif()
+    # Build component args for this target using helper function
+    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}")
+    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}")
 
     project_log(VERBOSE "  Installing '${TARGET_NAME}' (runtime: ${TARGET_RUNTIME_COMP}, dev: ${TARGET_DEV_COMP})")
 
@@ -415,10 +465,7 @@ function(finalize_package)
   endforeach()
 
   # Set up component args for config files
-  set(CONFIG_COMPONENT_ARGS "")
-  if(CONFIG_DEV_COMPONENT)
-    set(CONFIG_COMPONENT_ARGS COMPONENT ${CONFIG_DEV_COMPONENT})
-  endif()
+  _build_component_args(CONFIG_COMPONENT "${CONFIG_DEV_COMPONENT}")
 
   # Install additional files with config component
   if(ADDITIONAL_FILES)

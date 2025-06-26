@@ -11,6 +11,8 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [basic-interface](basic-interface/) | Interface Library | Header-only template library |
 | [multi-target](multi-target/) | Multi-Library | Multiple libraries in one package |
 | [components](components/) | Component-Based | Custom components and selective installation |
+| [components-same-export](components-same-export/) | Multi-Target Export | Correct pattern for multiple targets with dependency aggregation |
+| [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
 | [configure-files](configure-files/) | Template Configuration | Build-time header generation from templates |
 | [cxx-modules](cxx-modules/) | C++20 Modules | Modern C++20 modules with CXX_MODULES file sets |
 
@@ -45,8 +47,10 @@ Progress to more sophisticated packaging strategies:
 
 4. **[multi-target](multi-target/)** - Package multiple related libraries together
 5. **[components](components/)** - Implement flexible component-based installation
-6. **[configure-files](configure-files/)** - Generate build-time configuration headers
-7. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
+6. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (recommended pattern)
+7. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
+8. **[configure-files](configure-files/)** - Generate build-time configuration headers
+9. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
 
 ## 🔧 Common Build Commands
 
@@ -150,6 +154,18 @@ install/
 ### Components ([components](components/))
 - Custom component names
 - Mixed target types (shared, static, executable)
+
+### Multi-Target Export ([components-same-export](components-same-export/))
+- **Recommended pattern** for multiple targets with shared export
+- Dependency aggregation from multiple `PUBLIC_DEPENDENCIES`
+- Per-target component assignments within single export
+- Demonstrates correct `target_prepare_package()` + `finalize_package()` usage
+
+### Dependency Aggregation ([dependency-aggregation](dependency-aggregation/))
+- **Minimal focused example** of dependency aggregation mechanics
+- Uses real dependencies (fmt, spdlog, cxxopts) via FetchContent
+- Demonstrates the difference between correct and problematic patterns
+- Shows exactly how dependencies are collected and aggregated
 
 ### Configure Files ([configure-files](configure-files/))
 - Template file processing
