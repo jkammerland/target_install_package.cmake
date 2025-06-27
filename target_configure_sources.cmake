@@ -114,9 +114,9 @@ function(target_configure_sources TARGET_NAME)
     set(ARGS_TYPE "HEADERS")
   endif()
 
-  # Validate substitution mode earlier
+  # Validate substitution mode
   if(ARGS_SUBSTITUTION_MODE AND NOT "${ARGS_SUBSTITUTION_MODE}" MATCHES "^(@ONLY|VARIABLES)$")
-    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES")
+    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES, got: ${ARGS_SUBSTITUTION_MODE}")
   endif()
 
   # Validate file set type
@@ -126,11 +126,6 @@ function(target_configure_sources TARGET_NAME)
 
   if(NOT ARGS_BASE_DIRS)
     set(ARGS_BASE_DIRS "${ARGS_OUTPUT_DIR}")
-  endif()
-
-  # Validate substitution mode
-  if(NOT "${ARGS_SUBSTITUTION_MODE}" MATCHES "^(@ONLY|VARIABLES)$")
-    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES, got: ${ARGS_SUBSTITUTION_MODE}")
   endif()
 
   # Create output directory

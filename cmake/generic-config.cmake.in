@@ -1,6 +1,8 @@
 @PACKAGE_INIT@
 
-include(CMakeFindDependencyMacro)
+if(NOT COMMAND find_dependency)
+  include(CMakeFindDependencyMacro)
+endif()
 
 # Add dependencies
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@

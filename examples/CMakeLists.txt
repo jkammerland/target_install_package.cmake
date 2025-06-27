@@ -135,5 +135,8 @@ else()
 endif()
 
 
+
+message(STATUS "--- Testing linking a binary with the libraries ---")
 add_executable(test_examples_main test_examples_main.cpp)
 target_link_libraries(test_examples_main PRIVATE MyLib::core_lib)
+message(STATUS "--- Linking OK ---")
