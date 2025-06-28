@@ -4,7 +4,31 @@ if(NOT COMMAND find_dependency)
   include(CMakeFindDependencyMacro)
 endif()
 
-# Add dependencies
+# Component-dependent dependencies
+if(@ARG_EXPORT_NAME@_FIND_COMPONENTS AND "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  set(_component_deps "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  foreach(_comp IN LISTS @ARG_EXPORT_NAME@_FIND_COMPONENTS)
+    foreach(_comp_dep_pair IN LISTS _component_deps)
+      string(FIND "${_comp_dep_pair}" ":" _colon_pos)
+      if(_colon_pos GREATER -1)
+        string(SUBSTRING "${_comp_dep_pair}" 0 ${_colon_pos} _comp_name)
+        math(EXPR _deps_start "${_colon_pos} + 1")
+        string(SUBSTRING "${_comp_dep_pair}" ${_deps_start} -1 _comp_deps_string)
+        if(_comp STREQUAL _comp_name)
+          string(REPLACE ";" " " _comp_deps_list "${_comp_deps_string}")
+          string(REPLACE " " ";" _comp_deps_list "${_comp_deps_list}")
+          foreach(_dep IN LISTS _comp_deps_list)
+            if(_dep)
+              find_dependency(${_dep})
+            endif()
+          endforeach()
+        endif()
+      endif()
+    endforeach()
+  endforeach()
+endif()
+
+# Package global dependencies (always loaded regardless of components)
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@
 
 # Include additional CMake files

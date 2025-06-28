@@ -50,7 +50,8 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>)
+#     PUBLIC_CMAKE_FILES <files...>
+#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # See target_install_package() for parameter descriptions.
 # ~~~
@@ -70,7 +71,7 @@ function(target_prepare_package TARGET_NAME)
       RUNTIME_COMPONENT
       DEVELOPMENT_COMPONENT
       ADDITIONAL_FILES_DESTINATION)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Check if target exists
@@ -223,6 +224,26 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES" "${EXISTING_CMAKE_FILES}")
   endif()
 
+  # Handle component-dependent dependencies
+  if(ARG_COMPONENT_DEPENDENCIES)
+    # Validate that COMPONENT_DEPENDENCIES has an even number of elements (component:dependencies pairs)
+    list(LENGTH ARG_COMPONENT_DEPENDENCIES comp_deps_length)
+    math(EXPR remainder "${comp_deps_length} % 2")
+    if(NOT remainder EQUAL 0)
+      project_log(FATAL_ERROR "COMPONENT_DEPENDENCIES must contain pairs of component names and their dependencies")
+    endif()
+
+    get_property(EXISTING_COMP_DEPS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
+    if(EXISTING_COMP_DEPS)
+      list(APPEND EXISTING_COMP_DEPS ${ARG_COMPONENT_DEPENDENCIES})
+    else()
+      set(EXISTING_COMP_DEPS ${ARG_COMPONENT_DEPENDENCIES})
+    endif()
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES" "${EXISTING_COMP_DEPS}")
+    
+    project_log(DEBUG "  Added component dependencies for export '${ARG_EXPORT_NAME}': ${ARG_COMPONENT_DEPENDENCIES}")
+  endif()
+
   project_log(STATUS "'${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}' (runtime: ${ARG_RUNTIME_COMPONENT}, dev: ${ARG_DEVELOPMENT_COMPONENT})")
 endfunction(target_prepare_package)
 
@@ -363,6 +384,7 @@ function(finalize_package)
   get_property(ADDITIONAL_FILES_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES_DESTINATION")
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
+  get_property(COMPONENT_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
 
   # Collect component information for logging and debugging
   _collect_export_components("${EXPORT_PROPERTY_PREFIX}" "${TARGETS}")
@@ -516,6 +538,27 @@ function(finalize_package)
       string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
     endforeach()
     project_log(VERBOSE "Public dependencies for export '${ARG_EXPORT_NAME}':\n${PACKAGE_PUBLIC_DEPENDENCIES_CONTENT}")
+  endif()
+
+  # Prepare component dependencies content for template substitution
+  set(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "")
+  if(COMPONENT_DEPENDENCIES)
+    # Process component:dependencies pairs and format for template
+    list(LENGTH COMPONENT_DEPENDENCIES comp_deps_count)
+    math(EXPR max_index "${comp_deps_count} - 1")
+    set(index 0)
+    while(index LESS_EQUAL max_index)
+      list(GET COMPONENT_DEPENDENCIES ${index} component_name)
+      math(EXPR index "${index} + 1")
+      list(GET COMPONENT_DEPENDENCIES ${index} component_deps)
+      math(EXPR index "${index} + 1")
+      
+      if(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT)
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT ";")
+      endif()
+      string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "${component_name}:${component_deps}")
+    endwhile()
+    project_log(VERBOSE "Component dependencies for export '${ARG_EXPORT_NAME}': ${PACKAGE_COMPONENT_DEPENDENCIES_CONTENT}")
   endif()
 
   # Store component information for config template

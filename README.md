@@ -36,6 +36,7 @@ The `target_install_package()` function searches for the targets config template
 3. [Usage](#usage-)
    - [Modern Header Installation with FILE_SET](#modern-header-installation-with-file_set-recommended-)
    - [Header Installation for Multiple Files and Public Dependencies](#header-installation-for-multiple-files-and-public-dependencies-)
+   - [Component-Dependent Dependencies](#component-dependent-dependencies-)
 4. [Component-Based Installation](#component-based-installation-)
    - [Default Component Behavior](#default-component-behavior-)
    - [Custom Component Names](#custom-component-names-)
@@ -274,6 +275,58 @@ target_install_package(graphics_lib
 # - `CONFIG`
 ```
 
+### Component-Dependent Dependencies 🎯
+
+For libraries with optional features that have different dependencies, use `COMPONENT_DEPENDENCIES` to specify dependencies that are only loaded when specific components are requested:
+
+```cmake
+add_library(game_engine SHARED)
+target_sources(game_engine PRIVATE src/core.cpp)
+
+# Declare headers for different components
+file(GLOB_RECURSE CORE_HEADERS "include/engine/core/*.h")
+file(GLOB_RECURSE GRAPHICS_HEADERS "include/engine/graphics/*.h") 
+file(GLOB_RECURSE AUDIO_HEADERS "include/engine/audio/*.h")
+
+target_sources(game_engine PUBLIC 
+  FILE_SET HEADERS 
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  FILES ${CORE_HEADERS} ${GRAPHICS_HEADERS} ${AUDIO_HEADERS}
+)
+
+# Install with component-dependent dependencies
+target_install_package(game_engine
+  NAMESPACE GameEngine::
+  # Package global dependencies (always loaded)
+  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
+  # Component-specific dependencies (pairs: component name, dependencies)
+  COMPONENT_DEPENDENCIES
+    "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"
+    "audio" "AudioFramework 2.1 REQUIRED"
+    "networking" "Boost 1.79 REQUIRED COMPONENTS system network"
+)
+```
+
+**Consumer usage:**
+```cmake
+# Only loads fmt (package global dependency)
+find_package(GameEngine REQUIRED)
+
+# Loads fmt + OpenGL + glfw3 
+find_package(GameEngine REQUIRED COMPONENTS graphics)
+
+# Loads fmt + OpenGL + glfw3 + AudioFramework
+find_package(GameEngine REQUIRED COMPONENTS graphics audio)
+
+# All dependencies: fmt + OpenGL + glfw3 + AudioFramework + Boost
+find_package(GameEngine REQUIRED COMPONENTS graphics audio networking)
+```
+
+**Generated config file behavior:**
+- **Package global dependencies** (`PUBLIC_DEPENDENCIES`) are always loaded regardless of components
+- **Component-dependent dependencies** (`COMPONENT_DEPENDENCIES`) are only loaded when their specific component is requested
+- Dependencies are loaded using `find_dependency()`, so all standard `find_package()` arguments work
+
 ## Component-Based Installation 🧩
 
 `target_install_package` supports component-based installation, allowing fine-grained control over what gets installed in different scenarios (runtime vs development).
@@ -413,7 +466,7 @@ For projects with multiple related targets that should be packaged together with
 
 ### When to Use Multi-Target Exports
 
-- **Shared Dependencies**: Multiple targets with different `PUBLIC_DEPENDENCIES`
+- **Shared Dependencies**: Multiple targets with different `PUBLIC_DEPENDENCIES` or `COMPONENT_DEPENDENCIES`
 - **Component Organization**: Different targets with different component assignments  
 - **Single Package**: All targets should be found with one `find_package()` call
 
@@ -425,6 +478,8 @@ target_prepare_package(core_lib
   EXPORT_NAME "my_package"
   NAMESPACE MyLib::
   PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
+  COMPONENT_DEPENDENCIES
+    "graphics" "OpenGL 4.5 REQUIRED"
   RUNTIME_COMPONENT "runtime"
   DEVELOPMENT_COMPONENT "dev"
 )
@@ -433,6 +488,8 @@ target_prepare_package(utils_lib
   EXPORT_NAME "my_package" 
   NAMESPACE MyLib::
   PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED"
+  COMPONENT_DEPENDENCIES
+    "audio" "AudioFramework 2.1 REQUIRED"
   DEVELOPMENT_COMPONENT "dev"
 )
 
@@ -449,9 +506,28 @@ finalize_package(EXPORT_NAME "my_package")
 
 **Generated config file contains:**
 ```cmake
+# Component-dependent dependencies (only loaded when components requested)
+if(my_package_FIND_COMPONENTS)
+  # graphics component -> OpenGL 4.5 REQUIRED
+  # audio component -> AudioFramework 2.1 REQUIRED  
+endif()
+
+# Package global dependencies (always loaded)
 find_dependency(fmt 10.0.0 REQUIRED)
 find_dependency(spdlog 1.12.0 REQUIRED) 
 find_dependency(cxxopts 3.1.1 REQUIRED)
+```
+
+**Consumer usage:**
+```cmake
+# Only loads package global dependencies: fmt + spdlog + cxxopts
+find_package(my_package REQUIRED)
+
+# Loads global deps + OpenGL for graphics component
+find_package(my_package REQUIRED COMPONENTS graphics)
+
+# Loads global deps + OpenGL + AudioFramework
+find_package(my_package REQUIRED COMPONENTS graphics audio)
 ```
 
 ### Problematic Pattern: Multiple target_install_package Calls
@@ -691,14 +767,17 @@ target_sources(audio PUBLIC
 target_prepare_package(graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  PUBLIC_DEPENDENCIES "OpenGL 4.5 REQUIRED"
+  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"  # Core dependency for all components
+  COMPONENT_DEPENDENCIES
+    "graphics" "OpenGL 4.5 REQUIRED"  # Only loaded when graphics component requested
   VERSION ${PROJECT_VERSION}
 )
 
 target_prepare_package(audio
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  PUBLIC_DEPENDENCIES "AudioFramework 2.1 REQUIRED"
+  COMPONENT_DEPENDENCIES  
+    "audio" "AudioFramework 2.1 REQUIRED"  # Only loaded when audio component requested
   VERSION ${PROJECT_VERSION}
 )
 
@@ -706,16 +785,23 @@ target_prepare_package(audio
 finalize_package(EXPORT_NAME "game_engine")
 ```
 
-**Under the hood**: Each `target_prepare_package()` call stores target configuration and dependencies in global properties. The `finalize_package()` call aggregates all dependencies from all targets and generates a single config file containing both OpenGL and AudioFramework dependencies.
+**Under the hood**: Each `target_prepare_package()` call stores target configuration and dependencies in global properties. The `finalize_package()` call aggregates both package global and component-dependent dependencies into a single config file.
 
 **Consumer usage:**
 ```cmake
+# Only loads core dependencies: fmt
 find_package(game_engine REQUIRED)
+
+# Loads core deps + graphics deps: fmt + OpenGL  
+find_package(game_engine REQUIRED COMPONENTS graphics)
+
+# Loads all deps: fmt + OpenGL + AudioFramework
+find_package(game_engine REQUIRED COMPONENTS graphics audio)
+
 target_link_libraries(my_game PRIVATE 
   GameEngine::graphics 
   GameEngine::audio
 )
-# OpenGL and AudioFramework are automatically found via find_dependency()
 ```
 
 ### Interface Library Example 🔌

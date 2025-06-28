@@ -51,7 +51,8 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>)
+#     PUBLIC_CMAKE_FILES <files...>
+#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # Parameters:
 #   TARGET_NAME             - Name of the target to install.
@@ -69,8 +70,9 @@ endif()
 #   ADDITIONAL_FILES        - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "files").
 #   ADDITIONAL_TARGETS      - Additional targets to include in the same export set.
-#   PUBLIC_DEPENDENCIES     - Public dependencies to find and install.
+#   PUBLIC_DEPENDENCIES     - Package global dependencies (always loaded regardless of components).
 #   PUBLIC_CMAKE_FILES      - Additional CMake files to install as public.
+#   COMPONENT_DEPENDENCIES  - Component-specific dependencies (pairs: component name, dependencies).
 #
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.
