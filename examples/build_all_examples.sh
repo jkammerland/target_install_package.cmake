@@ -126,7 +126,6 @@ EXAMPLES=(
     "multi-target"
     "components"
     "components-same-export"
-    "component-dependencies"
     "dependency-aggregation"
     "configure-files"
     "cxx-modules"

@@ -105,12 +105,7 @@ find_package(media_core CONFIG REQUIRED)
 find_package(media_dev_tools CONFIG REQUIRED)
 find_package(asset_converter CONFIG REQUIRED)
 find_package(config_lib CONFIG REQUIRED)
-find_package(game_engine CONFIG REQUIRED)
 find_package(engine2 CONFIG REQUIRED)
-# Test component-dependencies example - find with different component combinations
-find_package(game_engine CONFIG REQUIRED)
-# find_package(game_engine CONFIG REQUIRED COMPONENTS graphics) # Needs extra deps
-# find_package(game_engine CONFIG REQUIRED COMPONENTS graphics audio) # Needs extra deps
 find_package(mylib CONFIG REQUIRED)
 
 # Conditionally find the modules package
