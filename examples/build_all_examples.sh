@@ -125,6 +125,8 @@ EXAMPLES=(
     "basic-interface"
     "multi-target"
     "components"
+    "components-same-export"
+    "dependency-aggregation"
     "configure-files"
     "cxx-modules"
 )

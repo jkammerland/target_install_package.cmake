@@ -23,9 +23,11 @@ This project requires some other cmake projects, but for ease of use, they have 
 ### Template Override System 🎨
 The `target_install_package()` function searches for the targets config templates in this order:
 1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
-2. `${TARGET_SOURCE_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
-3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${TARGET_NAME}-config.cmake.in`
+2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
+3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
 4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
+
+**Note**: Templates use `@EXPORT_NAME@` for CMake substitution, not `@TARGET_NAME@`. This ensures `check_required_components(@EXPORT_NAME@)` calls work correctly.
 
 ## Table of Contents
 
@@ -34,23 +36,28 @@ The `target_install_package()` function searches for the targets config template
 3. [Usage](#usage-)
    - [Modern Header Installation with FILE_SET](#modern-header-installation-with-file_set-recommended-)
    - [Header Installation for Multiple Files and Public Dependencies](#header-installation-for-multiple-files-and-public-dependencies-)
+   - [Component-Dependent Dependencies](#component-dependent-dependencies-)
 4. [Component-Based Installation](#component-based-installation-)
    - [Default Component Behavior](#default-component-behavior-)
    - [Custom Component Names](#custom-component-names-)
    - [Specific Component Assignment](#specific-component-assignment-)
    - [Multi-Component Library Example](#multi-component-library-example-)
    - [Installing Specific Components](#installing-specific-components-)
-   - [Supported Components Feature](#supported-components-feature-)
-5. [Build Variant Support](#build-variant-support-)
+5. [Multi-Target Exports](#multi-target-exports-)
+   - [When to Use Multi-Target Exports](#when-to-use-multi-target-exports)
+   - [Correct Pattern](#correct-pattern-target_prepare_package--finalize_package)
+   - [Problematic Pattern](#problematic-pattern-multiple-target_install_package-calls)
+   - [How Multi-Target Exports Work](#how-multi-target-exports-work)
+6. [Build Variant Support](#build-variant-support-)
    - [Basic Variant Setup](#basic-variant-setup-)
    - [Custom Variants](#custom-variants-)
    - [Consumer Usage](#consumer-usage-)
-6. [Complete Examples](#complete-examples-)
+7. [Complete Examples](#complete-examples-)
    - [Single Library Example](#single-library-example-)
    - [Multi-Library Project Examples](#multi-library-project-examples-)
    - [Interface Library Example](#interface-library-example-)
-7. [Key Benefits](#key-benefits-of-file_set-approach-)
-8. [Notes](#FILE_SET-vs-target-include)
+8. [Key Benefits](#key-benefits-of-file_set-approach-)
+9. [Notes](#FILE_SET-vs-target-include)
 
 ## Features ✨
 
@@ -268,6 +275,58 @@ target_install_package(graphics_lib
 # - `CONFIG`
 ```
 
+### Component-Dependent Dependencies 🎯
+
+For libraries with optional features that have different dependencies, use `COMPONENT_DEPENDENCIES` to specify dependencies that are only loaded when specific components are requested:
+
+```cmake
+add_library(game_engine SHARED)
+target_sources(game_engine PRIVATE src/core.cpp)
+
+# Declare headers for different components
+file(GLOB_RECURSE CORE_HEADERS "include/engine/core/*.h")
+file(GLOB_RECURSE GRAPHICS_HEADERS "include/engine/graphics/*.h") 
+file(GLOB_RECURSE AUDIO_HEADERS "include/engine/audio/*.h")
+
+target_sources(game_engine PUBLIC 
+  FILE_SET HEADERS 
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  FILES ${CORE_HEADERS} ${GRAPHICS_HEADERS} ${AUDIO_HEADERS}
+)
+
+# Install with component-dependent dependencies
+target_install_package(game_engine
+  NAMESPACE GameEngine::
+  # Package global dependencies (always loaded)
+  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
+  # Component-specific dependencies (pairs: component name, dependencies)
+  COMPONENT_DEPENDENCIES
+    "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"
+    "audio" "AudioFramework 2.1 REQUIRED"
+    "networking" "Boost 1.79 REQUIRED COMPONENTS system network"
+)
+```
+
+**Consumer usage:**
+```cmake
+# Only loads fmt (package global dependency)
+find_package(GameEngine REQUIRED)
+
+# Loads fmt + OpenGL + glfw3 
+find_package(GameEngine REQUIRED COMPONENTS graphics)
+
+# Loads fmt + OpenGL + glfw3 + AudioFramework
+find_package(GameEngine REQUIRED COMPONENTS graphics audio)
+
+# All dependencies: fmt + OpenGL + glfw3 + AudioFramework + Boost
+find_package(GameEngine REQUIRED COMPONENTS graphics audio networking)
+```
+
+**Generated config file behavior:**
+- **Package global dependencies** (`PUBLIC_DEPENDENCIES`) are always loaded regardless of components
+- **Component-dependent dependencies** (`COMPONENT_DEPENDENCIES`) are only loaded when their specific component is requested
+- Dependencies are loaded using `find_dependency()`, so all standard `find_package()` arguments work
+
 ## Component-Based Installation 🧩
 
 `target_install_package` supports component-based installation, allowing fine-grained control over what gets installed in different scenarios (runtime vs development).
@@ -401,41 +460,93 @@ cmake --install . --component tools
 cmake --install .
 ```
 
-### Supported Components Feature ✅
+## Multi-Target Exports 🔗
 
-For packages that want to validate which components consumers can request:
+For projects with multiple related targets that should be packaged together with aggregated dependencies, use the two-phase approach: `target_prepare_package()` + `finalize_package()`.
+
+### When to Use Multi-Target Exports
+
+- **Shared Dependencies**: Multiple targets with different `PUBLIC_DEPENDENCIES` or `COMPONENT_DEPENDENCIES`
+- **Component Organization**: Different targets with different component assignments  
+- **Single Package**: All targets should be found with one `find_package()` call
+
+### Correct Pattern: target_prepare_package + finalize_package
 
 ```cmake
-add_library(multimedia_lib SHARED)
-target_sources(multimedia_lib PRIVATE src/multimedia.cpp)
-target_sources(multimedia_lib PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/multimedia/api.h"
+# Multiple targets with different dependencies and components
+target_prepare_package(core_lib
+  EXPORT_NAME "my_package"
+  NAMESPACE MyLib::
+  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
+  COMPONENT_DEPENDENCIES
+    "graphics" "OpenGL 4.5 REQUIRED"
+  RUNTIME_COMPONENT "runtime"
+  DEVELOPMENT_COMPONENT "dev"
 )
 
-# Define which components this package supports
-target_install_package(multimedia_lib
-  NAMESPACE Multimedia::
-  SUPPORTED_COMPONENTS "core" "audio" "video" "codecs"
-  RUNTIME_COMPONENT "core"
-  DEVELOPMENT_COMPONENT "devel"
+target_prepare_package(utils_lib
+  EXPORT_NAME "my_package" 
+  NAMESPACE MyLib::
+  PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED"
+  COMPONENT_DEPENDENCIES
+    "audio" "AudioFramework 2.1 REQUIRED"
+  DEVELOPMENT_COMPONENT "dev"
 )
+
+target_prepare_package(tool_exe
+  EXPORT_NAME "my_package"
+  NAMESPACE MyLib::
+  PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED"
+  COMPONENT "tools"
+)
+
+# Single finalize aggregates all targets and dependencies
+finalize_package(EXPORT_NAME "my_package")
 ```
 
-**Consumer usage with component validation:**
+**Generated config file contains:**
 ```cmake
-# This will work - 'core' is supported
-find_package(multimedia_lib REQUIRED COMPONENTS core)
-
-# This will fail - 'graphics' is not in SUPPORTED_COMPONENTS
-find_package(multimedia_lib REQUIRED COMPONENTS graphics)
-
-# Check if specific components were found
-if(multimedia_lib_audio_FOUND)
-  message(STATUS "Audio component available")
+# Component-dependent dependencies (only loaded when components requested)
+if(my_package_FIND_COMPONENTS)
+  # graphics component -> OpenGL 4.5 REQUIRED
+  # audio component -> AudioFramework 2.1 REQUIRED  
 endif()
+
+# Package global dependencies (always loaded)
+find_dependency(fmt 10.0.0 REQUIRED)
+find_dependency(spdlog 1.12.0 REQUIRED) 
+find_dependency(cxxopts 3.1.1 REQUIRED)
 ```
+
+**Consumer usage:**
+```cmake
+# Only loads package global dependencies: fmt + spdlog + cxxopts
+find_package(my_package REQUIRED)
+
+# Loads global deps + OpenGL for graphics component
+find_package(my_package REQUIRED COMPONENTS graphics)
+
+# Loads global deps + OpenGL + AudioFramework
+find_package(my_package REQUIRED COMPONENTS graphics audio)
+```
+
+### Problematic Pattern: Multiple target_install_package Calls
+
+```cmake
+# DON'T: This overwrites dependencies
+target_install_package(core_lib EXPORT_NAME "my_package" PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED")
+target_install_package(utils_lib EXPORT_NAME "my_package" PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED")
+# Result: Only spdlog dependency in final config (fmt is lost)
+```
+
+**Under the hood**: `target_install_package()` calls `finalize_package()` immediately, so the second call overwrites the first export's config files.
+
+### How Multi-Target Exports Work
+
+1. **Preparation Phase**: `target_prepare_package()` stores each target's configuration in global properties
+2. **Aggregation Phase**: `finalize_package()` collects all configurations and generates unified export files
+3. **Component Mapping**: Each target keeps its own component assignments for flexible installation
+4. **Dependency Deduplication**: Duplicate dependencies are automatically removed
 
 ## Build Variant Support 🎨
 
@@ -629,12 +740,12 @@ target_link_libraries(my_app PRIVATE MyEngine::my_engine)
 # Automatically gets MyEngine::core_utils and MyEngine::math_ops
 ```
 
-#### Approach 2: Independent Libraries with Shared Package
+#### Approach 2: Multi-Target Export with Shared Package
 
-When libraries can be used independently but are part of the same package:
+For multiple targets that should be part of the same export with aggregated dependencies:
 
 ```cmake
-# Independent graphics library
+# Graphics library with OpenGL dependency
 add_library(graphics STATIC)
 target_sources(graphics PRIVATE src/renderer.cpp)
 target_sources(graphics PUBLIC 
@@ -643,7 +754,7 @@ target_sources(graphics PUBLIC
   FILES "include/graphics/renderer.h"
 )
 
-# Independent audio library
+# Audio library with audio framework dependency
 add_library(audio STATIC)
 target_sources(audio PRIVATE src/sound.cpp)
 target_sources(audio PUBLIC 
@@ -652,24 +763,41 @@ target_sources(audio PUBLIC
   FILES "include/audio/sound.h"
 )
 
-# Both use the same export name to be part of the same package
-target_install_package(graphics
+# Use target_prepare_package + finalize_package for multi-target exports
+target_prepare_package(graphics
+  EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  EXPORT_NAME "game_engine_targets"
+  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"  # Core dependency for all components
+  COMPONENT_DEPENDENCIES
+    "graphics" "OpenGL 4.5 REQUIRED"  # Only loaded when graphics component requested
   VERSION ${PROJECT_VERSION}
 )
 
-target_install_package(audio
+target_prepare_package(audio
+  EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  EXPORT_NAME "game_engine_targets"
+  COMPONENT_DEPENDENCIES  
+    "audio" "AudioFramework 2.1 REQUIRED"  # Only loaded when audio component requested
   VERSION ${PROJECT_VERSION}
 )
+
+# Single finalize call aggregates all dependencies and targets
+finalize_package(EXPORT_NAME "game_engine")
 ```
+
+**Under the hood**: Each `target_prepare_package()` call stores target configuration and dependencies in global properties. The `finalize_package()` call aggregates both package global and component-dependent dependencies into a single config file.
 
 **Consumer usage:**
 ```cmake
-find_package(graphics REQUIRED)
-find_package(audio REQUIRED)
+# Only loads core dependencies: fmt
+find_package(game_engine REQUIRED)
+
+# Loads core deps + graphics deps: fmt + OpenGL  
+find_package(game_engine REQUIRED COMPONENTS graphics)
+
+# Loads all deps: fmt + OpenGL + AudioFramework
+find_package(game_engine REQUIRED COMPONENTS graphics audio)
+
 target_link_libraries(my_game PRIVATE 
   GameEngine::graphics 
   GameEngine::audio
