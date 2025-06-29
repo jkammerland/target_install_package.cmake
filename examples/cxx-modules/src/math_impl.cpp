@@ -11,5 +11,4 @@
 // module implementation units (.cpp files that belong to modules)
 // or additional implementation support.
 
-// For this example, we keep it simple with just the module interface units
-// (.cppm)
+// For this example, we keep it simple with just the module interface units (.cppm)

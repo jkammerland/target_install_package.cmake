@@ -6,6 +6,7 @@ This example demonstrates advanced component-based installation using custom com
 
 - Custom component names instead of defaults
 - Mixed library types (shared, static, executable)
+- Component validation with `SUPPORTED_COMPONENTS`
 - Selective installation workflows
 - Shared export between different targets
 
@@ -155,7 +156,7 @@ The package defines supported components, so invalid requests will fail:
 # This works - 'core' is supported
 find_package(media_core REQUIRED COMPONENTS core)
 
-# This fails - 'graphics' is not a supported component
+# This fails - 'graphics' is not in SUPPORTED_COMPONENTS
 find_package(media_core REQUIRED COMPONENTS graphics)  # ERROR!
 ```
 
@@ -205,6 +206,7 @@ int main() {
 
 ### Validation
 
+- `SUPPORTED_COMPONENTS` prevents typos and invalid requests
 - Clear component boundaries and expectations
 - Better error messages for misconfiguration
 
@@ -226,6 +228,7 @@ The installed tool provides media conversion capabilities:
 ## Key Features
 
 - **Custom Components**: Uses `runtime`, `devel`, `tools` instead of defaults
+- **Component Validation**: `SUPPORTED_COMPONENTS` validates consumer requests
 - **Shared Exports**: `media_dev_tools` shares export with `media_core`
 - **Mixed Target Types**: Handles shared libs, static libs, and executables
 

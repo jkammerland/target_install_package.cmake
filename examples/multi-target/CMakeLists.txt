@@ -3,8 +3,12 @@ cmake_minimum_required(VERSION 3.25)
 project(multi_target_example VERSION 1.0.0)
 
 # Include target_install_package utilities
-set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(FetchContent)
+FetchContent_Declare(
+  target_install_package
+  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
+  GIT_TAG v4.0.3)
+FetchContent_MakeAvailable(target_install_package)
 
 # Core utility library
 add_library(core_utils STATIC)
