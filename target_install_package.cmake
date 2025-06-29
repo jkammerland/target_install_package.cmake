@@ -55,24 +55,24 @@ endif()
 #     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # Parameters:
-#   TARGET_NAME             - Name of the target to install.
-#   NAMESPACE               - CMake namespace for the export (default: `${TARGET_NAME}::`).
-#   VERSION                 - Version of the package (default: `${PROJECT_VERSION}`).
-#   COMPATIBILITY           - Version compatibility mode (default: "SameMajorVersion").
-#   EXPORT_NAME             - Name of the CMake export file (default: `${TARGET_NAME}`).
-#   CONFIG_TEMPLATE         - Path to a CMake config template (default: auto-detected).
-#   INCLUDE_DESTINATION     - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
-#   MODULE_DESTINATION      - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
-#   CMAKE_CONFIG_DESTINATION- Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
-#   COMPONENT               - Component name for installation (default: DEVELOPMENT_COMPONENT).
-#   RUNTIME_COMPONENT       - Component for runtime files (default: "Runtime").
-#   DEVELOPMENT_COMPONENT   - Component for development files (default: "Development").
-#   ADDITIONAL_FILES        - Additional files to install, relative to source dir.
+#   TARGET_NAME                  - Name of the target to install.
+#   NAMESPACE                    - CMake namespace for the export (default: `${TARGET_NAME}::`).
+#   VERSION                      - Version of the package (default: `${PROJECT_VERSION}`).
+#   COMPATIBILITY                - Version compatibility mode (default: "SameMajorVersion").
+#   EXPORT_NAME                  - Name of the CMake export file (default: `${TARGET_NAME}`).
+#   CONFIG_TEMPLATE              - Path to a CMake config template (default: auto-detected).
+#   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
+#   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
+#   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
+#   COMPONENT                    - Component name for installation (default: "").
+#   RUNTIME_COMPONENT            - Component for runtime files (default: "Runtime").
+#   DEVELOPMENT_COMPONENT        - Component for development files (default: "Development").
+#   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "files").
-#   ADDITIONAL_TARGETS      - Additional targets to include in the same export set.
-#   PUBLIC_DEPENDENCIES     - Package global dependencies (always loaded regardless of components).
-#   PUBLIC_CMAKE_FILES      - Additional CMake files to install as public.
-#   COMPONENT_DEPENDENCIES  - Component-specific dependencies (pairs: component name, dependencies).
+#   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
+#   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
+#   PUBLIC_CMAKE_FILES           - Additional CMake files to install as public.
+#   COMPONENT_DEPENDENCIES       - Component-specific dependencies (pairs: component name, dependencies).
 #
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.

@@ -134,11 +134,6 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Development component not provided, using default: ${ARG_DEVELOPMENT_COMPONENT}")
   endif()
 
-  if(NOT ARG_COMPONENT)
-    set(ARG_COMPONENT "${ARG_DEVELOPMENT_COMPONENT}")
-    project_log(DEBUG "  Component not provided, using development component: ${ARG_COMPONENT}")
-  endif()
-
   # Set default values using the helper function (skip NAMESPACE and EXPORT_NAME as they're already handled)
   _set_default_args(
     ARG_COMPATIBILITY
@@ -307,23 +302,73 @@ endfunction(_collect_export_components)
 # Helper: Build CMake component arguments for install() commands.
 #
 # This internal helper function converts component names into CMake install() 
-# argument format, handling empty components gracefully. It abstracts the
-# repetitive component args building logic used throughout finalize_package().
+# argument format, handling empty components gracefully. For custom components
+# (when CUSTOM_COMPONENT != GLOBAL_COMPONENT), detects dual install needs.
 #
 # Parameters:
 #   VAR_PREFIX - Variable name prefix for the output arguments
-#   COMPONENT_NAME - Component name (can be empty)
+#   GLOBAL_COMPONENT - Global component name (Runtime/Development)
+#   CUSTOM_COMPONENT - Custom component name (can be empty or same as global)
 #
 # Returns via parent scope:
 #   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT dev")
+#   ${VAR_PREFIX}_DUAL_INSTALL - Boolean indicating if dual install is needed
+#   ${VAR_PREFIX}_CUSTOM_ARGS - Args for custom component (when dual install)
 # ~~~
-function(_build_component_args VAR_PREFIX COMPONENT_NAME)
-  if(COMPONENT_NAME)
-    set(${VAR_PREFIX}_ARGS COMPONENT ${COMPONENT_NAME} PARENT_SCOPE)
-  else()
+function(_build_component_args VAR_PREFIX GLOBAL_COMPONENT CUSTOM_COMPONENT)
+  if(NOT GLOBAL_COMPONENT)
     set(${VAR_PREFIX}_ARGS "" PARENT_SCOPE)
+    set(${VAR_PREFIX}_DUAL_INSTALL FALSE PARENT_SCOPE)
+    return()
   endif()
-endfunction(_build_component_args)
+  
+  if(NOT CUSTOM_COMPONENT OR CUSTOM_COMPONENT STREQUAL GLOBAL_COMPONENT)
+    # Single component install (no custom component or same as global)
+    set(${VAR_PREFIX}_ARGS COMPONENT ${GLOBAL_COMPONENT} PARENT_SCOPE)
+    set(${VAR_PREFIX}_DUAL_INSTALL FALSE PARENT_SCOPE)
+  else()
+    # Dual component install
+    set(${VAR_PREFIX}_DUAL_INSTALL TRUE PARENT_SCOPE)
+    set(${VAR_PREFIX}_ARGS COMPONENT ${GLOBAL_COMPONENT} PARENT_SCOPE)
+    # Use the custom component name directly, not combined
+    set(${VAR_PREFIX}_CUSTOM_ARGS COMPONENT ${CUSTOM_COMPONENT} PARENT_SCOPE)
+  endif()
+endfunction()
+
+# Helper to setup CPack component relationships
+function(_setup_cpack_components EXPORT_NAME ALL_RUNTIME_COMPONENTS ALL_DEVELOPMENT_COMPONENTS ALL_COMPONENTS)
+  # Define component groups
+  set(CPACK_COMPONENT_GROUP_RUNTIME_DISPLAY_NAME "Runtime Libraries")
+  set(CPACK_COMPONENT_GROUP_RUNTIME_DESCRIPTION "Runtime libraries and executables")
+  set(CPACK_COMPONENT_GROUP_DEVELOPMENT_DISPLAY_NAME "Development Files")
+  set(CPACK_COMPONENT_GROUP_DEVELOPMENT_DESCRIPTION "Headers, libraries, and CMake files for development")
+  
+  # Set up base components
+  foreach(comp ${ALL_RUNTIME_COMPONENTS})
+    set(CPACK_COMPONENT_${comp}_GROUP "RUNTIME")
+    set(CPACK_COMPONENT_${comp}_DISPLAY_NAME "${comp} Runtime")
+  endforeach()
+  
+  foreach(comp ${ALL_DEVELOPMENT_COMPONENTS})
+    set(CPACK_COMPONENT_${comp}_GROUP "DEVELOPMENT")
+    set(CPACK_COMPONENT_${comp}_DISPLAY_NAME "${comp} Development")
+  endforeach()
+  
+  # Set up custom components with dependencies on base components
+  foreach(comp ${ALL_COMPONENTS})
+    # Custom components depend on their corresponding base components
+    set(CPACK_COMPONENT_${comp}_DEPENDS "Runtime;Development")
+    set(CPACK_COMPONENT_${comp}_DISPLAY_NAME "${comp}")
+  endforeach()
+  
+  # Export all CPack variables to parent scope
+  get_cmake_property(all_vars VARIABLES)
+  foreach(var ${all_vars})
+    if(var MATCHES "^CPACK_")
+      set(${var} "${${var}}" PARENT_SCOPE)
+    endif()
+  endforeach()
+endfunction()
 
 # ~~~
 # Finalize and install a prepared package export.
@@ -408,86 +453,138 @@ function(finalize_package)
     project_log(STATUS "  Other: ${ALL_COMPONENTS}")
   endif()
 
-  # Install each target separately with its own components
+    # Install each target separately with its own components
   foreach(TARGET_NAME ${TARGETS})
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
+    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
 
     # Build component args for this target using helper function
-    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}")
-    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}")
+    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}" "${TARGET_COMP}")
+    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}" "${TARGET_COMP}")
 
-    project_log(VERBOSE "  Installing '${TARGET_NAME}' (runtime: ${TARGET_RUNTIME_COMP}, dev: ${TARGET_DEV_COMP})")
+    project_log(VERBOSE "  Installing '${TARGET_NAME}' (runtime: ${TARGET_RUNTIME_COMP}, dev: ${TARGET_DEV_COMP}, custom: ${TARGET_COMP})")
 
-    # Build install arguments for this specific target
+    # Primary install with export (to base components)
     set(INSTALL_ARGS
-        TARGETS
-        ${TARGET_NAME}
-        EXPORT
-        ${ARG_EXPORT_NAME}
-        LIBRARY
-        DESTINATION
-        ${CMAKE_INSTALL_LIBDIR}
-        ${TARGET_RUNTIME_COMPONENT_ARGS}
-        ARCHIVE
-        DESTINATION
-        ${CMAKE_INSTALL_LIBDIR}
-        ${TARGET_DEV_COMPONENT_ARGS}
-        RUNTIME
-        DESTINATION
-        ${CMAKE_INSTALL_BINDIR}
-        ${TARGET_RUNTIME_COMPONENT_ARGS})
+        TARGETS ${TARGET_NAME}
+        EXPORT ${ARG_EXPORT_NAME})
 
-    # Get INTERFACE header file sets for this target
+    # Add destination and component for each target type
+    list(APPEND INSTALL_ARGS
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} ${TARGET_RUNTIME_COMPONENT_ARGS}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} ${TARGET_DEV_COMPONENT_ARGS}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ${TARGET_RUNTIME_COMPONENT_ARGS})
+
+    # Handle header file sets
     get_target_property(TARGET_INTERFACE_HEADER_SETS ${TARGET_NAME} INTERFACE_HEADER_SETS)
     get_target_property(TARGET_PUBLIC_HEADERS ${TARGET_NAME} PUBLIC_HEADER)
 
-    # Install INTERFACE header file sets with target's development component
     if(TARGET_INTERFACE_HEADER_SETS)
       foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
-        list(
-          APPEND
-          INSTALL_ARGS
-          FILE_SET
-          ${CURRENT_SET_NAME}
-          DESTINATION
-          ${INCLUDE_DESTINATION}
+        list(APPEND INSTALL_ARGS
+          FILE_SET ${CURRENT_SET_NAME}
+          DESTINATION ${INCLUDE_DESTINATION}
           ${TARGET_DEV_COMPONENT_ARGS})
-        project_log(DEBUG "  Installing INTERFACE HEADER file set '${CURRENT_SET_NAME}' for ${TARGET_NAME}")
       endforeach()
     endif()
 
-    # Install PUBLIC_HEADER property with target's development component
     if(TARGET_PUBLIC_HEADERS)
-      list(APPEND INSTALL_ARGS PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION} ${TARGET_DEV_COMPONENT_ARGS})
-      project_log(DEBUG "  Installing PUBLIC_HEADER property for ${TARGET_NAME}")
+      list(APPEND INSTALL_ARGS 
+        PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION} 
+        ${TARGET_DEV_COMPONENT_ARGS})
     endif()
 
-    # Handle C++20 modules (CMake 3.28+) with target's development component
+    # Handle C++20 modules
     if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
       get_target_property(TARGET_INTERFACE_MODULE_SETS ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
-
       if(TARGET_INTERFACE_MODULE_SETS)
         foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
-          list(
-            APPEND
-            INSTALL_ARGS
-            FILE_SET
-            ${CURRENT_MODULE_SET_NAME}
-            DESTINATION
-            ${MODULE_DESTINATION}
+          list(APPEND INSTALL_ARGS
+            FILE_SET ${CURRENT_MODULE_SET_NAME}
+            DESTINATION ${MODULE_DESTINATION}
             ${TARGET_DEV_COMPONENT_ARGS})
-          project_log(DEBUG "  Installing INTERFACE CXX_MODULE file set '${CURRENT_MODULE_SET_NAME}' for ${TARGET_NAME}")
         endforeach()
       endif()
     endif()
 
-    # Execute the install command for this target
+    # Execute primary install
     install(${INSTALL_ARGS})
+    
+    # Secondary install to custom component (if needed)
+    if(TARGET_COMP AND (TARGET_RUNTIME_COMPONENT_DUAL_INSTALL OR TARGET_DEV_COMPONENT_DUAL_INSTALL))
+      project_log(DEBUG "  Dual-installing '${TARGET_NAME}' to custom component: ${TARGET_COMP}")
+      
+      # For custom components, we need a different approach:
+      # 1. Don't include EXPORT (to avoid duplicate export targets)
+      # 2. Use EXCLUDE_FROM_ALL to prevent default installation
+      # 3. Create explicit component install rules
+      
+      set(CUSTOM_INSTALL_ARGS TARGETS ${TARGET_NAME})
+      
+      # Runtime artifacts to custom component
+      if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
+        list(APPEND CUSTOM_INSTALL_ARGS
+          LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} 
+          RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        
+        # Apply custom component to all artifact types
+        list(APPEND CUSTOM_INSTALL_ARGS ${TARGET_RUNTIME_COMPONENT_CUSTOM_ARGS})
+      endif()
+      
+      # Development artifacts to custom component
+      if(TARGET_DEV_COMPONENT_DUAL_INSTALL)
+        # Create separate install command for development artifacts
+        set(CUSTOM_DEV_ARGS TARGETS ${TARGET_NAME})
+        
+        list(APPEND CUSTOM_DEV_ARGS
+          ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+        
+        # Add headers
+        if(TARGET_INTERFACE_HEADER_SETS)
+          foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
+            list(APPEND CUSTOM_DEV_ARGS
+              FILE_SET ${CURRENT_SET_NAME} DESTINATION ${INCLUDE_DESTINATION})
+          endforeach()
+        endif()
+        
+        if(TARGET_PUBLIC_HEADERS)
+          list(APPEND CUSTOM_DEV_ARGS
+            PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION})
+        endif()
+        
+        # Add modules
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28" AND TARGET_INTERFACE_MODULE_SETS)
+          foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
+            list(APPEND CUSTOM_DEV_ARGS
+              FILE_SET ${CURRENT_MODULE_SET_NAME} DESTINATION ${MODULE_DESTINATION})
+          endforeach()
+        endif()
+        
+        # Apply custom component
+        list(APPEND CUSTOM_DEV_ARGS ${TARGET_DEV_COMPONENT_CUSTOM_ARGS})
+        
+        # Execute custom development install
+        install(${CUSTOM_DEV_ARGS})
+      endif()
+      
+      # Execute custom runtime install if needed
+      if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
+        install(${CUSTOM_INSTALL_ARGS})
+      endif()
+    endif()
   endforeach()
 
-  # Set up component args for config files
-  _build_component_args(CONFIG_COMPONENT "${CONFIG_DEV_COMPONENT}")
+  # After all targets are installed, set up CPack components
+  if(FALSE)
+    _setup_cpack_components("${ARG_EXPORT_NAME}" 
+      "${ALL_RUNTIME_COMPONENTS}" 
+      "${ALL_DEVELOPMENT_COMPONENTS}" 
+      "${ALL_COMPONENTS}")
+  endif()
+
+  # Set up component args for config files (config files use global development component only)
+  _build_component_args(CONFIG_COMPONENT "${CONFIG_DEV_COMPONENT}" "")
 
   # Install additional files with config component
   if(ADDITIONAL_FILES)

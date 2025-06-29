@@ -50,3 +50,27 @@ target_install_package(
   "tools" # Tools get their own component
   RUNTIME_COMPONENT
   "tools")
+
+# Basic CPack configuration to test component packaging
+set(CPACK_PACKAGE_NAME "MediaLibrary")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_GENERATOR "TGZ")
+
+# Define components
+set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Runtime Libraries")
+set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Runtime libraries required to run applications")
+
+set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Development Files")
+set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Headers and development files")
+
+set(CPACK_COMPONENT_TOOLS_DISPLAY_NAME "Tools")
+set(CPACK_COMPONENT_TOOLS_DESCRIPTION "Asset conversion tools")
+
+# Custom components (these should be auto-created by our dual install)
+set(CPACK_COMPONENT_TOOLS-RUNTIME_DISPLAY_NAME "Tools Runtime")
+set(CPACK_COMPONENT_TOOLS-RUNTIME_DESCRIPTION "Runtime files for tools component")
+
+set(CPACK_COMPONENT_TOOLS-DEVELOPMENT_DISPLAY_NAME "Tools Development")
+set(CPACK_COMPONENT_TOOLS-DEVELOPMENT_DESCRIPTION "Development files for tools component")
+
+include(CPack)
