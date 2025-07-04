@@ -1,16 +1,17 @@
 #pragma once
 
 // Internal configuration (PRIVATE - not installed)
-#define INTERNAL_DEBUG_MODE @CMAKE_BUILD_TYPE@
+#define INTERNAL_DEBUG_MODE @CMAKE_BUILD_TYPE @
 #define INTERNAL_SOURCE_DIR "@CMAKE_CURRENT_SOURCE_DIR@"
 #define INTERNAL_BINARY_DIR "@CMAKE_CURRENT_BINARY_DIR@"
 
 // Internal feature flags
 #ifdef ENABLE_LOGGING
-    #define INTERNAL_LOGGING_ENABLED 1
+#define INTERNAL_LOGGING_ENABLED 1
 #else
-    #define INTERNAL_LOGGING_ENABLED 0
+#define INTERNAL_LOGGING_ENABLED 0
 #endif
 
 // Internal buffer configuration
-#define INTERNAL_BUFFER_SIZE (@MAX_BUFFER_SIZE@ * 2)  // Double size for internal use
+#define INTERNAL_BUFFER_SIZE                                                   \
+  (@MAX_BUFFER_SIZE@ * 2) // Double size for internal use

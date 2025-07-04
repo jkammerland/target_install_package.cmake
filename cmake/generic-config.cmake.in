@@ -1,12 +1,34 @@
 @PACKAGE_INIT@
 
-include(CMakeFindDependencyMacro)
+function(find_component_dependencies package_name component_deps_string)
+    if(NOT ${package_name}_FIND_COMPONENTS OR NOT component_deps_string)
+        return()
+    endif()
+    
+    foreach(requested_comp IN LISTS ${package_name}_FIND_COMPONENTS)
+        # Use regex to find this component's dependencies
+        if(component_deps_string MATCHES "(^|;)${requested_comp}:([^;]*)")
+            string(REPLACE " " ";" deps_list "${CMAKE_MATCH_2}")
+            foreach(dep IN LISTS deps_list)
+                string(STRIP "${dep}" dep)
+                if(dep)
+                    find_dependency(${dep})
+                endif()
+            endforeach()
+        endif()
+    endforeach()
+endfunction()
 
-# Add dependencies
+
+if(NOT COMMAND find_dependency)
+  include(CMakeFindDependencyMacro)
+endif()
+
+# Component-dependent dependencies
+find_component_dependencies(@ARG_EXPORT_NAME@ "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+
+# Package global dependencies (always loaded regardless of components)
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@
-
-# Component support
-@PACKAGE_SUPPORTED_COMPONENTS_CONTENT@
 
 # Include additional CMake files
 @PACKAGE_PUBLIC_CMAKE_FILES@
@@ -14,6 +36,4 @@ include(CMakeFindDependencyMacro)
 # Include the targets file
 include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@.cmake")
 
-check_required_components(@TARGET_NAME@)
-
-    
+check_required_components(@ARG_EXPORT_NAME@)
