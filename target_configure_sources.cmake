@@ -1,11 +1,16 @@
 get_property(
   _LFG_INITIALIZED GLOBAL
-  PROPERTY ${_LFG_PROPERTY}
+  PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 4.0.3)
+  list_file_include_guard(VERSION 5.0.1)
 else()
-  include_guard(DIRECTORY)
+  message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+
+  # ~~~
+  # Include guard won't work if you have 2 files defining the same function, as it works per file (and not filename).
+  # include_guard()
+  # ~~~
 endif()
 
 # ~~~
@@ -15,14 +20,14 @@ endif()
 # build directory, and sets up include paths for both build and install time.
 #
 # API:
-#   target_configure_sources(<TARGET_NAME>
+#   target_configure_sources(TARGET_NAME
 #     <PUBLIC|PRIVATE|INTERFACE>
-#     [OUTPUT_DIR <directory>]
-#     [SUBSTITUTION_MODE @ONLY|VARIABLES]
-#     [FILE_SET <file_set_name>]
-#     [TYPE HEADERS]
-#     [BASE_DIRS <base_directories...>]
-#     [FILES <template_files...>])
+#     OUTPUT_DIR <directory>
+#     SUBSTITUTION_MODE @ONLY|VARIABLES
+#     FILE_SET <file_set_name>
+#     TYPE HEADERS
+#     BASE_DIRS <base_directories...>
+#     FILES <template_files...>)
 #
 # Parameters:
 #   TARGET_NAME             - Name of the target to configure sources for.
@@ -109,9 +114,9 @@ function(target_configure_sources TARGET_NAME)
     set(ARGS_TYPE "HEADERS")
   endif()
 
-  # Validate substitution mode earlier
+  # Validate substitution mode
   if(ARGS_SUBSTITUTION_MODE AND NOT "${ARGS_SUBSTITUTION_MODE}" MATCHES "^(@ONLY|VARIABLES)$")
-    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES")
+    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES, got: ${ARGS_SUBSTITUTION_MODE}")
   endif()
 
   # Validate file set type
@@ -121,11 +126,6 @@ function(target_configure_sources TARGET_NAME)
 
   if(NOT ARGS_BASE_DIRS)
     set(ARGS_BASE_DIRS "${ARGS_OUTPUT_DIR}")
-  endif()
-
-  # Validate substitution mode
-  if(NOT "${ARGS_SUBSTITUTION_MODE}" MATCHES "^(@ONLY|VARIABLES)$")
-    project_log(FATAL_ERROR "target_configure_sources: SUBSTITUTION_MODE must be @ONLY or VARIABLES, got: ${ARGS_SUBSTITUTION_MODE}")
   endif()
 
   # Create output directory
@@ -197,3 +197,26 @@ function(target_configure_sources TARGET_NAME)
   list(LENGTH CONFIGURED_FILES TOTAL_FILES)
   project_log(DEBUG "target_configure_sources: Successfully configured ${TOTAL_FILES} files for ${TARGET_NAME} (${SCOPE})")
 endfunction()
+
+get_property(
+  PL_INITIALIZED GLOBAL
+  PROPERTY "PROJECT_LOG_INITIALIZED"
+  SET)
+if(NOT PL_INITIALIZED)
+  function(project_log level)
+    # Simplified mock implementation
+
+    # Default context if PROJECT_NAME is not set
+    set(context "cmake")
+
+    # Collect all arguments after the level
+    set(msg "")
+    if(ARGV)
+      list(REMOVE_AT ARGV 0) # Remove the level argument
+      string(JOIN " " msg ${ARGV})
+    endif()
+
+    # Construct and output the message
+    message(${level} "[${context}][${level}] ${msg}")
+  endfunction()
+endif()
