@@ -3,12 +3,8 @@ cmake_minimum_required(VERSION 3.25)
 project(components_example VERSION 1.0.0)
 
 # Include target_install_package utilities
-include(FetchContent)
-FetchContent_Declare(
-  target_install_package
-  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v4.0.3)
-FetchContent_MakeAvailable(target_install_package)
+set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
+include(../../CMakeLists.txt)
 
 # Core runtime library (shared)
 add_library(media_core SHARED)
@@ -42,21 +38,9 @@ target_install_package(
   RUNTIME_COMPONENT
   "runtime"
   DEVELOPMENT_COMPONENT
-  "devel"
-  SUPPORTED_COMPONENTS
-  "core"
-  "runtime"
   "devel")
 
-target_install_package(
-  media_dev_tools
-  NAMESPACE
-  Media::
-  DEVELOPMENT_COMPONENT
-  "devel" # Static lib goes to devel
-  EXPORT_NAME
-  "media_core-targets" # Share the same export
-)
+target_install_package(media_dev_tools NAMESPACE Media:: DEVELOPMENT_COMPONENT "devel")
 
 target_install_package(
   asset_converter
@@ -66,3 +50,27 @@ target_install_package(
   "tools" # Tools get their own component
   RUNTIME_COMPONENT
   "tools")
+
+# Basic CPack configuration to test component packaging
+set(CPACK_PACKAGE_NAME "MediaLibrary")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_GENERATOR "TGZ")
+
+# Define components
+set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Runtime Libraries")
+set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Runtime libraries required to run applications")
+
+set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Development Files")
+set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Headers and development files")
+
+set(CPACK_COMPONENT_TOOLS_DISPLAY_NAME "Tools")
+set(CPACK_COMPONENT_TOOLS_DESCRIPTION "Asset conversion tools")
+
+# Custom components (these should be auto-created by our dual install)
+set(CPACK_COMPONENT_TOOLS-RUNTIME_DISPLAY_NAME "Tools Runtime")
+set(CPACK_COMPONENT_TOOLS-RUNTIME_DESCRIPTION "Runtime files for tools component")
+
+set(CPACK_COMPONENT_TOOLS-DEVELOPMENT_DISPLAY_NAME "Tools Development")
+set(CPACK_COMPONENT_TOOLS-DEVELOPMENT_DESCRIPTION "Development files for tools component")
+
+include(CPack)

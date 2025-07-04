@@ -3,12 +3,8 @@ cmake_minimum_required(VERSION 3.25)
 project(basic_static_example VERSION 1.0.0)
 
 # Include target_install_package utilities
-include(FetchContent)
-FetchContent_Declare(
-  target_install_package
-  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v4.0.3)
-FetchContent_MakeAvailable(target_install_package)
+set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
+include(../../CMakeLists.txt)
 
 # Create a static library
 add_library(math_lib STATIC)

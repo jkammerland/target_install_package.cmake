@@ -1,5 +1,7 @@
 list_file_include_guard(VERSION 1.1.0)
 
+set_property(GLOBAL PROPERTY PROJECT_LOG_INITIALIZED true)
+
 # ~~~
 # project_log(Level Arg1 Arg2 ...)
 #
