@@ -114,18 +114,18 @@ jobs:
         # Find and verify TGZ packages (available on all platforms)
         if ls MyLibrary-*-Runtime.tar.gz 1> /dev/null 2>&1; then
           echo "=== Runtime package contents ==="
-          tar -tzf MyLibrary-*-Runtime.tar.gz | head -10
+          (tar -tzf MyLibrary-*-Runtime.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           echo "=== Development package contents ==="
-          tar -tzf MyLibrary-*-Development.tar.gz | head -10
+          (tar -tzf MyLibrary-*-Development.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           echo "=== Tools package contents ==="
-          tar -tzf MyLibrary-*-Tools.tar.gz | head -10
+          (tar -tzf MyLibrary-*-Tools.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           # Verify component separation
-          runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || echo "0")
-          dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || echo "0")
-          tools_has_exe=$(tar -tzf MyLibrary-*-Tools.tar.gz | grep -c "bin/mytool" || echo "0")
+          runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || true)
+          dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || true)
+          tools_has_exe=$(tar -tzf MyLibrary-*-Tools.tar.gz | grep -c "bin/mytool" || true)
           
           echo "Runtime package has executable: $runtime_has_exe (should be 0)"
           echo "Development package has headers: $dev_has_headers (should be > 0)"
@@ -167,6 +167,8 @@ jobs:
         # Verify runtime files are present
         if [[ "${{ runner.os }}" == "Windows" ]]; then
           libext="dll"
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          libext="dylib"
         else
           libext="so"
         fi
