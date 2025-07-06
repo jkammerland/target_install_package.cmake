@@ -12,6 +12,7 @@ This project requires some other cmake projects, but for ease of use, they have 
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
+| [target_configure_cpack](target_configure_cpack.cmake) | Function | Automatic CPack configuration with component detection and cross-platform package generation |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
 | [project_log](https://github.com/jkammerland/project_log.cmake) | Function | Enhanced logging with color support and project context |
 | [project_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
@@ -37,6 +38,7 @@ The `target_install_package()` function searches for the targets config template
    - [Basic Library Installation](#basic-library-installation-)
    - [Configuring Template Headers](#configuring-template-headers-)
    - [Libraries with Dependencies](#libraries-with-dependencies-)
+   - [CPack Package Generation](#cpack-package-generation-)
    - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands-)
 4. [Component-Based Installation](#component-based-installation-)
    - [Default Component Behavior](#default-component-behavior-)
@@ -56,6 +58,7 @@ The `target_install_package()` function searches for the targets config template
 
 - **Templated source file configuration** with proper include paths
 - **Package installation** with automatic CMake config generation
+- **CPack integration** with automatic package generation (TGZ, ZIP, DEB, RPM, WIX)
 - **Support for modern CMake** including file sets and C++20 modules
 - **Component-based installation** with runtime/development separation
 - **Build variant support** for debug/release/custom configurations
@@ -280,6 +283,45 @@ find_package(graphics_lib REQUIRED)
 target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 # OpenGL and glfw3 are automatically found and linked
 ```
+
+### CPack Package Generation 📦
+
+Automatically generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation:
+
+```cmake
+add_library(my_library SHARED)
+target_sources(my_library PRIVATE src/library.cpp)
+target_sources(my_library PUBLIC 
+  FILE_SET HEADERS 
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  FILES "include/my_library/api.h"
+)
+
+# Install with components
+target_install_package(my_library
+  NAMESPACE MyLib::
+  RUNTIME_COMPONENT "Runtime"
+  DEVELOPMENT_COMPONENT "Development"
+)
+
+# Auto-configure CPack
+target_configure_cpack(
+  PACKAGE_NAME "MyLibrary"
+  PACKAGE_VENDOR "Acme Corp"
+  # AUTO-DETECTED: Components (Runtime, Development)
+  # AUTO-DETECTED: Generators (TGZ, DEB, RPM on Linux; TGZ, ZIP, WIX on Windows)
+)
+
+include(CPack)
+```
+
+**Generate packages:**
+```bash
+cmake --build .
+cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-Development.tar.gz, etc.
+```
+
+**See [examples/cpack-basic](examples/cpack-basic/) for complete working example.**
 
 ### Mixing with Standard Install Commands 🔄
 

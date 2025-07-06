@@ -485,6 +485,13 @@ function(finalize_package)
   if(ALL_UNIQUE_COMPONENTS)
     list(REMOVE_DUPLICATES ALL_UNIQUE_COMPONENTS)
     project_log(STATUS "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
+    
+    # Register components for CPack integration
+    if(COMMAND _tip_register_component)
+      foreach(component ${ALL_UNIQUE_COMPONENTS})
+        _tip_register_component("${component}")
+      endforeach()
+    endif()
   else()
     project_log(STATUS "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
   endif()

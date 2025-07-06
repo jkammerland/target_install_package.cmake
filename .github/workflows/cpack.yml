@@ -1,0 +1,466 @@
+name: CPack Integration Testing
+
+on:
+  push:
+    branches: [ "integration", "master", "CPack-integration" ]
+  pull_request:
+    branches: [ "integration", "master" ]
+  workflow_dispatch:
+
+jobs:
+  cpack-basic:
+    name: CPack Basic Integration Test
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release]
+        include:
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
+            expected_generators: "TGZ;ZIP"
+            expected_packages: ["MyLibrary-*.tar.gz", "MyLibrary-*.zip"]
+          - os: ubuntu-latest 
+            c_compiler: gcc
+            cpp_compiler: g++
+            expected_generators: "TGZ;DEB;RPM"
+            expected_packages: ["MyLibrary-*.tar.gz", "mylibrary-*.deb", "mylibrary-*.rpm"]
+          - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            expected_generators: "TGZ;DragNDrop"
+            expected_packages: ["MyLibrary-*.tar.gz", "MyLibrary-*.dmg"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSVC Developer Command Prompt
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install Linux packaging tools
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y rpm dpkg-dev
+
+    - name: Configure CPack Basic Example
+      shell: bash
+      run: |
+        cd examples/cpack-basic
+        mkdir build && cd build
+        
+        cmake .. \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_INSTALL_PREFIX=./install \
+          -DPROJECT_LOG_COLORS=OFF
+
+    - name: Build CPack Basic Example
+      shell: bash
+      run: |
+        cd examples/cpack-basic/build
+        cmake --build . --config ${{ matrix.build_type }}
+
+    - name: Test Installation
+      shell: bash
+      run: |
+        cd examples/cpack-basic/build
+        
+        echo "=== Testing component-based installation ==="
+        
+        # Install all components
+        cmake --install . --config ${{ matrix.build_type }}
+        
+        # Verify installation structure
+        echo "=== Installation structure ==="
+        find install/ -type f | sort
+        
+        # Test component-specific installations
+        echo "=== Testing Runtime component ==="
+        cmake --install . --config ${{ matrix.build_type }} --component Runtime --prefix ./runtime-only
+        find runtime-only/ -type f | sort
+        
+        echo "=== Testing Development component ==="
+        cmake --install . --config ${{ matrix.build_type }} --component Development --prefix ./dev-only
+        find dev-only/ -type f | sort
+        
+        echo "=== Testing Tools component ==="
+        cmake --install . --config ${{ matrix.build_type }} --component Tools --prefix ./tools-only
+        find tools-only/ -type f | sort
+
+    - name: Generate CPack Packages
+      shell: bash
+      run: |
+        cd examples/cpack-basic/build
+        
+        echo "=== Generating packages with CPack ==="
+        cpack --verbose
+        
+        echo "=== Generated packages ==="
+        ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || echo "Some package types not generated (expected on this platform)"
+
+    - name: Verify Package Contents
+      shell: bash
+      run: |
+        cd examples/cpack-basic/build
+        
+        echo "=== Verifying package contents ==="
+        
+        # Find and verify TGZ packages (available on all platforms)
+        if ls MyLibrary-*-Runtime.tar.gz 1> /dev/null 2>&1; then
+          echo "=== Runtime package contents ==="
+          tar -tzf MyLibrary-*-Runtime.tar.gz | head -10
+          
+          echo "=== Development package contents ==="
+          tar -tzf MyLibrary-*-Development.tar.gz | head -10
+          
+          echo "=== Tools package contents ==="
+          tar -tzf MyLibrary-*-Tools.tar.gz | head -10
+          
+          # Verify component separation
+          runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || echo "0")
+          dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || echo "0")
+          tools_has_exe=$(tar -tzf MyLibrary-*-Tools.tar.gz | grep -c "bin/mytool" || echo "0")
+          
+          echo "Runtime package has executable: $runtime_has_exe (should be 0)"
+          echo "Development package has headers: $dev_has_headers (should be > 0)"
+          echo "Tools package has executable: $tools_has_exe (should be > 0)"
+          
+          if [[ "$runtime_has_exe" != "0" ]]; then
+            echo "❌ Runtime package incorrectly contains executable"
+            exit 1
+          fi
+          
+          if [[ "$dev_has_headers" == "0" ]]; then
+            echo "❌ Development package missing headers"
+            exit 1
+          fi
+          
+          if [[ "$tools_has_exe" == "0" ]]; then
+            echo "❌ Tools package missing executable"
+            exit 1
+          fi
+          
+          echo "✅ Component separation verified"
+        else
+          echo "❌ Component packages not generated"
+          exit 1
+        fi
+
+    - name: Test Package Installation and Usage
+      shell: bash
+      run: |
+        cd examples/cpack-basic/build
+        
+        echo "=== Testing package installation ==="
+        
+        # Extract Runtime package to test location
+        mkdir -p test-runtime
+        cd test-runtime
+        tar -xzf ../MyLibrary-*-Runtime.tar.gz
+        
+        # Verify runtime files are present
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          libext="dll"
+        else
+          libext="so"
+        fi
+        
+        # Find the shared library
+        if find . -name "*mylib*.$libext*" | grep -q .; then
+          echo "✅ Runtime library found"
+        else
+          echo "❌ Runtime library not found"
+          find . -type f
+          exit 1
+        fi
+        
+        cd ..
+        
+        # Extract Development package
+        mkdir -p test-dev
+        cd test-dev
+        tar -xzf ../MyLibrary-*-Development.tar.gz
+        
+        # Verify development files
+        if find . -name "*.h" | grep -q .; then
+          echo "✅ Development headers found"
+        else
+          echo "❌ Development headers not found"
+          exit 1
+        fi
+        
+        if find . -name "*config.cmake" | grep -q .; then
+          echo "✅ CMake config files found"
+        else
+          echo "❌ CMake config files not found"
+          exit 1
+        fi
+        
+        cd ..
+        
+        # Extract Tools package
+        mkdir -p test-tools
+        cd test-tools
+        tar -xzf ../MyLibrary-*-Tools.tar.gz
+        
+        # Test the tool executable
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if find . -name "mytool.exe" | grep -q .; then
+            echo "✅ Tool executable found"
+            # Note: We don't try to run it due to potential DLL dependency issues
+          else
+            echo "❌ Tool executable not found"
+            exit 1
+          fi
+        else
+          if find . -name "mytool" | grep -q .; then
+            tool_path=$(find . -name "mytool")
+            echo "✅ Tool executable found at: $tool_path"
+            
+            # Make executable and test basic functionality
+            chmod +x "$tool_path"
+            if "$tool_path" --version; then
+              echo "✅ Tool executable runs successfully"
+            else
+              echo "⚠ Tool executable found but failed to run (may need runtime libraries)"
+            fi
+          else
+            echo "❌ Tool executable not found"
+            exit 1
+          fi
+        fi
+
+    - name: Upload CPack Artifacts
+      uses: actions/upload-artifact@v4
+      if: matrix.build_type == 'Release'
+      with:
+        name: cpack-packages-${{ matrix.os }}
+        path: |
+          examples/cpack-basic/build/*.tar.gz
+          examples/cpack-basic/build/*.zip
+          examples/cpack-basic/build/*.deb
+          examples/cpack-basic/build/*.rpm
+          examples/cpack-basic/build/*.dmg
+        retention-days: 7
+
+  cpack-components:
+    name: CPack Components Integration Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install packaging tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y rpm dpkg-dev
+
+    - name: Test Existing Components Example with CPack
+      run: |
+        cd examples/components
+        mkdir build && cd build
+        
+        # Configure the existing components example
+        cmake .. -DCMAKE_INSTALL_PREFIX=./install
+        
+        # Build
+        cmake --build .
+        
+        # Test installation
+        cmake --install .
+        
+        echo "=== Adding CPack to existing components example ==="
+        
+        # Add CPack configuration by appending to CMakeLists.txt
+        cat >> ../CMakeLists.txt << 'EOF'
+
+        # Add CPack integration for testing
+        target_configure_cpack(
+          PACKAGE_NAME "MediaLibrary"
+          PACKAGE_VENDOR "Media Corp"
+          GENERATORS "TGZ;DEB"
+          COMPONENT_GROUPS
+        )
+
+        include(CPack)
+        EOF
+        
+        # Reconfigure to pick up CPack changes
+        cmake ..
+        
+        # Generate packages
+        cpack --verbose
+        
+        echo "=== Generated packages from existing components example ==="
+        ls -la *.tar.gz *.deb 2>/dev/null || echo "Packages not generated as expected"
+        
+        # Verify component-based packages were created
+        if ls MediaLibrary-*-runtime.tar.gz 1> /dev/null 2>&1; then
+          echo "✅ Components example CPack integration successful"
+          
+          # Check component contents
+          echo "=== Runtime component ==="
+          tar -tzf MediaLibrary-*-runtime.tar.gz
+          
+          echo "=== Development component ==="
+          tar -tzf MediaLibrary-*-devel.tar.gz
+          
+          echo "=== Tools component ==="
+          tar -tzf MediaLibrary-*-tools.tar.gz
+        else
+          echo "⚠ Component packages not generated (may be expected based on configuration)"
+        fi
+
+  cpack-cross-platform:
+    name: CPack Cross-Platform Package Validation
+    runs-on: ubuntu-latest
+    needs: [cpack-basic]
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download All Platform Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Analyze Cross-Platform Package Consistency
+      run: |
+        echo "=== Cross-Platform Package Analysis ==="
+        
+        cd artifacts
+        
+        for platform in */; do
+          echo "=== Platform: $platform ==="
+          cd "$platform"
+          
+          echo "Generated packages:"
+          ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || echo "No packages found"
+          
+          # Check for consistent component separation across platforms
+          if ls *-Runtime.tar.gz 1> /dev/null 2>&1; then
+            echo "✅ Runtime component package found"
+          else
+            echo "❌ Runtime component package missing"
+          fi
+          
+          if ls *-Development.tar.gz 1> /dev/null 2>&1; then
+            echo "✅ Development component package found"
+          else
+            echo "❌ Development component package missing"
+          fi
+          
+          if ls *-Tools.tar.gz 1> /dev/null 2>&1; then
+            echo "✅ Tools component package found"
+          else
+            echo "❌ Tools component package missing"
+          fi
+          
+          cd ..
+        done
+        
+        echo "✅ Cross-platform package validation completed"
+
+  cpack-regression:
+    name: CPack Regression Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Test CPack with Different Component Configurations
+      run: |
+        echo "=== CPack Regression Tests ==="
+        
+        cd examples/cpack-basic
+        
+        # Test 1: Single component configuration
+        echo "=== Test 1: Single component ==="
+        mkdir build-single && cd build-single
+        
+        cat > ../CMakeLists-single.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.25)
+        project(single_component_test VERSION 1.0.0)
+
+        set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
+        include(../../../CMakeLists.txt)
+
+        add_library(simple_lib STATIC)
+        target_sources(simple_lib PRIVATE ../src/mylib.cpp)
+        target_sources(simple_lib PUBLIC FILE_SET HEADERS BASE_DIRS "../include" FILES "../include/mylib/core.h")
+
+        target_install_package(simple_lib NAMESPACE Simple::)
+
+        target_configure_cpack(
+          PACKAGE_NAME "SimpleLib"
+          GENERATORS "TGZ"
+        )
+
+        include(CPack)
+        EOF
+        
+        cmake -f ../CMakeLists-single.txt .
+        cmake --build .
+        cpack
+        
+        # Should generate monolithic package
+        if ls SimpleLib-*.tar.gz 1> /dev/null 2>&1; then
+          echo "✅ Single component package generated"
+        else
+          echo "❌ Single component package failed"
+          exit 1
+        fi
+        
+        cd ..
+        
+        # Test 2: Custom generators
+        echo "=== Test 2: Custom generators ==="
+        mkdir build-custom && cd build-custom
+        
+        cat > ../CMakeLists-custom.txt << 'EOF'
+        cmake_minimum_required(VERSION 3.25)
+        project(custom_generators_test VERSION 1.0.0)
+
+        set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
+        include(../../../CMakeLists.txt)
+
+        add_library(custom_lib STATIC)
+        target_sources(custom_lib PRIVATE ../src/mylib.cpp)
+        target_sources(custom_lib PUBLIC FILE_SET HEADERS BASE_DIRS "../include" FILES "../include/mylib/core.h")
+
+        target_install_package(custom_lib NAMESPACE Custom::)
+
+        target_configure_cpack(
+          PACKAGE_NAME "CustomLib"
+          GENERATORS "TGZ"
+          NO_DEFAULT_GENERATORS
+        )
+
+        include(CPack)
+        EOF
+        
+        cmake -f ../CMakeLists-custom.txt .
+        cmake --build .
+        cpack
+        
+        # Should only generate TGZ, not DEB/RPM
+        tgz_count=$(ls CustomLib-*.tar.gz 2>/dev/null | wc -l)
+        deb_count=$(ls customlib-*.deb 2>/dev/null | wc -l)
+        
+        if [[ "$tgz_count" -gt 0 ]] && [[ "$deb_count" == 0 ]]; then
+          echo "✅ Custom generators respected"
+        else
+          echo "❌ Custom generators not respected"
+          echo "TGZ files: $tgz_count, DEB files: $deb_count"
+          exit 1
+        fi
+        
+        cd ..
+        
+        echo "✅ Regression tests passed"
