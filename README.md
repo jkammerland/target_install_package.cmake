@@ -323,6 +323,8 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 
 **See [examples/cpack-basic](examples/cpack-basic/) for complete working example.**
 
+**📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
+
 ### Mixing with Standard Install Commands 🔄
 
 You can mix these utilities with standard CMake install commands for additional files:
