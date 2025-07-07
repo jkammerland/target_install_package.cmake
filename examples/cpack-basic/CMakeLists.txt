@@ -7,55 +7,55 @@ set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)
 
 # Core runtime library (shared)
-add_library(mylib SHARED)
-target_sources(mylib PRIVATE src/mylib.cpp)
-target_sources(mylib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/core.h")
+add_library(cpack_lib SHARED)
+target_sources(cpack_lib PRIVATE src/cpack_lib.cpp)
+target_sources(cpack_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/cpack_lib/core.h")
 set_target_properties(
-  mylib
+  cpack_lib
   PROPERTIES POSITION_INDEPENDENT_CODE ON
              VERSION ${PROJECT_VERSION}
              SOVERSION ${PROJECT_VERSION_MAJOR})
 if(WIN32)
-  set_target_properties(mylib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  set_target_properties(cpack_lib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
-target_compile_features(mylib PUBLIC cxx_std_17)
+target_compile_features(cpack_lib PUBLIC cxx_std_17)
 
 # Development utilities (static)
-add_library(mylib_utils STATIC)
-target_sources(mylib_utils PRIVATE src/utils.cpp)
-target_sources(mylib_utils PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/utils.h")
-target_compile_features(mylib_utils PUBLIC cxx_std_17)
-target_link_libraries(mylib_utils PUBLIC mylib)
+add_library(cpack_lib_utils STATIC)
+target_sources(cpack_lib_utils PRIVATE src/utils.cpp)
+target_sources(cpack_lib_utils PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/cpack_lib/utils.h")
+target_compile_features(cpack_lib_utils PUBLIC cxx_std_17)
+target_link_libraries(cpack_lib_utils PUBLIC cpack_lib)
 
 # Command-line tool (executable)
 add_executable(mytool)
 target_sources(mytool PRIVATE src/tool.cpp)
-target_link_libraries(mytool PRIVATE mylib)
+target_link_libraries(mytool PRIVATE cpack_lib)
 
 # Install with target_install_package using standard components
 target_install_package(
-  mylib
-  NAMESPACE MyLib::
+  cpack_lib
+  NAMESPACE cpack_lib::
   RUNTIME_COMPONENT "Runtime"
   DEVELOPMENT_COMPONENT "Development")
 
 target_install_package(
-  mylib_utils 
-  NAMESPACE MyLib:: 
+  cpack_lib_utils 
+  NAMESPACE cpack_lib:: 
   DEVELOPMENT_COMPONENT "Development")
 
 target_install_package(
   mytool
-  NAMESPACE MyLib::
+  NAMESPACE cpack_lib::
   COMPONENT "Tools"
   RUNTIME_COMPONENT "Tools")
 
 # Configure CPack with auto-detection
 target_configure_cpack(
-  PACKAGE_NAME "MyLibrary"
+  PACKAGE_NAME "cpack_library"
   PACKAGE_VENDOR "Example Corp"
   PACKAGE_CONTACT "support@example.com"
-  PACKAGE_HOMEPAGE_URL "https://example.com/mylib"
+  PACKAGE_HOMEPAGE_URL "https://example.com/cpack_lib"
   # AUTO-DETECTED: Components (Runtime, Development, Tools)
   # AUTO-DETECTED: Generators (platform-specific)
   DEFAULT_COMPONENTS "Runtime"
