@@ -352,6 +352,26 @@ jobs:
         
         echo "✓ Package manager integration test passed"
 
+  test-cpack-advanced:
+    name: CPack Advanced Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install packaging tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y rpm dpkg-dev
+
+    - name: Run CPack Advanced Test Suite
+      run: |
+        echo "=== CPack Advanced Test Suite ==="
+        
+        cd tests
+        
+        # Run all CPack tests using the new structured test framework
+        bash run-all-tests.sh --category=cpack --verbose
 
   test-examples:
     name: Test Example Installation and Discovery
