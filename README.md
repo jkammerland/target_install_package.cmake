@@ -14,9 +14,9 @@ This project requires some other cmake projects, but for ease of use, they have 
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
 | [target_configure_cpack](target_configure_cpack.cmake) | Function | Automatic CPack configuration with component detection and cross-platform package generation |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
-| [project_log](https://github.com/jkammerland/project_log.cmake) | Function | Enhanced logging with color support and project context |
-| [project_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
-| [list_file_include_guard](https://github.com/jkammerland/project_include_guard.cmake) | Macro | File-level include guard with version checking |
+| [project_log](cmake/project_log.cmake) | Function | Enhanced logging with color support and project context |
+| [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
+| [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking |
 
 >[!NOTE] 
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package. 
