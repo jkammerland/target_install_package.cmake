@@ -251,8 +251,8 @@ jobs:
           examples/cpack-basic/build/*.dmg
         retention-days: 7
 
-  cpack-components:
-    name: CPack Components Integration Test
+  cpack-advanced:
+    name: CPack Advanced Tests
     runs-on: ubuntu-latest
     
     steps:
@@ -263,7 +263,97 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y rpm dpkg-dev
 
-    - name: Test Existing Components Example with CPack
+    - name: Run Component Separation Tests
+      run: |
+        echo "=== Component Separation Validation ==="
+        
+        cd tests/cpack/component-separation
+        bash test-component-separation.sh
+        
+    - name: Run License Handling Tests  
+      run: |
+        echo "=== License Handling Validation ==="
+        
+        cd tests/cpack/license-handling
+        bash test-license-handling.sh
+
+    - name: Run Single Component Tests
+      run: |
+        echo "=== Single Component CPack Tests ==="
+        
+        cd tests/cpack/single-component
+        bash test-single-component.sh
+
+    - name: Run Custom Generators Tests
+      run: |
+        echo "=== Custom Generators CPack Tests ==="
+        
+        cd tests/cpack/custom-generators
+        bash test-custom-generators.sh
+
+  cpack-cross-platform:
+    name: CPack Cross-Platform Package Validation
+    runs-on: ubuntu-latest
+    needs: [cpack-basic]
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download All Platform Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Analyze Cross-Platform Package Consistency
+      run: |
+        echo "=== Cross-Platform Package Analysis ==="
+        
+        cd artifacts
+        
+        for platform in */; do
+          echo "=== Platform: $platform ==="
+          cd "$platform"
+          
+          echo "Generated packages:"
+          ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || echo "No packages found"
+          
+          # Check for consistent component separation across platforms
+          if ls *-Runtime.tar.gz 1> /dev/null 2>&1; then
+            echo "✅ Runtime component package found"
+          else
+            echo "❌ Runtime component package missing"
+          fi
+          
+          if ls *-Development.tar.gz 1> /dev/null 2>&1; then
+            echo "✅ Development component package found"
+          else
+            echo "❌ Development component package missing"
+          fi
+          
+          if ls *-Tools.tar.gz 1> /dev/null 2>&1; then
+            echo "✅ Tools component package found"
+          else
+            echo "❌ Tools component package missing"
+          fi
+          
+          cd ..
+        done
+        
+        echo "✅ Cross-platform package validation completed"
+
+  cpack-integration:
+    name: CPack Integration with Existing Examples
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install packaging tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y rpm dpkg-dev
+
+    - name: Test CPack Integration with Components Example
       run: |
         cd examples/components
         mkdir build && cd build
@@ -319,68 +409,23 @@ jobs:
           echo "⚠ Component packages not generated (may be expected based on configuration)"
         fi
 
-  cpack-cross-platform:
-    name: CPack Cross-Platform Package Validation
-    runs-on: ubuntu-latest
-    needs: [cpack-basic]
-    
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Download All Platform Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
-
-    - name: Analyze Cross-Platform Package Consistency
-      run: |
-        echo "=== Cross-Platform Package Analysis ==="
-        
-        cd artifacts
-        
-        for platform in */; do
-          echo "=== Platform: $platform ==="
-          cd "$platform"
-          
-          echo "Generated packages:"
-          ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || echo "No packages found"
-          
-          # Check for consistent component separation across platforms
-          if ls *-Runtime.tar.gz 1> /dev/null 2>&1; then
-            echo "✅ Runtime component package found"
-          else
-            echo "❌ Runtime component package missing"
-          fi
-          
-          if ls *-Development.tar.gz 1> /dev/null 2>&1; then
-            echo "✅ Development component package found"
-          else
-            echo "❌ Development component package missing"
-          fi
-          
-          if ls *-Tools.tar.gz 1> /dev/null 2>&1; then
-            echo "✅ Tools component package found"
-          else
-            echo "❌ Tools component package missing"
-          fi
-          
-          cd ..
-        done
-        
-        echo "✅ Cross-platform package validation completed"
-
-  cpack-regression:
-    name: CPack Regression Tests
+  cpack-comprehensive:
+    name: CPack Comprehensive Test Suite
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
 
-    - name: Test CPack with Different Component Configurations
+    - name: Install packaging tools
       run: |
-        echo "=== CPack Regression Tests ==="
+        sudo apt-get update
+        sudo apt-get install -y rpm dpkg-dev
+
+    - name: Run Full CPack Test Suite
+      run: |
+        echo "=== CPack Comprehensive Test Suite ==="
         
-        cd tests/cpack-regression
+        cd tests
         
-        # Run all regression tests using the new test structure
-        bash run-all-tests.sh
+        # Run all CPack tests using the new structured test framework
+        bash run-all-tests.sh --category=cpack --verbose
