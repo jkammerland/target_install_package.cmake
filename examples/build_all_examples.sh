@@ -129,6 +129,7 @@ EXAMPLES=(
     "dependency-aggregation"
     "configure-files"
     "cxx-modules"
+    "cpack-basic"
 )
 
 # Check for clean argument
