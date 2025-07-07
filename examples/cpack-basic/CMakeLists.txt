@@ -52,7 +52,7 @@ target_install_package(
 
 # Configure CPack with auto-detection
 target_configure_cpack(
-  PACKAGE_NAME "cpack_library"
+  PACKAGE_NAME "MyLibrary"
   PACKAGE_VENDOR "Example Corp"
   PACKAGE_CONTACT "support@example.com"
   PACKAGE_HOMEPAGE_URL "https://example.com/cpack_lib"

@@ -174,7 +174,7 @@ jobs:
         fi
         
         # Find the shared library
-        if find . -name "*mylib*.$libext*" | grep -q .; then
+        if find . -name "*cpack_lib*.$libext*" | grep -q .; then
           echo "✅ Runtime library found"
         else
           echo "❌ Runtime library not found"

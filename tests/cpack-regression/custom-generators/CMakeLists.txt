@@ -7,11 +7,11 @@ include(../../../CMakeLists.txt)
 
 # Create a simple static library using sources from cpack-basic example
 add_library(custom_lib STATIC)
-target_sources(custom_lib PRIVATE ../../../examples/cpack-basic/src/mylib.cpp)
+target_sources(custom_lib PRIVATE ../../../examples/cpack-basic/src/cpack_lib.cpp)
 target_sources(custom_lib PUBLIC 
   FILE_SET HEADERS 
   BASE_DIRS "../../../examples/cpack-basic/include" 
-  FILES "../../../examples/cpack-basic/include/mylib/core.h"
+  FILES "../../../examples/cpack-basic/include/cpack_lib/core.h"
 )
 
 # Install using target_install_package
