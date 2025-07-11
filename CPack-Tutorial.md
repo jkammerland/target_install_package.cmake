@@ -423,7 +423,6 @@ Consider manual CPack configuration when you need:
 
 - **Reduces boilerplate** while maintaining full functionality
 - **Prevents common errors** through smart defaults and auto-detection
-- **Improves maintainability** with clear, intention-revealing configuration
 - **Supports advanced use cases** through comprehensive override mechanisms
 - **Works cross-platform** with appropriate generator selection
 

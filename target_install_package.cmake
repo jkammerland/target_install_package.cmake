@@ -21,6 +21,8 @@ include(CMakePackageConfigHelpers)
 # Set policy for install() DESTINATION path normalization if supported
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
+else()
+  message(WARNING "policy CMP0177 is not supported in this version of CMake, may not normalize paths correctly in the install() command.")
 endif()
 
 # ~~~
