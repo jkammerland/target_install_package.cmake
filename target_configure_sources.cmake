@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.1.0)
+  list_file_include_guard(VERSION 5.1.2)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -165,13 +165,7 @@ function(target_configure_sources TARGET_NAME)
     return()
   endif()
 
-  if(SCOPE STREQUAL "PRIVATE")
-    target_include_directories(${TARGET_NAME} PRIVATE "${ARGS_OUTPUT_DIR}")
-    project_log(DEBUG "  Added PRIVATE include directory: ${ARGS_OUTPUT_DIR}")
-  else()
-    target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${ARGS_OUTPUT_DIR}> $<INSTALL_INTERFACE:${INSTALL_INTERFACE_PATH}>)
-    project_log(DEBUG "  Added ${SCOPE} include directories: ${ARGS_OUTPUT_DIR} (build) -> ${INSTALL_INTERFACE_PATH} (install)")
-  endif()
+  target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${ARGS_OUTPUT_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
   if(NOT TARGET_TYPE STREQUAL "EXECUTABLE")

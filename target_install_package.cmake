@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.1.0)
+  list_file_include_guard(VERSION 5.1.2)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -21,6 +21,8 @@ include(CMakePackageConfigHelpers)
 # Set policy for install() DESTINATION path normalization if supported
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
+else()
+  message(WARNING "policy CMP0177 is not supported in this version of CMake, may not normalize paths correctly in the install() command.")
 endif()
 
 # ~~~

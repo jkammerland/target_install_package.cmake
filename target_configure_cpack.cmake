@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.1.0)
+  list_file_include_guard(VERSION 5.1.2)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 endif()
@@ -92,52 +92,42 @@ endif()
 #   )
 # ~~~
 function(target_configure_cpack)
-  set(options 
-    COMPONENT_GROUPS
-    ENABLE_COMPONENT_INSTALL 
-    NO_DEFAULT_GENERATORS
-  )
-  set(oneValueArgs 
-    PACKAGE_NAME
-    PACKAGE_VERSION
-    PACKAGE_VENDOR
-    PACKAGE_CONTACT
-    PACKAGE_DESCRIPTION
-    PACKAGE_HOMEPAGE_URL
-    LICENSE_FILE
-    ARCHIVE_FORMAT
-  )
-  set(multiValueArgs 
-    GENERATORS
-    COMPONENTS
-    DEFAULT_COMPONENTS
-    ADDITIONAL_CPACK_VARS
-  )
+  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
+  set(oneValueArgs
+      PACKAGE_NAME
+      PACKAGE_VERSION
+      PACKAGE_VENDOR
+      PACKAGE_CONTACT
+      PACKAGE_DESCRIPTION
+      PACKAGE_HOMEPAGE_URL
+      LICENSE_FILE
+      ARCHIVE_FORMAT)
+  set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
     set(ARG_PACKAGE_NAME "${PROJECT_NAME}")
   endif()
-  
+
   if(NOT ARG_PACKAGE_VERSION)
     set(ARG_PACKAGE_VERSION "${PROJECT_VERSION}")
     if(NOT ARG_PACKAGE_VERSION)
       set(ARG_PACKAGE_VERSION "1.0.0")
     endif()
   endif()
-  
+
   if(NOT ARG_PACKAGE_DESCRIPTION)
     set(ARG_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
     if(NOT ARG_PACKAGE_DESCRIPTION)
       set(ARG_PACKAGE_DESCRIPTION "Package created with target_install_package")
     endif()
   endif()
-  
+
   if(NOT ARG_PACKAGE_HOMEPAGE_URL)
     set(ARG_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
   endif()
-  
+
   if(NOT ARG_PACKAGE_VENDOR)
     if(ARG_PACKAGE_HOMEPAGE_URL)
       # Extract domain from homepage URL as vendor
@@ -146,7 +136,7 @@ function(target_configure_cpack)
       set(ARG_PACKAGE_VENDOR "Unknown")
     endif()
   endif()
-  
+
   if(NOT ARG_PACKAGE_CONTACT)
     set(ARG_PACKAGE_CONTACT "maintainer@${ARG_PACKAGE_VENDOR}")
   endif()
@@ -179,8 +169,8 @@ function(target_configure_cpack)
 
   # Auto-detect generators based on platform if not specified
   if(NOT ARG_GENERATORS AND NOT ARG_NO_DEFAULT_GENERATORS)
-    set(ARG_GENERATORS "TGZ")  # Always include TGZ as universal format
-    
+    set(ARG_GENERATORS "TGZ") # Always include TGZ as universal format
+
     if(WIN32)
       list(APPEND ARG_GENERATORS "ZIP")
       # Add WIX if available
@@ -210,11 +200,11 @@ function(target_configure_cpack)
   set(CPACK_PACKAGE_VENDOR "${ARG_PACKAGE_VENDOR}")
   set(CPACK_PACKAGE_CONTACT "${ARG_PACKAGE_CONTACT}")
   set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${ARG_PACKAGE_DESCRIPTION}")
-  
+
   if(ARG_PACKAGE_HOMEPAGE_URL)
     set(CPACK_PACKAGE_HOMEPAGE_URL "${ARG_PACKAGE_HOMEPAGE_URL}")
   endif()
-  
+
   if(ARG_LICENSE_FILE)
     set(CPACK_RESOURCE_FILE_LICENSE "${ARG_LICENSE_FILE}")
   endif()
@@ -241,7 +231,7 @@ function(target_configure_cpack)
   # Configure components
   if(ARG_COMPONENTS)
     set(CPACK_COMPONENTS_ALL ${ARG_COMPONENTS})
-    
+
     # Enable component installation if more than one component or explicitly requested
     list(LENGTH ARG_COMPONENTS component_count)
     if(component_count GREATER 1 OR ARG_ENABLE_COMPONENT_INSTALL)
@@ -252,16 +242,16 @@ function(target_configure_cpack)
         set(CPACK_WIX_COMPONENT_INSTALL ON)
       endif()
     endif()
-    
+
     # Set default components
     if(ARG_DEFAULT_COMPONENTS)
       set(CPACK_COMPONENTS_DEFAULT ${ARG_DEFAULT_COMPONENTS})
     endif()
-    
+
     # Configure component grouping
     if(ARG_COMPONENT_GROUPS)
       set(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
-      
+
       # Set up standard groups
       if("Runtime" IN_LIST ARG_COMPONENTS OR "Development" IN_LIST ARG_COMPONENTS)
         if("Development" IN_LIST ARG_COMPONENTS)
@@ -269,7 +259,7 @@ function(target_configure_cpack)
         endif()
       endif()
     endif()
-    
+
     # Set component descriptions
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
@@ -295,17 +285,24 @@ function(target_configure_cpack)
   # Platform-specific configurations
   if(WIN32 AND "WIX" IN_LIST ARG_GENERATORS)
     # Generate a unique GUID for upgrades
-    string(UUID CPACK_WIX_UPGRADE_GUID NAMESPACE "6BA7B810-9DAD-11D1-80B4-00C04FD430C8" 
-           NAME "${ARG_PACKAGE_NAME}" TYPE SHA1)
+    string(
+      UUID
+      CPACK_WIX_UPGRADE_GUID
+      NAMESPACE
+      "6BA7B810-9DAD-11D1-80B4-00C04FD430C8"
+      NAME
+      "${ARG_PACKAGE_NAME}"
+      TYPE
+      SHA1)
     set(CPACK_WIX_UNINSTALL ON)
   endif()
-  
+
   if(UNIX AND NOT APPLE)
     # Debian-specific settings
     set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}")
-    
-    # RPM-specific settings  
+
+    # RPM-specific settings
     set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
     set(CPACK_RPM_PACKAGE_LICENSE "Unknown")
     if(ARG_LICENSE_FILE)
@@ -318,7 +315,7 @@ function(target_configure_cpack)
     list(LENGTH ARG_ADDITIONAL_CPACK_VARS vars_length)
     math(EXPR pairs_count "${vars_length} / 2")
     math(EXPR remainder "${vars_length} % 2")
-    
+
     if(NOT remainder EQUAL 0)
       message(WARNING "ADDITIONAL_CPACK_VARS must contain an even number of elements (key-value pairs)")
     else()
@@ -334,37 +331,39 @@ function(target_configure_cpack)
   endif()
 
   # Set all CPack variables in parent scope
-  foreach(var_name IN ITEMS
-    CPACK_PACKAGE_NAME
-    CPACK_PACKAGE_VERSION
-    CPACK_PACKAGE_VERSION_MAJOR
-    CPACK_PACKAGE_VERSION_MINOR
-    CPACK_PACKAGE_VERSION_PATCH
-    CPACK_PACKAGE_VENDOR
-    CPACK_PACKAGE_CONTACT
-    CPACK_PACKAGE_DESCRIPTION_SUMMARY
-    CPACK_PACKAGE_HOMEPAGE_URL
-    CPACK_RESOURCE_FILE_LICENSE
-    CPACK_GENERATOR
-    CPACK_COMPONENTS_ALL
-    CPACK_COMPONENTS_DEFAULT
-    CPACK_COMPONENTS_GROUPING
-    CPACK_ARCHIVE_COMPONENT_INSTALL
-    CPACK_DEB_COMPONENT_INSTALL
-    CPACK_RPM_COMPONENT_INSTALL
-    CPACK_WIX_COMPONENT_INSTALL
-    CPACK_WIX_UPGRADE_GUID
-    CPACK_WIX_UNINSTALL
-    CPACK_DEBIAN_FILE_NAME
-    CPACK_DEBIAN_PACKAGE_MAINTAINER
-    CPACK_RPM_FILE_NAME
-    CPACK_RPM_PACKAGE_LICENSE
-  )
+  foreach(
+    var_name IN
+    ITEMS CPACK_PACKAGE_NAME
+          CPACK_PACKAGE_VERSION
+          CPACK_PACKAGE_VERSION_MAJOR
+          CPACK_PACKAGE_VERSION_MINOR
+          CPACK_PACKAGE_VERSION_PATCH
+          CPACK_PACKAGE_VENDOR
+          CPACK_PACKAGE_CONTACT
+          CPACK_PACKAGE_DESCRIPTION_SUMMARY
+          CPACK_PACKAGE_HOMEPAGE_URL
+          CPACK_RESOURCE_FILE_LICENSE
+          CPACK_GENERATOR
+          CPACK_COMPONENTS_ALL
+          CPACK_COMPONENTS_DEFAULT
+          CPACK_COMPONENTS_GROUPING
+          CPACK_ARCHIVE_COMPONENT_INSTALL
+          CPACK_DEB_COMPONENT_INSTALL
+          CPACK_RPM_COMPONENT_INSTALL
+          CPACK_WIX_COMPONENT_INSTALL
+          CPACK_WIX_UPGRADE_GUID
+          CPACK_WIX_UNINSTALL
+          CPACK_DEBIAN_FILE_NAME
+          CPACK_DEBIAN_PACKAGE_MAINTAINER
+          CPACK_RPM_FILE_NAME
+          CPACK_RPM_PACKAGE_LICENSE)
     if(DEFINED ${var_name})
-      set(${var_name} "${${var_name}}" PARENT_SCOPE)
+      set(${var_name}
+          "${${var_name}}"
+          PARENT_SCOPE)
     endif()
   endforeach()
-  
+
   # Set component-specific variables in parent scope
   if(ARG_COMPONENTS)
     foreach(component ${ARG_COMPONENTS})
@@ -372,7 +371,9 @@ function(target_configure_cpack)
       foreach(suffix DESCRIPTION DISPLAY_NAME DEPENDS)
         set(var_name "CPACK_COMPONENT_${component_upper}_${suffix}")
         if(DEFINED ${var_name})
-          set(${var_name} "${${var_name}}" PARENT_SCOPE)
+          set(${var_name}
+              "${${var_name}}"
+              PARENT_SCOPE)
         endif()
       endforeach()
     endforeach()
