@@ -165,8 +165,6 @@ function(target_configure_sources TARGET_NAME)
     return()
   endif()
 
-  target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${ARGS_OUTPUT_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
   if(NOT TARGET_TYPE STREQUAL "EXECUTABLE")
     project_log(DEBUG "  Adding ${SCOPE} headers to FILE_SET ${ARGS_FILE_SET}")
