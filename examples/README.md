@@ -65,6 +65,24 @@ cmake --build .
 cmake --install .
 ```
 
+### Multi-Config Build (All Examples)
+
+```bash
+./build_all_examples.sh --multi-config  # Builds all examples with Debug, Release, MinSizeRel, RelWithDebInfo
+```
+
+### Multi-Config Build (Single Example)
+
+From any example's build directory:
+```bash
+# Configure once for all configurations
+cmake .. -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES="Debug;Release;RelWithDebInfo" -DCMAKE_INSTALL_PREFIX=./install
+# Build each configuration (CMake requires individual --config for each type)
+cmake --build . --config Debug && cmake --build . --config Release && cmake --build . --config RelWithDebInfo
+# Install each configuration  
+cmake --install . --config Debug && cmake --install . --config Release && cmake --install . --config RelWithDebInfo
+```
+
 ### Debug Build with Detailed Logging
 
 ```bash

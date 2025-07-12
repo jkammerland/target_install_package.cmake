@@ -361,6 +361,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         build_type: [Release]
+        config_mode: [single, multi]
         # Define the compilers we will use on each OS
         include:
           - os: windows-latest
@@ -391,7 +392,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-14 g++-14
 
-      - name: Configure and Verify Examples
+      - name: Configure and Verify Examples (Single-Config)
+        if: matrix.config_mode == 'single'
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
@@ -402,8 +404,7 @@ jobs:
             chmod +x examples/build_all_examples.sh
           fi
 
-          # Now, when this script runs, any 'cmake' command inside it will
-          # automatically pick up the CC and CXX environment variables.
+          # Run single-config build (existing behavior)
           examples/build_all_examples.sh
 
           # Cross-platform directory tree output for debugging
@@ -432,3 +433,69 @@ jobs:
           
           echo "✓ CMake configuration of examples/CMakeLists.txt succeeded."
           echo "✓ This confirms the build script ran and all packages were found as expected."
+
+      - name: Configure and Verify Examples (Multi-Config)
+        if: matrix.config_mode == 'multi'
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+        shell: bash
+        run: |
+          # The build script needs execute permissions on Unix-like systems.
+          if [[ "${{ runner.os }}" != "Windows" ]]; then
+            chmod +x examples/build_all_examples.sh
+          fi
+
+          # Run multi-config build (new functionality)
+          examples/build_all_examples.sh --multi-config
+
+          echo "✓ Multi-config build completed successfully"
+
+      - name: Verify Multi-Config Artifacts
+        if: matrix.config_mode == 'multi'
+        shell: bash
+        run: |
+          echo "=== Verifying Multi-Config Build Artifacts ==="
+          
+          # Check both lib and lib64 directories for Unix systems, and bin for Windows DLLs
+          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utilsd.so" ]] || \
+             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.so" ]] || \
+             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.dylib" ]] || \
+             [[ -f "examples/basic-shared/build/install/bin/string_utilsd.dll" ]]; then
+            echo "✓ Debug library with postfix found"
+          else
+            echo "✗ Debug library with postfix NOT found"
+            find examples/basic-shared/build/install -name "*string_utils*" || true
+            exit 1
+          fi
+          
+          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utils.so" ]] || \
+             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.so" ]] || \
+             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.dylib" ]] || \
+             [[ -f "examples/basic-shared/build/install/bin/string_utils.dll" ]]; then
+            echo "✓ Release library found"
+          else
+            echo "✗ Release library NOT found"
+            find examples/basic-shared/build/install -name "*string_utils*" || true
+            exit 1
+          fi
+          
+          # Check for configuration-specific CMake files
+          echo "Checking for configuration-specific CMake files..."
+          config_files_found=0
+          for config in debug release minsizerel relwithdebinfo; do
+            if [[ -f "examples/basic-shared/build/install/share/cmake/string_utils/string_utils-${config}.cmake" ]]; then
+              echo "✓ Found string_utils-${config}.cmake"
+              config_files_found=$((config_files_found + 1))
+            fi
+          done
+          
+          if [[ $config_files_found -ge 3 ]]; then
+            echo "✓ Found $config_files_found configuration-specific CMake files"
+          else
+            echo "✗ Expected at least 3 configuration-specific CMake files, found $config_files_found"
+            find examples/basic-shared/build/install/share/cmake -name "*.cmake" || true
+            exit 1
+          fi
+          
+          echo "✓ Multi-config artifacts verification completed successfully"
