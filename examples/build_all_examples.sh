@@ -124,6 +124,7 @@ EXAMPLES=(
     "basic-shared" 
     "basic-interface"
     "multi-target"
+    "multi-config"
     "components"
     "components-same-export"
     "dependency-aggregation"
