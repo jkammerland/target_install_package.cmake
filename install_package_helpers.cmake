@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.1.2)
+  list_file_include_guard(VERSION 5.2.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -50,6 +50,7 @@ endif()
 #     COMPONENT <component>
 #     RUNTIME_COMPONENT <runtime_component>
 #     DEVELOPMENT_COMPONENT <dev_component>
+#     DEBUG_POSTFIX <postfix>
 #     ADDITIONAL_FILES <files...>
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
@@ -74,6 +75,7 @@ function(target_prepare_package TARGET_NAME)
       COMPONENT
       RUNTIME_COMPONENT
       DEVELOPMENT_COMPONENT
+      DEBUG_POSTFIX
       ADDITIONAL_FILES_DESTINATION)
   set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -138,6 +140,12 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Development component not provided, using default: ${ARG_DEVELOPMENT_COMPONENT}")
   endif()
 
+  # Handle DEBUG_POSTFIX default value
+  if(NOT ARG_DEBUG_POSTFIX)
+    set(ARG_DEBUG_POSTFIX "d")
+    project_log(DEBUG "  Debug postfix not provided, using default: ${ARG_DEBUG_POSTFIX}")
+  endif()
+
   # Set default values using the helper function (skip NAMESPACE and EXPORT_NAME as they're already handled)
   _set_default_args(
     ARG_COMPATIBILITY
@@ -185,6 +193,7 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CMAKE_CONFIG_DESTINATION" "${ARG_CMAKE_CONFIG_DESTINATION}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
 
@@ -458,6 +467,7 @@ function(finalize_package)
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
   get_property(COMPONENT_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
+  get_property(DEBUG_POSTFIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX")
 
   # Collect component information for logging and debugging
   _collect_export_components("${EXPORT_PROPERTY_PREFIX}" "${TARGETS}")
@@ -494,6 +504,14 @@ function(finalize_package)
     endif()
   else()
     project_log(STATUS "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
+  endif()
+
+  # Apply DEBUG_POSTFIX to all targets if specified
+  if(DEBUG_POSTFIX)
+    foreach(TARGET_NAME ${TARGETS})
+      set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
+      project_log(DEBUG "Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for target '${TARGET_NAME}'")
+    endforeach()
   endif()
 
   # Install each target separately with its own components
@@ -666,7 +684,7 @@ function(finalize_package)
     endforeach()
   endif()
 
-  # Install targets export file with config component
+  # Install targets export file with config component CMake automatically handles configuration-specific exports
   install(
     EXPORT ${ARG_EXPORT_NAME}
     FILE ${ARG_EXPORT_NAME}.cmake

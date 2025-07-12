@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.1.2)
+  list_file_include_guard(VERSION 5.2.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -164,8 +164,6 @@ function(target_configure_sources TARGET_NAME)
     project_log(WARNING "target_configure_sources: No files were successfully configured for target ${TARGET_NAME}")
     return()
   endif()
-
-  target_include_directories(${TARGET_NAME} ${SCOPE} $<BUILD_INTERFACE:${ARGS_OUTPUT_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
   if(NOT TARGET_TYPE STREQUAL "EXECUTABLE")
