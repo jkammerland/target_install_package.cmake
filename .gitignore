@@ -15,3 +15,5 @@ CMakeSettings.json
 .claude/
 *build/
 *.cache/
+build-*
+*/test*/*

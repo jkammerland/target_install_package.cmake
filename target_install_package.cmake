@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.1.2)
+  list_file_include_guard(VERSION 5.2.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -49,6 +49,7 @@ endif()
 #     COMPONENT <component>
 #     RUNTIME_COMPONENT <runtime_component>
 #     DEVELOPMENT_COMPONENT <dev_component>
+#     DEBUG_POSTFIX <postfix>
 #     ADDITIONAL_FILES <files...>
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
@@ -69,6 +70,7 @@ endif()
 #   COMPONENT                    - Component name for installation (default: "").
 #   RUNTIME_COMPONENT            - Component for runtime files (default: "Runtime").
 #   DEVELOPMENT_COMPONENT        - Component for development files (default: "Development").
+#   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "files").
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
@@ -81,6 +83,7 @@ endif()
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
+#   - Supports multi-config builds with automatic debug postfix handling.
 #   - Allows custom installation destinations and component separation.
 #
 # Examples:
@@ -94,6 +97,10 @@ endif()
 #     RUNTIME_COMPONENT "Runtime"
 #     DEVELOPMENT_COMPONENT "Dev")
 #
+#   # Multi-config with default debug postfix "d", e.g if debug then -> my_libraryd.so
+#   target_install_package(my_library
+#     DEBUG_POSTFIX "d")
+#
 #   # Install additional files
 #   target_install_package(my_library
 #     ADDITIONAL_FILES
@@ -102,9 +109,9 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION "doc")
 # ~~~
 function(target_install_package TARGET_NAME)
-  # Parse arguments to extract EXPORT_NAME if provided
+  # Parse arguments to extract EXPORT_NAME and new multi-config parameters
   set(options "")
-  set(oneValueArgs EXPORT_NAME)
+  set(oneValueArgs EXPORT_NAME DEBUG_POSTFIX)
   set(multiValueArgs "")
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 

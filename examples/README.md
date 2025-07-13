@@ -10,6 +10,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [basic-shared](basic-shared/) | Shared Library | Versioned shared library with component separation |
 | [basic-interface](basic-interface/) | Interface Library | Header-only template library |
 | [multi-target](multi-target/) | Multi-Library | Multiple libraries in one package |
+| [multi-config](multi-config/) | Multi-Config | Different configurations (Debug/Release) within a single package |
 | [components](components/) | Component-Based | Custom components and selective installation |
 | [components-same-export](components-same-export/) | Multi-Target Export | Correct pattern for multiple targets with dependency aggregation |
 | [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
@@ -31,9 +32,9 @@ cmake --build .
 cmake --install .
 ```
 
-## 📖 Learning Path
+## 📖 Learning
 
-### 1. Start with Basic Examples
+### 1. Basic Examples
 
 Begin with the basic examples to understand core concepts:
 
@@ -41,11 +42,12 @@ Begin with the basic examples to understand core concepts:
 2. **[basic-shared](basic-shared/)** - Understand shared library versioning and components
 3. **[basic-interface](basic-interface/)** - Explore header-only library distribution
 
-### 2. Advance to Complex Scenarios
+### 2. More Complex Scenarios
 
 Progress to more sophisticated packaging strategies:
 
 4. **[multi-target](multi-target/)** - Package multiple related libraries together
+5. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
 5. **[components](components/)** - Implement flexible component-based installation
 6. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (recommended pattern)
 7. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
@@ -61,6 +63,24 @@ mkdir build && cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=./install
 cmake --build .
 cmake --install .
+```
+
+### Multi-Config Build (All Examples)
+
+```bash
+./build_all_examples.sh --multi-config  # Builds all examples with Debug, Release, MinSizeRel, RelWithDebInfo
+```
+
+### Multi-Config Build (Single Example)
+
+From any example's build directory:
+```bash
+# Configure once for all configurations
+cmake .. -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES="Debug;Release;RelWithDebInfo" -DCMAKE_INSTALL_PREFIX=./install
+# Build each configuration (CMake requires individual --config for each type)
+cmake --build . --config Debug && cmake --build . --config Release && cmake --build . --config RelWithDebInfo
+# Install each configuration  
+cmake --install . --config Debug && cmake --install . --config Release && cmake --install . --config RelWithDebInfo
 ```
 
 ### Debug Build with Detailed Logging
@@ -127,7 +147,7 @@ install/
 ### Cross-Platform Support
 
 - **GNUInstallDirs**: Standard installation directories
-- **Component Separation**: Runtime vs development file organization
+- **Component Separation**: Runtime vs Development file organization
 
 ## 🛠️ Example-Specific Features
 
@@ -150,6 +170,9 @@ install/
 - Multiple libraries in one package
 - ADDITIONAL_TARGETS usage
 - Transitive dependency management
+
+### Multi-Target ([multi-config](multi-config/))
+- Example showing configuration for different build types support
 
 ### Components ([components](components/))
 - Custom component names
@@ -229,14 +252,15 @@ cmake --find-package -DNAME=<package> -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EX
 
 When adding new examples:
 
-1. Follow the established directory structure
-2. Include a comprehensive README.md
-3. Use `CMAKE_INSTALL_PREFIX=./install` for consistency
-4. Demonstrate specific features clearly
-5. Provide working consumer code examples
+1. Include a README.md
+2. Demonstrate specific features clearly
+3. Add example dir to [build_all_examples.sh](build_all_examples.sh) 
+4. Add find_package to this [CMakeLists.txt](CMakeLists.txt)
 
 ## 📚 Further Reading
 
+- [install_package_helper.cmake](../install_package_helpers.cmake) - **target_prepare_package(...) & finalize_package(...)**
 - [target_install_package.cmake](../target_install_package.cmake) - Function implementation
 - [target_configure_sources.cmake](../target_configure_sources.cmake) - Configuration utilities
+- [target_configure_cpack.cmake](../target_configure_cpack.cmake) - Packaging utilities
 - [CMake Documentation](https://cmake.org/cmake/help/latest/) - Official CMake reference
