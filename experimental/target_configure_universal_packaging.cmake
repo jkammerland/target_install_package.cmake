@@ -12,6 +12,9 @@ endif()
 
 include(GNUInstallDirs)
 
+# Capture the directory containing this file for template lookups
+set(_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR "${CMAKE_CURRENT_LIST_DIR}")
+
 # Global properties to store universal packaging configuration
 define_property(
   GLOBAL
@@ -120,10 +123,16 @@ function(configure_universal_packaging)
 
   if(NOT ARG_SOURCE_URL)
     set(ARG_SOURCE_URL "")
+  else()
+    # Replace @VERSION@ in SOURCE_URL
+    string(REPLACE "@VERSION@" "${ARG_VERSION}" ARG_SOURCE_URL "${ARG_SOURCE_URL}")
   endif()
 
   if(NOT ARG_SOURCE_DIR)
-    set(ARG_SOURCE_DIR "${ARG_NAME}-@VERSION@")
+    set(ARG_SOURCE_DIR "${ARG_NAME}-${ARG_VERSION}")
+  else()
+    # Replace @VERSION@ in SOURCE_DIR
+    string(REPLACE "@VERSION@" "${ARG_VERSION}" ARG_SOURCE_DIR "${ARG_SOURCE_DIR}")
   endif()
 
   # Store metadata as global properties
@@ -429,7 +438,7 @@ function(_substitute_template_variables input_text output_var)
     string(REPLACE "@${key}@" "${value}" result "${result}")
   endforeach()
 
-  # Also substitute @VERSION@ with the actual version in URLs
+  # Also substitute @VERSION@ with the actual version in URLs  
   foreach(i RANGE ${max_index})
     math(EXPR key_index "${i} * 2")
     math(EXPR value_index "${key_index} + 1")
@@ -562,7 +571,7 @@ function(_create_pkgbuild_template output_dir components metadata arch_config is
   endif()
 
   # Read PKGBUILD template
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/arch/PKGBUILD.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/arch/PKGBUILD.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "PKGBUILD template not found: ${template_file}")
   endif()
@@ -590,9 +599,24 @@ function(_create_pkgbuild_template output_dir components metadata arch_config is
     set(ARCH_OPTDEPENDS_LINE "")
   endif()
 
+  # Get SOURCE_URL and SOURCE_DIR from metadata
+  set(SOURCE_URL "")
+  set(SOURCE_DIR "")
+  foreach(i RANGE ${max_index})
+    math(EXPR key_index "${i} * 2")
+    math(EXPR value_index "${key_index} + 1")
+    list(GET metadata ${key_index} key)
+    list(GET metadata ${value_index} value)
+    if(key STREQUAL "SOURCE_URL")
+      set(SOURCE_URL "${value}")
+    elseif(key STREQUAL "SOURCE_DIR")
+      set(SOURCE_DIR "${value}")
+    endif()
+  endforeach()
+
   # Set source section for non-binary packages
   if(NOT is_binary)
-    set(ARCH_SOURCE_SECTION "source=(\"@SOURCE_URL@\")
+    set(ARCH_SOURCE_SECTION "source=(\"${SOURCE_URL}\")
 sha256sums=('SKIP')  # Replace with actual checksum")
   else()
     set(ARCH_SOURCE_SECTION "")
@@ -601,7 +625,7 @@ sha256sums=('SKIP')  # Replace with actual checksum")
   # Set build function for non-binary packages
   if(NOT is_binary)
     set(ARCH_BUILD_FUNCTION "build() {
-    cd \"@SOURCE_DIR@\"
+    cd \"${SOURCE_DIR}\"
 
     # Default CMake build
     cmake -B build \\
@@ -626,7 +650,7 @@ sha256sums=('SKIP')  # Replace with actual checksum")
 
   # Set package function content
   if(NOT is_binary)
-    set(ARCH_PACKAGE_CONTENT "    cd \"@SOURCE_DIR@\"
+    set(ARCH_PACKAGE_CONTENT "    cd \"${SOURCE_DIR}\"
 
     # Install using CMake
     DESTDIR=\"\$pkgdir\" cmake --install build")
@@ -645,6 +669,16 @@ sha256sums=('SKIP')  # Replace with actual checksum")
 
   # Substitute variables and write file
   _substitute_template_variables("${pkgbuild_content}" substituted_content)
+  
+  # Substitute additional ARCH-specific variables
+  string(REPLACE "@ARCH_ARCH@" "${ARCH_ARCH}" substituted_content "${substituted_content}")
+  string(REPLACE "@ARCH_DEPENDS_LINE@" "${ARCH_DEPENDS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@ARCH_MAKEDEPENDS_LINE@" "${ARCH_MAKEDEPENDS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@ARCH_OPTDEPENDS_LINE@" "${ARCH_OPTDEPENDS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@ARCH_SOURCE_SECTION@" "${ARCH_SOURCE_SECTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@ARCH_BUILD_FUNCTION@" "${ARCH_BUILD_FUNCTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@ARCH_PACKAGE_CONTENT@" "${ARCH_PACKAGE_CONTENT}" substituted_content "${substituted_content}")
+  
   file(WRITE "${filename}" "${substituted_content}")
 
   message(STATUS "Created PKGBUILD template: ${filename}")
@@ -653,7 +687,7 @@ endfunction()
 # Helper function to create Arch Linux helper scripts
 function(_create_arch_helper_scripts output_dir)
   # Read and write build script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/arch/build.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/arch/build.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Arch build script template not found: ${template_file}")
   endif()
@@ -661,7 +695,7 @@ function(_create_arch_helper_scripts output_dir)
   file(WRITE "${output_dir}/build.sh" "${build_script}")
 
   # Read and write clean script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/arch/clean.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/arch/clean.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Arch clean script template not found: ${template_file}")
   endif()
@@ -669,7 +703,7 @@ function(_create_arch_helper_scripts output_dir)
   file(WRITE "${output_dir}/clean.sh" "${clean_script}")
 
   # Read and write install script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/arch/install.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/arch/install.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Arch install script template not found: ${template_file}")
   endif()
@@ -727,7 +761,7 @@ function(_create_apkbuild_template output_dir components metadata alpine_config 
   endif()
 
   # Read APKBUILD template
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/alpine/APKBUILD.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/alpine/APKBUILD.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "APKBUILD template not found: ${template_file}")
   endif()
@@ -755,9 +789,24 @@ function(_create_apkbuild_template output_dir components metadata alpine_config 
     set(ALPINE_CHECKDEPENDS_LINE "")
   endif()
 
+  # Get SOURCE_URL and SOURCE_DIR from metadata
+  set(SOURCE_URL "")
+  set(SOURCE_DIR "")
+  foreach(i RANGE ${max_index})
+    math(EXPR key_index "${i} * 2")
+    math(EXPR value_index "${key_index} + 1")
+    list(GET metadata ${key_index} key)
+    list(GET metadata ${value_index} value)
+    if(key STREQUAL "SOURCE_URL")
+      set(SOURCE_URL "${value}")
+    elseif(key STREQUAL "SOURCE_DIR")
+      set(SOURCE_DIR "${value}")
+    endif()
+  endforeach()
+
   # Set source section for non-binary packages
   if(NOT is_binary)
-    set(ALPINE_SOURCE_SECTION "source=\"@SOURCE_URL@\"
+    set(ALPINE_SOURCE_SECTION "source=\"${SOURCE_URL}\"
 sha256sums=('SKIP')  # Replace with actual checksum")
   else()
     set(ALPINE_SOURCE_SECTION "")
@@ -767,7 +816,7 @@ sha256sums=('SKIP')  # Replace with actual checksum")
   if(ALPINE_CUSTOM_PREPARE)
     set(ALPINE_PREPARE_FUNCTION "prepare() {
     default_prepare
-    cd \"@SOURCE_DIR@\"
+    cd \"${SOURCE_DIR}\"
 
     # Custom prepare commands
     ${ALPINE_CUSTOM_PREPARE}
@@ -779,7 +828,7 @@ sha256sums=('SKIP')  # Replace with actual checksum")
   # Set build function for non-binary packages
   if(NOT is_binary)
     set(ALPINE_BUILD_FUNCTION "build() {
-    cd \"@SOURCE_DIR@\"
+    cd \"${SOURCE_DIR}\"
 
     # Default CMake build
     cmake -B build \\
@@ -805,7 +854,7 @@ sha256sums=('SKIP')  # Replace with actual checksum")
   # Set check function for non-binary packages
   if(NOT is_binary)
     set(ALPINE_CHECK_FUNCTION "check() {
-    cd \"@SOURCE_DIR@\"
+    cd \"${SOURCE_DIR}\"
 
     # Run tests if available
     cmake --build build --target test || true
@@ -816,7 +865,7 @@ sha256sums=('SKIP')  # Replace with actual checksum")
 
   # Set package function content
   if(NOT is_binary)
-    set(ALPINE_PACKAGE_CONTENT "    cd \"@SOURCE_DIR@\"
+    set(ALPINE_PACKAGE_CONTENT "    cd \"${SOURCE_DIR}\"
 
     # Install using CMake
     DESTDIR=\"\$pkgdir\" cmake --install build")
@@ -835,6 +884,18 @@ sha256sums=('SKIP')  # Replace with actual checksum")
 
   # Substitute variables and write file
   _substitute_template_variables("${apkbuild_content}" substituted_content)
+  
+  # Substitute additional ALPINE-specific variables
+  string(REPLACE "@ALPINE_ARCH@" "${ALPINE_ARCH}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_DEPENDS_LINE@" "${ALPINE_DEPENDS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_MAKEDEPENDS_LINE@" "${ALPINE_MAKEDEPENDS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_CHECKDEPENDS_LINE@" "${ALPINE_CHECKDEPENDS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_SOURCE_SECTION@" "${ALPINE_SOURCE_SECTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_PREPARE_FUNCTION@" "${ALPINE_PREPARE_FUNCTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_BUILD_FUNCTION@" "${ALPINE_BUILD_FUNCTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_CHECK_FUNCTION@" "${ALPINE_CHECK_FUNCTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@ALPINE_PACKAGE_CONTENT@" "${ALPINE_PACKAGE_CONTENT}" substituted_content "${substituted_content}")
+  
   file(WRITE "${filename}" "${substituted_content}")
 
   message(STATUS "Created APKBUILD template: ${filename}")
@@ -843,7 +904,7 @@ endfunction()
 # Helper function to create Alpine Linux helper scripts
 function(_create_alpine_helper_scripts output_dir)
   # Read and write build script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/alpine/build.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/alpine/build.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Alpine build script template not found: ${template_file}")
   endif()
@@ -851,7 +912,7 @@ function(_create_alpine_helper_scripts output_dir)
   file(WRITE "${output_dir}/build.sh" "${build_script}")
 
   # Read and write clean script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/alpine/clean.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/alpine/clean.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Alpine clean script template not found: ${template_file}")
   endif()
@@ -859,7 +920,7 @@ function(_create_alpine_helper_scripts output_dir)
   file(WRITE "${output_dir}/clean.sh" "${clean_script}")
 
   # Read and write install script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/alpine/install.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/alpine/install.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Alpine install script template not found: ${template_file}")
   endif()
@@ -931,7 +992,7 @@ function(_create_nix_default output_dir components metadata nix_config is_binary
   endif()
 
   # Read default.nix template
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/nix/default.nix.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/nix/default.nix.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Nix default.nix template not found: ${template_file}")
   endif()
@@ -954,10 +1015,22 @@ function(_create_nix_default output_dir components metadata nix_config is_binary
 
   set(NIX_BUILD_INPUT_HEADER "${NIX_BUILD_INPUT_HEADER} }:")
 
+  # Get SOURCE_URL from metadata
+  set(SOURCE_URL "")
+  foreach(i RANGE ${max_index})
+    math(EXPR key_index "${i} * 2")
+    math(EXPR value_index "${key_index} + 1")
+    list(GET metadata ${key_index} key)
+    list(GET metadata ${value_index} value)
+    if(key STREQUAL "SOURCE_URL")
+      set(SOURCE_URL "${value}")
+    endif()
+  endforeach()
+
   # Set source section
   if(NOT is_binary)
     set(NIX_SOURCE_SECTION "  src = fetchurl {
-    url = \"@SOURCE_URL@\";
+    url = \"${SOURCE_URL}\";
     sha256 = \"0000000000000000000000000000000000000000000000000000\";  # Replace with actual hash
   };")
   else()
@@ -1016,6 +1089,17 @@ function(_create_nix_default output_dir components metadata nix_config is_binary
 
   # Substitute variables and write file
   _substitute_template_variables("${nix_content}" substituted_content)
+  
+  # Substitute additional NIX-specific variables
+  string(REPLACE "@NIX_BUILD_INPUT_HEADER@" "${NIX_BUILD_INPUT_HEADER}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_SOURCE_SECTION@" "${NIX_SOURCE_SECTION}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_BUILD_INPUTS_LINE@" "${NIX_BUILD_INPUTS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_NATIVE_BUILD_INPUTS_LINE@" "${NIX_NATIVE_BUILD_INPUTS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_PROPAGATED_BUILD_INPUTS_LINE@" "${NIX_PROPAGATED_BUILD_INPUTS_LINE}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_CONFIGURE_PHASE@" "${NIX_CONFIGURE_PHASE}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_BUILD_PHASE@" "${NIX_BUILD_PHASE}" substituted_content "${substituted_content}")
+  string(REPLACE "@NIX_INSTALL_PHASE@" "${NIX_INSTALL_PHASE}" substituted_content "${substituted_content}")
+  
   file(WRITE "${filename}" "${substituted_content}")
 
   message(STATUS "Created Nix expression template: ${filename}")
@@ -1031,7 +1115,7 @@ function(_create_nix_flake output_dir components metadata nix_config is_binary)
   endif()
 
   # Read flake.nix template
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/nix/flake.nix.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/nix/flake.nix.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Nix flake.nix template not found: ${template_file}")
   endif()
@@ -1047,6 +1131,10 @@ function(_create_nix_flake output_dir components metadata nix_config is_binary)
 
   # Substitute variables and write file
   _substitute_template_variables("${flake_content}" substituted_content)
+  
+  # Substitute additional NIX-specific variables
+  string(REPLACE "@NIX_DEV_SHELL_INPUTS@" "${NIX_DEV_SHELL_INPUTS}" substituted_content "${substituted_content}")
+  
   file(WRITE "${filename}" "${substituted_content}")
 
   message(STATUS "Created Nix flake template: ${filename}")
@@ -1055,7 +1143,7 @@ endfunction()
 # Helper function to create Nix helper scripts
 function(_create_nix_helper_scripts output_dir)
   # Read and write build script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/nix/build.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/nix/build.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Nix build script template not found: ${template_file}")
   endif()
@@ -1063,7 +1151,7 @@ function(_create_nix_helper_scripts output_dir)
   file(WRITE "${output_dir}/build.sh" "${build_script}")
 
   # Read and write clean script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/nix/clean.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/nix/clean.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Nix clean script template not found: ${template_file}")
   endif()
@@ -1071,7 +1159,7 @@ function(_create_nix_helper_scripts output_dir)
   file(WRITE "${output_dir}/clean.sh" "${clean_script}")
 
   # Read and write install script
-  set(template_file "${CMAKE_CURRENT_LIST_DIR}/templates/nix/install.sh.in")
+  set(template_file "${_TARGET_CONFIGURE_UNIVERSAL_PACKAGING_DIR}/templates/nix/install.sh.in")
   if(NOT EXISTS "${template_file}")
     message(FATAL_ERROR "Nix install script template not found: ${template_file}")
   endif()
