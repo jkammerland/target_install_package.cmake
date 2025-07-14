@@ -1,0 +1,42 @@
+cmake_minimum_required(VERSION 3.25)
+project(universal_packaging_test VERSION 1.0.0)
+
+# Include the experimental universal packaging
+include(@PROJECT_ROOT@/experimental/target_configure_universal_packaging.cmake)
+
+# Configure universal packaging
+configure_universal_packaging(
+    NAME "cpack_lib"
+    VERSION "1.2.0"
+    DESCRIPTION "Test library for packaging"
+    LICENSE "MIT"
+    MAINTAINER "Test User <test@example.com>"
+    HOMEPAGE_URL "https://github.com/example/cpack_lib"
+    SOURCE_URL "https://github.com/example/cpack_lib/archive/v@VERSION@.tar.gz"
+)
+
+# Configure platform-specific settings
+configure_arch_packaging(
+    MAKEDEPENDS "cmake gcc"
+    DEPENDS ""
+    ARCH "x86_64"
+)
+
+configure_alpine_packaging(
+    MAKEDEPENDS "cmake g++ make"
+    DEPENDS ""
+    ARCH "x86_64"
+)
+
+configure_nix_packaging(
+    BUILD_INPUTS ""
+    NATIVE_BUILD_INPUTS "cmake gcc"
+    FLAKE_ENABLED
+)
+
+# Generate templates
+generate_packaging_templates(
+    PLATFORMS arch alpine nix
+    OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/packaging-templates"
+    SOURCE_PACKAGES
+)

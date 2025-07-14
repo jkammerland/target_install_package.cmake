@@ -1,0 +1,4 @@
+#!/bin/bash
+# Clean build artifacts
+rm -rf src/ pkg/ *.apk *.log
+echo "Build artifacts cleaned"
