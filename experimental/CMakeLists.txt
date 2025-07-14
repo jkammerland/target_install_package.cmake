@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 project(test_universal_packaging VERSION 1.0.0)
 
 # Include our universal packaging framework
-include(../target_configure_universal_packaging.cmake)
+include(target_configure_universal_packaging.cmake)
 
 # Configure universal packaging metadata
 configure_universal_packaging(
