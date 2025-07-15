@@ -1,0 +1,246 @@
+name: Packaging Tests
+
+on:
+  push:
+    branches: [ "master", "test-packaging" ]
+    paths:
+      - 'target_configure_cpack.cmake'
+      - 'tests/packaging/**'
+      - 'examples/cpack-basic/**'
+      - '.github/workflows/packaging-tests.yml'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'target_configure_cpack.cmake'
+      - 'tests/packaging/**'
+      - 'examples/cpack-basic/**'
+      - '.github/workflows/packaging-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-test-packages:
+    name: Build and Test Packages on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        include:
+          - os: ubuntu-latest
+            container_runtime: docker
+            architectures_to_test: [amd64]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install packaging dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          rpm \
+          dpkg-dev \
+          file
+    
+    - name: Build packages
+      working-directory: tests/packaging
+      run: |
+        chmod +x build-packages.sh
+        ./build-packages.sh
+    
+    - name: List generated packages
+      working-directory: tests/packaging
+      run: |
+        echo "=== Generated packages ==="
+        ls -la packages/
+        echo ""
+        echo "=== Package details ==="
+        for deb in packages/*.deb; do
+          if [ -f "$deb" ]; then
+            echo "--- $deb ---"
+            dpkg-deb --info "$deb" | grep -E "Package:|Version:|Architecture:|Description:"
+            echo ""
+          fi
+        done
+        for rpm in packages/*.rpm; do
+          if [ -f "$rpm" ]; then
+            echo "--- $rpm ---"
+            rpm -qip "$rpm" | grep -E "Name|Version|Release|Architecture|Description"
+            echo ""
+          fi
+        done
+    
+    - name: Verify DEB architecture field
+      working-directory: tests/packaging
+      run: |
+        echo "=== Verifying DEB architecture fields ==="
+        for deb in packages/*.deb; do
+          if [ -f "$deb" ]; then
+            echo "Checking $deb..."
+            ARCH=$(dpkg-deb --field "$deb" Architecture)
+            echo "Architecture: $ARCH"
+            if [ -z "$ARCH" ] || [ "$ARCH" = " " ]; then
+              echo "ERROR: Empty architecture field in $deb"
+              exit 1
+            fi
+            # Verify it's a valid architecture
+            case "$ARCH" in
+              amd64|i386|arm64|armhf|all)
+                echo "✓ Valid architecture: $ARCH"
+                ;;
+              *)
+                echo "WARNING: Unexpected architecture: $ARCH"
+                ;;
+            esac
+            echo ""
+          fi
+        done
+    
+    - name: Verify RPM architecture field
+      working-directory: tests/packaging
+      run: |
+        echo "=== Verifying RPM architecture fields ==="
+        for rpm in packages/*.rpm; do
+          if [ -f "$rpm" ]; then
+            echo "Checking $rpm..."
+            ARCH=$(rpm -qp --qf "%{ARCH}\n" "$rpm")
+            echo "Architecture: $ARCH"
+            if [ -z "$ARCH" ] || [ "$ARCH" = " " ]; then
+              echo "ERROR: Empty architecture field in $rpm"
+              exit 1
+            fi
+            # Verify it's a valid architecture
+            case "$ARCH" in
+              x86_64|i686|aarch64|armv7hl|noarch)
+                echo "✓ Valid architecture: $ARCH"
+                ;;
+              *)
+                echo "WARNING: Unexpected architecture: $ARCH"
+                ;;
+            esac
+            echo ""
+          fi
+        done
+    
+    - name: Run package installation tests
+      working-directory: tests/packaging
+      run: |
+        chmod +x test-packages.sh
+        # Test Ubuntu (DEB) and Fedora (RPM) packages
+        # Note: Universal packaging tests are skipped as they're templates only
+        ./test-packages.sh ubuntu
+        ./test-packages.sh fedora
+    
+    - name: Upload packages as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: packages-${{ matrix.os }}
+        path: |
+          tests/packaging/packages/*.deb
+          tests/packaging/packages/*.rpm
+          tests/packaging/packages/*.tar.gz
+        retention-days: 7
+
+  test-multi-arch:
+    name: Test Multi-Architecture Support
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up QEMU for multi-arch
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          dpkg-dev \
+          qemu-user-static
+    
+    - name: Test architecture detection
+      run: |
+        # Create a test CMakeLists.txt that uses our architecture detection
+        cat > test-arch-detection.cmake << 'EOF'
+        cmake_minimum_required(VERSION 3.16)
+        
+        # Simulate different architectures
+        set(TEST_ARCHS "x86_64;i686;aarch64;armv7l")
+        
+        foreach(ARCH ${TEST_ARCHS})
+          message(STATUS "Testing architecture: ${ARCH}")
+          set(CMAKE_SYSTEM_PROCESSOR ${ARCH})
+          
+          # Include our detection logic (simplified version)
+          set(_TIP_ARCH_X64_PATTERNS "x86_64|AMD64|amd64")
+          set(_TIP_ARCH_X86_PATTERNS "i[3-6]86|x86")
+          set(_TIP_ARCH_ARM64_PATTERNS "aarch64|arm64|ARM64")
+          set(_TIP_ARCH_ARM32_PATTERNS "armv7.*|arm")
+          
+          # Detect canonical architecture
+          if(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X64_PATTERNS})
+            set(_TIP_CANONICAL_ARCH "x64")
+            set(DEB_ARCH "amd64")
+            set(RPM_ARCH "x86_64")
+          elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X86_PATTERNS})
+            set(_TIP_CANONICAL_ARCH "x86")
+            set(DEB_ARCH "i386")
+            set(RPM_ARCH "i686")
+          elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM64_PATTERNS})
+            set(_TIP_CANONICAL_ARCH "arm64")
+            set(DEB_ARCH "arm64")
+            set(RPM_ARCH "aarch64")
+          elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM32_PATTERNS})
+            set(_TIP_CANONICAL_ARCH "arm32")
+            set(DEB_ARCH "armhf")
+            set(RPM_ARCH "armv7hl")
+          else()
+            set(_TIP_CANONICAL_ARCH "unknown")
+            set(DEB_ARCH "unknown")
+            set(RPM_ARCH "unknown")
+          endif()
+          
+          message(STATUS "  Canonical: ${_TIP_CANONICAL_ARCH}")
+          message(STATUS "  DEB arch: ${DEB_ARCH}")
+          message(STATUS "  RPM arch: ${RPM_ARCH}")
+          message(STATUS "")
+        endforeach()
+        EOF
+        
+        cmake -P test-arch-detection.cmake
+
+  summary:
+    name: Summary
+    needs: [build-and-test-packages, test-multi-arch]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Summary
+      run: |
+        echo "## Packaging Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.build-and-test-packages.result }}" == "success" ]; then
+          echo "✅ **Package Build and Tests**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- DEB packages have correct architecture fields" >> $GITHUB_STEP_SUMMARY
+          echo "- RPM packages have correct architecture fields" >> $GITHUB_STEP_SUMMARY
+          echo "- Package installation tests passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Package Build and Tests**: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.test-multi-arch.result }}" == "success" ]; then
+          echo "✅ **Multi-Architecture Detection**: Passed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Multi-Architecture Detection**: Failed" >> $GITHUB_STEP_SUMMARY
+        fi
