@@ -20,6 +20,7 @@ fi
 echo "Building package from APKBUILD..."
 
 # Copy APKBUILD to working directory
+mkdir -p /tmp/build
 cp -r "$APKBUILD_DIR"/* /tmp/build/
 cd /tmp/build
 

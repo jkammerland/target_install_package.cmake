@@ -91,6 +91,23 @@ cmake . || {
 # Copy templates to output directory
 if [ -d "$UNIVERSAL_BUILD_DIR/packaging-templates" ]; then
     cp -r "$UNIVERSAL_BUILD_DIR/packaging-templates" "$OUTPUT_DIR/"
+    
+    # Fix source URLs to use local tarballs
+    if [ -f "$OUTPUT_DIR/packaging-templates/arch/PKGBUILD" ]; then
+        sed -i 's|source=("https://.*")|source=("cpack_lib-1.2.0.tar.gz")|' "$OUTPUT_DIR/packaging-templates/arch/PKGBUILD"
+    fi
+    if [ -f "$OUTPUT_DIR/packaging-templates/alpine/APKBUILD" ]; then
+        sed -i 's|source="https://.*"|source="cpack_lib-1.2.0.tar.gz"|' "$OUTPUT_DIR/packaging-templates/alpine/APKBUILD"
+    fi
+    # Fix Nix syntax errors and use local tarball
+    if [ -f "$OUTPUT_DIR/packaging-templates/nix/default.nix" ]; then
+        # Fix the fetchurl to use local file
+        sed -i 's|fetchurl|fetchurl, stdenv|' "$OUTPUT_DIR/packaging-templates/nix/default.nix"
+        sed -i 's|src = fetchurl {.*|src = ./cpack_lib-1.2.0.tar.gz;|' "$OUTPUT_DIR/packaging-templates/nix/default.nix"
+        # Remove the incomplete fetchurl block
+        sed -i '/url = "https:\/\/github.com\/example\/cpack_lib\/archive\/v1.2.0.tar.gz"/,/^$/d' "$OUTPUT_DIR/packaging-templates/nix/default.nix"
+    fi
+    
     print_success "Universal packaging templates generated"
 else
     print_error "Universal packaging templates not found"

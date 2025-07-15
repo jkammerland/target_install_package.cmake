@@ -148,8 +148,12 @@ test_alpine() {
     build_docker_image "alpine" || return 1
     
     print_status "Running Alpine container test..."
+    # Debug: Show what we're mounting
+    print_status "Mounting Alpine directory: $apkbuild_dir"
+    ls -la "$apkbuild_dir" | head -5
+    
     $CONTAINER_RUNTIME run --rm \
-        -v "$apkbuild_dir:/test/apkbuild:ro" \
+        -v "$apkbuild_dir:/test/apkbuild:Z" \
         "target-install-package-test:alpine" \
         "/test/apkbuild" || {
         print_error "Alpine test failed"
@@ -221,8 +225,12 @@ test_nix() {
     build_docker_image "nix" || return 1
     
     print_status "Running Nix container test..."
+    # Debug: Show what we're mounting
+    print_status "Mounting Nix directory: $nix_dir"
+    ls -la "$nix_dir" | head -5
+    
     $CONTAINER_RUNTIME run --rm \
-        -v "$nix_dir:/test/nix:ro" \
+        -v "$nix_dir:/test/nix:Z" \
         "target-install-package-test:nix" \
         "/test/nix" || {
         print_error "Nix test failed"
