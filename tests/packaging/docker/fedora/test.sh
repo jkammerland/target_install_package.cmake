@@ -31,11 +31,21 @@ echo "Package installed successfully"
 echo "Verifying installation..."
 
 # Test 1: Check if libraries were installed
-if [ -f /usr/lib64/libcpack_lib.so ] || [ -f /usr/lib/libcpack_lib.so ]; then
-    echo "✓ Runtime library found"
-else
-    echo "✗ Runtime library not found"
-    exit 1
+LIBRARY_FOUND=false
+for libdir in /usr/lib64 /usr/lib /usr/local/lib64 /usr/local/lib; do
+    if [ -f "$libdir/libcpack_lib.so" ] || [ -f "$libdir/libcpack_lib.so.5" ]; then
+        echo "✓ Runtime library found in $libdir"
+        LIBRARY_FOUND=true
+        break
+    fi
+done
+
+# For runtime packages, library must be found
+if rpm -qa | grep -qi "runtime"; then
+    if [ "$LIBRARY_FOUND" = false ]; then
+        echo "✗ Runtime library not found in any standard location"
+        exit 1
+    fi
 fi
 
 # Test 2: Check if headers were installed (for development packages)

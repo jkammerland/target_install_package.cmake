@@ -69,11 +69,23 @@ echo "Package installed successfully"
 echo "Verifying installation..."
 
 # Test 1: Check if libraries were installed
+LIBRARY_FOUND=false
 if find "$RESULT_PATH" -name "libcpack_lib.so*" | grep -q .; then
     echo "✓ Runtime library found in result"
-else
-    echo "✗ Runtime library not found"
-    exit 1
+    LIBRARY_FOUND=true
+fi
+
+# For packages that include runtime components, library should be found
+# In Nix, check the derivation name or output path
+if [ "$LIBRARY_FOUND" = false ]; then
+    # Check if this might be a development-only package
+    if find "$RESULT_PATH" -path "*/include/*" -type f | grep -q . && \
+       ! find "$RESULT_PATH" -name "*.so*" | grep -q .; then
+        echo "Note: This appears to be a development-only package"
+    else
+        echo "✗ Runtime library not found"
+        exit 1
+    fi
 fi
 
 # Test 2: Check if headers were installed

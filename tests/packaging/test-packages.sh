@@ -67,11 +67,19 @@ build_docker_image() {
 test_ubuntu() {
     print_status "Testing Ubuntu package..."
     
-    local deb_file=$(find "$PACKAGES_DIR" -name "*.deb" | head -1)
+    # Find runtime package specifically
+    local deb_file=$(find "$PACKAGES_DIR" -name "*runtime*.deb" | head -1)
+    if [ -z "$deb_file" ]; then
+        # Fallback to any .deb file
+        deb_file=$(find "$PACKAGES_DIR" -name "*.deb" | head -1)
+    fi
+    
     if [ -z "$deb_file" ]; then
         print_error "No DEB package found in $PACKAGES_DIR"
         return 1
     fi
+    
+    print_status "Testing package: $(basename "$deb_file")"
     
     build_docker_image "ubuntu" || return 1
     
@@ -92,20 +100,27 @@ test_ubuntu() {
 test_fedora() {
     print_status "Testing Fedora package..."
     
-    local rpm_file=$(find "$PACKAGES_DIR" -name "*.rpm" | head -1)
+    # Find runtime package specifically
+    local rpm_file=$(find "$PACKAGES_DIR" -name "*Runtime*.rpm" | head -1)
+    if [ -z "$rpm_file" ]; then
+        # Fallback to any .rpm file
+        rpm_file=$(find "$PACKAGES_DIR" -name "*.rpm" | head -1)
+    fi
+    
     if [ -z "$rpm_file" ]; then
         print_error "No RPM package found in $PACKAGES_DIR"
         return 1
     fi
     
+    print_status "Testing package: $(basename "$rpm_file")"
+    
     build_docker_image "fedora" || return 1
     
     print_status "Running Fedora container test..."
-    print_status "rpm_file: $rpm_file"
     $CONTAINER_RUNTIME run --rm \
     -v "$rpm_file:/test/package.rpm:Z" \
     "target-install-package-test:fedora" \
-    rpm -i /test/package.rpm || {
+    "/test/package.rpm" || {
     print_error "Fedora test failed"
     return 1
     }
