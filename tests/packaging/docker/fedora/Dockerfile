@@ -12,7 +12,7 @@ RUN dnf install -y \
 # Set working directory
 WORKDIR /test
 
-# Copy test script
+# # Copy test script
 COPY test.sh /test/test.sh
 RUN chmod +x /test/test.sh
 

@@ -77,11 +77,11 @@ test_ubuntu() {
     
     print_status "Running Ubuntu container test..."
     $CONTAINER_RUNTIME run --rm \
-        -v "$deb_file:/test/package.deb:ro" \
-        "target-install-package-test:ubuntu" \
-        "/test/package.deb" || {
-        print_error "Ubuntu test failed"
-        return 1
+    -v "$deb_file:/test/package.deb:Z" \
+    "target-install-package-test:ubuntu" \
+    "/test/package.deb" || {
+    print_error "Ubuntu test failed"
+    return 1
     }
     
     print_success "Ubuntu test passed"
@@ -101,12 +101,13 @@ test_fedora() {
     build_docker_image "fedora" || return 1
     
     print_status "Running Fedora container test..."
+    print_status "rpm_file: $rpm_file"
     $CONTAINER_RUNTIME run --rm \
-        -v "$rpm_file:/test/package.rpm:ro" \
-        "target-install-package-test:fedora" \
-        "/test/package.rpm" || {
-        print_error "Fedora test failed"
-        return 1
+    -v "$rpm_file:/test/package.rpm:Z" \
+    "target-install-package-test:fedora" \
+    rpm -i /test/package.rpm || {
+    print_error "Fedora test failed"
+    return 1
     }
     
     print_success "Fedora test passed"
