@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Script to test packages in Docker containers
+# Script to test packages in Docker/Podman containers
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_DIR="$SCRIPT_DIR/docker"
@@ -30,7 +30,19 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Function to build Docker image
+# Detect container runtime (prefer podman if available)
+if command -v podman &> /dev/null; then
+    CONTAINER_RUNTIME="podman"
+    print_status "Using Podman as container runtime"
+elif command -v docker &> /dev/null; then
+    CONTAINER_RUNTIME="docker"
+    print_status "Using Docker as container runtime"
+else
+    print_error "Neither Docker nor Podman is installed"
+    exit 1
+fi
+
+# Function to build Docker/Podman image
 build_docker_image() {
     local distro=$1
     local dockerfile="$DOCKER_DIR/$distro/Dockerfile"
@@ -40,13 +52,14 @@ build_docker_image() {
         return 1
     fi
     
-    print_status "Building Docker image for $distro..."
-    docker build -t "target-install-package-test:$distro" "$DOCKER_DIR/$distro" || {
-        print_error "Failed to build Docker image for $distro"
+    print_status "Building image for $distro..."
+    
+    $CONTAINER_RUNTIME build -t "target-install-package-test:$distro" "$DOCKER_DIR/$distro" || {
+        print_error "Failed to build image for $distro"
         return 1
     }
     
-    print_success "Docker image built for $distro"
+    print_success "Image built for $distro"
     return 0
 }
 
@@ -63,7 +76,7 @@ test_ubuntu() {
     build_docker_image "ubuntu" || return 1
     
     print_status "Running Ubuntu container test..."
-    docker run --rm \
+    $CONTAINER_RUNTIME run --rm \
         -v "$deb_file:/test/package.deb:ro" \
         "target-install-package-test:ubuntu" \
         "/test/package.deb" || {
@@ -88,7 +101,7 @@ test_fedora() {
     build_docker_image "fedora" || return 1
     
     print_status "Running Fedora container test..."
-    docker run --rm \
+    $CONTAINER_RUNTIME run --rm \
         -v "$rpm_file:/test/package.rpm:ro" \
         "target-install-package-test:fedora" \
         "/test/package.rpm" || {
@@ -119,7 +132,7 @@ test_alpine() {
     build_docker_image "alpine" || return 1
     
     print_status "Running Alpine container test..."
-    docker run --rm \
+    $CONTAINER_RUNTIME run --rm \
         -v "$apkbuild_dir:/test/apkbuild:ro" \
         "target-install-package-test:alpine" \
         "/test/apkbuild" || {
@@ -150,7 +163,18 @@ test_arch() {
     build_docker_image "arch" || return 1
     
     print_status "Running Arch container test..."
-    docker run --rm \
+    
+    # Add run flags for rootless podman
+    local run_flags="--rm"
+    if [ "$CONTAINER_RUNTIME" = "podman" ]; then
+        run_flags="$run_flags --security-opt label=disable"
+    fi
+    
+    # Debug: Check if the directory exists and is readable
+    print_status "Mounting directory: $pkgbuild_dir"
+    ls -la "$pkgbuild_dir" | head -5
+    
+    $CONTAINER_RUNTIME run $run_flags \
         -v "$pkgbuild_dir:/test/pkgbuild:ro" \
         "target-install-package-test:arch" \
         "/test/pkgbuild" || {
@@ -181,7 +205,7 @@ test_nix() {
     build_docker_image "nix" || return 1
     
     print_status "Running Nix container test..."
-    docker run --rm \
+    $CONTAINER_RUNTIME run --rm \
         -v "$nix_dir:/test/nix:ro" \
         "target-install-package-test:nix" \
         "/test/nix" || {
@@ -215,9 +239,9 @@ if [ ! -d "$PACKAGES_DIR" ]; then
     exit 1
 fi
 
-# Check Docker availability
+# Check Docker/Podman availability
 if ! command -v docker &> /dev/null; then
-    print_error "Docker is not installed or not in PATH"
+    print_error "Neither Docker nor Podman is installed or not in PATH"
     exit 1
 fi
 
