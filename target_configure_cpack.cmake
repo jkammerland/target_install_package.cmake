@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.2.0)
+  list_file_include_guard(VERSION 5.3.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 endif()
@@ -59,6 +59,7 @@ endif()
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
+#                             Can override any auto-detected settings including architecture
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
@@ -89,6 +90,14 @@ endif()
 #     GENERATORS "ZIP"
 #     COMPONENTS "Development;Tools;Documentation"
 #     COMPONENT_GROUPS
+#   )
+#
+#   # Override architecture detection for special cases
+#   target_configure_cpack(
+#     GENERATORS "DEB;RPM"
+#     ADDITIONAL_CPACK_VARS
+#       CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all"  # Architecture-independent package
+#       CPACK_RPM_PACKAGE_ARCHITECTURE "noarch"
 #   )
 # ~~~
 function(target_configure_cpack)
@@ -298,9 +307,54 @@ function(target_configure_cpack)
   endif()
 
   if(UNIX AND NOT APPLE)
+    # Unified architecture detection
+    set(_TIP_ARCH_X64_PATTERNS "x86_64|AMD64|amd64")
+    set(_TIP_ARCH_X86_PATTERNS "i[3-6]86|x86")
+    set(_TIP_ARCH_ARM64_PATTERNS "aarch64|arm64|ARM64")
+    set(_TIP_ARCH_ARM32_PATTERNS "armv7.*|arm")
+
+    # Detect canonical architecture
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X64_PATTERNS})
+      set(_TIP_CANONICAL_ARCH "x64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X86_PATTERNS})
+      set(_TIP_CANONICAL_ARCH "x86")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM64_PATTERNS})
+      set(_TIP_CANONICAL_ARCH "arm64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM32_PATTERNS})
+      set(_TIP_CANONICAL_ARCH "arm32")
+    else()
+      set(_TIP_CANONICAL_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+
     # Debian-specific settings
     set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}")
+
+    # Map canonical architecture to Debian architecture
+    if(_TIP_CANONICAL_ARCH STREQUAL "x64")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+    elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "i386")
+    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
+    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+    else()
+      # Try dpkg if available for better detection
+      find_program(DPKG_CMD dpkg)
+      if(DPKG_CMD)
+        execute_process(
+          COMMAND ${DPKG_CMD} --print-architecture
+          OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+          OUTPUT_STRIP_TRAILING_WHITESPACE)
+      else()
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+      endif()
+    endif()
+
+    # Set other Debian defaults
+    set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 
     # RPM-specific settings
     set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
@@ -308,6 +362,23 @@ function(target_configure_cpack)
     if(ARG_LICENSE_FILE)
       set(CPACK_RPM_PACKAGE_LICENSE "${ARG_LICENSE_FILE}")
     endif()
+
+    # Map canonical architecture to RPM architecture
+    if(_TIP_CANONICAL_ARCH STREQUAL "x64")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
+    elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "i686")
+    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64")
+    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl")
+    else()
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+
+    # Set other RPM defaults
+    set(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
+    set(CPACK_RPM_PACKAGE_RELEASE "1")
   endif()
 
   # Set additional variables if provided
@@ -355,8 +426,14 @@ function(target_configure_cpack)
           CPACK_WIX_UNINSTALL
           CPACK_DEBIAN_FILE_NAME
           CPACK_DEBIAN_PACKAGE_MAINTAINER
+          CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+          CPACK_DEBIAN_PACKAGE_SECTION
+          CPACK_DEBIAN_PACKAGE_PRIORITY
           CPACK_RPM_FILE_NAME
-          CPACK_RPM_PACKAGE_LICENSE)
+          CPACK_RPM_PACKAGE_LICENSE
+          CPACK_RPM_PACKAGE_ARCHITECTURE
+          CPACK_RPM_PACKAGE_GROUP
+          CPACK_RPM_PACKAGE_RELEASE)
     if(DEFINED ${var_name})
       set(${var_name}
           "${${var_name}}"

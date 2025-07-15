@@ -1,0 +1,8 @@
+#!/bin/bash
+# Install the built package
+if [[ -f *.apk ]]; then
+    sudo apk add --allow-untrusted *.apk
+else
+    echo "No package file found. Run ./build.sh first."
+    exit 1
+fi

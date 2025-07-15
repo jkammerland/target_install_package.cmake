@@ -15,5 +15,7 @@ CMakeSettings.json
 .claude/
 *build/
 *.cache/
-build-*
+build-*/
 */test*/*
+claude.md
+TODO
