@@ -20,6 +20,7 @@ fi
 echo "Building package from Nix expression..."
 
 # Copy Nix files to working directory
+mkdir -p /tmp/build
 cp -r "$NIX_DIR"/* /tmp/build/
 cd /tmp/build
 

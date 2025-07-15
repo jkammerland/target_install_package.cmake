@@ -5,8 +5,23 @@ This directory contains Docker-based tests for verifying package installation ac
 ## Overview
 
 The testing framework supports two packaging approaches:
-1. **CPack-based packages** (DEB for Ubuntu, RPM for Fedora)
-2. **Universal packaging templates** (PKGBUILD for Arch, APKBUILD for Alpine, Nix expressions)
+1. **CPack-based packages** (DEB for Ubuntu, RPM for Fedora) - Fully functional and tested
+2. **Universal packaging templates** (PKGBUILD for Arch, APKBUILD for Alpine, Nix expressions) - Templates only, require customization
+
+### Important Note on Universal Packaging
+
+The universal packaging templates are **template files** with placeholder values. They are not meant to be directly buildable without customization. Current limitations:
+
+- Source URLs use placeholder values (e.g., `https://github.com/example/cpack_lib`)
+- Templates require user customization before use
+- The test suite currently **skips these tests** as they're testing templates, not actual packages
+- Future improvements may include generating test-ready templates or more complete package generation
+
+For production use, users should:
+1. Replace placeholder URLs with actual source locations
+2. Update checksums with real values
+3. Customize metadata (maintainer, license, etc.)
+4. Test the customized templates in their target environments
 
 ## Directory Structure
 
