@@ -27,6 +27,13 @@ if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif()
 
+# Show log level tip only once per CMake run
+if(COMMAND project_log)
+  project_log(STATUS "Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
+else()
+  message(STATUS  "[target_install_package][STATUS] Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
+endif()
+
 # ~~~
 # Prepare a CMake installation target for packaging.
 #
@@ -812,11 +819,20 @@ function(finalize_package)
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 
-  project_log(STATUS "Export package '${ARG_EXPORT_NAME}' is ready, install with 'cmake --install ...' after build")
-
-  # Log all components in the export
+  # Log package status with component information
   if(ALL_UNIQUE_COMPONENTS)
-    project_log(VERBOSE "Components in export '${ARG_EXPORT_NAME}': [${ALL_UNIQUE_COMPONENTS}]")
+    project_log(STATUS "Export package '${ARG_EXPORT_NAME}' is ready with components: [${ALL_UNIQUE_COMPONENTS}]")
+  else()
+    project_log(STATUS "Export package '${ARG_EXPORT_NAME}' is ready")
+  endif()
+
+  # Log installation instructions
+  project_log(VERBOSE "To install: cmake --install <build_dir> [--component <name>] [--prefix <path>]")
+
+  # Log detailed component information at VERBOSE level
+  if(ALL_UNIQUE_COMPONENTS)
+    project_log(VERBOSE "Available components in export '${ARG_EXPORT_NAME}': [${ALL_UNIQUE_COMPONENTS}]")
+    project_log(VERBOSE "Install specific component: cmake --install <build_dir> --component <component_name>")
   endif()
 
   # Clean up global properties (optional, but good practice)
