@@ -49,13 +49,17 @@ if rpm -qa | grep -qi "runtime"; then
 fi
 
 # Test 2: Check if headers were installed (for development packages)
-if rpm -qa | grep -q "devel"; then
+# Get the package name from the RPM file
+INSTALLED_PACKAGE=$(rpm -qp "$PACKAGE_PATH" --qf "%{NAME}\n")
+if echo "$INSTALLED_PACKAGE" | grep -qi "devel"; then
     if [ -d /usr/include/cpack_lib ]; then
         echo "✓ Development headers found"
     else
         echo "✗ Development headers not found"
         exit 1
     fi
+else
+    echo "Note: Not a development package, skipping header check"
 fi
 
 # Test 3: Check if executables were installed

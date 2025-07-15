@@ -51,13 +51,17 @@ if dpkg -l | grep -q "runtime"; then
 fi
 
 # Test 2: Check if headers were installed (for development packages)
-if dpkg -l | grep -q "dev"; then
+# Get the package name from the installed package
+INSTALLED_PACKAGE=$(dpkg -I "$PACKAGE_PATH" | grep "Package:" | awk '{print $2}')
+if echo "$INSTALLED_PACKAGE" | grep -q "dev"; then
     if [ -d /usr/include/cpack_lib ]; then
         echo "✓ Development headers found"
     else
         echo "✗ Development headers not found"
         exit 1
     fi
+else
+    echo "Note: Not a development package, skipping header check"
 fi
 
 # Test 3: Check if executables were installed
