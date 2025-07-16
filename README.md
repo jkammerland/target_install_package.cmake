@@ -1,4 +1,4 @@
-# CMake Target Installation Utilities 🔧
+# CMake Target Installation Utilities 
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
@@ -6,7 +6,7 @@ A collection of CMake utilities for configuring templated source files and creat
 
 This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below or the [examples](examples/).
 
-## Shipped Functions & Files 📦
+## Shipped Functions & Files 
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
@@ -21,7 +21,7 @@ This project requires some other cmake projects, but for ease of use, they have 
 >[!NOTE] 
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package. 
 
-### Template Override System 🎨
+### Template Override System 
 The `target_install_package()` function searches for the targets config templates in this order:
 1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
 2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
@@ -34,8 +34,8 @@ The `target_install_package()` function searches for the targets config template
 
 1. [Features](#features-)
 2. [Installation](#installation)
-3. [Usage](#usage-)
-   - [Basic Library Installation](#basic-library-installation-)
+3. [Usage](#usage)
+   - [Basic Library Installation](#basic-library-installation)
    - [Configuring Template Headers](#configuring-template-headers-)
    - [Libraries with Dependencies](#libraries-with-dependencies-)
    - [CPack Package Generation](#cpack-package-generation-)
@@ -48,7 +48,7 @@ The `target_install_package()` function searches for the targets config template
    - [When to Use Multi-Target Exports](#when-to-use-multi-target-exports)
    - [Simple Multi-Target Package](#simple-multi-target-package-)
    - [Advanced: Component-Dependent Dependencies](#advanced-component-dependent-dependencies-)
-6. [Advanced Examples](#advanced-examples-)
+6. [Advanced Examples](#advanced-examples)
    - [Game Engine with Modular Components](#game-engine-with-modular-components-)
    - [Build Variant Support](#build-variant-support-)
    - [Header-Only Libraries](#header-only-libraries-)
@@ -111,7 +111,7 @@ endif()
 
 ## Installation 
 
-### FetchContent (quick and easy, cpm also works) ⭐
+### FetchContent ⭐
 
 For most projects, use FetchContent to automatically download and configure the utilities:
 
@@ -179,9 +179,9 @@ find_package(target_install_package REQUIRED)
 # cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 ```
 
-## Usage 🚂
+## Usage
 
-### Basic Library Installation 🏗️
+### Basic Library Installation
 
 The simplest case - a library with headers that is also installable:
 
@@ -597,7 +597,7 @@ target_link_libraries(my_game PRIVATE
 )
 ```
 
-## Advanced Examples 🏗️
+## Advanced Examples
 
 ### Game Engine with Modular Components 🎮
 
