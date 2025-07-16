@@ -32,18 +32,33 @@ echo "Verifying installation..."
 
 # Test 1: Check if libraries were installed
 LIBRARY_FOUND=false
-for libdir in /usr/lib64 /usr/lib /usr/local/lib64 /usr/local/lib; do
-    if [ -f "$libdir/libcpack_lib.so" ] || [ -f "$libdir/libcpack_lib.so.5" ]; then
-        echo "✓ Runtime library found in $libdir"
-        LIBRARY_FOUND=true
-        break
+for libdir in /usr/lib64 /usr/lib /usr/local/lib64 /usr/local/lib /usr/lib/x86_64-linux-gnu; do
+    # Check if directory exists first
+    if [ -d "$libdir" ]; then
+        if [ -f "$libdir/libcpack_lib.so" ] || [ -f "$libdir/libcpack_lib.so.5" ]; then
+            echo "✓ Runtime library found in $libdir"
+            LIBRARY_FOUND=true
+            break
+        fi
     fi
 done
+
+# Also check using ldconfig if available
+if [ "$LIBRARY_FOUND" = false ] && command -v ldconfig >/dev/null 2>&1; then
+    ldconfig -p 2>/dev/null | grep -q "libcpack_lib.so" && {
+        echo "✓ Runtime library found in ldconfig cache"
+        LIBRARY_FOUND=true
+    }
+fi
 
 # For runtime packages, library must be found
 if rpm -qa | grep -qi "runtime"; then
     if [ "$LIBRARY_FOUND" = false ]; then
         echo "✗ Runtime library not found in any standard location"
+        echo "Debugging info - searching for any libcpack_lib files:"
+        find /usr -name "libcpack_lib*" 2>/dev/null || echo "  No libcpack_lib files found under /usr"
+        echo "Installed package files:"
+        rpm -ql $(rpm -qp "$PACKAGE_PATH" --qf "%{NAME}\n") | grep -E "\.so|lib" || echo "  No library files found in package listing"
         exit 1
     fi
 fi
