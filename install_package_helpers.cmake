@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.2.0)
+  list_file_include_guard(VERSION 5.3.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -25,6 +25,13 @@ endif()
 # Set policy for install() DESTINATION path normalization if supported
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
+endif()
+
+# Show log level tip only once per CMake run
+if(COMMAND project_log)
+  project_log(STATUS "Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
+else()
+  message(STATUS  "[target_install_package][STATUS] Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
 endif()
 
 # ~~~
@@ -252,7 +259,7 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Added component dependencies for export '${ARG_EXPORT_NAME}': ${ARG_COMPONENT_DEPENDENCIES}")
   endif()
 
-  project_log(STATUS "Target '${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
+  project_log(VERBOSE "Target '${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
 endfunction(target_prepare_package)
 
 # ~~~
@@ -494,7 +501,7 @@ function(finalize_package)
   # Remove duplicates and create single log line
   if(ALL_UNIQUE_COMPONENTS)
     list(REMOVE_DUPLICATES ALL_UNIQUE_COMPONENTS)
-    project_log(STATUS "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
+    project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
 
     # Register components for CPack integration
     if(COMMAND _tip_register_component)
@@ -503,7 +510,7 @@ function(finalize_package)
       endforeach()
     endif()
   else()
-    project_log(STATUS "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
+    project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
   endif()
 
   # Apply DEBUG_POSTFIX to all targets if specified
@@ -748,35 +755,29 @@ function(finalize_package)
     endif()
   endif()
 
-  # Try to find config template based on export name
-  if(NOT CONFIG_TEMPLATE_TO_USE)
-    # Get first target's source dir for template search
-    list(GET TARGETS 0 FIRST_TARGET)
-    get_target_property(TARGET_SOURCE_DIR ${FIRST_TARGET} SOURCE_DIR)
+  # Try to find config template based on export name Get first target's source dir for template search TODO: Does not make sense to consider the first target only
+  list(GET TARGETS 0 FIRST_TARGET)
+  get_target_property(TARGET_SOURCE_DIR ${FIRST_TARGET} SOURCE_DIR)
 
-    set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
-    endif()
-  endif()
+  # Check export-specific template in target source dir
+  set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+  if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+    set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+    project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
 
-  if(NOT CONFIG_TEMPLATE_TO_USE)
-    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-    endif()
-  endif()
+    # Check export-specific template in script's cmake dir
+  elseif(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+    set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+    project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
 
-  if(NOT CONFIG_TEMPLATE_TO_USE)
-    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-    else()
-      project_log(FATAL_ERROR "No config template found. Generic template expected at ${CANDIDATE_CONFIG_TEMPLATE} but not found.")
-    endif()
+    # Check generic template in script's cmake dir
+  elseif(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+    set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+    project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+
+    # No template found - fatal error
+  else()
+    project_log(FATAL_ERROR "No config template found. Generic template expected at ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in but not found.")
   endif()
 
   # Prepare public CMake files content
@@ -818,11 +819,20 @@ function(finalize_package)
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 
-  project_log(STATUS "Finalized installation for export '${ARG_EXPORT_NAME}', install with 'cmake --install ...' after build")
-
-  # Log all components in the export
+  # Log package status with component information
   if(ALL_UNIQUE_COMPONENTS)
-    project_log(VERBOSE "Components in export '${ARG_EXPORT_NAME}': [${ALL_UNIQUE_COMPONENTS}]")
+    project_log(STATUS "Export package '${ARG_EXPORT_NAME}' is ready with components: [${ALL_UNIQUE_COMPONENTS}]")
+  else()
+    project_log(STATUS "Export package '${ARG_EXPORT_NAME}' is ready")
+  endif()
+
+  # Log installation instructions
+  project_log(VERBOSE "To install: cmake --install <build_dir> [--component <name>] [--prefix <path>]")
+
+  # Log detailed component information at VERBOSE level
+  if(ALL_UNIQUE_COMPONENTS)
+    project_log(VERBOSE "Available components in export '${ARG_EXPORT_NAME}': [${ALL_UNIQUE_COMPONENTS}]")
+    project_log(VERBOSE "Install specific component: cmake --install <build_dir> --component <component_name>")
   endif()
 
   # Clean up global properties (optional, but good practice)
