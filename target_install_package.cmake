@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.3.0)
+  list_file_include_guard(VERSION 5.3.1)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -72,7 +72,7 @@ endif()
 #   DEVELOPMENT_COMPONENT        - Component for development files (default: "Development").
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
-#   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "files").
+#   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "${CMAKE_INSTALL_PREFIX}").
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
 #   PUBLIC_CMAKE_FILES           - Additional CMake files to install as public.

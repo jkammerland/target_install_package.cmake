@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.3.0)
+  list_file_include_guard(VERSION 5.3.1)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -31,7 +31,7 @@ endif()
 if(COMMAND project_log)
   project_log(STATUS "Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
 else()
-  message(STATUS  "[target_install_package][STATUS] Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
+  message(STATUS "[target_install_package][STATUS] Tip: Use --log-level=VERBOSE for installation details, --log-level=DEBUG for all settings")
 endif()
 
 # ~~~
@@ -666,20 +666,24 @@ function(finalize_package)
 
   # Install additional files with config component
   if(ADDITIONAL_FILES)
-    set(ADDITIONAL_FILES_DEST_PATH "${INCLUDE_DESTINATION}")
+    set(ADDITIONAL_FILES_DEST_PATH "${CMAKE_INSTALL_PREFIX}")
     if(ADDITIONAL_FILES_DESTINATION)
-      set(ADDITIONAL_FILES_DEST_PATH "${INCLUDE_DESTINATION}/${ADDITIONAL_FILES_DESTINATION}")
+      cmake_path(APPEND CMAKE_INSTALL_PREFIX "${ADDITIONAL_FILES_DESTINATION}" OUTPUT_VARIABLE ADDITIONAL_FILES_DEST_PATH)
     endif()
 
     foreach(FILE_PATH ${ADDITIONAL_FILES})
-      if(IS_ABSOLUTE "${FILE_PATH}")
-        set(SRC_FILE_PATH "${FILE_PATH}")
-      else()
-        set(SRC_FILE_PATH "${CURRENT_SOURCE_DIR}/${FILE_PATH}")
-      endif()
+      # Modern path handling
+      cmake_path(
+        ABSOLUTE_PATH
+        FILE_PATH
+        BASE_DIRECTORY
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        NORMALIZE
+        OUTPUT_VARIABLE
+        SRC_FILE_PATH)
 
       if(NOT EXISTS "${SRC_FILE_PATH}")
-        project_log(WARNING "  Additional file to install not found: ${SRC_FILE_PATH}")
+        project_log(WARNING " Additional file to install not found: ${SRC_FILE_PATH}")
         continue()
       endif()
 
@@ -687,7 +691,7 @@ function(finalize_package)
         FILES "${SRC_FILE_PATH}"
         DESTINATION "${ADDITIONAL_FILES_DEST_PATH}"
         ${CONFIG_COMPONENT_ARGS})
-      project_log(DEBUG "  Installing additional file: ${SRC_FILE_PATH} to ${ADDITIONAL_FILES_DEST_PATH}")
+      project_log(DEBUG " Installing additional file: ${SRC_FILE_PATH} to ${ADDITIONAL_FILES_DEST_PATH}")
     endforeach()
   endif()
 
