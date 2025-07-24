@@ -160,7 +160,7 @@ add_library(my_library STATIC)
 target_sources(my_library PRIVATE src/library.cpp)
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES "include/my_library/api.h"
 )
 
@@ -193,7 +193,7 @@ target_sources(math_utils PRIVATE src/matrix.cpp src/vector.cpp)
 # Declare public headers using FILE_SET (BASE_DIRS automatically become include directories)
 target_sources(math_utils PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES 
     "include/math/matrix.h"
     "include/math/vector.h"
@@ -223,7 +223,7 @@ target_sources(my_library PRIVATE src/library.cpp)
 # Regular headers
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES "include/my_library/api.h"
 )
 
@@ -233,7 +233,7 @@ target_configure_sources(my_library
   OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
   FILE_SET HEADERS
   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
-  FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/my_library/version.h.in
+  FILES include/my_library/version.h.in
 )
 
 target_install_package(my_library NAMESPACE MyLib::)
@@ -261,7 +261,7 @@ target_sources(graphics_lib PRIVATE src/renderer.cpp src/shader.cpp)
 file(GLOB_RECURSE GRAPHICS_HEADERS "include/graphics/*.h")
 target_sources(graphics_lib PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES ${GRAPHICS_HEADERS}
 )
 
@@ -293,7 +293,7 @@ add_library(my_library SHARED)
 target_sources(my_library PRIVATE src/library.cpp)
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES "include/my_library/api.h"
 )
 
@@ -335,7 +335,7 @@ add_library(game_engine SHARED)
 target_sources(game_engine PRIVATE src/engine.cpp)
 target_sources(game_engine PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES "include/engine/engine.h"
 )
 
@@ -395,7 +395,7 @@ add_library(my_library SHARED)
 target_sources(my_library PRIVATE src/library.cpp)
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES "include/my_library/api.h"
 )
 
@@ -791,7 +791,7 @@ add_library(math_header_lib INTERFACE)
 file(GLOB_RECURSE MATH_HEADERS "include/math/*.hpp")
 target_sources(math_header_lib INTERFACE 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES ${MATH_HEADERS}
 )
 
@@ -835,7 +835,7 @@ target_install_package(math_header_lib
 ```cmake
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 target_include_directories(my_library PUBLIC 
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
+  $<BUILD_INTERFACE:include> 
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 install(TARGETS my_library 
@@ -855,7 +855,7 @@ install(EXPORT my_library
 ```cmake
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
+  BASE_DIRS "include" 
   FILES ${HEADER_FILES}
 )
 target_install_package(my_library NAMESPACE MyLib::)
