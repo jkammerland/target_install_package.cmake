@@ -7,7 +7,7 @@ get_property(
 if(_LFG_INITIALIZED)
   list_file_include_guard(VERSION 5.4.0)
 else()
-  message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+  project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 endif()
 
 include(GNUInstallDirs)
@@ -23,6 +23,10 @@ endif()
 # This function sets up CPack configuration with smart defaults derived from project
 # properties and installed components. It automatically detects platform-appropriate
 # package generators and configures component relationships.
+#
+# IMPORTANT: This function uses deferred execution to ensure all components are registered
+# before CPack is configured. It automatically includes CPack at the end of configuration,
+# so you should NOT manually call include(CPack) after using this function.
 #
 # API:
 #   target_configure_cpack(
@@ -74,8 +78,9 @@ endif()
 #   - <Custom>: Any custom components defined in target_install_package calls
 #
 # Examples:
-#   # Basic usage with auto-detection
+#   # Basic usage with auto-detection (CPack is automatically included)
 #   target_configure_cpack()
+#   # No need to call include(CPack) - it's done automatically
 #
 #   # Custom package with specific generators
 #   target_configure_cpack(
@@ -101,6 +106,33 @@ endif()
 #   )
 # ~~~
 function(target_configure_cpack)
+  # Store arguments for deferred configuration
+  get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
+  if(cpack_config_stored)
+    project_log(WARNING "target_configure_cpack() called multiple times. Only the last call will be used.")
+  endif()
+  
+  # Store all arguments in a global property for deferred execution
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS" "${ARGN}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED" TRUE)
+  
+  # Schedule deferred CPack configuration after package finalization
+  get_property(cpack_defer_scheduled GLOBAL PROPERTY "_TIP_CPACK_DEFER_SCHEDULED")
+  if(NOT cpack_defer_scheduled)
+    # This will be called after all packages are finalized
+    cmake_language(DEFER DIRECTORY ${PROJECT_SOURCE_DIR} CALL _execute_deferred_cpack_config)
+    set_property(GLOBAL PROPERTY "_TIP_CPACK_DEFER_SCHEDULED" TRUE)
+  endif()
+endfunction()
+
+# Internal function to execute the deferred CPack configuration
+function(_execute_deferred_cpack_config)
+  get_property(args GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS")
+  if(NOT args)
+    return()
+  endif()
+  
+  # Now parse and process the stored arguments
   set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
   set(oneValueArgs
       PACKAGE_NAME
@@ -112,7 +144,7 @@ function(target_configure_cpack)
       LICENSE_FILE
       ARCHIVE_FORMAT)
   set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
-  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
@@ -239,32 +271,32 @@ function(target_configure_cpack)
 
   # Configure components
   if(ARG_COMPONENTS)
-    set(CPACK_COMPONENTS_ALL ${ARG_COMPONENTS})
+    set(CPACK_COMPONENTS_ALL "${ARG_COMPONENTS}" CACHE STRING "" FORCE)
 
     # Enable component installation if more than one component or explicitly requested
     list(LENGTH ARG_COMPONENTS component_count)
     if(component_count GREATER 1 OR ARG_ENABLE_COMPONENT_INSTALL)
-      set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
-      set(CPACK_DEB_COMPONENT_INSTALL ON)
-      set(CPACK_RPM_COMPONENT_INSTALL ON)
+      set(CPACK_ARCHIVE_COMPONENT_INSTALL ON CACHE BOOL "" FORCE)
+      set(CPACK_DEB_COMPONENT_INSTALL ON CACHE BOOL "" FORCE)
+      set(CPACK_RPM_COMPONENT_INSTALL ON CACHE BOOL "" FORCE)
       if("WIX" IN_LIST ARG_GENERATORS)
-        set(CPACK_WIX_COMPONENT_INSTALL ON)
+        set(CPACK_WIX_COMPONENT_INSTALL ON CACHE BOOL "" FORCE)
       endif()
     endif()
 
     # Set default components
     if(ARG_DEFAULT_COMPONENTS)
-      set(CPACK_COMPONENTS_DEFAULT ${ARG_DEFAULT_COMPONENTS})
+      set(CPACK_COMPONENTS_DEFAULT "${ARG_DEFAULT_COMPONENTS}" CACHE STRING "" FORCE)
     endif()
 
     # Configure component grouping
     if(ARG_COMPONENT_GROUPS)
-      set(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
+      set(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP" CACHE STRING "" FORCE)
 
       # Set up standard groups
       if("Runtime" IN_LIST ARG_COMPONENTS OR "Development" IN_LIST ARG_COMPONENTS)
         if("Development" IN_LIST ARG_COMPONENTS)
-          set(CPACK_COMPONENT_DEVELOPMENT_DEPENDS Runtime)
+          set(CPACK_COMPONENT_DEVELOPMENT_DEPENDS "Runtime" CACHE STRING "" FORCE)
         endif()
       endif()
     endif()
@@ -273,20 +305,20 @@ function(target_configure_cpack)
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
       if(component STREQUAL "Runtime")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Runtime libraries and executables")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Runtime Files")
+        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Runtime libraries and executables" CACHE STRING "" FORCE)
+        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Runtime Files" CACHE STRING "" FORCE)
       elseif(component STREQUAL "Development")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Headers, static libraries, and development files")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Development Files")
+        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Headers, static libraries, and development files" CACHE STRING "" FORCE)
+        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Development Files" CACHE STRING "" FORCE)
       elseif(component STREQUAL "Tools")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Command-line tools and utilities")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Tools")
+        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Command-line tools and utilities" CACHE STRING "" FORCE)
+        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Tools" CACHE STRING "" FORCE)
       elseif(component STREQUAL "Documentation")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Documentation and examples")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Documentation")
+        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Documentation and examples" CACHE STRING "" FORCE)
+        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Documentation" CACHE STRING "" FORCE)
       else()
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} component")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component}")
+        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} component" CACHE STRING "" FORCE)
+        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component}" CACHE STRING "" FORCE)
       endif()
     endforeach()
   endif()
@@ -303,7 +335,8 @@ function(target_configure_cpack)
       "${ARG_PACKAGE_NAME}"
       TYPE
       SHA1)
-    set(CPACK_WIX_UNINSTALL ON)
+    set(CPACK_WIX_UPGRADE_GUID "${CPACK_WIX_UPGRADE_GUID}" CACHE STRING "" FORCE)
+    set(CPACK_WIX_UNINSTALL ON CACHE BOOL "" FORCE)
   endif()
 
   if(UNIX AND NOT APPLE)
@@ -327,58 +360,59 @@ function(target_configure_cpack)
     endif()
 
     # Debian-specific settings
-    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}")
+    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT" CACHE STRING "" FORCE)
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}" CACHE STRING "" FORCE)
 
     # Map canonical architecture to Debian architecture
     if(_TIP_CANONICAL_ARCH STREQUAL "x64")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64" CACHE STRING "" FORCE)
     elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "i386")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "i386" CACHE STRING "" FORCE)
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64" CACHE STRING "" FORCE)
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf" CACHE STRING "" FORCE)
     else()
       # Try dpkg if available for better detection
       find_program(DPKG_CMD dpkg)
       if(DPKG_CMD)
         execute_process(
           COMMAND ${DPKG_CMD} --print-architecture
-          OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+          OUTPUT_VARIABLE _dpkg_arch
           OUTPUT_STRIP_TRAILING_WHITESPACE)
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${_dpkg_arch}" CACHE STRING "" FORCE)
       else()
-        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "" FORCE)
       endif()
     endif()
 
     # Set other Debian defaults
-    set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
-    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "devel" CACHE STRING "" FORCE)
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional" CACHE STRING "" FORCE)
 
     # RPM-specific settings
-    set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
-    set(CPACK_RPM_PACKAGE_LICENSE "Unknown")
+    set(CPACK_RPM_FILE_NAME "RPM-DEFAULT" CACHE STRING "" FORCE)
+    set(CPACK_RPM_PACKAGE_LICENSE "Unknown" CACHE STRING "" FORCE)
     if(ARG_LICENSE_FILE)
-      set(CPACK_RPM_PACKAGE_LICENSE "${ARG_LICENSE_FILE}")
+      set(CPACK_RPM_PACKAGE_LICENSE "${ARG_LICENSE_FILE}" CACHE STRING "" FORCE)
     endif()
 
     # Map canonical architecture to RPM architecture
     if(_TIP_CANONICAL_ARCH STREQUAL "x64")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64" CACHE STRING "" FORCE)
     elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "i686")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "i686" CACHE STRING "" FORCE)
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64" CACHE STRING "" FORCE)
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl" CACHE STRING "" FORCE)
     else()
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+      set(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "" FORCE)
     endif()
 
     # Set other RPM defaults
-    set(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
-    set(CPACK_RPM_PACKAGE_RELEASE "1")
+    set(CPACK_RPM_PACKAGE_GROUP "Development/Libraries" CACHE STRING "" FORCE)
+    set(CPACK_RPM_PACKAGE_RELEASE "1" CACHE STRING "" FORCE)
   endif()
 
   # Set additional variables if provided
@@ -388,7 +422,7 @@ function(target_configure_cpack)
     math(EXPR remainder "${vars_length} % 2")
 
     if(NOT remainder EQUAL 0)
-      message(WARNING "ADDITIONAL_CPACK_VARS must contain an even number of elements (key-value pairs)")
+      project_log(WARNING "ADDITIONAL_CPACK_VARS must contain an even number of elements (key-value pairs)")
     else()
       math(EXPR max_index "${pairs_count} - 1")
       foreach(i RANGE ${max_index})
@@ -396,76 +430,27 @@ function(target_configure_cpack)
         math(EXPR value_index "${key_index} + 1")
         list(GET ARG_ADDITIONAL_CPACK_VARS ${key_index} var_name)
         list(GET ARG_ADDITIONAL_CPACK_VARS ${value_index} var_value)
-        set(${var_name} "${var_value}")
+        set(${var_name} "${var_value}" CACHE STRING "" FORCE)
       endforeach()
     endif()
   endif()
 
-  # Set all CPack variables in parent scope
-  foreach(
-    var_name IN
-    ITEMS CPACK_PACKAGE_NAME
-          CPACK_PACKAGE_VERSION
-          CPACK_PACKAGE_VERSION_MAJOR
-          CPACK_PACKAGE_VERSION_MINOR
-          CPACK_PACKAGE_VERSION_PATCH
-          CPACK_PACKAGE_VENDOR
-          CPACK_PACKAGE_CONTACT
-          CPACK_PACKAGE_DESCRIPTION_SUMMARY
-          CPACK_PACKAGE_HOMEPAGE_URL
-          CPACK_RESOURCE_FILE_LICENSE
-          CPACK_GENERATOR
-          CPACK_COMPONENTS_ALL
-          CPACK_COMPONENTS_DEFAULT
-          CPACK_COMPONENTS_GROUPING
-          CPACK_ARCHIVE_COMPONENT_INSTALL
-          CPACK_DEB_COMPONENT_INSTALL
-          CPACK_RPM_COMPONENT_INSTALL
-          CPACK_WIX_COMPONENT_INSTALL
-          CPACK_WIX_UPGRADE_GUID
-          CPACK_WIX_UNINSTALL
-          CPACK_DEBIAN_FILE_NAME
-          CPACK_DEBIAN_PACKAGE_MAINTAINER
-          CPACK_DEBIAN_PACKAGE_ARCHITECTURE
-          CPACK_DEBIAN_PACKAGE_SECTION
-          CPACK_DEBIAN_PACKAGE_PRIORITY
-          CPACK_RPM_FILE_NAME
-          CPACK_RPM_PACKAGE_LICENSE
-          CPACK_RPM_PACKAGE_ARCHITECTURE
-          CPACK_RPM_PACKAGE_GROUP
-          CPACK_RPM_PACKAGE_RELEASE)
-    if(DEFINED ${var_name})
-      set(${var_name}
-          "${${var_name}}"
-          PARENT_SCOPE)
-    endif()
-  endforeach()
-
-  # Set component-specific variables in parent scope
-  if(ARG_COMPONENTS)
-    foreach(component ${ARG_COMPONENTS})
-      string(TOUPPER ${component} component_upper)
-      foreach(suffix DESCRIPTION DISPLAY_NAME DEPENDS)
-        set(var_name "CPACK_COMPONENT_${component_upper}_${suffix}")
-        if(DEFINED ${var_name})
-          set(${var_name}
-              "${${var_name}}"
-              PARENT_SCOPE)
-        endif()
-      endforeach()
-    endforeach()
-  endif()
+  # Variables are now set in cache, no need for parent scope
 
   # Log configuration for debugging
-  message(STATUS "CPack configured for package: ${ARG_PACKAGE_NAME} v${ARG_PACKAGE_VERSION}")
+  project_log(STATUS "CPack configured for package: ${ARG_PACKAGE_NAME} v${ARG_PACKAGE_VERSION}")
   if(ARG_GENERATORS)
-    message(STATUS "CPack generators: ${ARG_GENERATORS}")
+    project_log(STATUS "CPack generators: ${ARG_GENERATORS}")
   endif()
   if(ARG_COMPONENTS)
-    message(STATUS "CPack components: ${ARG_COMPONENTS}")
+    project_log(STATUS "CPack components: ${ARG_COMPONENTS}")
   endif()
+  
+  # Include CPack after all variables are set
+  # This ensures CPack sees all the deferred configuration  
+  include(CPack)
 
-endfunction(target_configure_cpack)
+endfunction(_execute_deferred_cpack_config)
 
 # ~~~
 # Helper function to track components used by target_install_package

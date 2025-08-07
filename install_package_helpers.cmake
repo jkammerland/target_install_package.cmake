@@ -38,11 +38,12 @@ endif()
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization with finalize_package().
+# the configuration for later finalization. Since v5.4.0, finalization happens
+# automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
-# export with aggregated dependencies. Call this for each target, then call
-# finalize_package() once with the shared EXPORT_NAME.
+# export with aggregated dependencies. Call this for each target, then optionally
+# call finalize_package() for explicit control (otherwise it happens automatically).
 #
 # API:
 #   target_prepare_package(TARGET_NAME
@@ -268,6 +269,17 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Added component dependencies for export '${ARG_EXPORT_NAME}': ${ARG_COMPONENT_DEPENDENCIES}")
   endif()
 
+  # Track this export for auto-finalization
+  get_property(REGISTERED_EXPORTS GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS")
+  if(NOT ARG_EXPORT_NAME IN_LIST REGISTERED_EXPORTS)
+    list(APPEND REGISTERED_EXPORTS ${ARG_EXPORT_NAME})
+    set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS" ${REGISTERED_EXPORTS})
+    
+    # Schedule automatic finalization for this export at the end of configuration
+    project_log(DEBUG "Scheduling automatic finalization for export '${ARG_EXPORT_NAME}' at end of configuration")
+    cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY ${PROJECT_SOURCE_DIR} CALL _auto_finalize_single_export \"${ARG_EXPORT_NAME}\")")
+  endif()
+
   project_log(VERBOSE "Target '${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
 endfunction(target_prepare_package)
 
@@ -429,6 +441,10 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
+# NOTE: Since v5.4.0, this function is OPTIONAL. All exports are automatically
+# finalized at the end of configuration using cmake_language(DEFER CALL).
+# Use this function only when you need explicit control over finalization timing.
+#
 # Under the hood:
 # 1. Collects all targets and their configurations from global properties
 # 2. Aggregates PUBLIC_DEPENDENCIES from all targets (with deduplication)
@@ -457,6 +473,13 @@ function(finalize_package)
 
   if(NOT ARG_EXPORT_NAME)
     project_log(FATAL_ERROR "EXPORT_NAME is required for finalize_package()")
+  endif()
+
+  # Check if this export has already been finalized
+  get_property(is_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}_FINALIZED")
+  if(is_finalized)
+    project_log(DEBUG "Export '${ARG_EXPORT_NAME}' has already been finalized, skipping")
+    return()
   endif()
 
   # Retrieve stored configuration
@@ -860,6 +883,9 @@ function(finalize_package)
     project_log(VERBOSE "Install specific component: cmake --install <build_dir> --component <component_name>")
   endif()
 
+  # Mark this export as finalized
+  set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}_FINALIZED" TRUE)
+  
   # Clean up global properties (optional, but good practice)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "")
 endfunction(finalize_package)
@@ -929,3 +955,19 @@ if(NOT PL_INITIALIZED)
     message(${level} "[${context}][${level}] ${msg}")
   endfunction()
 endif()
+
+# ~~~
+# Internal function that is automatically called at the end of configuration
+# to finalize a single package export that hasn't been explicitly finalized
+# ~~~
+function(_auto_finalize_single_export EXPORT_NAME)
+  # Check if already finalized to avoid duplicate finalization
+  get_property(is_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}_FINALIZED")
+  if(NOT is_finalized)
+    project_log(DEBUG "Auto-finalizing export '${EXPORT_NAME}'")
+    finalize_package(EXPORT_NAME ${EXPORT_NAME})
+    set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}_FINALIZED" TRUE)
+  else()
+    project_log(DEBUG "Export '${EXPORT_NAME}' already finalized, skipping")
+  endif()
+endfunction()
