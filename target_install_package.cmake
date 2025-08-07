@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.3.1)
+  list_file_include_guard(VERSION 5.4.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -39,6 +39,7 @@ endif()
 # API:
 #   target_install_package(TARGET_NAME
 #     NAMESPACE <namespace>
+#     ALIAS_NAME <alias_name>
 #     VERSION <version>
 #     COMPATIBILITY <compatibility>
 #     EXPORT_NAME <export_name>
@@ -60,6 +61,7 @@ endif()
 # Parameters:
 #   TARGET_NAME                  - Name of the target to install.
 #   NAMESPACE                    - CMake namespace for the export (default: `${TARGET_NAME}::`).
+#   ALIAS_NAME                   - Custom alias name for the exported target (default: `${TARGET_NAME}`).
 #   VERSION                      - Version of the package (default: `${PROJECT_VERSION}`).
 #   COMPATIBILITY                - Version compatibility mode (default: "SameMajorVersion").
 #   EXPORT_NAME                  - Name of the CMake export file (default: `${TARGET_NAME}`).
@@ -107,6 +109,12 @@ endif()
 #     "docs/readme.md"
 #     "docs/license.txt"
 #     ADDITIONAL_FILES_DESTINATION "doc")
+#
+#   # Custom alias name for exported target
+#   # Consumer will use cbor::tags instead of cbor_tags::cbor_tags
+#   target_install_package(cbor_tags
+#     NAMESPACE cbor::
+#     ALIAS_NAME tags)
 # ~~~
 function(target_install_package TARGET_NAME)
   # Parse arguments to extract EXPORT_NAME and new multi-config parameters

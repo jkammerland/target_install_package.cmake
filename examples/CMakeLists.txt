@@ -9,23 +9,20 @@ include(FetchContent)
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG        10.0.0
-  FIND_PACKAGE_ARGS NAMES fmt
-)
+  GIT_TAG 10.0.0
+  FIND_PACKAGE_ARGS NAMES fmt)
 
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG        v1.12.0
-  FIND_PACKAGE_ARGS NAMES spdlog
-)
+  GIT_TAG v1.12.0
+  FIND_PACKAGE_ARGS NAMES spdlog)
 
 FetchContent_Declare(
   cxxopts
   GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-  GIT_TAG        v3.1.1
-  FIND_PACKAGE_ARGS NAMES cxxopts
-)
+  GIT_TAG v3.1.1
+  FIND_PACKAGE_ARGS NAMES cxxopts)
 
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
@@ -109,6 +106,9 @@ find_package(config_lib CONFIG REQUIRED)
 find_package(engine2 CONFIG REQUIRED)
 find_package(mylib CONFIG REQUIRED)
 find_package(cpack_lib CONFIG REQUIRED)
+find_package(cbor_tags REQUIRED)
+find_package(json_parser_v2 REQUIRED)
+find_package(data_package REQUIRED)
 
 # Conditionally find the modules package
 if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
@@ -131,15 +131,16 @@ message(STATUS "Found package game_engine: ${game_engine_FOUND}")
 message(STATUS "Found package engine2: ${engine2_FOUND}")
 message(STATUS "Found package mylib(fmt, spdlog, cxxopts): ${mylib_FOUND}")
 message(STATUS "Found package cpack_basic_example: ${cpack_lib_FOUND}")
+message(STATUS "Found package cbor_tags: ${cbor_tags_FOUND}")
+message(STATUS "Found package json_parser_v2: ${json_parser_v2_FOUND}")
+message(STATUS "Found package data_package: ${data_package_FOUND}")
 if(SHOULD_TEST_CXX_MODULES)
   message(STATUS "Found package math_modules: ${math_modules_FOUND}")
 else()
   message(STATUS "Skipped package math_modules: OK")
 endif()
 
-
-
 message(STATUS "--- Testing linking a binary with the libraries ---")
 add_executable(test_examples_main test_examples_main.cpp)
-target_link_libraries(test_examples_main PRIVATE MyLib::core_lib)
+target_link_libraries(test_examples_main PRIVATE MyLib::core_lib cbor::tags json::parser data::core data::utils)
 message(STATUS "--- Linking OK ---")

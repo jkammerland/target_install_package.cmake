@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.3.1)
+  list_file_include_guard(VERSION 5.4.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -47,6 +47,7 @@ endif()
 # API:
 #   target_prepare_package(TARGET_NAME
 #     NAMESPACE <namespace>
+#     ALIAS_NAME <alias_name>
 #     VERSION <version>
 #     COMPATIBILITY <compatibility>
 #     EXPORT_NAME <export_name>
@@ -72,6 +73,7 @@ function(target_prepare_package TARGET_NAME)
   set(options "") # No boolean options
   set(oneValueArgs
       NAMESPACE
+      ALIAS_NAME
       VERSION
       COMPATIBILITY
       EXPORT_NAME
@@ -119,6 +121,12 @@ function(target_prepare_package TARGET_NAME)
   if(NOT ARG_EXPORT_NAME)
     set(ARG_EXPORT_NAME "${TARGET_NAME}")
     project_log(DEBUG "  Export name not provided, using target name: ${ARG_EXPORT_NAME}")
+  endif()
+
+  # ALIAS_NAME defaults to target name
+  if(NOT ARG_ALIAS_NAME)
+    set(ARG_ALIAS_NAME "${TARGET_NAME}")
+    project_log(DEBUG "  Alias name not provided, using target name: ${ARG_ALIAS_NAME}")
   endif()
 
   # NAMESPACE defaults to EXPORT_NAME::
@@ -190,6 +198,7 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${ARG_RUNTIME_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
 
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
@@ -526,10 +535,22 @@ function(finalize_package)
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
     get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
+    get_property(TARGET_ALIAS_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
+
+    # Use alias name if set, otherwise use target name
+    if(NOT TARGET_ALIAS_NAME)
+      set(TARGET_ALIAS_NAME "${TARGET_NAME}")
+    endif()
 
     # Build component args for this target using helper function
     _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}" "${TARGET_COMP}")
     _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}" "${TARGET_COMP}")
+
+    # Set the export name for the target if different from target name
+    if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
+      set_property(TARGET ${TARGET_NAME} PROPERTY EXPORT_NAME ${TARGET_ALIAS_NAME})
+      project_log(DEBUG "Set EXPORT_NAME '${TARGET_ALIAS_NAME}' for target '${TARGET_NAME}'")
+    endif()
 
     # Primary install with export (to base components)
     set(INSTALL_ARGS TARGETS ${TARGET_NAME} EXPORT ${ARG_EXPORT_NAME})
