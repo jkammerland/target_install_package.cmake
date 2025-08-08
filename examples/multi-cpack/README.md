@@ -39,7 +39,7 @@ cd build && cpack
 
 ```bash
 cmake -B build -DBUILD_LIBA_PACKAGE=ON -DBUILD_LIBB_PACKAGE=ON
-# Fatal Error: target_configure_cpack() can only be called once per build tree
+# Fatal Error: export_cpack() can only be called once per build tree
 ```
 
 ## Creating Both Packages

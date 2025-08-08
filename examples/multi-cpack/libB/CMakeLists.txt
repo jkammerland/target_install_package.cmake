@@ -63,7 +63,7 @@ target_install_package(libB_tool
 
 # Configure CPack only if requested
 if(BUILD_LIBB_PACKAGE)
-  target_configure_cpack(
+  export_cpack(
     PACKAGE_NAME "LibB"
     PACKAGE_VERSION "${libB_VERSION}"
     PACKAGE_VENDOR "Example Corp - LibB Team"

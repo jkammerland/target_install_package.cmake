@@ -62,7 +62,7 @@ endif()
 
 # Configure CPack only if requested
 if(BUILD_LIBA_PACKAGE)
-  target_configure_cpack(
+  export_cpack(
     PACKAGE_NAME "LibA"
     PACKAGE_VERSION "${libA_VERSION}"
     PACKAGE_VENDOR "Example Corp - LibA Team"

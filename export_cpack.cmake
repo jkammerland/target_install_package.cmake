@@ -22,7 +22,7 @@ if(NOT COMMAND project_log)
       list(REMOVE_AT ARGV 0)
       string(JOIN " " msg ${ARGV})
     endif()
-    message(${level} "[target_configure_cpack][${level}] ${msg}")
+    message(${level} "[export_cpack][${level}] ${msg}")
   endfunction()
 endif()
 
@@ -50,13 +50,13 @@ endif()
 #   option(BUILD_PACKAGE_A "Build package A" ON)
 #   option(BUILD_PACKAGE_B "Build package B" OFF)
 #   if(BUILD_PACKAGE_A)
-#     target_configure_cpack(PACKAGE_NAME "PackageA" ...)
+#     export_cpack(PACKAGE_NAME "PackageA" ...)
 #   elseif(BUILD_PACKAGE_B)
-#     target_configure_cpack(PACKAGE_NAME "PackageB" ...)
+#     export_cpack(PACKAGE_NAME "PackageB" ...)
 #   endif()
 #
 # API:
-#   target_configure_cpack(
+#   export_cpack(
 #     [PACKAGE_NAME <name>]
 #     [PACKAGE_VERSION <version>]
 #     [PACKAGE_VENDOR <vendor>]
@@ -106,11 +106,11 @@ endif()
 #
 # Examples:
 #   # Basic usage with auto-detection (CPack is automatically included)
-#   target_configure_cpack()
+#   export_cpack()
 #   # No need to call include(CPack) - it's done automatically
 #
 #   # Custom package with specific generators
-#   target_configure_cpack(
+#   export_cpack(
 #     PACKAGE_NAME "MyAwesomeLib"
 #     PACKAGE_VENDOR "Acme Corp"
 #     GENERATORS "TGZ;DEB;RPM"
@@ -118,35 +118,35 @@ endif()
 #   )
 #
 #   # Development package with custom components
-#   target_configure_cpack(
+#   export_cpack(
 #     GENERATORS "ZIP"
 #     COMPONENTS "Development;Tools;Documentation"
 #     COMPONENT_GROUPS
 #   )
 #
 #   # Override architecture detection for special cases
-#   target_configure_cpack(
+#   export_cpack(
 #     GENERATORS "DEB;RPM"
 #     ADDITIONAL_CPACK_VARS
 #       CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all"  # Architecture-independent package
 #       CPACK_RPM_PACKAGE_ARCHITECTURE "noarch"
 #   )
 # ~~~
-function(target_configure_cpack)
-  # Check if target_configure_cpack has already been called (not deferred execution)
+function(export_cpack)
+  # Check if export_cpack has already been called (not deferred execution)
   get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
   if(cpack_config_stored)
-    set(error_msg "target_configure_cpack() can only be called once per build tree. "
+    set(error_msg "export_cpack() can only be called once per build tree. "
       "CPack only supports one package configuration per build directory. "
       "If you have multiple packages, use CMake options to select which one to build:\n"
       "  option(BUILD_PACKAGE_A \"Build package A\" ON)\n"
       "  if(BUILD_PACKAGE_A)\n"
-      "    target_configure_cpack(...)\n"
+      "    export_cpack(...)\n"
       "  endif()")
     if(COMMAND project_log)
       project_log(FATAL_ERROR "${error_msg}")
     else()
-      message(FATAL_ERROR "[target_configure_cpack] ${error_msg}")
+      message(FATAL_ERROR "[export_cpack] ${error_msg}")
     endif()
   endif()
   
@@ -513,4 +513,4 @@ endfunction(_execute_deferred_cpack_config)
 
 # Note: Component registration is now handled directly in install_package_helpers.cmake
 # The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package()
-# and consumed by target_configure_cpack() for auto-detection of components.
+# and consumed by export_cpack() for auto-detection of components.

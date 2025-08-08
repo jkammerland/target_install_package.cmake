@@ -51,8 +51,8 @@ target_install_package(
   RUNTIME_COMPONENT "Tools")
 
 # Configure CPack with auto-detection
-# Note: CPack is automatically included by target_configure_cpack
-target_configure_cpack(
+# Note: CPack is automatically included by export_cpack
+export_cpack(
   PACKAGE_NAME "MyLibrary"
   PACKAGE_VENDOR "Example Corp"
   PACKAGE_CONTACT "support@example.com"

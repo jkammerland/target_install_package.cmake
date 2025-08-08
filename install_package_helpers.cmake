@@ -536,11 +536,11 @@ function(finalize_package)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
 
     # TODO: Component registration for CPack auto-detection
-    # The _tip_register_component function is defined in target_configure_cpack.cmake
+    # The _tip_register_component function is defined in export_cpack.cmake
     # but may not be available here if that file isn't included.
     # For now, register components directly in the global property.
     # Future improvement: Move this functionality to a shared location or
-    # ensure target_configure_cpack is always available when needed.
+    # ensure export_cpack is always available when needed.
     get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
     foreach(component ${ALL_UNIQUE_COMPONENTS})
       if(NOT component IN_LIST detected_components)

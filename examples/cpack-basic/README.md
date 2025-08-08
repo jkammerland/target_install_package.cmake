@@ -1,6 +1,6 @@
 # CPack Basic Integration Example
 
-This example demonstrates automatic CPack configuration using `target_configure_cpack()` with `target_install_package()`.
+This example demonstrates automatic CPack configuration using `export_cpack()` with `target_install_package()`.
 
 ## Features Demonstrated
 
@@ -68,10 +68,10 @@ tar -tzf MyLibrary-*.tar.gz | head -20
 
 ## CPack Configuration
 
-The example uses `target_configure_cpack()` with these settings:
+The example uses `export_cpack()` with these settings:
 
 ```cmake
-target_configure_cpack(
+export_cpack(
   PACKAGE_NAME "MyLibrary"
   PACKAGE_VENDOR "Example Corp"
   PACKAGE_CONTACT "support@example.com"
@@ -241,7 +241,7 @@ int main() {
 You can override auto-detected settings:
 
 ```cmake
-target_configure_cpack(
+export_cpack(
   PACKAGE_NAME "CustomName"
   GENERATORS "ZIP;DEB"  # Override auto-detection
   COMPONENTS "Runtime;Tools"  # Subset of components
@@ -252,4 +252,4 @@ target_configure_cpack(
 )
 ```
 
-This example shows how `target_configure_cpack()` simplifies package creation while maintaining full flexibility.
+This example shows how `export_cpack()` simplifies package creation while maintaining full flexibility.
