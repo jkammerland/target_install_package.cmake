@@ -269,6 +269,7 @@ EXAMPLES=(
     "cxx-modules"
     "cpack-basic"
     "custom-alias"
+    "multi-cpack"
 )
 
 # Parse command line arguments

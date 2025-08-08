@@ -12,7 +12,7 @@ This project requires some other cmake projects, but for ease of use, they have 
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
-| [target_configure_cpack](target_configure_cpack.cmake) | Function | Automatic CPack configuration with component detection, architecture detection, and cross-platform package generation |
+| [export_cpack](export_cpack.cmake) | Function | Automatic CPack configuration with component detection, architecture detection, and cross-platform package generation |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
 | [project_log](cmake/project_log.cmake) | Function | Enhanced logging with color support and project context |
 | [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
@@ -305,7 +305,7 @@ target_install_package(my_library
 )
 
 # Auto-configure CPack
-target_configure_cpack(
+export_cpack(
   PACKAGE_NAME "MyLibrary"
   PACKAGE_VENDOR "Acme Corp"
   # AUTO-DETECTED: Components (Runtime, Development)

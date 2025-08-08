@@ -4,14 +4,14 @@ on:
   push:
     branches: [ "master", "test-packaging" ]
     paths:
-      - 'target_configure_cpack.cmake'
+      - 'export_cpack.cmake'
       - 'tests/packaging/**'
       - 'examples/cpack-basic/**'
       - '.github/workflows/packaging-tests.yml'
   pull_request:
     branches: [ "master" ]
     paths:
-      - 'target_configure_cpack.cmake'
+      - 'export_cpack.cmake'
       - 'tests/packaging/**'
       - 'examples/cpack-basic/**'
       - '.github/workflows/packaging-tests.yml'

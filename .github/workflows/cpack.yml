@@ -283,7 +283,7 @@ jobs:
         cat >> ../CMakeLists.txt << 'EOF'
 
         # Add CPack integration for testing
-        target_configure_cpack(
+        export_cpack(
           PACKAGE_NAME "MediaLibrary"
           PACKAGE_VENDOR "Media Corp"
           GENERATORS "TGZ;DEB"
