@@ -38,14 +38,14 @@ set_target_properties(libA_utils PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_features(libA_utils PUBLIC cxx_std_17)
 
 # Prepare packages for both targets with same export
-target_prepare_package(libA_core
+target_install_package(libA_core
   EXPORT_NAME "libA"
   NAMESPACE LibA::
   RUNTIME_COMPONENT "Runtime"
   DEVELOPMENT_COMPONENT "Development"
 )
 
-target_prepare_package(libA_utils
+target_install_package(libA_utils
   EXPORT_NAME "libA"
   NAMESPACE LibA::
   DEVELOPMENT_COMPONENT "Development"
@@ -60,15 +60,15 @@ if(NOT TARGET LibA::libA_core)
   add_library(LibA::libA_utils ALIAS libA_utils)
 endif()
 
-# Only configure CPack if this is the top-level project
-target_configure_cpack(
-  PACKAGE_NAME "LibA"
-  PACKAGE_VERSION "${libA_VERSION}"
-  PACKAGE_VENDOR "Example Corp - LibA Team"
-  PACKAGE_CONTACT "liba-support@example.com"
-  PACKAGE_DESCRIPTION "Library A provides core functionality and utilities"
-  PACKAGE_HOMEPAGE_URL "https://example.com/libA"
-  DEFAULT_COMPONENTS "Runtime"
-  # Components are auto-detected: Runtime, Development
-  # Generators are auto-detected based on platform
-)
+# Configure CPack only if requested
+if(BUILD_LIBA_PACKAGE)
+  target_configure_cpack(
+    PACKAGE_NAME "LibA"
+    PACKAGE_VERSION "${libA_VERSION}"
+    PACKAGE_VENDOR "Example Corp - LibA Team"
+    PACKAGE_CONTACT "liba-support@example.com"
+    PACKAGE_DESCRIPTION "Library A provides core functionality and utilities"
+    PACKAGE_HOMEPAGE_URL "https://example.com/libA"
+    DEFAULT_COMPONENTS "Runtime"
+  )
+endif()

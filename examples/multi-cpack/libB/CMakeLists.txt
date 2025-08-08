@@ -43,7 +43,7 @@ target_sources(libB_tool PRIVATE src/tool.cpp)
 target_link_libraries(libB_tool PRIVATE libB_engine)
 
 # Prepare packages for both targets with same export
-target_prepare_package(libB_engine
+target_install_package(libB_engine
   EXPORT_NAME "libB"
   NAMESPACE LibB::
   RUNTIME_COMPONENT "Runtime"
@@ -51,7 +51,7 @@ target_prepare_package(libB_engine
   PUBLIC_DEPENDENCIES "libA REQUIRED"  # Declare dependency on libA
 )
 
-target_prepare_package(libB_tool
+target_install_package(libB_tool
   EXPORT_NAME "libB"
   NAMESPACE LibB::
   COMPONENT "Tools"
@@ -61,14 +61,15 @@ target_prepare_package(libB_tool
 # Finalize the package configuration (will be called automatically)
 # finalize_package(EXPORT_NAME "libB")
 
-target_configure_cpack(
-  PACKAGE_NAME "LibB"
-  PACKAGE_VERSION "${libB_VERSION}"
-  PACKAGE_VENDOR "Example Corp - LibB Team"
-  PACKAGE_CONTACT "libb-support@example.com"
-  PACKAGE_DESCRIPTION "Library B provides advanced engine and tools built on LibA"
-  PACKAGE_HOMEPAGE_URL "https://example.com/libB"
-  DEFAULT_COMPONENTS "Runtime"
-  # Components are auto-detected: Runtime, Development, Tools
-  # Generators are auto-detected based on platform
-)
+# Configure CPack only if requested
+if(BUILD_LIBB_PACKAGE)
+  target_configure_cpack(
+    PACKAGE_NAME "LibB"
+    PACKAGE_VERSION "${libB_VERSION}"
+    PACKAGE_VENDOR "Example Corp - LibB Team"
+    PACKAGE_CONTACT "libb-support@example.com"
+    PACKAGE_DESCRIPTION "Library B provides advanced engine and tools built on LibA"
+    PACKAGE_HOMEPAGE_URL "https://example.com/libB"
+    DEFAULT_COMPONENTS "Runtime"
+  )
+endif()
