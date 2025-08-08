@@ -18,4 +18,5 @@ CMakeSettings.json
 build-*/
 */test*/*
 claude.md
+scratch/
 TODO

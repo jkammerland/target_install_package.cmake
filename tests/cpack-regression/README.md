@@ -20,7 +20,7 @@ tests/cpack-regression/
 
 ### Test 1: Single Component Configuration
 **File**: `test-single-component.sh`
-**Purpose**: Verifies that `target_configure_cpack()` works with minimal configuration
+**Purpose**: Verifies that `export_cpack()` works with minimal configuration
 **Validates**:
 - Basic CPack integration
 - Single generator selection (TGZ only)
