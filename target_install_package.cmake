@@ -35,8 +35,7 @@ endif()
 # AUTOMATIC FINALIZATION:
 # - target_install_package() can be called at any time and in any order
 # - Multiple targets can share the same EXPORT_NAME without explicit coordination
-# - finalize_package() is called automatically at the end of current PROJECT_SOURCE_DIR, 
-#   or manually inside the same PROJECT_SOURCE_DIR
+# - finalize_package() is called automatically at the end of CMAKE_SOURCE_DIR (top-level)
 #
 # For single-target packages, this function handles everything in one call.
 # For multi-target packages with shared exports, you can now use either:
@@ -133,7 +132,6 @@ function(target_install_package TARGET_NAME)
   # Forward all arguments to target_prepare_package
   target_prepare_package(${TARGET_NAME} ${ARGN})
 
-  # Finalization is now handled automatically via deferred calls
-  # This allows target_install_package to be called at any time and in any order
-  # The actual finalization happens at the end of the configuration phase
+  # Finalization is now handled automatically via deferred calls This allows target_install_package to be called at any time and in any order The actual finalization happens at the end of the
+  # configuration phase
 endfunction(target_install_package)

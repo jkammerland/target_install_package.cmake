@@ -1,6 +1,6 @@
 # CMake Target Install Package Examples
 
-This directory contains comprehensive examples demonstrating the usage of `target_install_package` and `target_configure_sources` utilities.
+This directory contains comprehensive examples demonstrating the usage of `target_install_package`, `target_configure_sources` and `export_cpack` utilities.
 
 ## 📚 Available Examples
 
@@ -31,6 +31,14 @@ cmake .. -DCMAKE_INSTALL_PREFIX=./install -DPROJECT_LOG_COLORS=ON --log-level=DE
 cmake --build .
 cmake --install .
 ```
+
+Build all examples and configurations with
+
+```bash
+./build_all_examples.sh --multi-config
+```
+
+It will install all examples to `<example_dir>/build/install/`. This script is used in the CI, together with the [CMakeLists.txt](CMakeLists.txt).
 
 ## 📖 Learning
 
@@ -182,7 +190,7 @@ install/
 - **Recommended pattern** for multiple targets with shared export
 - Dependency aggregation from multiple `PUBLIC_DEPENDENCIES`
 - Per-target component assignments within single export
-- Demonstrates correct `target_prepare_package()` + `finalize_package()` usage
+- Uses multi-target exports with shared dependencies
 
 ### Dependency Aggregation ([dependency-aggregation](dependency-aggregation/))
 - **Minimal focused example** of dependency aggregation mechanics
@@ -250,16 +258,11 @@ cmake --find-package -DNAME=<package> -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EX
 
 ## 🤝 Contributing
 
-When adding new examples:
-
-1. Include a README.md
-2. Demonstrate specific features clearly
-3. Add example dir to [build_all_examples.sh](build_all_examples.sh) 
-4. Add find_package to this [CMakeLists.txt](CMakeLists.txt)
+Try to follow the style of the other examples.
 
 ## 📚 Further Reading
 
-- [install_package_helper.cmake](../install_package_helpers.cmake) - **target_prepare_package(...) & finalize_package(...)**
+- [install_package_helper.cmake](../install_package_helpers.cmake) - **target_install_package(...)** main utility function
 - [target_install_package.cmake](../target_install_package.cmake) - Function implementation
 - [target_configure_sources.cmake](../target_configure_sources.cmake) - Configuration utilities
 - [export_cpack.cmake](../export_cpack.cmake) - Packaging utilities

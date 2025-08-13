@@ -26,7 +26,7 @@ add_library(${PROJECT_NAME} INTERFACE)
 option(TARGET_INSTALL_PACKAGE_ENABLE_INSTALL "Create install configuration for ${PROJECT_NAME}" OFF)
 option(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL "Do not create install configuration for ${PROJECT_NAME}" OFF)
 if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
-  if(${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR} OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
+  if(PROJECT_IS_TOP_LEVEL OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
     # Use target_install_package to install itself and target_configure_sources
     target_install_package(
       ${PROJECT_NAME}

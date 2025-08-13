@@ -452,7 +452,7 @@ cmake --install .
 
 ## Multi-Target Exports 🔗
 
-For projects with multiple related targets that should be packaged together, you can use the two-phase approach: `target_prepare_package()` + `finalize_package()`.
+For projects with multiple related targets that should be packaged together, call `target_install_package()` multiple times with the same `EXPORT_NAME`:
 
 ### When to Use Multi-Target Exports
 
@@ -461,7 +461,7 @@ For projects with multiple related targets that should be packaged together, you
 - **Component Organization**: Different targets with different component assignments
 
 > [!NOTE] 
-> This can help when using CPack, but it is more advisable to stick to single target packages due to the extra complexity!
+> I find it is more advisable to stick to single target packages due to the extra complexity! One use case is when you want to package a set of static libraries, so that one static can forward the others via public linking.
 
 ### Simple Multi-Target Package 📦
 
@@ -488,28 +488,24 @@ target_sources(myproject_utils PUBLIC
 add_executable(myproject_cli)
 target_sources(myproject_cli PRIVATE src/cli.cpp)
 
-# Package all targets together with shared dependencies
-target_prepare_package(myproject_core
+# Package all targets together
+target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
   PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"  # Shared by all targets
 )
 
-target_prepare_package(myproject_utils
+target_install_package(myproject_utils
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  # Inherits fmt dependency, adds spdlog
-  PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED"
+  PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED"  # Additional dependency
 )
 
-target_prepare_package(myproject_cli
+target_install_package(myproject_cli
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
   COMPONENT "tools"  # CLI goes to tools component
 )
-
-# Single finalize call creates one package with all targets and dependencies
-finalize_package(EXPORT_NAME "myproject")
 ```
 
 **Consumer usage:**
@@ -553,8 +549,8 @@ target_sources(engine_network PUBLIC
   FILES include/engine/network.h
 )
 
-# Package with component-dependent dependencies
-target_prepare_package(engine_graphics
+# Package with component-dependent dependencies (automatic finalization)
+target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"  # Always loaded
@@ -562,21 +558,19 @@ target_prepare_package(engine_graphics
     "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"  # Only when graphics requested
 )
 
-target_prepare_package(engine_audio
+target_install_package(engine_audio
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
     "audio" "portaudio 19.7 REQUIRED"  # Only when audio requested
 )
 
-target_prepare_package(engine_network
+target_install_package(engine_network
   EXPORT_NAME "game_engine" 
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
     "networking" "Boost 1.79 REQUIRED COMPONENTS system network"
 )
-
-finalize_package(EXPORT_NAME "game_engine")
 ```
 
 **Consumer usage with selective dependencies:**
@@ -647,7 +641,7 @@ add_executable(level_editor tools/level_editor.cpp)
 target_link_libraries(level_editor PRIVATE engine_core engine_graphics)
 
 # Package everything with component-based dependencies
-target_prepare_package(engine_core
+target_install_package(engine_core
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
@@ -655,7 +649,7 @@ target_prepare_package(engine_core
   DEVELOPMENT_COMPONENT "SDK"
 )
 
-target_prepare_package(engine_graphics
+target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
@@ -664,7 +658,7 @@ target_prepare_package(engine_graphics
   DEVELOPMENT_COMPONENT "SDK"
 )
 
-target_prepare_package(engine_physics
+target_install_package(engine_physics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
@@ -673,13 +667,11 @@ target_prepare_package(engine_physics
   DEVELOPMENT_COMPONENT "SDK" 
 )
 
-target_prepare_package(level_editor
+target_install_package(level_editor
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT "Tools"
 )
-
-finalize_package(EXPORT_NAME "game_engine")
 
 # Install additional assets using standard install()
 install(DIRECTORY "assets/shaders/"

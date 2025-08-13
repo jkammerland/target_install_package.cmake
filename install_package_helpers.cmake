@@ -274,10 +274,10 @@ function(target_prepare_package TARGET_NAME)
   if(NOT ARG_EXPORT_NAME IN_LIST REGISTERED_EXPORTS)
     list(APPEND REGISTERED_EXPORTS ${ARG_EXPORT_NAME})
     set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS" ${REGISTERED_EXPORTS})
-    
+
     # Schedule automatic finalization for this export at the end of configuration
     project_log(DEBUG "Scheduling automatic finalization for export '${ARG_EXPORT_NAME}' at end of configuration")
-    cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY ${PROJECT_SOURCE_DIR} CALL _auto_finalize_single_export \"${ARG_EXPORT_NAME}\")")
+    cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _auto_finalize_single_export \"${ARG_EXPORT_NAME}\")")
   endif()
 
   project_log(VERBOSE "Target '${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
@@ -535,12 +535,8 @@ function(finalize_package)
     list(REMOVE_DUPLICATES ALL_UNIQUE_COMPONENTS)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
 
-    # TODO: Component registration for CPack auto-detection
-    # The _tip_register_component function is defined in export_cpack.cmake
-    # but may not be available here if that file isn't included.
-    # For now, register components directly in the global property.
-    # Future improvement: Move this functionality to a shared location or
-    # ensure export_cpack is always available when needed.
+    # TODO: Component registration for CPack auto-detection The _tip_register_component function is defined in export_cpack.cmake but may not be available here if that file isn't included. For now,
+    # register components directly in the global property. Future improvement: Move this functionality to a shared location or ensure export_cpack is always available when needed.
     get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
     foreach(component ${ALL_UNIQUE_COMPONENTS})
       if(NOT component IN_LIST detected_components)
@@ -888,10 +884,9 @@ function(finalize_package)
     endforeach()
   endif()
 
-  # Generate correct config filename following CMake conventions
-  # Use <PackageName>Config.cmake format (exact case + "Config.cmake")
+  # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
-  
+
   # Configure and generate package config file using correct filename
   configure_package_config_file(
     "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}"
@@ -922,7 +917,7 @@ function(finalize_package)
 
   # Mark this export as finalized
   set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}_FINALIZED" TRUE)
-  
+
   # Clean up global properties (optional, but good practice)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "")
 endfunction(finalize_package)

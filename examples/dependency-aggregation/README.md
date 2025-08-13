@@ -23,12 +23,9 @@ Result: mylib-config.cmake contains all 3 dependencies
 
 ```cmake
 # Each target declares its own PUBLIC_DEPENDENCIES
-target_prepare_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED")
-target_prepare_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED")
-target_prepare_package(utils_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED")
-
-# Single finalize aggregates ALL dependencies
-finalize_package(EXPORT_NAME "mylib")
+target_install_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED")
+target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED")
+target_install_package(utils_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED")
 ```
 
 **Generated `mylib-config.cmake` contains:**

@@ -136,35 +136,35 @@ function(export_cpack)
   # Check if export_cpack has already been called (not deferred execution)
   get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
   if(cpack_config_stored)
-    set(error_msg "export_cpack() can only be called once per build tree. "
-      "CPack only supports one package configuration per build directory. "
-      "If you have multiple packages, use CMake options to select which one to build:\n"
-      "  option(BUILD_PACKAGE_A \"Build package A\" ON)\n"
-      "  if(BUILD_PACKAGE_A)\n"
-      "    export_cpack(...)\n"
-      "  endif()")
+    set(error_msg
+        "export_cpack() can only be called once per build tree. "
+        "CPack only supports one package configuration per build directory. "
+        "If you have multiple packages, use CMake options to select which one to build:\n"
+        "  option(BUILD_PACKAGE_A \"Build package A\" ON)\n"
+        "  if(BUILD_PACKAGE_A)\n"
+        "    export_cpack(...)\n"
+        "  endif()")
     if(COMMAND project_log)
       project_log(FATAL_ERROR "${error_msg}")
     else()
       message(FATAL_ERROR "[export_cpack] ${error_msg}")
     endif()
   endif()
-  
+
   # Store arguments for deferred configuration
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS" "${ARGN}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED" TRUE)
-  
+
   # Schedule deferred CPack configuration after package finalization
   get_property(cpack_defer_scheduled GLOBAL PROPERTY "_TIP_CPACK_DEFER_SCHEDULED")
   if(NOT cpack_defer_scheduled)
     # This will be called after all packages are finalized
-    cmake_language(DEFER DIRECTORY ${PROJECT_SOURCE_DIR} CALL _execute_deferred_cpack_config)
+    cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _execute_deferred_cpack_config)
     set_property(GLOBAL PROPERTY "_TIP_CPACK_DEFER_SCHEDULED" TRUE)
   endif()
 endfunction()
 
-# Helper function to store CPack variables in GLOBAL properties instead of CACHE
-# This avoids persistence between CMake runs
+# Helper function to store CPack variables in GLOBAL properties instead of CACHE This avoids persistence between CMake runs
 function(_tip_store_cpack_var var_name var_value)
   set_property(GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}" "${var_value}")
   # Track all CPack variable names for later retrieval
@@ -181,7 +181,7 @@ function(_execute_deferred_cpack_config)
   if(NOT args)
     return()
   endif()
-  
+
   # Now parse and process the stored arguments
   set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
   set(oneValueArgs
@@ -488,8 +488,7 @@ function(_execute_deferred_cpack_config)
     endif()
   endif()
 
-  # Set all CPack variables from GLOBAL properties just before including CPack
-  # This avoids cache persistence between CMake runs
+  # Set all CPack variables from GLOBAL properties just before including CPack This avoids cache persistence between CMake runs
   get_property(all_cpack_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
   foreach(var_name ${all_cpack_vars})
     get_property(var_value GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}")
@@ -504,13 +503,11 @@ function(_execute_deferred_cpack_config)
   if(ARG_COMPONENTS)
     project_log(STATUS "CPack components: ${ARG_COMPONENTS}")
   endif()
-  
-  # Include CPack after all variables are set
-  # This ensures CPack sees all the deferred configuration  
+
+  # Include CPack after all variables are set This ensures CPack sees all the deferred configuration
   include(CPack)
 
 endfunction(_execute_deferred_cpack_config)
 
-# Note: Component registration is now handled directly in install_package_helpers.cmake
-# The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package()
-# and consumed by export_cpack() for auto-detection of components.
+# Note: Component registration is now handled directly in install_package_helpers.cmake The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack()
+# for auto-detection of components.
