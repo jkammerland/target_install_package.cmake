@@ -197,10 +197,11 @@ jobs:
           exit 1
         fi
         
-        if find . -name "*config.cmake" | grep -q .; then
+        if find . -name "*Config.cmake" -o -name "*config.cmake" | grep -q .; then
           echo "✅ CMake config files found"
         else
           echo "❌ CMake config files not found"
+          find . -name "*.cmake" | head -10
           exit 1
         fi
         
