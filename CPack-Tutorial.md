@@ -16,7 +16,7 @@ This tutorial demonstrates how `export_cpack()` dramatically simplifies CPack us
 
 ## Manual CPack: The Traditional Approach
 
-Traditional CPack configuration requires extensive manual setup. Here's what you typically need to write:
+Traditional CPack configuration requires extensive manual, something I myself have to research everytime I do it. Here's what you typically need to write:
 
 ### Step 1: Basic Project Setup (Manual)
 
