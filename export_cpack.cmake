@@ -44,8 +44,9 @@ endif()
 # before CPack is configured. It automatically includes CPack at the end of configuration,
 # so you should NOT manually call include(CPack) after using this function.
 #
-# LIMITATION: CPack only supports one package configuration per build tree. This function
-# can only be called once. If you have multiple packages to build, use CMake options to
+# Important: CPack only supports one package configuration per build tree,
+# since it packs everything that has been included with install(...).
+# This function can only be called once. If you have multiple packages to build, use CMake options to
 # select which one to configure:
 #   option(BUILD_PACKAGE_A "Build package A" ON)
 #   option(BUILD_PACKAGE_B "Build package B" OFF)

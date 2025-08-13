@@ -1,6 +1,38 @@
 # CPack Integration Tutorial
 
-This tutorial demonstrates how `export_cpack()` dramatically simplifies CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
+This tutorial demonstrates how `export_cpack()` attempts simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
+
+## How CPack Works
+
+**Important:** CPack only packages files that have explicit `install()` rules - it doesn't automatically include everything in your project.
+
+### The Simple Rule
+```cmake
+# This gets packaged (has install rule)
+add_library(mylib ...)
+install(TARGETS mylib ...)  ✅ 
+
+# This doesn't get packaged (no install rule)
+add_executable(test_app ...)  ❌
+```
+
+### What Happens When You Run CPack
+
+1. **Collect**: CPack gathers all files specified by `install()` commands
+2. **Stage**: Copies them to a temporary staging directory
+3. **Package**: Creates packages (`.deb`, `.rpm`, `.tar.gz`, etc.) from that staging directory
+
+Package Generation: CPack can then create packages from the staging directory contents, e.g:
+
+* TGZ/ZIP: Archives the entire staging directory
+* DEB/RPM: Creates system packages with proper metadata
+* WIX/NSIS: Builds Windows installers
+
+**With `export_cpack()`**: The `target_install_package()` function automatically creates these install rules for you, but the same principle applies - only explicitly installed content gets packaged.
+
+---
+
+This note clearly explains the core concept while being easy to understand for users at any level.
 
 ## Table of Contents
 
