@@ -51,8 +51,8 @@ target_install_package(libA_utils
   DEVELOPMENT_COMPONENT "Development"
 )
 
-# Finalize the package configuration (will be called automatically)
-# finalize_package(EXPORT_NAME "libA")
+# Finalize the package configuration explicitly due to subdirectory structure
+finalize_package(EXPORT_NAME "libA")
 
 # Create aliases for when building as part of parent project
 if(NOT TARGET LibA::libA_core)

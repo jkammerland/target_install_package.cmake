@@ -817,25 +817,48 @@ function(finalize_package)
   list(GET TARGETS 0 FIRST_TARGET)
   get_target_property(TARGET_SOURCE_DIR ${FIRST_TARGET} SOURCE_DIR)
 
-  # Check export-specific template in target source dir
-  set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-  if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-    set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-    project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+  # Search for export-specific template in target source dir (both variants)
+  if(NOT CONFIG_TEMPLATE_TO_USE)
+    # Try preferred CMake format first: <PackageName>Config.cmake.in
+    set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}Config.cmake.in")
+    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+      project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+    else()
+      # Try alternative format: <packagename>-config.cmake.in
+      set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+      if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+        set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+        project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+      endif()
+    endif()
+  endif()
 
-    # Check export-specific template in script's cmake dir
-  elseif(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-    set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-    project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+  # Search for export-specific template in script's cmake dir (both variants)
+  if(NOT CONFIG_TEMPLATE_TO_USE)
+    # Try preferred CMake format first: <PackageName>Config.cmake.in
+    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}Config.cmake.in")
+    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+      project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+    else()
+      # Try alternative format: <packagename>-config.cmake.in
+      set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+      if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+        set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+        project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+      endif()
+    endif()
+  endif()
 
-    # Check generic template in script's cmake dir
-  elseif(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-    set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-    project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-
-    # No template found - fatal error
-  else()
-    project_log(FATAL_ERROR "No config template found. Generic template expected at ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in but not found.")
+  # Fallback to generic template in script's cmake dir
+  if(NOT CONFIG_TEMPLATE_TO_USE)
+    if(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+      set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+      project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+    else()
+      project_log(FATAL_ERROR "No config template found. Generic template expected at ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in but not found.")
+    endif()
   endif()
 
   # Prepare public CMake files content
@@ -865,15 +888,19 @@ function(finalize_package)
     endforeach()
   endif()
 
-  # Configure and generate package config file using EXPORT_NAME
+  # Generate correct config filename following CMake conventions
+  # Use <PackageName>Config.cmake format (exact case + "Config.cmake")
+  set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
+  
+  # Configure and generate package config file using correct filename
   configure_package_config_file(
-    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake"
+    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}"
     INSTALL_DESTINATION ${CMAKE_CONFIG_DESTINATION}
     PATH_VARS CMAKE_INSTALL_PREFIX)
 
-  # Install config files using EXPORT_NAME with config component
+  # Install config files using correct filename with config component
   install(
-    FILES "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
+    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 

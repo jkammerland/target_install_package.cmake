@@ -24,9 +24,11 @@ This project requires some other cmake projects, but for ease of use, they have 
 ### Template Override System 
 The `target_install_package()` function searches for the targets config templates in this order:
 1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
-2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
-3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
-4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
+2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
+3. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
+4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
+5. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
+6. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
 
 **Note**: Templates use `@EXPORT_NAME@` for CMake substitution, not `@TARGET_NAME@`. This ensures `check_required_components(@EXPORT_NAME@)` calls work correctly.
 
