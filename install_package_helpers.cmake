@@ -38,11 +38,12 @@ endif()
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization with finalize_package().
+# the configuration for later finalization. Since v5.4.0, finalization happens
+# automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
-# export with aggregated dependencies. Call this for each target, then call
-# finalize_package() once with the shared EXPORT_NAME.
+# export with aggregated dependencies. Call this for each target, then optionally
+# call finalize_package() for explicit control (otherwise it happens automatically).
 #
 # API:
 #   target_prepare_package(TARGET_NAME
@@ -268,6 +269,17 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Added component dependencies for export '${ARG_EXPORT_NAME}': ${ARG_COMPONENT_DEPENDENCIES}")
   endif()
 
+  # Track this export for auto-finalization
+  get_property(REGISTERED_EXPORTS GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS")
+  if(NOT ARG_EXPORT_NAME IN_LIST REGISTERED_EXPORTS)
+    list(APPEND REGISTERED_EXPORTS ${ARG_EXPORT_NAME})
+    set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS" ${REGISTERED_EXPORTS})
+    
+    # Schedule automatic finalization for this export at the end of configuration
+    project_log(DEBUG "Scheduling automatic finalization for export '${ARG_EXPORT_NAME}' at end of configuration")
+    cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY ${PROJECT_SOURCE_DIR} CALL _auto_finalize_single_export \"${ARG_EXPORT_NAME}\")")
+  endif()
+
   project_log(VERBOSE "Target '${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
 endfunction(target_prepare_package)
 
@@ -429,6 +441,10 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
+# NOTE: Since v5.4.0, this function is OPTIONAL. All exports are automatically
+# finalized at the end of configuration using cmake_language(DEFER CALL).
+# Use this function only when you need explicit control over finalization timing.
+#
 # Under the hood:
 # 1. Collects all targets and their configurations from global properties
 # 2. Aggregates PUBLIC_DEPENDENCIES from all targets (with deduplication)
@@ -457,6 +473,13 @@ function(finalize_package)
 
   if(NOT ARG_EXPORT_NAME)
     project_log(FATAL_ERROR "EXPORT_NAME is required for finalize_package()")
+  endif()
+
+  # Check if this export has already been finalized
+  get_property(is_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}_FINALIZED")
+  if(is_finalized)
+    project_log(DEBUG "Export '${ARG_EXPORT_NAME}' has already been finalized, skipping")
+    return()
   endif()
 
   # Retrieve stored configuration
@@ -512,11 +535,21 @@ function(finalize_package)
     list(REMOVE_DUPLICATES ALL_UNIQUE_COMPONENTS)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
 
-    # Register components for CPack integration
-    if(COMMAND _tip_register_component)
-      foreach(component ${ALL_UNIQUE_COMPONENTS})
-        _tip_register_component("${component}")
-      endforeach()
+    # TODO: Component registration for CPack auto-detection
+    # The _tip_register_component function is defined in export_cpack.cmake
+    # but may not be available here if that file isn't included.
+    # For now, register components directly in the global property.
+    # Future improvement: Move this functionality to a shared location or
+    # ensure export_cpack is always available when needed.
+    get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
+    foreach(component ${ALL_UNIQUE_COMPONENTS})
+      if(NOT component IN_LIST detected_components)
+        list(APPEND detected_components "${component}")
+      endif()
+    endforeach()
+    if(detected_components)
+      list(REMOVE_DUPLICATES detected_components)
+      set_property(GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS" "${detected_components}")
     endif()
   else()
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
@@ -784,25 +817,48 @@ function(finalize_package)
   list(GET TARGETS 0 FIRST_TARGET)
   get_target_property(TARGET_SOURCE_DIR ${FIRST_TARGET} SOURCE_DIR)
 
-  # Check export-specific template in target source dir
-  set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-  if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-    set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-    project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+  # Search for export-specific template in target source dir (both variants)
+  if(NOT CONFIG_TEMPLATE_TO_USE)
+    # Try preferred CMake format first: <PackageName>Config.cmake.in
+    set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}Config.cmake.in")
+    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+      project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+    else()
+      # Try alternative format: <packagename>-config.cmake.in
+      set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+      if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+        set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+        project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
+      endif()
+    endif()
+  endif()
 
-    # Check export-specific template in script's cmake dir
-  elseif(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-    set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-    project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+  # Search for export-specific template in script's cmake dir (both variants)
+  if(NOT CONFIG_TEMPLATE_TO_USE)
+    # Try preferred CMake format first: <PackageName>Config.cmake.in
+    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}Config.cmake.in")
+    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+      project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+    else()
+      # Try alternative format: <packagename>-config.cmake.in
+      set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
+      if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
+        set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
+        project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+      endif()
+    endif()
+  endif()
 
-    # Check generic template in script's cmake dir
-  elseif(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-    set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-    project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-
-    # No template found - fatal error
-  else()
-    project_log(FATAL_ERROR "No config template found. Generic template expected at ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in but not found.")
+  # Fallback to generic template in script's cmake dir
+  if(NOT CONFIG_TEMPLATE_TO_USE)
+    if(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+      set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+      project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
+    else()
+      project_log(FATAL_ERROR "No config template found. Generic template expected at ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in but not found.")
+    endif()
   endif()
 
   # Prepare public CMake files content
@@ -832,15 +888,19 @@ function(finalize_package)
     endforeach()
   endif()
 
-  # Configure and generate package config file using EXPORT_NAME
+  # Generate correct config filename following CMake conventions
+  # Use <PackageName>Config.cmake format (exact case + "Config.cmake")
+  set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
+  
+  # Configure and generate package config file using correct filename
   configure_package_config_file(
-    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake"
+    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}"
     INSTALL_DESTINATION ${CMAKE_CONFIG_DESTINATION}
     PATH_VARS CMAKE_INSTALL_PREFIX)
 
-  # Install config files using EXPORT_NAME with config component
+  # Install config files using correct filename with config component
   install(
-    FILES "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config.cmake" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
+    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 
@@ -860,6 +920,9 @@ function(finalize_package)
     project_log(VERBOSE "Install specific component: cmake --install <build_dir> --component <component_name>")
   endif()
 
+  # Mark this export as finalized
+  set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}_FINALIZED" TRUE)
+  
   # Clean up global properties (optional, but good practice)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "")
 endfunction(finalize_package)
@@ -929,3 +992,19 @@ if(NOT PL_INITIALIZED)
     message(${level} "[${context}][${level}] ${msg}")
   endfunction()
 endif()
+
+# ~~~
+# Internal function that is automatically called at the end of configuration
+# to finalize a single package export that hasn't been explicitly finalized
+# ~~~
+function(_auto_finalize_single_export EXPORT_NAME)
+  # Check if already finalized to avoid duplicate finalization
+  get_property(is_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}_FINALIZED")
+  if(NOT is_finalized)
+    project_log(DEBUG "Auto-finalizing export '${EXPORT_NAME}'")
+    finalize_package(EXPORT_NAME ${EXPORT_NAME})
+    set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}_FINALIZED" TRUE)
+  else()
+    project_log(DEBUG "Export '${EXPORT_NAME}' already finalized, skipping")
+  endif()
+endfunction()

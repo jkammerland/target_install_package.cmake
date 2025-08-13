@@ -12,7 +12,7 @@ This project requires some other cmake projects, but for ease of use, they have 
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
-| [target_configure_cpack](target_configure_cpack.cmake) | Function | Automatic CPack configuration with component detection, architecture detection, and cross-platform package generation |
+| [export_cpack](export_cpack.cmake) | Function | Automatic CPack configuration with component detection, architecture detection, and cross-platform package generation |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
 | [project_log](cmake/project_log.cmake) | Function | Enhanced logging with color support and project context |
 | [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
@@ -24,9 +24,11 @@ This project requires some other cmake projects, but for ease of use, they have 
 ### Template Override System 
 The `target_install_package()` function searches for the targets config templates in this order:
 1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
-2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
-3. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in`
-4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
+2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
+3. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
+4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
+5. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
+6. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
 
 **Note**: Templates use `@EXPORT_NAME@` for CMake substitution, not `@TARGET_NAME@`. This ensures `check_required_components(@EXPORT_NAME@)` calls work correctly.
 
@@ -305,7 +307,7 @@ target_install_package(my_library
 )
 
 # Auto-configure CPack
-target_configure_cpack(
+export_cpack(
   PACKAGE_NAME "MyLibrary"
   PACKAGE_VENDOR "Acme Corp"
   # AUTO-DETECTED: Components (Runtime, Development)

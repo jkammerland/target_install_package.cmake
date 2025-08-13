@@ -262,5 +262,5 @@ When adding new examples:
 - [install_package_helper.cmake](../install_package_helpers.cmake) - **target_prepare_package(...) & finalize_package(...)**
 - [target_install_package.cmake](../target_install_package.cmake) - Function implementation
 - [target_configure_sources.cmake](../target_configure_sources.cmake) - Configuration utilities
-- [target_configure_cpack.cmake](../target_configure_cpack.cmake) - Packaging utilities
+- [export_cpack.cmake](../export_cpack.cmake) - Packaging utilities
 - [CMake Documentation](https://cmake.org/cmake/help/latest/) - Official CMake reference

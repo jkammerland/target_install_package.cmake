@@ -32,9 +32,16 @@ endif()
 # and CMake export files for a target. It is intended to be used in projects that
 # want to package their libraries and provide standardized installation paths.
 #
+# AUTOMATIC FINALIZATION:
+# - target_install_package() can be called at any time and in any order
+# - Multiple targets can share the same EXPORT_NAME without explicit coordination
+# - finalize_package() is called automatically at the end of current PROJECT_SOURCE_DIR, 
+#   or manually inside the same PROJECT_SOURCE_DIR
+#
 # For single-target packages, this function handles everything in one call.
-# For multi-target packages with shared exports, use target_prepare_package() +
-# finalize_package() instead to properly aggregate dependencies.
+# For multi-target packages with shared exports, you can now use either:
+# - Multiple target_install_package() calls with the same EXPORT_NAME (automatic)
+# - target_prepare_package() + optional finalize_package() (manual control)
 #
 # API:
 #   target_install_package(TARGET_NAME
@@ -126,12 +133,7 @@ function(target_install_package TARGET_NAME)
   # Forward all arguments to target_prepare_package
   target_prepare_package(${TARGET_NAME} ${ARGN})
 
-  # Use the same default as target_prepare_package
-  if(NOT ARG_EXPORT_NAME)
-    set(ARG_EXPORT_NAME "${TARGET_NAME}")
-  endif()
-
-  # For target_install_package, we finalize immediately unless this is a multi-target scenario We detect multi-target by checking if more targets will be added to this export For now, always finalize
-  # to maintain backward compatibility TODO: Add mechanism to defer finalization for known multi-target scenarios
-  finalize_package(EXPORT_NAME ${ARG_EXPORT_NAME})
+  # Finalization is now handled automatically via deferred calls
+  # This allows target_install_package to be called at any time and in any order
+  # The actual finalization happens at the end of the configuration phase
 endfunction(target_install_package)
