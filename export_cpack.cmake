@@ -7,7 +7,23 @@ get_property(
 if(_LFG_INITIALIZED)
   list_file_include_guard(VERSION 5.4.0)
 else()
-  message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+  if(COMMAND project_log)
+    project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+  else()
+    message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
+  endif()
+endif()
+
+# Ensure project_log is available (simple fallback if not defined elsewhere)
+if(NOT COMMAND project_log)
+  function(project_log level)
+    set(msg "")
+    if(ARGV)
+      list(REMOVE_AT ARGV 0)
+      string(JOIN " " msg ${ARGV})
+    endif()
+    message(${level} "[export_cpack][${level}] ${msg}")
+  endfunction()
 endif()
 
 include(GNUInstallDirs)
@@ -24,8 +40,24 @@ endif()
 # properties and installed components. It automatically detects platform-appropriate
 # package generators and configures component relationships.
 #
+# IMPORTANT: This function uses deferred execution to ensure all components are registered
+# before CPack is configured. It automatically includes CPack at the end of configuration,
+# so you should NOT manually call include(CPack) after using this function.
+#
+# Important: CPack only supports one package configuration per build tree,
+# since it packs everything that has been included with install(...).
+# This function can only be called once. If you have multiple packages to build, use CMake options to
+# select which one to configure:
+#   option(BUILD_PACKAGE_A "Build package A" ON)
+#   option(BUILD_PACKAGE_B "Build package B" OFF)
+#   if(BUILD_PACKAGE_A)
+#     export_cpack(PACKAGE_NAME "PackageA" ...)
+#   elseif(BUILD_PACKAGE_B)
+#     export_cpack(PACKAGE_NAME "PackageB" ...)
+#   endif()
+#
 # API:
-#   target_configure_cpack(
+#   export_cpack(
 #     [PACKAGE_NAME <name>]
 #     [PACKAGE_VERSION <version>]
 #     [PACKAGE_VENDOR <vendor>]
@@ -74,11 +106,12 @@ endif()
 #   - <Custom>: Any custom components defined in target_install_package calls
 #
 # Examples:
-#   # Basic usage with auto-detection
-#   target_configure_cpack()
+#   # Basic usage with auto-detection (CPack is automatically included)
+#   export_cpack()
+#   # No need to call include(CPack) - it's done automatically
 #
 #   # Custom package with specific generators
-#   target_configure_cpack(
+#   export_cpack(
 #     PACKAGE_NAME "MyAwesomeLib"
 #     PACKAGE_VENDOR "Acme Corp"
 #     GENERATORS "TGZ;DEB;RPM"
@@ -86,21 +119,71 @@ endif()
 #   )
 #
 #   # Development package with custom components
-#   target_configure_cpack(
+#   export_cpack(
 #     GENERATORS "ZIP"
 #     COMPONENTS "Development;Tools;Documentation"
 #     COMPONENT_GROUPS
 #   )
 #
 #   # Override architecture detection for special cases
-#   target_configure_cpack(
+#   export_cpack(
 #     GENERATORS "DEB;RPM"
 #     ADDITIONAL_CPACK_VARS
 #       CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all"  # Architecture-independent package
 #       CPACK_RPM_PACKAGE_ARCHITECTURE "noarch"
 #   )
 # ~~~
-function(target_configure_cpack)
+function(export_cpack)
+  # Check if export_cpack has already been called (not deferred execution)
+  get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
+  if(cpack_config_stored)
+    set(error_msg
+        "export_cpack() can only be called once per build tree. "
+        "CPack only supports one package configuration per build directory. "
+        "If you have multiple packages, use CMake options to select which one to build:\n"
+        "  option(BUILD_PACKAGE_A \"Build package A\" ON)\n"
+        "  if(BUILD_PACKAGE_A)\n"
+        "    export_cpack(...)\n"
+        "  endif()")
+    if(COMMAND project_log)
+      project_log(FATAL_ERROR "${error_msg}")
+    else()
+      message(FATAL_ERROR "[export_cpack] ${error_msg}")
+    endif()
+  endif()
+
+  # Store arguments for deferred configuration
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS" "${ARGN}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED" TRUE)
+
+  # Schedule deferred CPack configuration after package finalization
+  get_property(cpack_defer_scheduled GLOBAL PROPERTY "_TIP_CPACK_DEFER_SCHEDULED")
+  if(NOT cpack_defer_scheduled)
+    # This will be called after all packages are finalized
+    cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _execute_deferred_cpack_config)
+    set_property(GLOBAL PROPERTY "_TIP_CPACK_DEFER_SCHEDULED" TRUE)
+  endif()
+endfunction()
+
+# Helper function to store CPack variables in GLOBAL properties instead of CACHE This avoids persistence between CMake runs
+function(_tip_store_cpack_var var_name var_value)
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}" "${var_value}")
+  # Track all CPack variable names for later retrieval
+  get_property(all_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
+  if(NOT var_name IN_LIST all_vars)
+    list(APPEND all_vars "${var_name}")
+    set_property(GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS" "${all_vars}")
+  endif()
+endfunction()
+
+# Internal function to execute the deferred CPack configuration
+function(_execute_deferred_cpack_config)
+  get_property(args GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS")
+  if(NOT args)
+    return()
+  endif()
+
+  # Now parse and process the stored arguments
   set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
   set(oneValueArgs
       PACKAGE_NAME
@@ -112,7 +195,7 @@ function(target_configure_cpack)
       LICENSE_FILE
       ARCHIVE_FORMAT)
   set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
-  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
@@ -203,68 +286,71 @@ function(target_configure_cpack)
     endif()
   endif()
 
-  # Configure basic CPack variables
-  set(CPACK_PACKAGE_NAME "${ARG_PACKAGE_NAME}")
-  set(CPACK_PACKAGE_VERSION "${ARG_PACKAGE_VERSION}")
-  set(CPACK_PACKAGE_VENDOR "${ARG_PACKAGE_VENDOR}")
-  set(CPACK_PACKAGE_CONTACT "${ARG_PACKAGE_CONTACT}")
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${ARG_PACKAGE_DESCRIPTION}")
+  # Configure basic CPack variables using GLOBAL properties
+  _tip_store_cpack_var(CPACK_PACKAGE_NAME "${ARG_PACKAGE_NAME}")
+  _tip_store_cpack_var(CPACK_PACKAGE_VERSION "${ARG_PACKAGE_VERSION}")
+  _tip_store_cpack_var(CPACK_PACKAGE_VENDOR "${ARG_PACKAGE_VENDOR}")
+  _tip_store_cpack_var(CPACK_PACKAGE_CONTACT "${ARG_PACKAGE_CONTACT}")
+  _tip_store_cpack_var(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${ARG_PACKAGE_DESCRIPTION}")
 
   if(ARG_PACKAGE_HOMEPAGE_URL)
-    set(CPACK_PACKAGE_HOMEPAGE_URL "${ARG_PACKAGE_HOMEPAGE_URL}")
+    _tip_store_cpack_var(CPACK_PACKAGE_HOMEPAGE_URL "${ARG_PACKAGE_HOMEPAGE_URL}")
   endif()
 
   if(ARG_LICENSE_FILE)
-    set(CPACK_RESOURCE_FILE_LICENSE "${ARG_LICENSE_FILE}")
+    _tip_store_cpack_var(CPACK_RESOURCE_FILE_LICENSE "${ARG_LICENSE_FILE}")
   endif()
 
   # Parse version components
   string(REPLACE "." ";" version_list "${ARG_PACKAGE_VERSION}")
   list(LENGTH version_list version_length)
   if(version_length GREATER_EQUAL 1)
-    list(GET version_list 0 CPACK_PACKAGE_VERSION_MAJOR)
+    list(GET version_list 0 version_major)
+    _tip_store_cpack_var(CPACK_PACKAGE_VERSION_MAJOR "${version_major}")
   endif()
   if(version_length GREATER_EQUAL 2)
-    list(GET version_list 1 CPACK_PACKAGE_VERSION_MINOR)
+    list(GET version_list 1 version_minor)
+    _tip_store_cpack_var(CPACK_PACKAGE_VERSION_MINOR "${version_minor}")
   endif()
   if(version_length GREATER_EQUAL 3)
-    list(GET version_list 2 CPACK_PACKAGE_VERSION_PATCH)
+    list(GET version_list 2 version_patch)
+    _tip_store_cpack_var(CPACK_PACKAGE_VERSION_PATCH "${version_patch}")
   endif()
 
   # Set generators
   if(ARG_GENERATORS)
     string(REPLACE ";" ";" generators_str "${ARG_GENERATORS}")
-    set(CPACK_GENERATOR "${generators_str}")
+    _tip_store_cpack_var(CPACK_GENERATOR "${generators_str}")
   endif()
 
   # Configure components
   if(ARG_COMPONENTS)
-    set(CPACK_COMPONENTS_ALL ${ARG_COMPONENTS})
+    _tip_store_cpack_var(CPACK_COMPONENTS_ALL "${ARG_COMPONENTS}")
 
     # Enable component installation if more than one component or explicitly requested
     list(LENGTH ARG_COMPONENTS component_count)
     if(component_count GREATER 1 OR ARG_ENABLE_COMPONENT_INSTALL)
-      set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
-      set(CPACK_DEB_COMPONENT_INSTALL ON)
-      set(CPACK_RPM_COMPONENT_INSTALL ON)
+      _tip_store_cpack_var(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+      _tip_store_cpack_var(CPACK_DEB_COMPONENT_INSTALL ON)
+      _tip_store_cpack_var(CPACK_RPM_COMPONENT_INSTALL ON)
       if("WIX" IN_LIST ARG_GENERATORS)
-        set(CPACK_WIX_COMPONENT_INSTALL ON)
+        _tip_store_cpack_var(CPACK_WIX_COMPONENT_INSTALL ON)
       endif()
     endif()
 
     # Set default components
     if(ARG_DEFAULT_COMPONENTS)
-      set(CPACK_COMPONENTS_DEFAULT ${ARG_DEFAULT_COMPONENTS})
+      _tip_store_cpack_var(CPACK_COMPONENTS_DEFAULT "${ARG_DEFAULT_COMPONENTS}")
     endif()
 
     # Configure component grouping
     if(ARG_COMPONENT_GROUPS)
-      set(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
+      _tip_store_cpack_var(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
 
       # Set up standard groups
       if("Runtime" IN_LIST ARG_COMPONENTS OR "Development" IN_LIST ARG_COMPONENTS)
         if("Development" IN_LIST ARG_COMPONENTS)
-          set(CPACK_COMPONENT_DEVELOPMENT_DEPENDS Runtime)
+          _tip_store_cpack_var(CPACK_COMPONENT_DEVELOPMENT_DEPENDS "Runtime")
         endif()
       endif()
     endif()
@@ -273,20 +359,20 @@ function(target_configure_cpack)
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
       if(component STREQUAL "Runtime")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Runtime libraries and executables")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Runtime Files")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Runtime libraries and executables")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Runtime Files")
       elseif(component STREQUAL "Development")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Headers, static libraries, and development files")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Development Files")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Headers, static libraries, and development files")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Development Files")
       elseif(component STREQUAL "Tools")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Command-line tools and utilities")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Tools")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Command-line tools and utilities")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Tools")
       elseif(component STREQUAL "Documentation")
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Documentation and examples")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Documentation")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Documentation and examples")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Documentation")
       else()
-        set(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} component")
-        set(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component}")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} component")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component}")
       endif()
     endforeach()
   endif()
@@ -303,7 +389,8 @@ function(target_configure_cpack)
       "${ARG_PACKAGE_NAME}"
       TYPE
       SHA1)
-    set(CPACK_WIX_UNINSTALL ON)
+    _tip_store_cpack_var(CPACK_WIX_UPGRADE_GUID "${CPACK_WIX_UPGRADE_GUID}")
+    _tip_store_cpack_var(CPACK_WIX_UNINSTALL ON)
   endif()
 
   if(UNIX AND NOT APPLE)
@@ -327,58 +414,59 @@ function(target_configure_cpack)
     endif()
 
     # Debian-specific settings
-    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}")
+    _tip_store_cpack_var(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+    _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}")
 
     # Map canonical architecture to Debian architecture
     if(_TIP_CANONICAL_ARCH STREQUAL "x64")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
     elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "i386")
+      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "i386")
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
+      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
-      set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
     else()
       # Try dpkg if available for better detection
       find_program(DPKG_CMD dpkg)
       if(DPKG_CMD)
         execute_process(
           COMMAND ${DPKG_CMD} --print-architecture
-          OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+          OUTPUT_VARIABLE _dpkg_arch
           OUTPUT_STRIP_TRAILING_WHITESPACE)
+        _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${_dpkg_arch}")
       else()
-        set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+        _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
       endif()
     endif()
 
     # Set other Debian defaults
-    set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
-    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_SECTION "devel")
+    _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 
     # RPM-specific settings
-    set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
-    set(CPACK_RPM_PACKAGE_LICENSE "Unknown")
+    _tip_store_cpack_var(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+    _tip_store_cpack_var(CPACK_RPM_PACKAGE_LICENSE "Unknown")
     if(ARG_LICENSE_FILE)
-      set(CPACK_RPM_PACKAGE_LICENSE "${ARG_LICENSE_FILE}")
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_LICENSE "${ARG_LICENSE_FILE}")
     endif()
 
     # Map canonical architecture to RPM architecture
     if(_TIP_CANONICAL_ARCH STREQUAL "x64")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
     elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "i686")
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "i686")
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64")
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64")
     elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl")
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl")
     else()
-      set(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
 
     # Set other RPM defaults
-    set(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
-    set(CPACK_RPM_PACKAGE_RELEASE "1")
+    _tip_store_cpack_var(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
+    _tip_store_cpack_var(CPACK_RPM_PACKAGE_RELEASE "1")
   endif()
 
   # Set additional variables if provided
@@ -388,7 +476,7 @@ function(target_configure_cpack)
     math(EXPR remainder "${vars_length} % 2")
 
     if(NOT remainder EQUAL 0)
-      message(WARNING "ADDITIONAL_CPACK_VARS must contain an even number of elements (key-value pairs)")
+      project_log(WARNING "ADDITIONAL_CPACK_VARS must contain an even number of elements (key-value pairs)")
     else()
       math(EXPR max_index "${pairs_count} - 1")
       foreach(i RANGE ${max_index})
@@ -396,85 +484,31 @@ function(target_configure_cpack)
         math(EXPR value_index "${key_index} + 1")
         list(GET ARG_ADDITIONAL_CPACK_VARS ${key_index} var_name)
         list(GET ARG_ADDITIONAL_CPACK_VARS ${value_index} var_value)
-        set(${var_name} "${var_value}")
+        _tip_store_cpack_var("${var_name}" "${var_value}")
       endforeach()
     endif()
   endif()
 
-  # Set all CPack variables in parent scope
-  foreach(
-    var_name IN
-    ITEMS CPACK_PACKAGE_NAME
-          CPACK_PACKAGE_VERSION
-          CPACK_PACKAGE_VERSION_MAJOR
-          CPACK_PACKAGE_VERSION_MINOR
-          CPACK_PACKAGE_VERSION_PATCH
-          CPACK_PACKAGE_VENDOR
-          CPACK_PACKAGE_CONTACT
-          CPACK_PACKAGE_DESCRIPTION_SUMMARY
-          CPACK_PACKAGE_HOMEPAGE_URL
-          CPACK_RESOURCE_FILE_LICENSE
-          CPACK_GENERATOR
-          CPACK_COMPONENTS_ALL
-          CPACK_COMPONENTS_DEFAULT
-          CPACK_COMPONENTS_GROUPING
-          CPACK_ARCHIVE_COMPONENT_INSTALL
-          CPACK_DEB_COMPONENT_INSTALL
-          CPACK_RPM_COMPONENT_INSTALL
-          CPACK_WIX_COMPONENT_INSTALL
-          CPACK_WIX_UPGRADE_GUID
-          CPACK_WIX_UNINSTALL
-          CPACK_DEBIAN_FILE_NAME
-          CPACK_DEBIAN_PACKAGE_MAINTAINER
-          CPACK_DEBIAN_PACKAGE_ARCHITECTURE
-          CPACK_DEBIAN_PACKAGE_SECTION
-          CPACK_DEBIAN_PACKAGE_PRIORITY
-          CPACK_RPM_FILE_NAME
-          CPACK_RPM_PACKAGE_LICENSE
-          CPACK_RPM_PACKAGE_ARCHITECTURE
-          CPACK_RPM_PACKAGE_GROUP
-          CPACK_RPM_PACKAGE_RELEASE)
-    if(DEFINED ${var_name})
-      set(${var_name}
-          "${${var_name}}"
-          PARENT_SCOPE)
-    endif()
+  # Set all CPack variables from GLOBAL properties just before including CPack This avoids cache persistence between CMake runs
+  get_property(all_cpack_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
+  foreach(var_name ${all_cpack_vars})
+    get_property(var_value GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}")
+    set(${var_name} "${var_value}")
   endforeach()
 
-  # Set component-specific variables in parent scope
-  if(ARG_COMPONENTS)
-    foreach(component ${ARG_COMPONENTS})
-      string(TOUPPER ${component} component_upper)
-      foreach(suffix DESCRIPTION DISPLAY_NAME DEPENDS)
-        set(var_name "CPACK_COMPONENT_${component_upper}_${suffix}")
-        if(DEFINED ${var_name})
-          set(${var_name}
-              "${${var_name}}"
-              PARENT_SCOPE)
-        endif()
-      endforeach()
-    endforeach()
-  endif()
-
   # Log configuration for debugging
-  message(STATUS "CPack configured for package: ${ARG_PACKAGE_NAME} v${ARG_PACKAGE_VERSION}")
+  project_log(STATUS "CPack configured for package: ${ARG_PACKAGE_NAME} v${ARG_PACKAGE_VERSION}")
   if(ARG_GENERATORS)
-    message(STATUS "CPack generators: ${ARG_GENERATORS}")
+    project_log(STATUS "CPack generators: ${ARG_GENERATORS}")
   endif()
   if(ARG_COMPONENTS)
-    message(STATUS "CPack components: ${ARG_COMPONENTS}")
+    project_log(STATUS "CPack components: ${ARG_COMPONENTS}")
   endif()
 
-endfunction(target_configure_cpack)
+  # Include CPack after all variables are set This ensures CPack sees all the deferred configuration
+  include(CPack)
 
-# ~~~
-# Helper function to track components used by target_install_package
-# This is called internally by target_install_package to register components
-# ~~~
-function(_tip_register_component component_name)
-  get_property(components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
-  if(NOT component_name IN_LIST components)
-    list(APPEND components "${component_name}")
-    set_property(GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS" "${components}")
-  endif()
-endfunction(_tip_register_component)
+endfunction(_execute_deferred_cpack_config)
+
+# Note: Component registration is now handled directly in install_package_helpers.cmake The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack()
+# for auto-detection of components.

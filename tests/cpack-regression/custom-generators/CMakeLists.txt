@@ -18,10 +18,9 @@ target_sources(custom_lib PUBLIC
 target_install_package(custom_lib NAMESPACE Custom::)
 
 # Configure CPack with custom generator selection and NO_DEFAULT_GENERATORS
-target_configure_cpack(
+# Note: CPack is automatically included by export_cpack
+export_cpack(
   PACKAGE_NAME "CustomLib"
   GENERATORS "TGZ"
   NO_DEFAULT_GENERATORS
 )
-
-include(CPack)

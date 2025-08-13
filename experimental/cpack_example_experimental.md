@@ -32,30 +32,27 @@ target_sources(mygui
 add_executable(mytool src/tool.cpp)
 target_link_libraries(mytool PRIVATE mycore)
 
-# Prepare installations
-target_prepare_package(mycore
+# Install packages
+target_install_package(mycore
   EXPORT_NAME MySDK
   NAMESPACE MySDK::
   VERSION ${PROJECT_VERSION}
   # No COMPONENT specified - only goes to base components
 )
 
-target_prepare_package(mygui
+target_install_package(mygui
   EXPORT_NAME MySDK
   NAMESPACE MySDK::
   COMPONENT GUI  # Goes to Runtime, Development, AND GUI
 )
 
-target_prepare_package(mytool
+target_install_package(mytool
   EXPORT_NAME MySDK
   NAMESPACE MySDK::
   COMPONENT Tools  # Goes to Runtime AND Tools
   RUNTIME_COMPONENT Runtime
   DEVELOPMENT_COMPONENT Development  # Executables don't have dev files
 )
-
-# Finalize the export
-finalize_package(EXPORT_NAME MySDK)
 
 # Configure CPack
 set(CPACK_PACKAGE_NAME "MySDK")

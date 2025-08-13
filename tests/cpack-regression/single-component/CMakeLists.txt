@@ -18,9 +18,8 @@ target_sources(simple_lib PUBLIC
 target_install_package(simple_lib NAMESPACE Simple::)
 
 # Configure CPack with single generator only
-target_configure_cpack(
+# Note: CPack is automatically included by export_cpack
+export_cpack(
   PACKAGE_NAME "SimpleLib"
   GENERATORS "TGZ"
 )
-
-include(CPack)

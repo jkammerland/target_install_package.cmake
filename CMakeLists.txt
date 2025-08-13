@@ -17,7 +17,7 @@ project_include_guard() # Guard against multiple add_subdirectory (e.g git submo
 include(${CMAKE_CURRENT_LIST_DIR}/install_package_helpers.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/target_configure_sources.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/target_configure_cpack.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/export_cpack.cmake)
 
 # Create an INTERFACE library to represent our modules
 add_library(${PROJECT_NAME} INTERFACE)
@@ -26,7 +26,7 @@ add_library(${PROJECT_NAME} INTERFACE)
 option(TARGET_INSTALL_PACKAGE_ENABLE_INSTALL "Create install configuration for ${PROJECT_NAME}" OFF)
 option(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL "Do not create install configuration for ${PROJECT_NAME}" OFF)
 if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
-  if(${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR} OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
+  if(PROJECT_IS_TOP_LEVEL OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
     # Use target_install_package to install itself and target_configure_sources
     target_install_package(
       ${PROJECT_NAME}
@@ -41,7 +41,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_CURRENT_LIST_DIR}/install_package_helpers.cmake
       ${CMAKE_CURRENT_LIST_DIR}/target_configure_sources.cmake
       ${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake
-      ${CMAKE_CURRENT_LIST_DIR}/target_configure_cpack.cmake
+      ${CMAKE_CURRENT_LIST_DIR}/export_cpack.cmake
       # Use generic-config.cmake.in as the template
       CONFIG_TEMPLATE
       ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in

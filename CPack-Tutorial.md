@@ -1,11 +1,43 @@
 # CPack Integration Tutorial
 
-This tutorial demonstrates how `target_configure_cpack()` dramatically simplifies CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
+This tutorial demonstrates how `export_cpack()` attempts simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
+
+## How CPack Works
+
+**Important:** CPack only packages files that have explicit `install()` rules - it doesn't automatically include everything in your project.
+
+### The Simple Rule
+```cmake
+# This gets packaged (has install rule)
+add_library(mylib ...)
+install(TARGETS mylib ...)  ✅ 
+
+# This doesn't get packaged (no install rule)
+add_executable(test_app ...)  ❌
+```
+
+### What Happens When You Run CPack
+
+1. **Collect**: CPack gathers all files specified by `install()` commands
+2. **Stage**: Copies them to a temporary staging directory
+3. **Package**: Creates packages (`.deb`, `.rpm`, `.tar.gz`, etc.) from that staging directory
+
+Package Generation: CPack can then create packages from the staging directory contents, e.g:
+
+* TGZ/ZIP: Archives the entire staging directory
+* DEB/RPM: Creates system packages with proper metadata
+* WIX/NSIS: Builds Windows installers
+
+**With `export_cpack()`**: The `target_install_package()` function automatically creates these install rules for you, but the same principle applies - only explicitly installed content gets packaged.
+
+---
+
+This note clearly explains the core concept while being easy to understand for users at any level.
 
 ## Table of Contents
 
 1. [Manual CPack: The Traditional Approach](#manual-cpack-the-traditional-approach)
-2. [target_configure_cpack(): The Simplified Approach](#target_configure_cpack-the-simplified-approach)
+2. [export_cpack(): The Simplified Approach](#export_cpack-the-simplified-approach)
 3. [Side-by-Side Comparison](#side-by-side-comparison)
 4. [Advanced Usage Examples](#advanced-usage-examples)
 5. [Cross-Platform Package Generation](#cross-platform-package-generation)
@@ -16,7 +48,7 @@ This tutorial demonstrates how `target_configure_cpack()` dramatically simplifie
 
 ## Manual CPack: The Traditional Approach
 
-Traditional CPack configuration requires extensive manual setup. Here's what you typically need to write:
+Traditional CPack configuration requires extensive manual, something I myself have to research everytime I do it. Here's what you typically need to write:
 
 ### Step 1: Basic Project Setup (Manual)
 
@@ -157,7 +189,7 @@ include(CPack)
 
 ---
 
-## target_configure_cpack(): The Simplified Approach
+## export_cpack(): The Simplified Approach
 
 Now, let's see the same functionality using our simplified approach:
 
@@ -186,7 +218,7 @@ target_install_package(mylib_utils NAMESPACE MyLib:: DEVELOPMENT_COMPONENT "Deve
 target_install_package(mytool NAMESPACE MyLib:: COMPONENT "Tools")
 
 # Configure CPack with smart defaults and auto-detection
-target_configure_cpack(
+export_cpack(
     PACKAGE_NAME "MyProject"
     PACKAGE_VENDOR "Acme Corp"
     PACKAGE_CONTACT "support@acme.com"
@@ -207,7 +239,7 @@ include(CPack)
 
 ## Side-by-Side Comparison
 
-| Aspect | Manual CPack | target_configure_cpack() |
+| Aspect | Manual CPack | export_cpack() |
 |--------|-------------|---------------------------|
 | **Lines of Code** | ~85 lines | ~20 lines |
 | **Installation Rules** | Manual `install()` commands | Automatic via `target_install_package()` |
@@ -262,7 +294,7 @@ target_install_package(game_editor
 )
 
 # One call configures everything
-target_configure_cpack(
+export_cpack(
     PACKAGE_NAME "GameEngine"
     PACKAGE_VENDOR "Game Studio"
     DEFAULT_COMPONENTS "Runtime"
@@ -276,7 +308,7 @@ include(CPack)
 
 ```cmake
 # Force specific generators and disable auto-detection
-target_configure_cpack(
+export_cpack(
     PACKAGE_NAME "CustomPackage"
     GENERATORS "ZIP;DEB"  # Only these, ignore platform defaults
     NO_DEFAULT_GENERATORS  # Disable automatic generator detection
@@ -287,7 +319,7 @@ target_configure_cpack(
 ### Example 3: Advanced Customization
 
 ```cmake
-target_configure_cpack(
+export_cpack(
     PACKAGE_NAME "AdvancedLib"
     PACKAGE_VERSION "2.0.0-beta"  # Override project version
     PACKAGE_VENDOR "Tech Corp"
@@ -307,21 +339,21 @@ Our function automatically selects appropriate generators per platform:
 
 ### Linux
 ```cmake
-target_configure_cpack(PACKAGE_NAME "MyLib")
+export_cpack(PACKAGE_NAME "MyLib")
 # Auto-generates: TGZ, DEB, RPM
 # Output: MyLib-1.0.0-Linux.tar.gz, mylib_1.0.0_amd64.deb, mylib-1.0.0-1.x86_64.rpm
 ```
 
 ### Windows  
 ```cmake
-target_configure_cpack(PACKAGE_NAME "MyLib")
+export_cpack(PACKAGE_NAME "MyLib")
 # Auto-generates: TGZ, ZIP, WIX (if available)
 # Output: MyLib-1.0.0-Windows.tar.gz, MyLib-1.0.0-Windows.zip, MyLib-1.0.0-Windows.msi
 ```
 
 ### macOS
 ```cmake
-target_configure_cpack(PACKAGE_NAME "MyLib")
+export_cpack(PACKAGE_NAME "MyLib")
 # Auto-generates: TGZ, DragNDrop
 # Output: MyLib-1.0.0-Darwin.tar.gz, MyLib-1.0.0-Darwin.dmg
 ```
@@ -346,7 +378,7 @@ mylib-tools_1.0.0_amd64.deb
 
 ## Limitations and Trade-offs
 
-### Limitations of target_configure_cpack()
+### Limitations of export_cpack()
 
 1. **Opinionated Defaults**: Uses conventional component names (Runtime, Development, Tools)
    - **Workaround**: Override with custom component names in `target_install_package()`
@@ -373,7 +405,7 @@ Consider manual CPack configuration when you need:
 
 ## Migration Guide
 
-### From Manual CPack to target_configure_cpack()
+### From Manual CPack to export_cpack()
 
 1. **Replace Installation Rules**:
    ```cmake
@@ -394,7 +426,7 @@ Consider manual CPack configuration when you need:
    # ... 50+ lines of configuration ...
    
    # After
-   target_configure_cpack(
+   export_cpack(
        PACKAGE_NAME "MyLib"
        # Auto-detects version, components, generators
    )
@@ -419,11 +451,11 @@ Consider manual CPack configuration when you need:
 
 ## Conclusion
 
-`target_configure_cpack()` provides a **modern, declarative approach** to CPack configuration that:
+`export_cpack()` provides a **modern, declarative approach** to CPack configuration that:
 
 - **Reduces boilerplate** while maintaining full functionality
 - **Prevents common errors** through smart defaults and auto-detection
 - **Supports advanced use cases** through comprehensive override mechanisms
 - **Works cross-platform** with appropriate generator selection
 
-For most projects, `target_configure_cpack()` provides the perfect balance of **simplicity and flexability**, allowing you to focus on building software rather than wrestling with packaging configuration.
+For most projects, `export_cpack()` provides the perfect balance of **simplicity and flexability**, allowing you to focus on building software rather than wrestling with packaging configuration.
