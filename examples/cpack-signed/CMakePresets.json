@@ -19,7 +19,7 @@
         },
         {
             "name": "debug",
-            "displayName": "Debug Configuration", 
+            "displayName": "Debug Configuration",
             "description": "Debug build with sanitizers",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build-debug",
@@ -37,7 +37,7 @@
             "binaryDir": "${sourceDir}/build-signed",
             "cacheVariables": {
                 "GPG_SIGNING_KEY": {
-                    "type": "STRING", 
+                    "type": "STRING",
                     "value": "$env{GPG_SIGNING_KEY}"
                 },
                 "GPG_PASSPHRASE_FILE": {
@@ -54,7 +54,7 @@
             "configurePreset": "default"
         },
         {
-            "name": "debug", 
+            "name": "debug",
             "configurePreset": "debug"
         },
         {
@@ -68,7 +68,10 @@
             "displayName": "Generate Signed Packages",
             "description": "Generate and sign all package formats",
             "configurePreset": "signed-packages",
-            "generators": ["TGZ", "ZIP"],
+            "generators": [
+                "TGZ",
+                "ZIP"
+            ],
             "packageDirectory": "${sourceDir}/build-signed/packages",
             "variables": {
                 "CPACK_VERBATIM_VARIABLES": "ON"

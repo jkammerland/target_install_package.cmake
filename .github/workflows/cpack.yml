@@ -45,7 +45,88 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y rpm dpkg-dev
+        sudo apt-get install -y rpm dpkg-dev gnupg2
+
+    # GPG Setup for Package Signing
+    - name: Install GPG on macOS
+      if: runner.os == 'macOS'
+      run: |
+        brew install gnupg
+
+    - name: Install GPG on Windows
+      if: runner.os == 'Windows'
+      run: |
+        choco install gnupg -y
+        # Add GPG to PATH for subsequent steps
+        echo "C:\Program Files (x86)\GnuPG\bin" >> $GITHUB_PATH
+
+    - name: Verify GPG Installation
+      shell: bash
+      run: |
+        echo "=== Verifying GPG installation ==="
+        which gpg || which gpg2 || (echo "❌ GPG not found in PATH" && exit 1)
+        gpg --version | head -3
+        echo "✅ GPG installation verified"
+
+    - name: Generate Test GPG Key
+      shell: bash
+      run: |
+        echo "=== Generating test GPG key for CI ==="
+        
+        # Create key generation batch file
+        cat > key-gen-batch << 'EOF'
+        Key-Type: RSA
+        Key-Length: 2048
+        Subkey-Type: RSA
+        Subkey-Length: 2048
+        Name-Real: CI Test User
+        Name-Email: ci-test@target-install-package.local
+        Expire-Date: 0
+        %no-protection
+        %commit
+        EOF
+        
+        # Generate key
+        gpg --batch --generate-key key-gen-batch
+        
+        # Verify key was created
+        gpg --list-keys ci-test@target-install-package.local
+        
+        # Set environment variable for subsequent steps
+        echo "GPG_SIGNING_KEY=ci-test@target-install-package.local" >> $GITHUB_ENV
+        
+        echo "✅ Test GPG key generated successfully"
+
+    - name: Enable GPG Signing in CPack Basic Example
+      shell: bash
+      run: |
+        echo "=== Enabling GPG signing in cpack-basic example ==="
+        cd examples/cpack-basic
+        
+        # Backup original CMakeLists.txt
+        cp CMakeLists.txt CMakeLists.txt.backup
+        
+        # Add GPG signing parameters to export_cpack call
+        # Find the export_cpack call and add GPG parameters before the closing parenthesis
+        # Cross-platform sed compatibility (macOS requires -i '')
+        if [[ "${{ runner.os }}" == "macOS" ]]; then
+          sed -i '' '/^)$/i\
+  GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"' CMakeLists.txt
+          sed -i '' '/^)$/i\
+  GENERATE_CHECKSUMS ON' CMakeLists.txt
+          sed -i '' '/^)$/i\
+  GENERATE_VERIFICATION_SCRIPT ON' CMakeLists.txt
+        else
+          sed -i '/^)$/i\  GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"' CMakeLists.txt
+          sed -i '/^)$/i\  GENERATE_CHECKSUMS ON' CMakeLists.txt
+          sed -i '/^)$/i\  GENERATE_VERIFICATION_SCRIPT ON' CMakeLists.txt
+        fi
+        
+        echo "=== Modified export_cpack call ==="
+        # Show the modified export_cpack section
+        sed -n '/export_cpack(/,/^)/p' CMakeLists.txt
+        
+        echo "✅ GPG signing enabled in example"
 
     - name: Configure CPack Basic Example
       shell: bash
@@ -93,16 +174,30 @@ jobs:
         cmake --install . --config ${{ matrix.build_type }} --component Tools --prefix ./tools-only
         find tools-only/ -type f | sort
 
-    - name: Generate CPack Packages
+    - name: Generate CPack Packages with GPG Signing
       shell: bash
+      env:
+        GPG_SIGNING_KEY: ci-test@target-install-package.local
       run: |
         cd examples/cpack-basic/build
         
-        echo "=== Generating packages with CPack ==="
+        echo "=== Generating packages with CPack and GPG signing ==="
+        echo "GPG_SIGNING_KEY: $GPG_SIGNING_KEY"
+        
+        # Verify GPG key is available
+        gpg --list-keys "$GPG_SIGNING_KEY" || (echo "❌ GPG key not found" && exit 1)
+        
+        # Generate packages with signing
         cpack --verbose
         
         echo "=== Generated packages ==="
         ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || echo "Some package types not generated (expected on this platform)"
+        
+        echo "=== Generated signatures and checksums ==="
+        ls -la *.sig *.sha256 *.sha512 2>/dev/null || echo "No signatures or checksums found"
+        
+        echo "=== Generated verification script ==="
+        ls -la verify.sh 2>/dev/null || echo "No verification script found"
 
     - name: Verify Package Contents
       shell: bash
@@ -151,6 +246,51 @@ jobs:
           echo "❌ Component packages not generated"
           exit 1
         fi
+
+    - name: Verify GPG Signatures and Checksums
+      shell: bash
+      run: |
+        cd examples/cpack-basic/build
+        
+        echo "=== Verifying GPG signatures and checksums ==="
+        
+        # Verify the verification script was generated
+        if [[ ! -f "verify.sh" ]]; then
+          echo "❌ Verification script not generated"
+          exit 1
+        fi
+        
+        # Make script executable
+        chmod +x verify.sh
+        
+        # Test verification script with platform-specific package types
+        echo "=== Testing verification script ==="
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+          # Linux: TGZ + DEB + RPM = 9 packages (3 components × 3 formats)
+          ./verify.sh --package-types "tar.gz,deb,rpm" --min-packages 9 --verbose
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          # macOS: TGZ + DMG = 6 packages (3 components × 2 formats)
+          ./verify.sh --package-types "tar.gz,dmg" --min-packages 6 --verbose
+        elif [[ "${{ runner.os }}" == "Windows" ]]; then
+          # Windows: TGZ + ZIP = 6 packages (3 components × 2 formats)
+          ./verify.sh --package-types "tar.gz,zip" --min-packages 6 --verbose
+        fi
+        
+        echo "✅ GPG signature verification completed successfully"
+        
+        # Test individual signature verification for debugging
+        echo "=== Manual signature verification ==="
+        for package in *.tar.gz *.deb *.rpm *.zip *.dmg; do
+          if [[ -f "$package" && -f "$package.sig" ]]; then
+            echo "Verifying $package..."
+            if gpg --verify "$package.sig" "$package" 2>/dev/null; then
+              echo "✅ $package signature valid"
+            else
+              echo "❌ $package signature invalid"
+              exit 1
+            fi
+          fi
+        done
 
     - name: Test Package Installation and Usage
       shell: bash
@@ -239,17 +379,21 @@ jobs:
           fi
         fi
 
-    - name: Upload CPack Artifacts
+    - name: Upload CPack Artifacts with GPG Signatures
       uses: actions/upload-artifact@v4
       if: matrix.build_type == 'Release'
       with:
-        name: cpack-packages-${{ matrix.os }}
+        name: cpack-packages-signed-${{ matrix.os }}
         path: |
           examples/cpack-basic/build/*.tar.gz
           examples/cpack-basic/build/*.zip
           examples/cpack-basic/build/*.deb
           examples/cpack-basic/build/*.rpm
           examples/cpack-basic/build/*.dmg
+          examples/cpack-basic/build/*.sig
+          examples/cpack-basic/build/*.sha256
+          examples/cpack-basic/build/*.sha512
+          examples/cpack-basic/build/verify.sh
         retention-days: 7
 
   cpack-components:
@@ -321,21 +465,26 @@ jobs:
         fi
 
   cpack-cross-platform:
-    name: CPack Cross-Platform Package Validation
+    name: CPack Cross-Platform Package and Signature Validation
     runs-on: ubuntu-latest
     needs: [cpack-basic]
     
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install GPG for signature verification
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnupg2
+
     - name: Download All Platform Artifacts
       uses: actions/download-artifact@v4
       with:
         path: ./artifacts
 
-    - name: Analyze Cross-Platform Package Consistency
+    - name: Analyze Cross-Platform Package and Signature Consistency
       run: |
-        echo "=== Cross-Platform Package Analysis ==="
+        echo "=== Cross-Platform Package and Signature Analysis ==="
         
         cd artifacts
         
@@ -345,6 +494,15 @@ jobs:
           
           echo "Generated packages:"
           ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || echo "No packages found"
+          
+          echo "Generated signatures:"
+          ls -la *.sig 2>/dev/null || echo "No signatures found"
+          
+          echo "Generated checksums:"
+          ls -la *.sha256 *.sha512 2>/dev/null || echo "No checksums found"
+          
+          echo "Verification script:"
+          ls -la verify.sh 2>/dev/null || echo "No verification script found"
           
           # Check for consistent component separation across platforms
           if ls *-Runtime.tar.gz 1> /dev/null 2>&1; then
@@ -365,10 +523,22 @@ jobs:
             echo "❌ Tools component package missing"
           fi
           
+          # Check for signatures matching packages
+          echo "=== Signature coverage analysis ==="
+          for pkg in *.tar.gz *.zip *.deb *.rpm *.dmg; do
+            if [[ -f "$pkg" ]]; then
+              if [[ -f "$pkg.sig" ]]; then
+                echo "✅ $pkg has signature"
+              else
+                echo "❌ $pkg missing signature"
+              fi
+            fi
+          done
+          
           cd ..
         done
         
-        echo "✅ Cross-platform package validation completed"
+        echo "✅ Cross-platform package and signature validation completed"
 
   cpack-regression:
     name: CPack Regression Tests
