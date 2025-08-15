@@ -1,36 +1,27 @@
-# GPG Package Signing Implementation Test
+# GPG Package Signing Example 🔐
+
+> [!WARNING]
+> Experimental implementation
 
 This example demonstrates the GPG package signing functionality added to `export_cpack()`.
 
-## What Was Implemented
+**🎯 Complete GPG Integration**
+- **Multi-format signing**: Automatically signs TGZ, DEB, RPM, and all other CPack formats
+- **Detached signatures**: Creates `.sig` files alongside packages
+- **Cryptographic checksums**: Generates SHA256 and SHA512 for integrity verification
+- **Verification scripts**: Creates consumer-friendly `verify.sh` scripts
+- **Seamless workflow**: Zero additional steps - signing happens during `cpack`
 
-✅ **Extended export_cpack() with GPG parameters**
-- `GPG_SIGNING_KEY` - Key ID or email for signing
-- `GPG_PASSPHRASE_FILE` - Path to passphrase file (optional) 
-- `SIGNING_METHOD` - detached, embedded, or both (default: detached)
-- `GPG_KEYSERVER` - Keyserver for public key distribution
-- `GENERATE_CHECKSUMS` - Create SHA256/SHA512 checksums
-- `GENERATE_VERIFICATION_SCRIPT` - Generate consumer verification scripts
-
-✅ **Automatic Signing Workflow**  
-- Signing script generated at configure time (`sign_packages.cmake`)
-- `CPACK_POST_BUILD_SCRIPTS` automatically configured
-- Post-build script executes after CPack generates packages
-- Signs all package formats (TGZ, DEB, RPM, etc.)
-
-✅ **Verification Support**
-- Detached signatures (.sig files) 
-- SHA256/SHA512 checksum files
-- Cross-platform verification scripts (verify.sh)
+**Advanced Features**
+- Environment variable integration (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)
+- CMake preset support for streamlined workflows
 - Keyserver integration for public key distribution
+- Passphrase file support for CI/CD automation, **In real world, only use this if you have to to. If you do, make sure the file in only readable by a very secure user and the filesystem is encrypted.**
+- Cross-platform compatibility (Linux, macOS, Windows)
 
-✅ **Integration Features**
-- Environment variable fallback (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)
-- CMake preset support for signed package workflows
-- Backward compatible - no impact when signing is disabled
+## Quick Start
 
-## Usage Example
-
+### Basic Usage
 ```cmake
 export_cpack(
   PACKAGE_NAME "MySignedLibrary"
@@ -38,36 +29,145 @@ export_cpack(
   PACKAGE_CONTACT "support@example.com"
   # GPG Signing configuration
   GPG_SIGNING_KEY "${GPG_SIGNING_KEY}"           # From cache/environment
-  GPG_PASSPHRASE_FILE "${GPG_PASSPHRASE_FILE}"   # Optional
-  SIGNING_METHOD "detached"
+  GPG_PASSPHRASE_FILE "${GPG_PASSPHRASE_FILE}"   # For automated signing
+  SIGNING_METHOD "detached"                      # Creates .sig files
   GPG_KEYSERVER "keyserver.ubuntu.com"
-  GENERATE_CHECKSUMS
-  GENERATE_VERIFICATION_SCRIPT
+  GENERATE_CHECKSUMS                             # SHA256/SHA512
+  GENERATE_VERIFICATION_SCRIPT                   # Creates verify.sh
   # Standard CPack options
   DEFAULT_COMPONENTS "Runtime"
   COMPONENT_GROUPS
 )
 ```
 
-## Workflow
-1. **Configure**: `cmake -B build -DGPG_SIGNING_KEY="your-key-id"`
-2. **Build**: `cmake --build build`  
-3. **Package**: `cpack --config build/CPackConfig.cmake`
-4. **Result**: Packages + signatures + checksums + verification script
+### Manual Workflow
+```bash
+# 1. Set up passphrase file (for keys with passphrase)
+echo "your-passphrase" > .gpg_passphrase
+chmod 600 .gpg_passphrase # Only user can read, nothing else
 
-## Environment Setup Required
-- GPG installed and configured
+# 2. Configure with signing
+cmake -B build \
+  -DGPG_SIGNING_KEY="your-key-id-or-email" \
+  -DGPG_PASSPHRASE_FILE="${PWD}/.gpg_passphrase"
+
+# 3. Build and package
+cmake --build build
+cpack --config build/CPackConfig.cmake
+
+# 4. Verify results
+ls -la *.tar.gz* *.deb* *.rpm*
+./verify.sh  # Test verification script
+```
+
+### Using CMake Presets (Recommended)
+```bash
+# 1. Set environment variables
+export GPG_SIGNING_KEY="maintainer@example.com"
+export GPG_PASSPHRASE_FILE="$HOME/.gpg_passphrase"
+
+# 2. Use the preset workflow
+cmake --preset signed-packages
+cmake --build --preset signed-packages
+cpack --preset signed-packages
+
+# 3. All packages are signed automatically!
+```
+
+## Generated Files
+
+After successful signing, you'll have:
+
+**📦 Packages**
+- `MySignedLibrary-5.5.0-Linux-Development.tar.gz`
+- `MySignedLibrary-5.5.0-Linux-Runtime.tar.gz` 
+- `MySignedLibrary-5.5.0-Linux-Tools.tar.gz`
+- `mysignedlibrary-development_5.5.0_amd64.deb`
+- `mysignedlibrary-runtime_5.5.0_amd64.deb`
+- `mysignedlibrary-tools_5.5.0_amd64.deb`
+- `mysignedlibrary-Development-5.5.0-1.x86_64.rpm`
+- `mysignedlibrary-Runtime-5.5.0-1.x86_64.rpm` 
+- `mysignedlibrary-Tools-5.5.0-1.x86_64.rpm`
+
+**🔐 Signatures**  
+- `*.sig` - GPG detached signatures for each package
+
+**📊 Checksums**
+- `*.sha256`
+- `*.sha512`
+
+**✅ Verification**
+- `verify.sh` - Automated verification script for consumers
+
+## Prerequisites
+
+**Required:**
+- GPG installed (`gpg2` or `gpg`)
 - Valid GPG signing key in keyring
-- Optional: GPG agent for automated signing
 
-## Current Status
-The implementation is **complete and functional**. The core signing infrastructure works correctly:
+**Optional:**
+- Passphrase file for automated signing (if key has passphrase)
+- GPG agent configured for passphrase caching
+- Keyserver access for public key distribution
 
-- ✅ GPG parameters are parsed and stored
-- ✅ Signing script is generated with correct configuration  
-- ✅ `CPACK_POST_BUILD_SCRIPTS` is properly set
-- ✅ Post-build script executes during package generation
-- ✅ Package files are detected correctly
-- ✅ Checksums and verification scripts are generated
+## CMake Presets Integration
 
-The only remaining issue is environment-specific GPG configuration, which is outside the scope of this CMake implementation.
+The signing workflow integrates with CMake presets for streamlined CI/CD:
+
+```json
+{
+  "configurePresets": [
+    {
+      "name": "signed-packages",
+      "binaryDir": "${sourceDir}/build-signed", 
+      "cacheVariables": {
+        "GPG_SIGNING_KEY": {
+          "type": "STRING",
+          "value": "$env{GPG_SIGNING_KEY}"
+        },
+        "GPG_PASSPHRASE_FILE": {
+          "type": "STRING", 
+          "value": "$env{GPG_PASSPHRASE_FILE}"
+        }
+      }
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "signed-packages",
+      "configurePreset": "signed-packages",
+      "generators": ["TGZ", "DEB", "RPM"],
+      "packageDirectory": "${sourceDir}/build-signed/packages"
+    }
+  ]
+}
+```
+
+## Verification Example
+
+Consumers can verify packages using the generated script:
+
+```bash
+# Download packages and signatures
+wget https://releases.example.com/MyLibrary-1.0.0-Linux.tar.gz
+wget https://releases.example.com/MyLibrary-1.0.0-Linux.tar.gz.sig
+wget https://releases.example.com/verify.sh
+
+# Run verification
+chmod +x verify.sh
+./verify.sh
+
+# Output:
+# ✓ MyLibrary-1.0.0-Linux.tar.gz verified successfully
+# ✓ SHA256 checksum verified
+# ✓ GPG signature verified
+```
+
+## Status: Experimental
+
+- ✅ Signs all CPack package formats automatically
+- ✅ Generates cryptographic checksums and signatures
+- ✅ Creates consumer verification workflows
+- ✅ Integrates with CI/CD via presets and environment variables
+- ✅ Maintains backward compatibility
+- ? Cross-platform support (Linux, macOS, Windows)
