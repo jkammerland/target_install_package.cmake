@@ -72,6 +72,12 @@ endif()
 #     [ENABLE_COMPONENT_INSTALL]
 #     [ARCHIVE_FORMAT <format>]
 #     [NO_DEFAULT_GENERATORS]
+#     [GPG_SIGNING_KEY <key_id_or_email>]
+#     [GPG_PASSPHRASE_FILE <path>]
+#     [SIGNING_METHOD <detached|embedded|both>]
+#     [GPG_KEYSERVER <keyserver_url>]
+#     [GENERATE_CHECKSUMS]
+#     [GENERATE_VERIFICATION_SCRIPT]
 #     [ADDITIONAL_CPACK_VARS <var1> <value1> <var2> <value2> ...]
 #   )
 #
@@ -184,7 +190,7 @@ function(_execute_deferred_cpack_config)
   endif()
 
   # Now parse and process the stored arguments
-  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
+  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS GENERATE_CHECKSUMS GENERATE_VERIFICATION_SCRIPT)
   set(oneValueArgs
       PACKAGE_NAME
       PACKAGE_VERSION
@@ -193,7 +199,11 @@ function(_execute_deferred_cpack_config)
       PACKAGE_DESCRIPTION
       PACKAGE_HOMEPAGE_URL
       LICENSE_FILE
-      ARCHIVE_FORMAT)
+      ARCHIVE_FORMAT
+      GPG_SIGNING_KEY
+      GPG_PASSPHRASE_FILE
+      SIGNING_METHOD
+      GPG_KEYSERVER)
   set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
 
@@ -489,6 +499,19 @@ function(_execute_deferred_cpack_config)
     endif()
   endif()
 
+  # Configure GPG signing if requested (must be before variable application)
+  _configure_gpg_signing(
+    SIGNING_KEY "${ARG_GPG_SIGNING_KEY}"
+    PASSPHRASE_FILE "${ARG_GPG_PASSPHRASE_FILE}" 
+    SIGNING_METHOD "${ARG_SIGNING_METHOD}"
+    KEYSERVER "${ARG_GPG_KEYSERVER}"
+    GENERATE_CHECKSUMS ${ARG_GENERATE_CHECKSUMS}
+    GENERATE_VERIFICATION_SCRIPT ${ARG_GENERATE_VERIFICATION_SCRIPT}
+    PACKAGE_NAME "${ARG_PACKAGE_NAME}"
+    PACKAGE_VERSION "${ARG_PACKAGE_VERSION}"
+    PACKAGE_CONTACT "${ARG_PACKAGE_CONTACT}"
+  )
+
   # Set all CPack variables from GLOBAL properties just before including CPack This avoids cache persistence between CMake runs
   get_property(all_cpack_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
   foreach(var_name ${all_cpack_vars})
@@ -512,3 +535,80 @@ endfunction(_execute_deferred_cpack_config)
 
 # Note: Component registration is now handled directly in install_package_helpers.cmake The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack()
 # for auto-detection of components.
+
+# ~~~
+# Internal function to configure GPG signing for packages
+# ~~~
+function(_configure_gpg_signing)
+  set(options GENERATE_CHECKSUMS GENERATE_VERIFICATION_SCRIPT)
+  set(oneValueArgs SIGNING_KEY PASSPHRASE_FILE SIGNING_METHOD KEYSERVER PACKAGE_NAME PACKAGE_VERSION PACKAGE_CONTACT)
+  set(multiValueArgs)
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  # Skip if no signing key provided
+  if(NOT ARG_SIGNING_KEY)
+    return()
+  endif()
+
+  # Set defaults with environment variable fallbacks
+  if(NOT ARG_SIGNING_KEY AND DEFINED ENV{GPG_SIGNING_KEY})
+    set(ARG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}")
+  endif()
+
+  if(NOT ARG_PASSPHRASE_FILE AND DEFINED ENV{GPG_PASSPHRASE_FILE})
+    set(ARG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}")
+  endif()
+
+  if(NOT ARG_SIGNING_METHOD)
+    set(ARG_SIGNING_METHOD "detached")
+  endif()
+
+  if(NOT ARG_KEYSERVER)
+    set(ARG_KEYSERVER "keyserver.ubuntu.com")
+  endif()
+
+  # Enable checksums and verification scripts by default if signing is enabled
+  if(NOT DEFINED ARG_GENERATE_CHECKSUMS)
+    set(ARG_GENERATE_CHECKSUMS ON)
+  endif()
+
+  if(NOT DEFINED ARG_GENERATE_VERIFICATION_SCRIPT)
+    set(ARG_GENERATE_VERIFICATION_SCRIPT ON)
+  endif()
+
+  # Find GPG executable
+  find_program(GPG_EXECUTABLE NAMES gpg2 gpg DOC "GNU Privacy Guard")
+  if(NOT GPG_EXECUTABLE)
+    project_log(FATAL_ERROR "GPG executable not found. Install GPG to enable package signing.")
+  endif()
+
+  # Validate signing key exists
+  execute_process(
+    COMMAND ${GPG_EXECUTABLE} --list-secret-keys "${ARG_SIGNING_KEY}"
+    RESULT_VARIABLE gpg_result
+    OUTPUT_QUIET
+    ERROR_QUIET
+  )
+  
+  if(NOT gpg_result EQUAL 0)
+    project_log(FATAL_ERROR "GPG signing key '${ARG_SIGNING_KEY}' not found in keyring or no private key available.")
+  endif()
+
+  # Generate signing script
+  configure_file(
+    "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/sign_packages.cmake.in"
+    "${CMAKE_BINARY_DIR}/sign_packages.cmake"
+    @ONLY
+  )
+
+  # Set CPack post-build script
+  _tip_store_cpack_var(CPACK_POST_BUILD_SCRIPTS "${CMAKE_BINARY_DIR}/sign_packages.cmake")
+
+  project_log(STATUS "GPG package signing configured:")
+  project_log(STATUS "  Signing key: ${ARG_SIGNING_KEY}")
+  project_log(STATUS "  Signing method: ${ARG_SIGNING_METHOD}")
+  project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
+  project_log(STATUS "  Generate verification script: ${ARG_GENERATE_VERIFICATION_SCRIPT}")
+  project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
+
+endfunction(_configure_gpg_signing)
