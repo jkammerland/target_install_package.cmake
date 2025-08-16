@@ -40,9 +40,10 @@ This note clearly explains the core concept while being easy to understand for u
 2. [export_cpack(): The Simplified Approach](#export_cpack-the-simplified-approach)
 3. [Side-by-Side Comparison](#side-by-side-comparison)
 4. [Advanced Usage Examples](#advanced-usage-examples)
-5. [Cross-Platform Package Generation](#cross-platform-package-generation)
-6. [Limitations and Trade-offs](#limitations-and-trade-offs)
-7. [Migration Guide](#migration-guide)
+5. [GPG Package Signing](#gpg-package-signing)
+6. [Cross-Platform Package Generation](#cross-platform-package-generation)
+7. [Limitations and Trade-offs](#limitations-and-trade-offs)
+8. [Migration Guide](#migration-guide)
 
 ---
 
@@ -329,6 +330,425 @@ export_cpack(
         "CPACK_PACKAGE_EXECUTABLES" "mytool;MyTool"
         "CPACK_CREATE_DESKTOP_LINKS" "mytool"
 )
+```
+
+### Example 4: Package with Full Signing
+
+**In my opinion it should there should be a standard way to consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities can be protected until something bad goes down.
+
+```cmake
+# package with signing
+export_cpack(
+    PACKAGE_NAME "EnterpriseLibrary"
+    PACKAGE_VENDOR "Enterprise Corp"
+    PACKAGE_CONTACT "packaging@enterprise.com"
+    PACKAGE_HOMEPAGE_URL "https://enterprise.com/library"
+    
+    # GPG signing configuration
+    GPG_SIGNING_KEY "packaging@enterprise.com"
+    GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
+    SIGNING_METHOD "both"  # Both detached and embedded signatures
+    GENERATE_CHECKSUMS ON
+    GPG_KEYSERVER "keys.enterprise.com"
+    
+    # Component-specific configuration
+    COMPONENT_GROUPS ON
+    DEFAULT_COMPONENTS "Runtime"
+    
+    # Custom packaging
+    GENERATORS "TGZ;DEB;RPM;ZIP"
+    ADDITIONAL_CPACK_VARS
+        "CPACK_PACKAGE_RELOCATABLE" "OFF"
+        "CPACK_DEBIAN_PACKAGE_SECTION" "libs"
+        "CPACK_RPM_PACKAGE_GROUP" "Development/Libraries"
+)
+```
+
+**Why GPG as the foundation:**
+- Cross-platform compatibility
+- Established cryptographic infrastructure
+- Wide adoption in security-conscious communities
+- Foundation for advanced features
+
+### Example 5: Multi-Environment Signing Configuration
+
+```cmake
+# Conditional signing based on environment
+if(DEFINED ENV{CI})
+    # CI environment - ephemeral test keys
+    set(SIGNING_KEY "ci-test@yourproject.local")
+    set(SIGNING_METHOD "detached")
+    set(KEYSERVER "")  # No keyserver for CI
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    # Production release - full security
+    set(SIGNING_KEY "security@yourproject.com")
+    set(SIGNING_METHOD "both")
+    set(KEYSERVER "keyserver.ubuntu.com")
+else()
+    # Development - no signing
+    set(SIGNING_KEY "")
+endif()
+
+export_cpack(
+    PACKAGE_NAME "FlexiblePackage"
+    PACKAGE_VENDOR "Your Company"
+    
+    # Conditional GPG configuration
+    GPG_SIGNING_KEY "${SIGNING_KEY}"
+    SIGNING_METHOD "${SIGNING_METHOD}"
+    GPG_KEYSERVER "${KEYSERVER}"
+    GENERATE_CHECKSUMS ON
+)
+```
+
+---
+
+## GPG Package Signing
+
+`export_cpack()` includes comprehensive GPG signing capabilities to ensure package authenticity and integrity. This addresses CMake's lack of built-in package signing support.
+
+### Why Package Signing Matters
+
+**Security Benefits:**
+- **Authenticity**: Verifies packages come from trusted sources
+- **Integrity**: Detects tampering or corruption during transfer
+- **Trust Chain**: Establishes cryptographic proof of origin
+- **Compliance**: Meets enterprise security requirements
+
+**Real-World Attack Prevention:**
+- Supply chain attacks (compromised package repositories)
+- Man-in-the-middle attacks during download
+- Malicious package injection
+- Accidental corruption
+
+### Basic GPG Signing Example
+
+```cmake
+# GPG signing requires minimal configuration
+export_cpack(
+    PACKAGE_NAME "MySecureLib"
+    PACKAGE_VENDOR "Acme Corp"
+    PACKAGE_CONTACT "security@acme.com"
+    
+    # GPG signing configuration
+    GPG_SIGNING_KEY "maintainer@acme.com"
+    GENERATE_CHECKSUMS ON
+)
+
+include(CPack)
+```
+
+**Generated Output:**
+```bash
+# Packages with signatures and checksums
+MySecureLib-1.0.0-Linux.tar.gz
+MySecureLib-1.0.0-Linux.tar.gz.sig
+MySecureLib-1.0.0-Linux.tar.gz.sha256
+MySecureLib-1.0.0-Linux.tar.gz.sha512
+```
+
+### GPG Signing Parameters
+
+#### GPG_SIGNING_KEY
+**Purpose**: Identifies which GPG key to use for signing packages.
+
+```cmake
+# Email address (recommended - user-friendly)
+GPG_SIGNING_KEY "maintainer@example.com"
+
+# Or key ID (8-character hex)
+GPG_SIGNING_KEY "A1B2C3D4"
+
+# Environment variable fallback
+GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"
+```
+
+#### GPG_PASSPHRASE_FILE
+**Purpose**: Provides secure passphrase input for automated signing.
+
+```cmake
+# Project-local passphrase file
+GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
+
+# Absolute path for CI/CD
+GPG_PASSPHRASE_FILE "/var/secrets/gpg_passphrase"
+
+# Environment variable
+GPG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}"
+```
+
+**Security Note**: File-based approach is more secure than environment variables as it:
+- Avoids command-line visibility
+- Isn't inherited by child processes  
+- Supports proper file permissions
+
+#### SIGNING_METHOD
+**Purpose**: Controls how signatures are attached to packages.
+
+```cmake
+# Detached signatures (default - universal compatibility)
+SIGNING_METHOD "detached"
+
+# Embedded signatures (RPM native support)
+SIGNING_METHOD "embedded"  
+
+# Both methods (maximum compatibility)
+SIGNING_METHOD "both"
+```
+
+#### GENERATE_CHECKSUMS
+**Purpose**: Creates cryptographic checksums alongside signatures.
+
+```cmake
+GENERATE_CHECKSUMS ON  # Creates .sha256 and .sha512 files
+```
+
+**Benefits:**
+- Faster verification than GPG (SHA256 vs RSA operations)
+- Bandwidth-efficient update checking
+- Defense in depth (signatures + checksums)
+- Air-gapped environment support
+
+
+#### GPG_KEYSERVER
+**Purpose**: Specifies keyserver for public key distribution.
+
+```cmake
+# Ubuntu's reliable keyserver (default)
+GPG_KEYSERVER "keyserver.ubuntu.com"
+
+# Corporate keyserver
+GPG_KEYSERVER "keys.corp.internal"
+
+# Multiple keyservers for redundancy
+GPG_KEYSERVER "keyserver.ubuntu.com;keys.corp.internal"
+```
+
+### Complete Signing Example
+
+```cmake
+cmake_minimum_required(VERSION 3.25)
+project(SecureLibrary VERSION 2.1.0)
+
+include(target_install_package.cmake)
+
+# Create library targets
+add_library(secure_core SHARED src/core.cpp)
+target_sources(secure_core PUBLIC FILE_SET HEADERS 
+    BASE_DIRS include FILES include/secure/core.h)
+
+add_executable(secure_tool tools/secure_tool.cpp)
+target_link_libraries(secure_tool PRIVATE secure_core)
+
+# Install with automatic CMake config generation
+target_install_package(secure_core 
+    NAMESPACE Secure::
+    RUNTIME_COMPONENT "Runtime"
+    DEVELOPMENT_COMPONENT "Development"
+)
+
+target_install_package(secure_tool 
+    NAMESPACE Secure::
+    COMPONENT "Tools"
+)
+
+# Configure CPack with comprehensive signing
+export_cpack(
+    PACKAGE_NAME "SecureLibrary"
+    PACKAGE_VENDOR "Security Corp"
+    PACKAGE_CONTACT "security@securitycorp.com"
+    PACKAGE_HOMEPAGE_URL "https://securitycorp.com/secure-library"
+    
+    # GPG signing configuration
+    GPG_SIGNING_KEY "security@securitycorp.com"
+    GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
+    SIGNING_METHOD "both"
+    GENERATE_CHECKSUMS ON
+    GPG_KEYSERVER "keyserver.ubuntu.com"
+)
+
+include(CPack)
+```
+
+### Consumer Verification Workflow
+
+**Manual Verification:**
+```bash
+# Import public key
+gpg --keyserver keyserver.ubuntu.com --recv-keys security@securitycorp.com
+
+# Verify GPG signature
+gpg --verify SecureLibrary-2.1.0-Linux.tar.gz.sig SecureLibrary-2.1.0-Linux.tar.gz
+
+# Verify checksums
+sha256sum -c SecureLibrary-2.1.0-Linux.tar.gz.sha256
+sha512sum -c SecureLibrary-2.1.0-Linux.tar.gz.sha512
+```
+
+### CI/CD Integration
+
+**GitHub Actions Example:**
+```yaml
+name: Secure Package Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  secure-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Import GPG Key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "$GPG_PASSPHRASE" > .gpg_passphrase
+          chmod 600 .gpg_passphrase
+      
+      - name: Build and Sign Packages
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY_ID }}
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          cd build && cpack --verbose
+      
+      - name: Verify Generated Signatures
+        run: |
+          cd build
+          # Manual signature verification
+          for package in *.tar.gz *.deb *.rpm; do
+            if [[ -f "$package" && -f "$package.sig" ]]; then
+              gpg --verify "$package.sig" "$package"
+            fi
+          done
+      
+      - name: Upload Signed Packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-packages
+          path: |
+            build/*.tar.gz
+            build/*.deb
+            build/*.rpm
+            build/*.sig
+            build/*.sha256
+            build/*.sha512
+```
+
+### Security Best Practices
+
+#### Key Management
+```bash
+# Generate signing key for your project
+gpg --full-generate-key
+# Choose: RSA, 4096 bits, no expiration
+# Use project email: security@yourproject.com
+
+# Export public key for distribution
+gpg --armor --export security@yourproject.com > project-public-key.asc
+
+# Backup private key securely
+gpg --armor --export-secret-keys security@yourproject.com > project-private-key.asc
+# Store in secure location (password manager, HSM, etc.)
+```
+
+#### Production vs Test Keys
+```cmake
+# Test/CI configuration (ephemeral keys)
+if(DEFINED ENV{CI})
+    set(GPG_SIGNING_KEY "ci-test@yourproject.local")
+    set(GPG_PASSPHRASE_FILE "/tmp/ci_passphrase")
+else()
+    # Production configuration
+    set(GPG_SIGNING_KEY "security@yourproject.com")
+    set(GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase")
+endif()
+
+export_cpack(
+    PACKAGE_NAME "YourProject"
+    GPG_SIGNING_KEY "${GPG_SIGNING_KEY}"
+    GPG_PASSPHRASE_FILE "${GPG_PASSPHRASE_FILE}"
+    GENERATE_CHECKSUMS ON
+)
+```
+
+#### File Permissions
+```bash
+# Secure passphrase file permissions
+chmod 600 .gpg_passphrase  # Owner read/write only
+chown $(whoami) .gpg_passphrase
+
+# Add to .gitignore
+echo ".gpg_passphrase" >> .gitignore
+echo "*.asc" >> .gitignore  # Private key backups
+```
+
+### Enterprise Deployment
+
+#### Corporate Keyserver Integration
+```cmake
+export_cpack(
+    PACKAGE_NAME "CorporateLib"
+    GPG_SIGNING_KEY "build-system@corp.internal"
+    GPG_KEYSERVER "keys.corp.internal"
+    
+    # Corporate compliance requirements
+    SIGNING_METHOD "both"
+    GENERATE_CHECKSUMS ON
+)
+```
+
+#### Air-Gapped Environments
+```cmake
+# Configuration for disconnected networks
+export_cpack(
+    PACKAGE_NAME "AirGappedLib"
+    GPG_SIGNING_KEY "offline@secure.local"
+    
+    # No keyserver (manual key distribution)
+    GPG_KEYSERVER ""
+    
+    # Checksum-only verification for faster validation
+    GENERATE_CHECKSUMS ON
+)
+```
+
+### Troubleshooting
+
+#### Common Issues and Solutions
+
+**"GPG key not found"**
+```bash
+# List available keys
+gpg --list-secret-keys
+
+# Import key if missing
+gpg --import private-key.asc
+
+# Use key ID instead of email
+GPG_SIGNING_KEY "A1B2C3D4"
+```
+
+**"Permission denied on passphrase file"**
+```bash
+# Fix file permissions
+chmod 600 .gpg_passphrase
+chown $(whoami) .gpg_passphrase
+```
+
+**"Signature verification failed"**
+```bash
+# Check key trust
+gpg --list-keys --with-colons | grep -A1 "sec:"
+
+# Manually trust key for testing
+gpg --edit-key security@yourproject.com trust quit
 ```
 
 ---
