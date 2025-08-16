@@ -13,7 +13,7 @@ This example demonstrates the GPG package signing functionality added to `export
 - Environment variable integration (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)
 - CMake preset support for streamlined workflows
 - Keyserver integration for public key distribution
-- Passphrase file support for CI/CD automation, **In real world, only use this if you have to to. If you do, make sure the file in only readable by a very secure user and the filesystem is encrypted.**
+- Passphrase file support for CI/CD automation, **In real world, only use this if you have to. If you do, make sure the file in only readable by a very secure user and the filesystem is encrypted.**
 - Cross-platform compatibility (Linux, macOS, Windows)
 
 ## Quick Start
@@ -195,10 +195,8 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 # 📝 Remember: This is an example script - adapt for your security requirements
 ```
 
-## Status: Working
+## Summary
 
 - ✅ Signs all CPack package formats automatically
 - ✅ Generates cryptographic checksums and signatures
-- ✅ Creates consumer verification workflows
 - ✅ Integrates with CI/CD via presets and environment variables
-- ✅ Maintains backward compatibility

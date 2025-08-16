@@ -2,15 +2,26 @@
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-A collection of CMake utilities for configuring templated source files and creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms could work if cmake support them.
+A collection of CMake utilities for creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms could work if cmake support them. With this project, it boils down to a single function that generate a CMake package with sane defaults
 
-This project requires some other cmake projects, but for ease of use, they have been inlined under the `cmake/` folder. You could technically just copy this project and do a `add_subdirectory` on it in your project. Otherwise check [integration](#integration-) below or the [examples](examples/).
+```cmake
+# Producer project
+target_install_package(my_library)
+
+# Consumer project
+find_package(my_library CONFIG REQUIRED)
+```
+
+**It should not be harder than this in most cases!**
+
+This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), but for ease of use, they have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
 
 ## Shipped Functions & Files 
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
+| [install_package_helpers](install_package_helpers.cmake) | Function | Implementation of target_install_package |
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
 | [export_cpack](export_cpack.cmake) | Function | Automatic CPack configuration with component detection, architecture detection, signing, and cross-platform package generation (see [tutorial](CPack-Tutorial.md)) |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
@@ -130,6 +141,31 @@ FetchContent_MakeAvailable(target_install_package)
 # Now you can directly use target_install_package(...)
 ```
 
+Typically, you would want to wrap this in some if statement, e.g
+```cmake
+# add_library(${PROJECT_NAME} ...)
+
+option(${PROJECT_NAME}_INSTALL "Install ${PROJECT_NAME} configuration" OFF)
+if(${PROJECT_NAME}_INSTALL)
+  include(FetchContent)
+  FetchContent_Declare(
+    target_install_package
+    GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
+    GIT_TAG v5.6.2
+    # Optional arg to first try find_package locally before fetching, see manual installation
+    # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
+    # FIND_PACKAGE_ARGS
+  )
+  FetchContent_MakeAvailable(target_install_package)
+  
+  # Install your target
+  target_install_package(${PROJECT_NAME})
+else()
+  message(STATUS "Enable install of ${PROJECT_NAME} with -D${PROJECT_NAME}_INSTALL=ON")
+endif()
+```
+To prevent your project from **unintentionally** being installed when used in another project!
+
 ### Manual Installation 🔨
 
 For system-wide installation or package manager integration, install the utilities manually:
@@ -147,7 +183,12 @@ cmake --install build
 # Or install to a custom prefix
 cmake --install build --prefix /opt/cmake-utils
 
-# The package is now available for use in your CMake projects.
+# The package is now available for use in your CMake projects. e.g
+# find_package(target_install_package CONFIG REQUIRED)
+# find_package(target_install_package CONFIG REQUIRED PATHS /opt/cmake-utils)
+
+# set(CMAKE_PREFIX_PATH "/opt/cmake-utils") # Or command line, cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
+# find_package(target_install_package CONFIG REQUIRED)
 ```
 
 This project installs itself via the `PUBLIC_CMAKE_FILES` option. See the main [CMakeLists.txt](CMakeLists.txt). An example of a pure cmake package.

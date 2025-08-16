@@ -268,6 +268,7 @@ EXAMPLES=(
     "configure-files"
     "cxx-modules"
     "cpack-basic"
+    "cpack-signed"
     "custom-alias"
     "multi-cpack"
 )

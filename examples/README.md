@@ -16,6 +16,8 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
 | [configure-files](configure-files/) | Template Configuration | Build-time header generation from templates |
 | [cxx-modules](cxx-modules/) | C++20 Modules | Modern C++20 modules with CXX_MODULES file sets |
+| [cpack-basic](cpack-basic/) | CPack Basics | Basic packaging with CPack |
+| [cpack-signed](cpack-signed/) | Signed Packages | Signed packages with GPG |
 
 ## 🚀 Quick Start
 
@@ -37,6 +39,7 @@ Build all examples and configurations with
 ```bash
 ./build_all_examples.sh --multi-config
 ```
+[Demo](https://github.com/user-attachments/assets/1267c6bc-7b36-4928-81d2-f32b50c6cafd)
 
 It will install all examples to `<example_dir>/build/install/`. This script is used in the CI, together with the [CMakeLists.txt](CMakeLists.txt).
 
