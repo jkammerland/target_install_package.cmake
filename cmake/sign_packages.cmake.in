@@ -59,9 +59,12 @@ foreach(package_file ${PACKAGE_FILES})
     # Prepare GPG command
     set(gpg_cmd ${GPG_EXECUTABLE} --batch --yes --detach-sign --armor)
     
-    # Add passphrase handling if file provided
+    # Add passphrase handling if file provided, or use pinentry-mode for passwordless keys
     if(PASSPHRASE_FILE AND EXISTS "${PASSPHRASE_FILE}")
       list(APPEND gpg_cmd --pinentry-mode loopback --passphrase-file "${PASSPHRASE_FILE}")
+    else()
+      # For passwordless keys or keys with empty passphrase, use pinentry-mode loopback
+      list(APPEND gpg_cmd --pinentry-mode loopback --passphrase "")
     endif()
     
     # Add signing key and output file
@@ -84,6 +87,8 @@ foreach(package_file ${PACKAGE_FILES})
   
   # Generate checksums if requested
   if(GENERATE_CHECKSUMS)
+    get_filename_component(package_basename "${package_file}" NAME)
+    
     # Generate SHA256
     execute_process(
       COMMAND ${CMAKE_COMMAND} -E sha256sum "${package_file}"
@@ -92,8 +97,10 @@ foreach(package_file ${PACKAGE_FILES})
     )
     
     if(sha256_result EQUAL 0)
-      file(WRITE "${package_file}.sha256" "${sha256_output}")
+      # Extract hash and normalize format for compatibility with sha256sum -c
       string(REGEX MATCH "^[a-f0-9]+" sha256_hash "${sha256_output}")
+      # Create format compatible with sha256sum -c: "hash  filename"
+      file(WRITE "${package_file}.sha256" "${sha256_hash}  ${package_basename}\n")
       message(STATUS "[GPG Signing] Created SHA256: ${package_name}.sha256 (${sha256_hash})")
     endif()
     
@@ -105,8 +112,10 @@ foreach(package_file ${PACKAGE_FILES})
     )
     
     if(sha512_result EQUAL 0)
-      file(WRITE "${package_file}.sha512" "${sha512_output}")
+      # Extract hash and normalize format for compatibility with sha512sum -c
       string(REGEX MATCH "^[a-f0-9]+" sha512_hash "${sha512_output}")
+      # Create format compatible with sha512sum -c: "hash  filename"
+      file(WRITE "${package_file}.sha512" "${sha512_hash}  ${package_basename}\n")
       message(STATUS "[GPG Signing] Created SHA512: ${package_name}.sha512 (${sha512_hash})")
     endif()
   endif()
