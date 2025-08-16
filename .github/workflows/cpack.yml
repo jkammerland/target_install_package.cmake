@@ -106,21 +106,15 @@ jobs:
         # Backup original CMakeLists.txt
         cp CMakeLists.txt CMakeLists.txt.backup
         
-        # Add GPG signing parameters to export_cpack call
-        # Find the export_cpack call and add GPG parameters before the closing parenthesis
-        # Cross-platform sed compatibility (macOS requires -i '')
-        if [[ "${{ runner.os }}" == "macOS" ]]; then
-          sed -i '' '/^)$/i\
-  GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"' CMakeLists.txt
-          sed -i '' '/^)$/i\
-  GENERATE_CHECKSUMS ON' CMakeLists.txt
-          sed -i '' '/^)$/i\
-  GENERATE_VERIFICATION_SCRIPT ON' CMakeLists.txt
-        else
-          sed -i '/^)$/i\  GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"' CMakeLists.txt
-          sed -i '/^)$/i\  GENERATE_CHECKSUMS ON' CMakeLists.txt
-          sed -i '/^)$/i\  GENERATE_VERIFICATION_SCRIPT ON' CMakeLists.txt
-        fi
+        # Add GPG signing parameters to export_cpack call using cross-platform Perl
+        # Perl is available on all GitHub Actions runners and handles in-place editing reliably
+        perl -i -pe '
+        if (/^)$/) {
+          print "  GPG_SIGNING_KEY \"\$ENV{GPG_SIGNING_KEY}\"\n";
+          print "  GENERATE_CHECKSUMS ON\n";
+          print "  GENERATE_VERIFICATION_SCRIPT ON\n";
+        }
+        ' CMakeLists.txt
         
         echo "=== Modified export_cpack call ==="
         # Show the modified export_cpack section
