@@ -123,7 +123,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v5.6.1
+  GIT_TAG v5.6.2
 )
 FetchContent_MakeAvailable(target_install_package)
 

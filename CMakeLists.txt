@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 5.6.1)
+project(target_install_package VERSION 5.6.2)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -32,6 +32,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${PROJECT_NAME}
       ADDITIONAL_FILES
       ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in
+      ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
       ADDITIONAL_FILES_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake # The reason for the extra cmake dir is because this is the normal override location for the target.
       PUBLIC_CMAKE_FILES
