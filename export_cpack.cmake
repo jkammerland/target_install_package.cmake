@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.6.0)
+  list_file_include_guard(VERSION 5.6.1)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -583,7 +583,6 @@ function(_configure_gpg_signing)
   if(NOT DEFINED ARG_GENERATE_CHECKSUMS)
     set(ARG_GENERATE_CHECKSUMS ON)
   endif()
-
 
   # Find GPG executable
   find_program(
