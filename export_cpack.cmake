@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.5.0)
+  list_file_include_guard(VERSION 5.6.0)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -501,16 +501,24 @@ function(_execute_deferred_cpack_config)
 
   # Configure GPG signing if requested (must be before variable application)
   _configure_gpg_signing(
-    SIGNING_KEY "${ARG_GPG_SIGNING_KEY}"
-    PASSPHRASE_FILE "${ARG_GPG_PASSPHRASE_FILE}" 
-    SIGNING_METHOD "${ARG_SIGNING_METHOD}"
-    KEYSERVER "${ARG_GPG_KEYSERVER}"
-    GENERATE_CHECKSUMS ${ARG_GENERATE_CHECKSUMS}
-    GENERATE_VERIFICATION_SCRIPT ${ARG_GENERATE_VERIFICATION_SCRIPT}
-    PACKAGE_NAME "${ARG_PACKAGE_NAME}"
-    PACKAGE_VERSION "${ARG_PACKAGE_VERSION}"
-    PACKAGE_CONTACT "${ARG_PACKAGE_CONTACT}"
-  )
+    SIGNING_KEY
+    "${ARG_GPG_SIGNING_KEY}"
+    PASSPHRASE_FILE
+    "${ARG_GPG_PASSPHRASE_FILE}"
+    SIGNING_METHOD
+    "${ARG_SIGNING_METHOD}"
+    KEYSERVER
+    "${ARG_GPG_KEYSERVER}"
+    GENERATE_CHECKSUMS
+    ${ARG_GENERATE_CHECKSUMS}
+    GENERATE_VERIFICATION_SCRIPT
+    ${ARG_GENERATE_VERIFICATION_SCRIPT}
+    PACKAGE_NAME
+    "${ARG_PACKAGE_NAME}"
+    PACKAGE_VERSION
+    "${ARG_PACKAGE_VERSION}"
+    PACKAGE_CONTACT
+    "${ARG_PACKAGE_CONTACT}")
 
   # Set all CPack variables from GLOBAL properties just before including CPack This avoids cache persistence between CMake runs
   get_property(all_cpack_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
@@ -541,7 +549,14 @@ endfunction(_execute_deferred_cpack_config)
 # ~~~
 function(_configure_gpg_signing)
   set(options GENERATE_CHECKSUMS GENERATE_VERIFICATION_SCRIPT)
-  set(oneValueArgs SIGNING_KEY PASSPHRASE_FILE SIGNING_METHOD KEYSERVER PACKAGE_NAME PACKAGE_VERSION PACKAGE_CONTACT)
+  set(oneValueArgs
+      SIGNING_KEY
+      PASSPHRASE_FILE
+      SIGNING_METHOD
+      KEYSERVER
+      PACKAGE_NAME
+      PACKAGE_VERSION
+      PACKAGE_CONTACT)
   set(multiValueArgs)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -577,7 +592,10 @@ function(_configure_gpg_signing)
   endif()
 
   # Find GPG executable
-  find_program(GPG_EXECUTABLE NAMES gpg2 gpg DOC "GNU Privacy Guard")
+  find_program(
+    GPG_EXECUTABLE
+    NAMES gpg2 gpg
+    DOC "GNU Privacy Guard")
   if(NOT GPG_EXECUTABLE)
     project_log(FATAL_ERROR "GPG executable not found. Install GPG to enable package signing.")
   endif()
@@ -586,20 +604,14 @@ function(_configure_gpg_signing)
   execute_process(
     COMMAND ${GPG_EXECUTABLE} --list-secret-keys "${ARG_SIGNING_KEY}"
     RESULT_VARIABLE gpg_result
-    OUTPUT_QUIET
-    ERROR_QUIET
-  )
-  
+    OUTPUT_QUIET ERROR_QUIET)
+
   if(NOT gpg_result EQUAL 0)
     project_log(FATAL_ERROR "GPG signing key '${ARG_SIGNING_KEY}' not found in keyring or no private key available.")
   endif()
 
   # Generate signing script
-  configure_file(
-    "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/sign_packages.cmake.in"
-    "${CMAKE_BINARY_DIR}/sign_packages.cmake"
-    @ONLY
-  )
+  configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/sign_packages.cmake.in" "${CMAKE_BINARY_DIR}/sign_packages.cmake" @ONLY)
 
   # Set CPack post-build script
   _tip_store_cpack_var(CPACK_POST_BUILD_SCRIPTS "${CMAKE_BINARY_DIR}/sign_packages.cmake")

@@ -79,15 +79,15 @@ cpack --preset signed-packages
 After successful signing, you'll have:
 
 **📦 Packages**
-- `MySignedLibrary-5.5.0-Linux-Development.tar.gz`
-- `MySignedLibrary-5.5.0-Linux-Runtime.tar.gz` 
-- `MySignedLibrary-5.5.0-Linux-Tools.tar.gz`
-- `mysignedlibrary-development_5.5.0_amd64.deb`
-- `mysignedlibrary-runtime_5.5.0_amd64.deb`
-- `mysignedlibrary-tools_5.5.0_amd64.deb`
-- `mysignedlibrary-Development-5.5.0-1.x86_64.rpm`
-- `mysignedlibrary-Runtime-5.5.0-1.x86_64.rpm` 
-- `mysignedlibrary-Tools-5.5.0-1.x86_64.rpm`
+- `MySignedLibrary-5.6.0-Linux-Development.tar.gz`
+- `MySignedLibrary-5.6.0-Linux-Runtime.tar.gz` 
+- `MySignedLibrary-5.6.0-Linux-Tools.tar.gz`
+- `mysignedlibrary-development_5.6.0_amd64.deb`
+- `mysignedlibrary-runtime_5.6.0_amd64.deb`
+- `mysignedlibrary-tools_5.6.0_amd64.deb`
+- `mysignedlibrary-Development-5.6.0-1.x86_64.rpm`
+- `mysignedlibrary-Runtime-5.6.0-1.x86_64.rpm` 
+- `mysignedlibrary-Tools-5.6.0-1.x86_64.rpm`
 
 **🔐 Signatures**  
 - `*.sig` - GPG detached signatures for each package
