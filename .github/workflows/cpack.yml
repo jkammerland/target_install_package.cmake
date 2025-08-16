@@ -106,18 +106,21 @@ jobs:
         # Backup original CMakeLists.txt
         cp CMakeLists.txt CMakeLists.txt.backup
         
-        # Add GPG signing parameters to export_cpack call
-        # Use a simpler approach that works cross-platform
-        # Create temporary file with the parameters to insert
-        cat > gpg_params.txt << 'EOF'
-          GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"
-          GENERATE_CHECKSUMS ON
-          GENERATE_VERIFICATION_SCRIPT ON
-        EOF
+        # Create a temporary file with the modified content
+        # This approach works on both GNU and BSD sed
+        awk '
+        /^export_cpack\(/ { in_export=1 }
+        in_export && /^)$/ {
+          print "  GPG_SIGNING_KEY \"$ENV{GPG_SIGNING_KEY}\""
+          print "  GENERATE_CHECKSUMS ON"
+          print "  GENERATE_VERIFICATION_SCRIPT ON"
+        }
+        { print }
+        in_export && /^)$/ { in_export=0 }
+        ' CMakeLists.txt > CMakeLists.txt.tmp
         
-        # Insert the parameters before the closing parenthesis
-        sed -i.bak '/^)$/e cat gpg_params.txt' CMakeLists.txt
-        rm gpg_params.txt
+        # Replace the original file
+        mv CMakeLists.txt.tmp CMakeLists.txt
         
         echo "=== Modified export_cpack call ==="
         # Show the modified export_cpack section
