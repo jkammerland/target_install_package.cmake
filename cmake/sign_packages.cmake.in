@@ -10,7 +10,6 @@ set(PASSPHRASE_FILE "@ARG_PASSPHRASE_FILE@")
 set(SIGNING_METHOD "@ARG_SIGNING_METHOD@")
 set(KEYSERVER "@ARG_KEYSERVER@")
 set(GENERATE_CHECKSUMS "@ARG_GENERATE_CHECKSUMS@")
-set(GENERATE_VERIFICATION_SCRIPT "@ARG_GENERATE_VERIFICATION_SCRIPT@")
 set(PACKAGE_NAME "@ARG_PACKAGE_NAME@")
 set(PACKAGE_VERSION "@ARG_PACKAGE_VERSION@")
 set(PACKAGE_CONTACT "@ARG_PACKAGE_CONTACT@")
@@ -152,24 +151,5 @@ foreach(package_file ${PACKAGE_FILES})
   endif()
 endforeach()
 
-# Generate verification script if requested
-if(GENERATE_VERIFICATION_SCRIPT)
-  message(STATUS "[GPG Signing] Generating verification script...")
-  
-  # Generate script in build directory alongside packages and signatures
-  set(verify_script "${CPACK_PACKAGE_DIRECTORY}/verify.sh")
-  
-  # Use template to generate the verification script
-  configure_file(
-    "@CMAKE_CURRENT_FUNCTION_LIST_DIR@/cmake/verify_template.sh.in"
-    "${verify_script}"
-    @ONLY
-  )
-  
-  # Make script executable
-  execute_process(COMMAND chmod +x "${verify_script}")
-  
-  message(STATUS "[GPG Signing] Created verification script: verify.sh")
-endif()
 
 message(STATUS "[GPG Signing] Package signing completed successfully!")

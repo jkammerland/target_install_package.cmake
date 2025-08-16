@@ -174,7 +174,6 @@ jobs:
         in_export && /^)$/ {
           print "  GPG_SIGNING_KEY \"$ENV{GPG_SIGNING_KEY}\""
           print "  GENERATE_CHECKSUMS ON"
-          print "  GENERATE_VERIFICATION_SCRIPT ON"
         }
         { print }
         in_export && /^)$/ { in_export=0 }
@@ -314,28 +313,6 @@ jobs:
         cd examples/cpack-basic/build
         
         echo "=== Verifying GPG signatures and checksums ==="
-        
-        # Verify the verification script was generated
-        if [[ ! -f "verify.sh" ]]; then
-          echo "❌ Verification script not generated"
-          exit 1
-        fi
-        
-        # Make script executable
-        chmod +x verify.sh
-        
-        # Test verification script with platform-specific package types
-        echo "=== Testing verification script ==="
-        if [[ "${{ runner.os }}" == "Linux" ]]; then
-          # Linux: TGZ + DEB + RPM = 9 packages (3 components × 3 formats)
-          ./verify.sh --package-types "tar.gz,deb,rpm" --min-packages 9 --verbose
-        elif [[ "${{ runner.os }}" == "macOS" ]]; then
-          # macOS: TGZ + DMG = 6 packages (3 components × 2 formats)
-          ./verify.sh --package-types "tar.gz,dmg" --min-packages 6 --verbose
-        elif [[ "${{ runner.os }}" == "Windows" ]]; then
-          # Windows: TGZ + ZIP = 6 packages (3 components × 2 formats)
-          ./verify.sh --package-types "tar.gz,zip" --min-packages 6 --verbose
-        fi
         
         echo "✅ GPG signature verification completed successfully"
         
