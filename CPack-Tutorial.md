@@ -32,8 +32,6 @@ Package Generation: CPack can then create packages from the staging directory co
 
 ---
 
-This note clearly explains the core concept while being easy to understand for users at any level.
-
 ## Table of Contents
 
 1. [Manual CPack: The Traditional Approach](#manual-cpack-the-traditional-approach)
@@ -49,7 +47,7 @@ This note clearly explains the core concept while being easy to understand for u
 
 ## Manual CPack: The Traditional Approach
 
-Traditional CPack configuration requires extensive manual, something I myself have to research everytime I do it. Here's what you typically need to write:
+CPack configuration requires alot of effort for me, because I have to research how and why everytime I do it. Here's what you typically need to write:
 
 ### Step 1: Basic Project Setup (Manual)
 
@@ -334,7 +332,7 @@ export_cpack(
 
 ### Example 4: Package with Full Signing
 
-**In my opinion it should there should be a standard way to consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities can be protected until something bad goes down.
+**In my opinion it should there should be a standard way to SECURELY consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID (or similar) integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities (like real name) can be protected until something bad goes down.
 
 ```cmake
 # package with signing

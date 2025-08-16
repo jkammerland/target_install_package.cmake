@@ -2,7 +2,7 @@
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-A collection of CMake utilities for creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. But other platforms could work if cmake support them. With this project, it boils down to a single function that generate a CMake package with sane defaults
+A collection of CMake utilities for creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. With this project, CMake installation configuration boils down to a single function that can generate a CMake package with sane defaults
 
 ```cmake
 # Producer project
@@ -42,7 +42,8 @@ The `target_install_package()` function searches for the targets config template
 5. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
 6. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
 
-**Note**: Templates use `@EXPORT_NAME@` for CMake substitution, not `@TARGET_NAME@`. This ensures `check_required_components(@EXPORT_NAME@)` calls work correctly.
+>[!NOTE]
+> Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
 ## Table of Contents
 
@@ -67,17 +68,18 @@ The `target_install_package()` function searches for the targets config template
    - [Build Variant Support](#build-variant-support-)
    - [Header-Only Libraries](#header-only-libraries-)
 7. [Key Benefits](#key-benefits-of-file_set-approach-)
+8. [Similar projects](#similar-projects)
 
 ## Features ✨
 
 - **Templated source file configuration** with proper include paths
 - **Package installation** with automatic CMake config generation
 - **CPack integration** with automatic package generation (TGZ, ZIP, DEB, RPM, WIX)
+- **CPack signing** for all platforms using GPG
 - **Support for modern CMake** including file sets and C++20 modules
 - **Component-based installation** with runtime/development separation
 - **Build variant support** for debug/release/custom configurations
 - **Flexible destination paths** for headers and configured files
-- **Proper build and install interfaces** using generator expressions
 
 ### Tips: 💡
 > [!TIP]
@@ -887,7 +889,7 @@ install(EXPORT my_library
 # ... more boilerplate for config files
 ```
 
-**Modern approach (recommended):**
+**Modern approach (with target_install_package):**
 ```cmake
 target_sources(my_library PUBLIC 
   FILE_SET HEADERS 
@@ -899,3 +901,10 @@ target_install_package(my_library NAMESPACE MyLib::)
 ```
 
 The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution with minimal boilerplate while still allowing you to mix in standard `install()` commands where needed.
+
+## Similar projects
+
+- [CPM](https://github.com/cpm-cmake/cpm.cmake)
+- [ModernCppStarter](https://github.com/TheLartians/ModernCppStarter)
+- [PackageProject](https://github.com/TheLartians/PackageProject.cmake)
+- [clang-tidy.cmake](https://github.com/jkammerland/clang-tidy.cmake)
