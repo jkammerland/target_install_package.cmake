@@ -55,17 +55,78 @@ jobs:
 
     - name: Install GPG on Windows
       if: runner.os == 'Windows'
+      shell: pwsh
       run: |
-        choco install gnupg -y
-        # Add GPG to PATH for subsequent steps
-        echo "C:\Program Files (x86)\GnuPG\bin" >> $GITHUB_PATH
+        # Windows runners often have GPG pre-installed, check first
+        $gpgPath = Get-Command gpg -ErrorAction SilentlyContinue
+        if ($gpgPath) {
+          Write-Host "GPG already installed at: $($gpgPath.Path)"
+          gpg --version
+        } else {
+          Write-Host "Installing GPG via direct download..."
+          
+          # Download GPG directly instead of using Chocolatey (which times out)
+          $gpgUrl = "https://www.gnupg.org/ftp/gcrypt/binary/gnupg-w32-2.4.5_20240307.exe"
+          $installerPath = "$env:TEMP\gnupg-installer.exe"
+          
+          Write-Host "Downloading GPG installer..."
+          Invoke-WebRequest -Uri $gpgUrl -OutFile $installerPath
+          
+          Write-Host "Installing GPG silently..."
+          Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -NoNewWindow
+          
+          # Add GPG to PATH
+          $gpgInstallPath = "C:\Program Files (x86)\GnuPG\bin"
+          if (Test-Path $gpgInstallPath) {
+            echo "$gpgInstallPath" >> $env:GITHUB_PATH
+            $env:PATH = "$gpgInstallPath;$env:PATH"
+            Write-Host "GPG installed and added to PATH"
+          } else {
+            # Fallback: Try the Git for Windows GPG
+            $gitGpgPath = "C:\Program Files\Git\usr\bin"
+            if (Test-Path "$gitGpgPath\gpg.exe") {
+              echo "$gitGpgPath" >> $env:GITHUB_PATH
+              $env:PATH = "$gitGpgPath;$env:PATH"
+              Write-Host "Using Git for Windows GPG"
+            } else {
+              Write-Host "Warning: GPG installation path not found"
+            }
+          }
+        }
 
     - name: Verify GPG Installation
       shell: bash
       run: |
         echo "=== Verifying GPG installation ==="
-        which gpg || which gpg2 || (echo "❌ GPG not found in PATH" && exit 1)
-        gpg --version | head -3
+        
+        # For Windows, also check common locations if 'which' fails
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          # Try multiple possible GPG locations on Windows
+          if command -v gpg &> /dev/null; then
+            echo "✅ GPG found via command"
+            gpg --version | head -3
+          elif [ -f "/c/Program Files (x86)/GnuPG/bin/gpg.exe" ]; then
+            echo "✅ GPG found at Program Files"
+            "/c/Program Files (x86)/GnuPG/bin/gpg.exe" --version | head -3
+            # Add to PATH for this session
+            export PATH="/c/Program Files (x86)/GnuPG/bin:$PATH"
+          elif [ -f "/c/Program Files/Git/usr/bin/gpg.exe" ]; then
+            echo "✅ GPG found at Git installation"
+            "/c/Program Files/Git/usr/bin/gpg.exe" --version | head -3
+            # Add to PATH for this session
+            export PATH="/c/Program Files/Git/usr/bin:$PATH"
+          else
+            echo "❌ GPG not found in common locations"
+            echo "Searching for gpg.exe..."
+            find /c -name "gpg.exe" 2>/dev/null | head -5
+            exit 1
+          fi
+        else
+          # Linux and macOS
+          which gpg || which gpg2 || (echo "❌ GPG not found in PATH" && exit 1)
+          gpg --version | head -3
+        fi
+        
         echo "✅ GPG installation verified"
 
     - name: Generate Test GPG Key
