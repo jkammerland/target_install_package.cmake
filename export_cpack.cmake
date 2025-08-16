@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.6.0)
+  list_file_include_guard(VERSION 5.6.1)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -77,7 +77,6 @@ endif()
 #     [SIGNING_METHOD <detached|embedded|both>]
 #     [GPG_KEYSERVER <keyserver_url>]
 #     [GENERATE_CHECKSUMS]
-#     [GENERATE_VERIFICATION_SCRIPT]
 #     [ADDITIONAL_CPACK_VARS <var1> <value1> <var2> <value2> ...]
 #   )
 #
@@ -190,7 +189,7 @@ function(_execute_deferred_cpack_config)
   endif()
 
   # Now parse and process the stored arguments
-  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS GENERATE_CHECKSUMS GENERATE_VERIFICATION_SCRIPT)
+  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS GENERATE_CHECKSUMS)
   set(oneValueArgs
       PACKAGE_NAME
       PACKAGE_VERSION
@@ -511,8 +510,6 @@ function(_execute_deferred_cpack_config)
     "${ARG_GPG_KEYSERVER}"
     GENERATE_CHECKSUMS
     ${ARG_GENERATE_CHECKSUMS}
-    GENERATE_VERIFICATION_SCRIPT
-    ${ARG_GENERATE_VERIFICATION_SCRIPT}
     PACKAGE_NAME
     "${ARG_PACKAGE_NAME}"
     PACKAGE_VERSION
@@ -548,7 +545,7 @@ endfunction(_execute_deferred_cpack_config)
 # Internal function to configure GPG signing for packages
 # ~~~
 function(_configure_gpg_signing)
-  set(options GENERATE_CHECKSUMS GENERATE_VERIFICATION_SCRIPT)
+  set(options GENERATE_CHECKSUMS)
   set(oneValueArgs
       SIGNING_KEY
       PASSPHRASE_FILE
@@ -587,10 +584,6 @@ function(_configure_gpg_signing)
     set(ARG_GENERATE_CHECKSUMS ON)
   endif()
 
-  if(NOT DEFINED ARG_GENERATE_VERIFICATION_SCRIPT)
-    set(ARG_GENERATE_VERIFICATION_SCRIPT ON)
-  endif()
-
   # Find GPG executable
   find_program(
     GPG_EXECUTABLE
@@ -620,7 +613,6 @@ function(_configure_gpg_signing)
   project_log(STATUS "  Signing key: ${ARG_SIGNING_KEY}")
   project_log(STATUS "  Signing method: ${ARG_SIGNING_METHOD}")
   project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
-  project_log(STATUS "  Generate verification script: ${ARG_GENERATE_VERIFICATION_SCRIPT}")
   project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
 
 endfunction(_configure_gpg_signing)

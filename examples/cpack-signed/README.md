@@ -1,15 +1,12 @@
 # GPG Package Signing Example 🔐
 
-> [!WARNING]
-> Experimental implementation
-
 This example demonstrates the GPG package signing functionality added to `export_cpack()`.
 
 **🎯 Complete GPG Integration**
 - **Multi-format signing**: Automatically signs TGZ, DEB, RPM, and all other CPack formats
 - **Detached signatures**: Creates `.sig` files alongside packages
 - **Cryptographic checksums**: Generates SHA256 and SHA512 for integrity verification
-- **Verification scripts**: Creates consumer-friendly `verify.sh` scripts
+- **Example verification script**: Provides template for consumer verification
 - **Seamless workflow**: Zero additional steps - signing happens during `cpack`
 
 **Advanced Features**
@@ -33,7 +30,6 @@ export_cpack(
   SIGNING_METHOD "detached"                      # Creates .sig files
   GPG_KEYSERVER "keyserver.ubuntu.com"
   GENERATE_CHECKSUMS                             # SHA256/SHA512
-  GENERATE_VERIFICATION_SCRIPT                   # Creates verify.sh
   # Standard CPack options
   DEFAULT_COMPONENTS "Runtime"
   COMPONENT_GROUPS
@@ -79,15 +75,15 @@ cpack --preset signed-packages
 After successful signing, you'll have:
 
 **📦 Packages**
-- `MySignedLibrary-5.6.0-Linux-Development.tar.gz`
-- `MySignedLibrary-5.6.0-Linux-Runtime.tar.gz` 
-- `MySignedLibrary-5.6.0-Linux-Tools.tar.gz`
-- `mysignedlibrary-development_5.6.0_amd64.deb`
-- `mysignedlibrary-runtime_5.6.0_amd64.deb`
-- `mysignedlibrary-tools_5.6.0_amd64.deb`
-- `mysignedlibrary-Development-5.6.0-1.x86_64.rpm`
-- `mysignedlibrary-Runtime-5.6.0-1.x86_64.rpm` 
-- `mysignedlibrary-Tools-5.6.0-1.x86_64.rpm`
+- `MySignedLibrary-5.6.1-Linux-Development.tar.gz`
+- `MySignedLibrary-5.6.1-Linux-Runtime.tar.gz` 
+- `MySignedLibrary-5.6.1-Linux-Tools.tar.gz`
+- `mysignedlibrary-development_5.6.1_amd64.deb`
+- `mysignedlibrary-runtime_5.6.1_amd64.deb`
+- `mysignedlibrary-tools_5.6.1_amd64.deb`
+- `mysignedlibrary-Development-5.6.1-1.x86_64.rpm`
+- `mysignedlibrary-Runtime-5.6.1-1.x86_64.rpm` 
+- `mysignedlibrary-Tools-5.6.1-1.x86_64.rpm`
 
 **🔐 Signatures**  
 - `*.sig` - GPG detached signatures for each package
@@ -97,7 +93,7 @@ After successful signing, you'll have:
 - `*.sha512`
 
 **✅ Verification**
-- `verify.sh` - Automated verification script for consumers
+- `verify.sh` - Example verification script template (build/verify.sh)
 
 ## Prerequisites
 
@@ -143,31 +139,66 @@ The signing workflow integrates with CMake presets for streamlined CI/CD:
 }
 ```
 
-## Verification Example
+## Package Verification Template
 
-Consumers can verify packages using the generated script:
+This example includes an **example verification script template** (`verify_template.sh.in`) that demonstrates how consumers could verify signed packages.
+
+### Important: This is a Template
+
+⚠️ **The verification script is provided as an example template** - it should be customized for your specific security requirements before production use.
+
+**Key considerations for production:**
+- Always verify the publisher's GPG key fingerprint through secure channels
+- Consider pinning specific key IDs rather than using email addresses  
+- Validate that keyservers are appropriate for your security environment
+- Review and audit the verification script before deployment
+
+### Using the Verification Template
 
 ```bash
-# Download packages and signatures
-wget https://releases.example.com/MyLibrary-1.0.0-Linux.tar.gz
-wget https://releases.example.com/MyLibrary-1.0.0-Linux.tar.gz.sig
-wget https://releases.example.com/verify.sh
+# 1. Build the example (generates build/verify.sh from template)
+cmake --build build
 
-# Run verification
-chmod +x verify.sh
-./verify.sh
+# 2. Test with generated packages
+cd build
+./verify.sh --verbose
 
-# Output:
-# ✓ MyLibrary-1.0.0-Linux.tar.gz verified successfully
-# ✓ SHA256 checksum verified
-# ✓ GPG signature verified
+# 3. Customize the template for your needs
+cp ../verify_template.sh.in my_custom_verify.sh.in
+# Edit my_custom_verify.sh.in for your requirements
 ```
 
-## Status: Experimental
+### Verification Example Output
+
+```bash
+./verify.sh --package-types "tar.gz,deb,rpm" --min-packages 9 --verbose
+
+# 🔐 Example Package Verification Script
+# ⚠️  NOTICE: This is a demonstration template - customize for production use!
+#
+# ✓ MySignedLibrary-5.6.1-Linux-Development.tar.gz verified successfully
+# ✓ MySignedLibrary-5.6.1-Linux-Runtime.tar.gz verified successfully
+# ✓ MySignedLibrary-5.6.1-Linux-Tools.tar.gz verified successfully
+# ✓ mysignedlibrary-development_5.6.1_amd64.deb verified successfully
+# ✓ mysignedlibrary-runtime_5.6.1_amd64.deb verified successfully
+# ✓ mysignedlibrary-tools_5.6.1_amd64.deb verified successfully
+# ✓ mysignedlibrary-Development-5.6.1-1.x86_64.rpm verified successfully
+# ✓ mysignedlibrary-Runtime-5.6.1-1.x86_64.rpm verified successfully
+# ✓ mysignedlibrary-Tools-5.6.1-1.x86_64.rpm verified successfully
+#
+# Verification Results:
+#   Total packages: 9
+#   Successfully verified: 9
+#   Required minimum: 9
+#
+# 🎉 Package verification successful!
+# 📝 Remember: This is an example script - adapt for your security requirements
+```
+
+## Status: Working
 
 - ✅ Signs all CPack package formats automatically
 - ✅ Generates cryptographic checksums and signatures
 - ✅ Creates consumer verification workflows
 - ✅ Integrates with CI/CD via presets and environment variables
 - ✅ Maintains backward compatibility
-- ? Cross-platform support (Linux, macOS, Windows)

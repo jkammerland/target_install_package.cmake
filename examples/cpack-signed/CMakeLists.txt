@@ -63,9 +63,21 @@ export_cpack(
   SIGNING_METHOD "detached"
   GPG_KEYSERVER "keyserver.ubuntu.com" 
   GENERATE_CHECKSUMS
-  GENERATE_VERIFICATION_SCRIPT
   # AUTO-DETECTED: Components (Runtime, Development, Tools)
   # AUTO-DETECTED: Generators (platform-specific)  
   DEFAULT_COMPONENTS "Runtime"
   COMPONENT_GROUPS
 )
+
+# Create example verification script template for consumers
+# This demonstrates how consumers could verify signed packages
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/verify_template.sh.in"
+  "${CMAKE_BINARY_DIR}/verify.sh"
+  @ONLY
+)
+
+# Make the script executable
+if(UNIX)
+  execute_process(COMMAND chmod +x "${CMAKE_BINARY_DIR}/verify.sh")
+endif()
