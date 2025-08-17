@@ -267,6 +267,7 @@ EXAMPLES=(
     "dependency-aggregation"
     "configure-files"
     "cxx-modules"
+    "module-partitions"
     "cpack-basic"
     "cpack-signed"
     "custom-alias"
