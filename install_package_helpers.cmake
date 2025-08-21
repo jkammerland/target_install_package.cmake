@@ -445,6 +445,8 @@ endfunction()
 # finalized at the end of configuration using cmake_language(DEFER CALL).
 # Use this function only when you need explicit control over finalization timing.
 #
+# I don't think this function is needed anymore, but I leave it for now.
+#
 # Under the hood:
 # 1. Collects all targets and their configurations from global properties
 # 2. Aggregates PUBLIC_DEPENDENCIES from all targets (with deduplication)

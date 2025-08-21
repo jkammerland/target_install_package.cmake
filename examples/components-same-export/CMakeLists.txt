@@ -46,7 +46,7 @@ add_executable(asset_converter2)
 target_sources(asset_converter2 PRIVATE src/asset_converter.cpp)
 
 # Install with custom components
-target_prepare_package(
+target_install_package(
   media_core2
   EXPORT_NAME
   "engine2"
@@ -57,7 +57,7 @@ target_prepare_package(
   DEVELOPMENT_COMPONENT
   "devel1")
 
-target_prepare_package(
+target_install_package(
   media_dev_tools2
   EXPORT_NAME
   "engine2"
@@ -67,7 +67,7 @@ target_prepare_package(
   "devel2" # Static lib goes to devel
 )
 
-target_prepare_package(
+target_install_package(
   storage
   EXPORT_NAME
   "engine2"
@@ -77,7 +77,7 @@ target_prepare_package(
   "devel3" # Static lib goes to devel
 )
 
-target_prepare_package(
+target_install_package(
   asset_converter2
   EXPORT_NAME
   "engine2"
@@ -87,5 +87,3 @@ target_prepare_package(
   "tools" # Tools get their own component
   RUNTIME_COMPONENT
   "tools")
-
-finalize_package(EXPORT_NAME "engine2")

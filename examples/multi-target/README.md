@@ -142,18 +142,6 @@ int main() {
 }
 ```
 
-## Advanced Usage: Direct Library Access
-
-You can also link with individual libraries if needed:
-
-```cmake
-# Link only with specific utilities
-target_link_libraries(my_utility PRIVATE 
-    GameEngine::core_utils
-    GameEngine::math_ops
-)
-```
-
 ## Package Benefits
 
 ### Single Find Operation

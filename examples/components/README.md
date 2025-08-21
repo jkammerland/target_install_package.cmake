@@ -1,6 +1,6 @@
 # Component-Based Installation Example
 
-This example demonstrates advanced component-based installation using custom component names and selective installation strategies.
+This example demonstrates component-based installation using custom component names and selective installation strategies.
 
 ## Features Demonstrated
 
@@ -159,7 +159,7 @@ find_package(media_core REQUIRED COMPONENTS core)
 find_package(media_core REQUIRED COMPONENTS graphics)  # ERROR!
 ```
 
-### Advanced Consumer Usage
+### Consumer Usage example
 
 ```cpp
 // main.cpp
@@ -189,25 +189,6 @@ int main() {
 }
 ```
 
-## Component Strategy Benefits
-
-### Deployment Flexibility
-
-- **Small Runtime**: Deploy only shared libraries for production
-- **Full Development**: Install everything for developers
-- **Tool Distribution**: Distribute utilities independently
-
-### Package Management
-
-- Different components can be in separate packages
-- Users install only what they need
-- Reduced storage and bandwidth requirements
-
-### Validation
-
-- Clear component boundaries and expectations
-- Better error messages for misconfiguration
-
 ## Asset Converter Tool
 
 The installed tool provides media conversion capabilities:
@@ -228,12 +209,5 @@ The installed tool provides media conversion capabilities:
 - **Custom Components**: Uses `runtime`, `devel`, `tools` instead of defaults
 - **Shared Exports**: `media_dev_tools` shares export with `media_core`
 - **Mixed Target Types**: Handles shared libs, static libs, and executables
-
-## Key Files
-
-- **CMakeLists.txt**: Component configuration and validation
-- **include/media/**: Public API headers
-- **src/**: Implementation files
-- **asset_converter**: Standalone tool implementation
 
 This example demonstrates production-ready component-based packaging strategies.

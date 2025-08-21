@@ -80,7 +80,7 @@ target_sources(
 target_compile_features(data_utils PUBLIC cxx_std_17)
 
 # Both libraries export to same package with custom aliases
-target_prepare_package(
+target_install_package(
   data_core
   EXPORT_NAME
   data_package
@@ -89,7 +89,7 @@ target_prepare_package(
   ALIAS_NAME
   core)
 
-target_prepare_package(
+target_install_package(
   data_utils
   EXPORT_NAME
   data_package
@@ -97,5 +97,3 @@ target_prepare_package(
   data::
   ALIAS_NAME
   utils)
-
-finalize_package(EXPORT_NAME data_package)

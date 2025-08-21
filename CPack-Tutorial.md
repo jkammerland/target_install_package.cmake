@@ -366,7 +366,6 @@ export_cpack(
 - Cross-platform compatibility
 - Established cryptographic infrastructure
 - Wide adoption in security-conscious communities
-- Foundation for advanced features
 
 ### Example 5: Multi-Environment Signing Configuration
 

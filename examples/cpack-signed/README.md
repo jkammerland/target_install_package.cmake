@@ -9,7 +9,7 @@ This example demonstrates the GPG package signing functionality added to `export
 - **Example verification script**: Provides template for consumer verification
 - **Seamless workflow**: Zero additional steps - signing happens during `cpack`
 
-**Advanced Features**
+**More Features**
 - Environment variable integration (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)
 - CMake preset support for streamlined workflows
 - Keyserver integration for public key distribution
