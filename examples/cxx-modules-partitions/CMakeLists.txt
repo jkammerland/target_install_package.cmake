@@ -30,6 +30,13 @@ endif()
 
 message(STATUS "C++20 modules support detected - building with modules")
 
+# Check generator support for modules
+if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
+  message(WARNING "C++20 modules require Ninja, Ninja Multi-Config, or Visual Studio generator. Current generator: ${CMAKE_GENERATOR}")
+  message(WARNING "Supported generators: Ninja, Ninja Multi-Config, Visual Studio 17.4+")
+  return()
+endif()
+
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)

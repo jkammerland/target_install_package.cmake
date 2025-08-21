@@ -114,8 +114,15 @@ find_package(libB CONFIG REQUIRED)
 
 # Conditionally find the modules package
 if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-  find_package(math_modules CONFIG REQUIRED)
-  find_package(math_partitions CONFIG REQUIRED)
+  # Check generator support for modules when trying to use them
+  if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
+    message(WARNING "C++20 modules require Ninja, Ninja Multi-Config, or Visual Studio generator. Current generator: ${CMAKE_GENERATOR}")
+    message(WARNING "Skipping module packages due to unsupported generator")
+    set(SHOULD_TEST_CXX_MODULES FALSE)
+  else()
+    find_package(math_modules CONFIG REQUIRED)
+    find_package(math_partitions CONFIG REQUIRED)
+  endif()
 else()
   message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) and find_package(math_partitions) checks.")
 endif()

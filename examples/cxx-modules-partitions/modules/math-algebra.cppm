@@ -7,6 +7,14 @@ module;
 #include <vector>
 #include <algorithm>
 
+// Include numbers header with fallback for older compilers
+#if __has_include(<numbers>)
+    #include <numbers>
+    #define HAS_STD_NUMBERS 1
+#else
+    #define HAS_STD_NUMBERS 0
+#endif
+
 export module math:algebra;
 
 // Export basic arithmetic operations
@@ -44,17 +52,22 @@ export namespace algebra {
         return std::sqrt(value);
     }
     
-    double logarithm(double value, double base = std::numbers::e) {
+    // Mathematical constants - define before use
+    #if HAS_STD_NUMBERS
+        inline constexpr double PI = std::numbers::pi;
+        inline constexpr double E = std::numbers::e;
+    #else
+        inline constexpr double PI = 3.14159265358979323846;
+        inline constexpr double E = 2.71828182845904523536;
+    #endif
+    inline constexpr double GOLDEN_RATIO = 1.61803398874989484820;
+    
+    double logarithm(double value, double base = E) {
         if (value <= 0.0 || base <= 0.0 || base == 1.0) {
             throw std::invalid_argument("Invalid logarithm arguments");
         }
         return std::log(value) / std::log(base);
     }
-    
-    // Mathematical constants
-    inline constexpr double PI = 3.14159265358979323846;
-    inline constexpr double E = 2.71828182845904523536;
-    inline constexpr double GOLDEN_RATIO = 1.61803398874989484820;
     
     // Linear algebra operations
     class Matrix2x2 {

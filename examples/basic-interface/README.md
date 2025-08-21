@@ -81,37 +81,13 @@ target_compile_features(test_app PRIVATE cxx_std_17)
 #include <vector>
 
 int main() {
-    // Test sorting
     std::vector<int> numbers = {64, 34, 25, 12, 22, 11, 90};
     
-    std::cout << "Original array: ";
-    for (int n : numbers) std::cout << n << " ";
-    std::cout << std::endl;
+    // Test sorting and searching
+    algorithms::Sorting<int>::bubbleSort(numbers);
+    auto result = algorithms::Searching<int>::binarySearch(numbers, 25);
     
-    // Test bubble sort
-    auto bubble_sorted = numbers;
-    algorithms::Sorting<int>::bubbleSort(bubble_sorted);
-    
-    std::cout << "Bubble sorted: ";
-    for (int n : bubble_sorted) std::cout << n << " ";
-    std::cout << std::endl;
-    
-    // Test quick sort
-    auto quick_sorted = numbers;
-    algorithms::Sorting<int>::quickSort(quick_sorted);
-    
-    std::cout << "Quick sorted: ";
-    for (int n : quick_sorted) std::cout << n << " ";
-    std::cout << std::endl;
-    
-    // Test searching
-    auto result = algorithms::Searching<int>::binarySearch(quick_sorted, 25);
-    if (result) {
-        std::cout << "Found 25 at index: " << *result << std::endl;
-    } else {
-        std::cout << "25 not found" << std::endl;
-    }
-    
+    std::cout << "Found 25: " << (result ? "Yes" : "No") << std::endl;
     return 0;
 }
 ```

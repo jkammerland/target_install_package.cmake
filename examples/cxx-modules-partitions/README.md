@@ -28,12 +28,13 @@ This example demonstrates C++20 modules with partitions using `target_install_pa
 
 **This example requires C++20 modules support:**
 - **CMake**: 3.28 or later
+- **Generator**: Ninja, Ninja Multi-Config, or Visual Studio 17.4+
 - **Compiler**:
   - GCC 14.0+ 
   - Clang 19.0+
   - MSVC 19.29+ (Visual Studio 2019 16.10+)
 
-**Note**: The example will be skipped if compiler requirements are not met.
+**Note**: The example will be skipped if compiler or generator requirements are not met.
 
 ## Usage Example
 

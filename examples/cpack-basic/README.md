@@ -229,13 +229,6 @@ int main() {
 }
 ```
 
-## Key Features
-
-- **Zero-Configuration**: CPack works out-of-the-box with sensible defaults
-- **Component Awareness**: Automatically detects and configures components
-- **Cross-Platform**: Generates appropriate packages for each platform
-- **Integration**: Seamlessly works with existing target_install_package usage
-
 ## Customization Options
 
 You can override auto-detected settings:
