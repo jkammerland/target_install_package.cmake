@@ -67,7 +67,6 @@ target_compile_features(static1 PUBLIC cxx_std_17)
 
 # target_install_package(static1 ADDITIONAL_TARGETS static2) UPDATED THIS TO TEST
 target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static2
-finalize_package(EXPORT_NAME my_static_package)
 
 add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)

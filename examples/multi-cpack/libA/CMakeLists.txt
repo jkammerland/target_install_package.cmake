@@ -53,9 +53,6 @@ target_install_package(
   DEVELOPMENT_COMPONENT
   "Development")
 
-# Finalize the package configuration explicitly due to subdirectory structure
-finalize_package(EXPORT_NAME "libA")
-
 # Create aliases for when building as part of parent project
 if(NOT TARGET LibA::libA_core)
   add_library(LibA::libA_core ALIAS libA_core)

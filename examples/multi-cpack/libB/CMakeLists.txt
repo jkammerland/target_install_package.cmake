@@ -72,9 +72,6 @@ target_install_package(
   RUNTIME_COMPONENT
   "Tools")
 
-# Finalize the package configuration explicitly due to subdirectory structure
-finalize_package(EXPORT_NAME "libB")
-
 # Configure CPack only if requested
 if(BUILD_LIBB_PACKAGE)
   export_cpack(
