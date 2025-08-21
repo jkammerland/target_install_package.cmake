@@ -44,6 +44,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install Ninja
+      shell: bash
+      run: |
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          choco install ninja -y
+          echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+        elif [[ "${{ runner.os }}" == "Linux" ]]; then
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          brew install ninja
+        fi
+        ninja --version
+
     - name: Set reusable strings
       id: strings
       shell: bash # This shell environment does the sed
@@ -67,7 +85,7 @@ jobs:
         git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
         
-        cmake -B build \
+        cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -83,7 +101,7 @@ jobs:
 
     - name: Configure CMake (Main Project)
       run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} -G Ninja
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -140,7 +158,7 @@ jobs:
         cd "${WORKSPACE_PATH}/tests/consumer"
         
         # Configure consumer with installed package and fmt
-        cmake -B build \
+        cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -175,7 +193,7 @@ jobs:
         cd "${WORKSPACE_PATH}/tests/consumer"
         
         # This should fail gracefully when fmt is not found
-        if cmake -B build-no-deps \
+        if cmake -B build-no-deps -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
