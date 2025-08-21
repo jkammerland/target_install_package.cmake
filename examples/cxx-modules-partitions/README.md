@@ -70,7 +70,7 @@ cd examples
 
 ### Manual Build:
 ```bash
-cd module-partitions
+cd cxx-modules-partitions
 mkdir build && cd build
 
 # Configure (modules will be auto-detected)
