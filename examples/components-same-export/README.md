@@ -1,6 +1,6 @@
 # Components Same Export Example
 
-This example demonstrates packaging multiple targets into a single export with custom component assignments using `target_prepare_package` and `finalize_package`.
+This example demonstrates packaging multiple targets into a single export with custom component assignments using `target_install_package`.
 
 ## Features Demonstrated
 

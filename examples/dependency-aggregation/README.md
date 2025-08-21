@@ -1,25 +1,13 @@
 # Dependency Aggregation Example
 
-This example demonstrates **dependency aggregation** in multi-target exports - the core mechanism that enables multiple targets with different `PUBLIC_DEPENDENCIES` to be packaged into a single CMake export.
+This example demonstrates dependency aggregation in multi-target exports - how multiple targets with different dependencies are packaged into a single CMake export.
 
-## Purpose
+## Features Demonstrated
 
-Shows the **correct pattern** for aggregating dependencies from multiple targets into a unified package configuration file.
-
-## Architecture
-
-```
-mylib Package (Single Export):
-├── core_lib (shared)    → depends on fmt
-├── logging_lib (static) → depends on spdlog  
-└── utils_lib (static)   → depends on cxxopts
-
-Result: mylib-config.cmake contains all 3 dependencies
-```
-
-## Key Mechanism Demonstrated
-
-### ✅ Correct Pattern: Dependency Aggregation
+- Multiple targets in one export with different dependencies
+- Automatic dependency aggregation in generated config files
+- Real external dependencies (fmt, spdlog, cxxopts)
+- Single find_package() for all targets
 
 ```cmake
 # Each target declares its own PUBLIC_DEPENDENCIES
@@ -28,111 +16,76 @@ target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdl
 target_install_package(utils_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED")
 ```
 
-**Generated `mylib-config.cmake` contains:**
+**Generated `mylibConfig.cmake` contains:**
 ```cmake
 find_dependency(fmt 10.0.0 REQUIRED)
 find_dependency(spdlog 1.12.0 REQUIRED)
 find_dependency(cxxopts 3.1.1 REQUIRED)
 ```
 
-### ❌ Problematic Pattern: Overwriting Dependencies
+Do not use REQUIRED, use components or make a custom <package>Config.cmake file for conditional dependencies. But by far the simplest way is to make a separate package out of each target.
 
-```cmake
-# DON'T: Each call overwrites the previous
-target_install_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED")
-target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED")
-# Result: Only spdlog in final config (fmt is lost)
-```
+## Building and Installing
 
-## How Dependency Aggregation Works
-
-### Under the Hood
-
-1. **Storage Phase**: Each `target_prepare_package()` call stores dependencies in global properties:
-   ```cmake
-   TIP_EXPORT_mylib_PUBLIC_DEPENDENCIES = "fmt;spdlog;cxxopts"
-   ```
-
-2. **Aggregation Phase**: `finalize_package()` collects all stored dependencies:
-   ```cmake
-   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "TIP_EXPORT_mylib_PUBLIC_DEPENDENCIES")
-   # Result: "fmt 10.0.0 REQUIRED;spdlog 1.12.0 REQUIRED;cxxopts 3.1.1 REQUIRED"
-   ```
-
-3. **Generation Phase**: All dependencies written to config template:
-   ```cmake
-   foreach(dep ${PUBLIC_DEPENDENCIES})
-     string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
-   endforeach()
-   ```
-
-## Building and Testing
-
-### Build the Example
+### Step 1: Configure and Build
 
 ```bash
-cd dependency-aggregation
+# Create build directory
 mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=./install
+
+# Configure with install prefix set to build directory
+cmake .. -DCMAKE_INSTALL_PREFIX=./install -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
+
+# Build the libraries
 cmake --build .
+```
+
+### Step 2: Install the Package
+
+```bash
+# Install to the specified prefix
 cmake --install .
 ```
 
-### Verify Dependency Aggregation
+### Step 3: Verify Installation
+
+After installation, check the generated config file:
 
 ```bash
-# Check generated config file
 cat install/share/cmake/mylib/mylib-config.cmake
 ```
 
-**Expected output in config file:**
+You should see all dependencies aggregated:
 ```cmake
 find_dependency(fmt 10.0.0 REQUIRED)
 find_dependency(spdlog 1.12.0 REQUIRED)
 find_dependency(cxxopts 3.1.1 REQUIRED)
 ```
 
-### Consumer Usage
+## Using the Installed Package
+
+Create a consumer project:
 
 ```cmake
-# CMakeLists.txt for consumer
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.25)
+project(consumer)
+
+# Set CMAKE_PREFIX_PATH to find the installed package
+list(APPEND CMAKE_PREFIX_PATH "/path/to/build/install")
+
+# Find the package (automatically finds all dependencies)
 find_package(mylib REQUIRED)
 
+# Create executable
 add_executable(my_app main.cpp)
+
+# Link with any combination of the installed targets
 target_link_libraries(my_app PRIVATE 
-  MyLib::core_lib     # Brings fmt transitively
-  MyLib::logging_lib  # Brings spdlog transitively  
-  MyLib::utils_lib    # Brings cxxopts transitively
+    MyLib::core_lib     # Brings fmt transitively
+    MyLib::logging_lib  # Brings spdlog transitively  
+    MyLib::utils_lib    # Brings cxxopts transitively
 )
 ```
 
-## Key Benefits
-
-### Single Package Management
-- **One Export**: All targets accessible via single `find_package(mylib)`
-- **Unified Dependencies**: All dependencies resolved automatically
-- **Version Consistency**: All targets share same version
-
-### Dependency Deduplication
-- **Automatic**: Duplicate dependencies are removed
-- **Efficient**: No redundant dependency declarations
-- **Safe**: Version conflicts are avoided
-
-### Maintenance
-- **Central Config**: One config file to maintain
-- **Consistent Versioning**: All targets use same dependency versions
-- **Clear Dependencies**: Explicit declaration of all package requirements
-
-## Implementation Notes
-
-### Dummy Files Used
-- **Purpose**: Focus on dependency aggregation mechanics, not implementation details
-- **Shared**: All targets use same dummy source/header files
-- **Minimal**: Just enough to create valid targets
-
-### Real Dependencies
-- **FetchContent**: Uses real fmt, spdlog, cxxopts from GitHub
-- **Actual Linking**: Targets actually link to real libraries
-- **Verification**: Dependencies are truly aggregated and functional
-
-This example serves as the reference implementation for dependency aggregation in multi-target CMake packages.
+This example shows how target_install_package automatically aggregates dependencies from multiple targets into a single, unified package configuration.
