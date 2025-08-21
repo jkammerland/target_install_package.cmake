@@ -39,6 +39,7 @@ add_library(math_partitions STATIC)
 
 # Build with C++20 modules and partitions
 target_compile_definitions(math_partitions PUBLIC MODULES_AVAILABLE=1)
+target_compile_features(math_partitions PUBLIC cxx_std_20)
 
 # Add module partition files using FILE_SET
 target_sources(math_partitions
@@ -58,10 +59,6 @@ set_target_properties(math_partitions PROPERTIES
   CXX_SCAN_FOR_MODULES ON
 )
 
-# Consumer executable
-add_executable(math_consumer)
-target_sources(math_consumer PRIVATE "src/consumer.cpp")
-target_link_libraries(math_consumer PRIVATE math_partitions)
 
 # Install the library with module support
 target_install_package(
@@ -74,10 +71,3 @@ target_install_package(
   INCLUDE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-# Install the consumer as a tool
-target_install_package(
-  math_consumer
-  NAMESPACE MathPartitions::
-  COMPONENT "Tools"
-  RUNTIME_COMPONENT "Tools"
-)

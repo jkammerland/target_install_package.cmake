@@ -114,10 +114,10 @@ find_package(libB CONFIG REQUIRED)
 
 # Conditionally find the modules package
 if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-  message(STATUS "Compiler supports C++ Modules. Verifying find_package(math_modules)...")
   find_package(math_modules CONFIG REQUIRED)
+  find_package(math_partitions CONFIG REQUIRED)
 else()
-  message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) check.")
+  message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) and find_package(math_partitions) checks.")
 endif()
 
 message(STATUS "--- Verification Summary ---")
@@ -140,11 +140,23 @@ message(STATUS "Found package libA: ${libA_FOUND}")
 message(STATUS "Found package libB: ${libB_FOUND}")
 if(SHOULD_TEST_CXX_MODULES)
   message(STATUS "Found package math_modules: ${math_modules_FOUND}")
+  message(STATUS "Found package math_partitions: ${math_partitions_FOUND}")
 else()
   message(STATUS "Skipped package math_modules: OK")
+  message(STATUS "Skipped package math_partitions: OK")
 endif()
 
 message(STATUS "--- Testing linking a binary with the libraries ---")
 add_executable(test_examples_main test_examples_main.cpp)
 target_link_libraries(test_examples_main PRIVATE MyLib::core_lib cbor::tags json::parser data::core data::utils)
+
+# Add conditional module linking and compile definitions
+if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+  target_link_libraries(test_examples_main PRIVATE MathPartitions::math_partitions)
+  target_compile_definitions(test_examples_main PRIVATE HAVE_MATH_PARTITIONS=1 MODULES_AVAILABLE=1)
+  target_compile_features(test_examples_main PRIVATE cxx_std_20)
+  set_target_properties(test_examples_main PROPERTIES CXX_SCAN_FOR_MODULES ON)
+  message(STATUS "--- Module linking enabled for test_examples_main ---")
+endif()
+
 message(STATUS "--- Linking OK ---")
