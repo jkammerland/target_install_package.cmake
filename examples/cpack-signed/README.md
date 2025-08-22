@@ -1,6 +1,7 @@
 # GPG Package Signing Example 🔐
 
 This example demonstrates the GPG package signing functionality added to `export_cpack()`.
+Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 
 **🎯 Complete GPG Integration**
 - **Multi-format signing**: Automatically signs TGZ, DEB, RPM, and all other CPack formats

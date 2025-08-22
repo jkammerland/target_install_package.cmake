@@ -1,14 +1,13 @@
 # Multi-Target Packaging Example
 
-This example demonstrates packaging multiple related libraries together using `ADDITIONAL_TARGETS` with `target_install_package`.
+This example demonstrates packaging multiple related libraries together using `ADDITIONAL_TARGETS` with `target_install_package`. 
+But you may as well use target_install_package for each target, but with the **same EXPORT_NAME**.
 
 ## Features Demonstrated
 
 - Multiple static libraries in one package
 - Dependency relationships between targets
 - Single package export for multiple libraries
-- Hierarchical namespace organization
-- Utility library pattern
 
 ## Architecture
 
@@ -69,29 +68,6 @@ install/
             └── game_engine-targets.cmake
 ```
 
-## Library Components
-
-### Core Utilities (`core_utils`)
-
-Provides fundamental services:
-- **Logging**: Multi-level logging system (DEBUG, INFO, WARNING, ERROR)
-- **Configuration**: Key-value configuration management
-
-### Math Operations (`math_ops`)
-
-Provides mathematical functions:
-- Power and square root calculations
-- Factorial computation
-- Prime number testing
-- GCD and LCM operations
-
-### Game Engine (`game_engine`)
-
-Main library that orchestrates core utilities and math operations:
-- Engine initialization and lifecycle
-- Frame rate management
-- High-level API for easy usage
-
 ## Using the Installed Package
 
 Create a consumer project:
@@ -142,7 +118,10 @@ int main() {
 }
 ```
 
-## Package Benefits
+## Package "Benefits"
+
+> [!IMPORTANT]
+> Always prefer individual packages for each library when possible. Just less complex overall, unless there is a billion subprojects in, say a sdk.
 
 ### Single Find Operation
 - One `find_package()` call gets all libraries
@@ -157,7 +136,6 @@ int main() {
 ### Simplified Distribution
 - Single package to install and distribute
 - Unified versioning and compatibility
-- Reduced consumer configuration complexity
 
 ## Key Features
 

@@ -1,6 +1,7 @@
 # CPack Basic Integration Example
 
 This example demonstrates automatic CPack configuration using `export_cpack()` with `target_install_package()`.
+Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 
 ## Features Demonstrated
 
