@@ -4,7 +4,10 @@ project(cxx_modules_example VERSION 1.0.0)
 
 # Check for C++20 modules support using helper
 include(../CheckCompilerSupport.cmake)
-check_cxx_modules_support()
+check_cxx_modules_support_available(HAS_MODULES_SUPPORT)
+if(NOT HAS_MODULES_SUPPORT)
+  return()
+endif()
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)

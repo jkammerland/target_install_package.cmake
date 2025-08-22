@@ -7,15 +7,8 @@ project(
 
 # Check for C++20 modules support using helper
 include(../CheckCompilerSupport.cmake)
-check_cxx_modules_support()
-
-# Check generator support for modules
-if(NOT CMAKE_GENERATOR MATCHES "Ninja")
-  message(WARNING "C++20 modules require Ninja, Ninja Multi-Config. Current generator: ${CMAKE_GENERATOR}")
-  message(WARNING "Supported generators: Ninja, Ninja Multi-Config")
-  if(WIN32)
-    message(WARNING "Unlike the other the other module example, you need Ninja for this one back when I tested it.")
-  endif()
+check_cxx_modules_support_available(HAS_MODULES_SUPPORT)
+if(NOT HAS_MODULES_SUPPORT)
   return()
 endif()
 
