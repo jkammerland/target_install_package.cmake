@@ -537,3 +537,89 @@ jobs:
           fi
           
           echo "✓ Multi-config artifacts verification completed successfully"
+
+  test-windows-cxx-modules-msvc:
+    name: Test Windows C++ Modules with MSVC Generator
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Test cxx-modules Example with MSVC Generator
+        shell: cmd
+        run: |
+          echo === Testing C++ Modules with MSVC Generator ===
+          cd examples\cxx-modules
+          
+          REM Configure with Visual Studio generator (MSVC)
+          cmake -B build -G "Visual Studio 17 2022" -A x64 ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            --log-level=VERBOSE
+          
+          REM Build the project
+          cmake --build build --config Release --verbose
+          
+          REM Install to test the installation
+          cmake --install build --config Release --prefix build\install
+          
+          echo ✓ Windows C++ Modules with MSVC generator completed successfully
+
+      - name: Test cxx-modules-partitions Example with MSVC Generator
+        shell: cmd
+        run: |
+          echo === Testing C++ Modules Partitions with MSVC Generator ===
+          cd examples\cxx-modules-partitions
+          
+          REM Configure with Visual Studio generator (MSVC)
+          cmake -B build -G "Visual Studio 17 2022" -A x64 ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            --log-level=VERBOSE
+          
+          REM Build the project
+          cmake --build build --config Release --verbose
+          
+          REM Install to test the installation
+          cmake --install build --config Release --prefix build\install
+          
+          echo ✓ Windows C++ Modules Partitions with MSVC generator completed successfully
+
+      - name: Verify Generated Artifacts
+        shell: cmd
+        run: |
+          echo === Verifying Generated Module Artifacts ===
+          
+          REM Check cxx-modules artifacts
+          if exist "examples\cxx-modules\build\Release\math_modules.lib" (
+            echo ✓ math_modules.lib found
+          ) else (
+            echo ✗ math_modules.lib NOT found
+            exit /b 1
+          )
+          
+          REM Check cxx-modules-partitions artifacts
+          if exist "examples\cxx-modules-partitions\build\Release\math_partitions.lib" (
+            echo ✓ math_partitions.lib found
+          ) else (
+            echo ✗ math_partitions.lib NOT found
+            exit /b 1
+          )
+          
+          REM Check installation structure
+          if exist "examples\cxx-modules\build\install\lib\cmake\math_modules\math_modulesConfig.cmake" (
+            echo ✓ math_modules CMake config installed
+          ) else (
+            echo ✗ math_modules CMake config NOT installed
+            exit /b 1
+          )
+          
+          if exist "examples\cxx-modules-partitions\build\install\lib\cmake\math_partitions\math_partitionsConfig.cmake" (
+            echo ✓ math_partitions CMake config installed
+          ) else (
+            echo ✗ math_partitions CMake config NOT installed
+            exit /b 1
+          )
+          
+          echo ✓ All module artifacts verified successfully

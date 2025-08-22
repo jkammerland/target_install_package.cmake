@@ -5,33 +5,9 @@ project(
   VERSION 1.0.0
   DESCRIPTION "C++20 modules with partitions example using target_install_package")
 
-# C++20 is required for modules
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Check for C++20 modules support - exit early if not supported
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
-    message(WARNING "GCC 14.0 or later is required for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.0")
-    message(WARNING "Clang 19.0 or later is required for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
-    message(WARNING "MSVC 19.29 (Visual Studio 2019 16.10) or later is required for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-else()
-  message(WARNING "C++20 modules support may not be available with ${CMAKE_CXX_COMPILER_ID}. Skipping modules example.")
-  return()
-endif()
-
-message(STATUS "C++20 modules support detected - building with modules")
+# Check for C++20 modules support using helper
+include(../CheckCompilerSupport.cmake)
+check_cxx_modules_support()
 
 # Check generator support for modules
 if(NOT CMAKE_GENERATOR MATCHES "Ninja")

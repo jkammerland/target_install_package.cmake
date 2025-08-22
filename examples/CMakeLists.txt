@@ -75,24 +75,9 @@ foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
   list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
 endforeach()
 
-# ~~~
-# This logic *must mirror* the logic in cxx-modules/CMakeLists.txt
-# It determines if we should find_package(math_modules).
-# ~~~
-set(SHOULD_TEST_CXX_MODULES FALSE)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-endif()
+# Check if C++20 modules are supported by current compiler
+include(CheckCompilerSupport.cmake)
+check_cxx_modules_support_available(SHOULD_TEST_CXX_MODULES)
 
 # Step 6: Find all packages
 find_package(algorithms CONFIG REQUIRED)

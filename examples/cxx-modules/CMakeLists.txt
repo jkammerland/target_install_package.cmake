@@ -2,31 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 
 project(cxx_modules_example VERSION 1.0.0)
 
-# C++20 is required for modules
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Check for C++20 modules support
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
-    message(WARNING "GCC 14.0 or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.0")
-    message(WARNING "Clang 19.0 or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
-    message(WARNING "MSVC 19.29 (Visual Studio 2019 16.10) or later is recommended for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-else()
-  message(WARNING "C++20 modules support may not be available with ${CMAKE_CXX_COMPILER_ID}. Skipping modules example.")
-  return()
-endif()
+# Check for C++20 modules support using helper
+include(../CheckCompilerSupport.cmake)
+check_cxx_modules_support()
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
