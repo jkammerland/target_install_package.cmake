@@ -62,8 +62,8 @@ The `target_install_package()` function searches for the targets config template
 5. [Multi-Target Exports](#multi-target-exports-)
    - [When to Use Multi-Target Exports](#when-to-use-multi-target-exports)
    - [Simple Multi-Target Package](#simple-multi-target-package-)
-   - [Advanced: Component-Dependent Dependencies](#advanced-component-dependent-dependencies-)
-6. [Advanced Examples](#advanced-examples)
+   - [Component-Dependent Dependencies](#component-dependent-dependencies-)
+6. [More Examples](#more-examples)
    - [Game Engine with Modular Components](#game-engine-with-modular-components-)
    - [Build Variant Support](#build-variant-support-)
    - [Header-Only Libraries](#header-only-libraries-)
@@ -564,7 +564,7 @@ target_link_libraries(my_app PRIVATE
 # fmt and spdlog are automatically found and linked
 ```
 
-### Advanced: Component-Dependent Dependencies 🎯
+### Component-Dependent Dependencies 🎯
 
 For libraries with optional features that have different dependencies based on requested components:
 
@@ -637,7 +637,7 @@ target_link_libraries(my_game PRIVATE
 )
 ```
 
-## Advanced Examples
+## More Examples
 
 ### Game Engine with Modular Components 🎮
 

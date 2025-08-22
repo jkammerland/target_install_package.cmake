@@ -8,70 +8,62 @@ include(../../CMakeLists.txt)
 # Core library - dummy implementation with fmt dependency
 add_library(core_lib SHARED)
 target_sources(core_lib PRIVATE src/dummy.cpp)
-target_sources(core_lib PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/mylib/dummy.h"
-)
+target_sources(core_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/dummy.h")
 target_compile_features(core_lib PUBLIC cxx_std_17)
 # target_link_libraries(core_lib PRIVATE fmt::fmt)
-set_target_properties(core_lib PROPERTIES 
-  VERSION ${PROJECT_VERSION}
-  SOVERSION ${PROJECT_VERSION_MAJOR}
-)
+set_target_properties(core_lib PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
 if(WIN32)
   set_target_properties(core_lib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
 # Logging library - dummy implementation with spdlog dependency
-add_library(logging_lib STATIC) 
+add_library(logging_lib STATIC)
 target_sources(logging_lib PRIVATE src/dummy.cpp)
-target_sources(logging_lib PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/mylib/dummy.h"
-)
+target_sources(logging_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/dummy.h")
 target_compile_features(logging_lib PUBLIC cxx_std_17)
 # target_link_libraries(logging_lib PRIVATE spdlog::spdlog)
 
 # Utilities library - dummy implementation with cxxopts dependency
 add_library(utils_lib STATIC)
 target_sources(utils_lib PRIVATE src/dummy.cpp)
-target_sources(utils_lib PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" 
-  FILES "include/mylib/dummy.h"
-)
+target_sources(utils_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/dummy.h")
 target_compile_features(utils_lib PUBLIC cxx_std_17)
 # target_link_libraries(utils_lib PRIVATE cxxopts::cxxopts)
 
-# CORRECT PATTERN: target_prepare_package + finalize_package
-# This aggregates all dependencies into a single export
+target_install_package(
+  core_lib
+  EXPORT_NAME
+  "mylib"
+  NAMESPACE
+  MyLib::
+  PUBLIC_DEPENDENCIES
+  "fmt 10.0.0 REQUIRED"
+  RUNTIME_COMPONENT
+  "runtime"
+  DEVELOPMENT_COMPONENT
+  "dev")
 
-target_prepare_package(core_lib
-  EXPORT_NAME "mylib"
-  NAMESPACE MyLib::
-  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
-  RUNTIME_COMPONENT "runtime"
-  DEVELOPMENT_COMPONENT "dev"
-)
+target_install_package(
+  logging_lib
+  EXPORT_NAME
+  "mylib"
+  NAMESPACE
+  MyLib::
+  PUBLIC_DEPENDENCIES
+  "spdlog 1.12.0 REQUIRED"
+  DEVELOPMENT_COMPONENT
+  "dev")
 
-target_prepare_package(logging_lib
-  EXPORT_NAME "mylib"
-  NAMESPACE MyLib::
-  PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED"
-  DEVELOPMENT_COMPONENT "dev"
-)
-
-target_prepare_package(utils_lib
-  EXPORT_NAME "mylib" 
-  NAMESPACE MyLib::
-  PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED"
-  DEVELOPMENT_COMPONENT "dev"
-)
-
-# Single finalize call aggregates all dependencies from all targets
-finalize_package(EXPORT_NAME "mylib")
+target_install_package(
+  utils_lib
+  EXPORT_NAME
+  "mylib"
+  NAMESPACE
+  MyLib::
+  PUBLIC_DEPENDENCIES
+  "cxxopts 3.1.1 REQUIRED"
+  DEVELOPMENT_COMPONENT
+  "dev")
 
 message(STATUS "✅ Dependency aggregation example configured successfully")
 message(STATUS "   - 3 targets will be packaged into 'mylib' export")

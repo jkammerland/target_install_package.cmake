@@ -23,7 +23,7 @@ double divide(double a, double b) {
   return a / b;
 }
 
-// Advanced mathematical functions
+// Mathematical functions
 double power(double base, double exponent) { return std::pow(base, exponent); }
 
 double square_root(double value) {

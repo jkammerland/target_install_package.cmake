@@ -1,6 +1,7 @@
 # CPack Basic Integration Example
 
 This example demonstrates automatic CPack configuration using `export_cpack()` with `target_install_package()`.
+Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 
 ## Features Demonstrated
 
@@ -228,13 +229,6 @@ int main() {
     return 0;
 }
 ```
-
-## Key Features
-
-- **Zero-Configuration**: CPack works out-of-the-box with sensible defaults
-- **Component Awareness**: Automatically detects and configures components
-- **Cross-Platform**: Generates appropriate packages for each platform
-- **Integration**: Seamlessly works with existing target_install_package usage
 
 ## Customization Options
 

@@ -15,7 +15,8 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [components-same-export](components-same-export/) | Multi-Target Export | Correct pattern for multiple targets with dependency aggregation |
 | [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
 | [configure-files](configure-files/) | Template Configuration | Build-time header generation from templates |
-| [cxx-modules](cxx-modules/) | C++20 Modules | Modern C++20 modules with CXX_MODULES file sets |
+| [cxx-modules](cxx-modules/) | C++20 Modules | C++20 modules with CXX_MODULES file sets |
+| [cxx-modules-partitions](cxx-modules-partitions/) | C++20 Modules | C++20 modules with partition hierarchies |
 | [cpack-basic](cpack-basic/) | CPack Basics | Basic packaging with CPack |
 | [cpack-signed](cpack-signed/) | Signed Packages | Signed packages with GPG |
 

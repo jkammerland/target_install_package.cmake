@@ -6,10 +6,8 @@ This example demonstrates using `target_configure_sources` to generate configura
 
 - Template file configuration with CMake variables
 - PUBLIC and PRIVATE configured headers
-- Automatic FILE_SET integration
+- Automatic FILE_SET install
 - Build-time variable substitution
-- Feature toggle management
-- Build system information embedding
 
 ## Template Files
 
@@ -67,90 +65,6 @@ install/
 
 Note: `internal_config.h` is **not** installed (PRIVATE scope).
 
-## Generated Header Contents
-
-### version.h (Generated)
-
-```c
-// Auto-generated version information
-#define CONFIG_LIB_VERSION_MAJOR 2
-#define CONFIG_LIB_VERSION_MINOR 3
-#define CONFIG_LIB_VERSION_PATCH 1
-#define CONFIG_LIB_VERSION_STRING "2.3.1"
-
-// Project name
-#define CONFIG_LIB_NAME "configure_files_example"
-```
-
-### build_info.h (Generated)
-
-```c
-// Build and configuration information
-#define CONFIG_LIB_DESCRIPTION "Example library demonstrating configure file usage"
-#define CONFIG_LIB_AUTHOR "CMake Examples Team"
-
-// Feature toggles
-#define ENABLE_LOGGING
-
-// Configuration values
-#define MAX_BUFFER_SIZE 1024
-
-// Build system information
-#define CMAKE_VERSION "3.25.2"
-#define CMAKE_SYSTEM_NAME "Linux"
-#define CMAKE_CXX_COMPILER_ID "GNU"
-```
-
-## CMake Variable Configuration
-
-The example shows how to configure headers with various CMake variables:
-
-```cmake
-# Project variables for configuration
-set(LIBRARY_DESCRIPTION "Example library demonstrating configure file usage")
-set(LIBRARY_AUTHOR "CMake Examples Team")
-set(ENABLE_LOGGING ON)
-set(MAX_BUFFER_SIZE 1024)
-
-# Configure sources automatically substitutes these variables
-target_configure_sources(
-  config_lib
-  PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/config/version.h.in
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/config/build_info.h.in
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/config/internal_config.h.in
-)
-```
-
-## Template Syntax
-
-### Variable Substitution
-
-```c
-// Template: version.h.in
-#define CONFIG_LIB_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
-#define CONFIG_LIB_VERSION_STRING "@PROJECT_VERSION@"
-#define CONFIG_LIB_NAME "@PROJECT_NAME@"
-
-// Result: version.h
-#define CONFIG_LIB_VERSION_MAJOR 2
-#define CONFIG_LIB_VERSION_STRING "2.3.1"
-#define CONFIG_LIB_NAME "configure_files_example"
-```
-
-### Feature Toggles
-
-```c
-// Template: build_info.h.in
-#cmakedefine ENABLE_LOGGING
-#define MAX_BUFFER_SIZE @MAX_BUFFER_SIZE@
-
-// Result: build_info.h (if ENABLE_LOGGING is ON)
-#define ENABLE_LOGGING
-#define MAX_BUFFER_SIZE 1024
-```
-
 ## Using the Installed Package
 
 Create a consumer project:
@@ -176,16 +90,11 @@ target_link_libraries(test_app PRIVATE Config::config_lib)
 #include <iostream>
 
 int main() {
-    // The library will print build information during initialization
     config::Library::initialize();
     
-    std::cout << "\nLibrary Information:" << std::endl;
     std::cout << "Name: " << config::Library::getName() << std::endl;
     std::cout << "Version: " << config::Library::getVersion() << std::endl;
-    std::cout << "Description: " << config::Library::getDescription() << std::endl;
-    std::cout << "Author: " << config::Library::getAuthor() << std::endl;
     std::cout << "Logging enabled: " << (config::Library::isLoggingEnabled() ? "Yes" : "No") << std::endl;
-    std::cout << "Max buffer size: " << config::Library::getMaxBufferSize() << std::endl;
     
     config::Library::cleanup();
     return 0;
@@ -225,24 +134,3 @@ build/
 - Enable/disable features at build time
 - Configure buffer sizes and limits
 - Set debugging levels
-
-### Build Environment
-
-- Embed compiler information
-- Record build timestamps
-- Include system information
-
-## Key Features
-
-- **Automatic Configuration**: Templates are processed during CMake configure
-- **FILE_SET Integration**: Configured headers are automatically added to targets
-- **Install Handling**: PUBLIC files are installed, PRIVATE files are not
-- **Variable Substitution**: Full CMake variable support with `@VAR@` syntax
-
-## Key Files
-
-- **CMakeLists.txt**: Configuration variables and target setup
-- **include/config/*.h.in**: Template files with variable placeholders
-- **src/config_lib.cpp**: Implementation using generated headers
-
-This example shows how to create flexible, configurable libraries with build-time customization.

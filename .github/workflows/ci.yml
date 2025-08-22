@@ -44,6 +44,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install Ninja
+      shell: bash
+      run: |
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          choco install ninja -y
+          echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+        elif [[ "${{ runner.os }}" == "Linux" ]]; then
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+        elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          brew install ninja
+        fi
+        ninja --version
+
     - name: Set reusable strings
       id: strings
       shell: bash # This shell environment does the sed
@@ -67,7 +85,7 @@ jobs:
         git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
         
-        cmake -B build \
+        cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -83,7 +101,7 @@ jobs:
 
     - name: Configure CMake (Main Project)
       run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        cmake -B ${{ steps.strings.outputs.build-output-dir }} -G Ninja
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -140,7 +158,7 @@ jobs:
         cd "${WORKSPACE_PATH}/tests/consumer"
         
         # Configure consumer with installed package and fmt
-        cmake -B build \
+        cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -175,7 +193,7 @@ jobs:
         cd "${WORKSPACE_PATH}/tests/consumer"
         
         # This should fail gracefully when fmt is not found
-        if cmake -B build-no-deps \
+        if cmake -B build-no-deps -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -211,7 +229,7 @@ jobs:
         echo "=== Testing Build Variants ==="
         
         # Test custom variant
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}-variant \
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}-variant -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -263,6 +281,12 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+
+    - name: Install Ninja
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+        ninja --version
     
     - name: Download Installation Artifacts
       uses: actions/download-artifact@v4
@@ -277,7 +301,7 @@ jobs:
         # Install fmt first for FetchContent test
         git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
-        cmake -B build -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-install -DFMT_DOC=OFF -DFMT_TEST=OFF
+        cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-install -DFMT_DOC=OFF -DFMT_TEST=OFF
         cmake --build build
         cmake --install build
         cd ..
@@ -310,7 +334,7 @@ jobs:
         EOF
         
         # Configure and build
-        cmake -B build
+        cmake -B build -G Ninja
         cmake --build build
         
         echo "✓ FetchContent integration test passed"
@@ -345,7 +369,7 @@ jobs:
         EOF
         
         # Configure with both packages in prefix path
-        cmake -B build \
+        cmake -B build -G Ninja \
           -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install-artifacts/install;${{ github.workspace }}/fmt-install"
         
         cmake --build build
@@ -382,6 +406,20 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
       # Now, 'cl.exe' will be in the PATH.
+
+      - name: Install Ninja
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install ninja -y
+            echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew install ninja
+          fi
+          ninja --version
 
       - name: Install Modern GCC on Ubuntu (for C++ Modules)
         if: runner.os == 'Linux'
@@ -426,7 +464,7 @@ jobs:
           # after the build script has run with the correct compilers.
           # We still pass the variables here for consistency, although the
           # environment variables would also work.
-          cmake ../examples \
+          cmake ../examples -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DRUN_BUILD_ALL_EXAMPLES=OFF \
             --log-level=VERBOSE

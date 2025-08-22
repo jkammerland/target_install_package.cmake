@@ -1,6 +1,7 @@
 # GPG Package Signing Example 🔐
 
 This example demonstrates the GPG package signing functionality added to `export_cpack()`.
+Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 
 **🎯 Complete GPG Integration**
 - **Multi-format signing**: Automatically signs TGZ, DEB, RPM, and all other CPack formats
@@ -9,7 +10,7 @@ This example demonstrates the GPG package signing functionality added to `export
 - **Example verification script**: Provides template for consumer verification
 - **Seamless workflow**: Zero additional steps - signing happens during `cpack`
 
-**Advanced Features**
+**More Features**
 - Environment variable integration (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)
 - CMake preset support for streamlined workflows
 - Keyserver integration for public key distribution

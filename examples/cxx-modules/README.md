@@ -36,18 +36,6 @@ math_modules library:
 └── geometry module    → Geometric shapes and calculations (imports math)
 ```
 
-### Math Module (`math.cppm`)
-- Basic arithmetic operations (add, subtract, multiply, divide)
-- Advanced functions (power, square_root, logarithm)
-- Mathematical constants (PI, E)
-
-### Geometry Module (`geometry.cppm`) 
-- Point structure with distance calculations
-- Circle class with area and circumference
-- Rectangle class with area and perimeter
-- Utility functions (triangle_area, collinearity checking)
-- Imports and uses the `math` module
-
 ## Building and Installing
 
 ### Step 1: Configure and Build
@@ -120,92 +108,11 @@ set_target_properties(test_app PROPERTIES
 )
 ```
 
-### Consumer Code Example
-
-```cpp
-// main.cpp
-import math;
-import geometry;
-import <iostream>;
-
-int main() {
-    // Use math module functions
-    std::cout << "Math Module Demo:\n";
-    std::cout << "5 + 3 = " << math::add(5, 3) << "\n";
-    std::cout << "2^10 = " << math::power(2, 10) << "\n";
-    std::cout << "sqrt(16) = " << math::square_root(16) << "\n";
-    std::cout << "PI = " << math::PI << "\n\n";
-    
-    // Use geometry module
-    std::cout << "Geometry Module Demo:\n";
-    
-    // Create a circle
-    geometry::Circle circle(0, 0, 5.0);
-    std::cout << "Circle area: " << circle.area() << "\n";
-    std::cout << "Circle circumference: " << circle.circumference() << "\n";
-    
-    // Test point containment
-    geometry::Point point(3, 4);
-    std::cout << "Point (3,4) in circle: " << (circle.contains(point) ? "Yes" : "No") << "\n";
-    
-    // Create a rectangle
-    geometry::Rectangle rect(0, 0, 10, 5);
-    std::cout << "Rectangle area: " << rect.area() << "\n";
-    std::cout << "Rectangle perimeter: " << rect.perimeter() << "\n";
-    
-    // Triangle area calculation
-    geometry::Point a(0, 0), b(3, 0), c(0, 4);
-    std::cout << "Triangle area: " << geometry::triangle_area(a, b, c) << "\n";
-    
-    return 0;
-}
-```
-
-## Expected Debug Output
-
-# TODO:
-
-## Key Module Features
-
-### Module Dependencies
-- `geometry` module imports `math` module
-- CMake automatically resolves build order
-
-### Export Declarations
-```cpp
-export module math;                    // Module declaration
-export namespace math { ... }         // Export namespace
-export constexpr double add(...);     // Export function
-export double PI = 3.14159...;        // Export constant
-```
-
-### Import Statements
-```cpp
-import math;           // Import our custom module
-import <iostream>;     // Import standard library header
-import <cmath>;        // Import standard library header
-```
-
-### Platform-Specific Notes
-
-#### Linux (GCC/Clang)
-```bash
-# Ensure recent compiler, e.g
-sudo apt update
-sudo apt install gcc-14 g++-14  # or clang-19
-
-# Use specific compiler
-cmake .. -DCMAKE_CXX_COMPILER=g++-14
-```
-
 ## Limitations
 
-Based on current CMake module support:
-
-- No header unit support
 - No `import std` support  
-- Limited to interface module units
-- Requires supported generators only
+- Limited LSP support
+- Hard to mix modules with non-modules
 
 ## Key Files
 
@@ -213,5 +120,3 @@ Based on current CMake module support:
 - **modules/math.cppm**: Math module interface unit
 - **modules/geometry.cppm**: Geometry module interface unit (imports math)
 - **src/math_impl.cpp**: Implementation support file
-
-This example demonstrates the future of C++ packaging with modules.

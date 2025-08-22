@@ -124,7 +124,7 @@ function(target_install_package TARGET_NAME)
   set(multiValueArgs "")
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  # Forward all arguments to target_prepare_package
+  # Forward all arguments the implementation, target_prepare_package
   target_prepare_package(${TARGET_NAME} ${ARGN})
 
   # ~~~
