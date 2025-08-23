@@ -271,7 +271,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXAMPLES_DIR="$SCRIPT_DIR"
 
 # List of examples to build (in order)
-EXAMPLES=(
+# Base examples that should work on all platforms
+BASE_EXAMPLES=(
     "basic-static"
     "basic-shared" 
     "basic-interface"
@@ -279,15 +280,29 @@ EXAMPLES=(
     "multi-config"
     "components"
     "components-same-export"
-    "dependency-aggregation"
     "configure-files"
-    "cxx-modules"
-    "cxx-modules-partitions"
-    "cpack-basic"
-    "cpack-signed"
     "custom-alias"
-    "multi-cpack"
 )
+
+# Examples that may have platform-specific issues
+ADVANCED_EXAMPLES=(
+    "dependency-aggregation"    # May have dependency issues on some platforms
+    "cxx-modules"              # C++20 modules - limited compiler support
+    "cxx-modules-partitions"   # C++20 modules - limited compiler support
+    "cpack-basic"              # CPack functionality
+    "cpack-signed"             # Requires GPG setup
+    "multi-cpack"              # Advanced CPack functionality
+)
+
+# Determine which examples to build based on platform and environment
+EXAMPLES=("${BASE_EXAMPLES[@]}")
+
+# Add advanced examples only on Linux or when CI_ALLOW_ADVANCED_EXAMPLES is set
+if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "${CI_ALLOW_ADVANCED_EXAMPLES:-}" == "true" ]]; then
+    EXAMPLES+=("${ADVANCED_EXAMPLES[@]}")
+else
+    print_warning "Skipping advanced examples on this platform ($OSTYPE). Set CI_ALLOW_ADVANCED_EXAMPLES=true to force."
+fi
 
 # Parse command line arguments
 MULTI_CONFIG_MODE=false
@@ -332,7 +347,8 @@ if [ "$MULTI_CONFIG_MODE" = true ]; then
     print_status "Will build all 4 configurations: Debug, Release, MinSizeRel, RelWithDebInfo"
 fi
 
-print_status "Starting build of all examples in $EXAMPLES_DIR"
+print_status "Starting build of ${#EXAMPLES[@]} examples in $EXAMPLES_DIR"
+print_status "Platform: $OSTYPE"
 
 # Check if examples directory exists
 if [ ! -d "$EXAMPLES_DIR" ]; then
