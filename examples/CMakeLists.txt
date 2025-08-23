@@ -75,24 +75,9 @@ foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
   list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
 endforeach()
 
-# ~~~
-# This logic *must mirror* the logic in cxx-modules/CMakeLists.txt
-# It determines if we should find_package(math_modules).
-# ~~~
-set(SHOULD_TEST_CXX_MODULES FALSE)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-endif()
+# Check C++ modules support using centralized function
+include(${CMAKE_SOURCE_DIR}/cmake/CxxModulesSupport.cmake)
+check_cxx_modules_support(SHOULD_TEST_CXX_MODULES)
 
 # Step 6: Find all packages
 find_package(algorithms CONFIG REQUIRED)
@@ -113,18 +98,9 @@ find_package(libA CONFIG REQUIRED)
 find_package(libB CONFIG REQUIRED)
 
 # Conditionally find the modules package
-if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-  # Check generator support for modules when trying to use them
-  if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-    message(WARNING "C++20 modules require Ninja, Ninja Multi-Config, or Visual Studio generator. Current generator: ${CMAKE_GENERATOR}")
-    message(WARNING "Skipping module packages due to unsupported generator")
-    set(SHOULD_TEST_CXX_MODULES FALSE)
-  else()
-    find_package(math_modules CONFIG REQUIRED)
-    find_package(math_partitions CONFIG REQUIRED)
-  endif()
-else()
-  message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) and find_package(math_partitions) checks.")
+if(SHOULD_TEST_CXX_MODULES)
+  find_package(math_modules CONFIG REQUIRED)
+  find_package(math_partitions CONFIG REQUIRED)
 endif()
 
 message(STATUS "--- Verification Summary ---")
@@ -158,7 +134,7 @@ add_executable(test_examples_main test_examples_main.cpp)
 target_link_libraries(test_examples_main PRIVATE MyLib::core_lib cbor::tags json::parser data::core data::utils)
 
 # Add conditional module linking and compile definitions
-if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+if(SHOULD_TEST_CXX_MODULES)
   target_link_libraries(test_examples_main PRIVATE MathPartitions::math_partitions)
   target_compile_definitions(test_examples_main PRIVATE HAVE_MATH_PARTITIONS=1 MODULES_AVAILABLE=1)
   target_compile_features(test_examples_main PRIVATE cxx_std_20)

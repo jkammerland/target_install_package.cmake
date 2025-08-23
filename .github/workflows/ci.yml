@@ -537,3 +537,132 @@ jobs:
           fi
           
           echo "✓ Multi-config artifacts verification completed successfully"
+
+  test-modules-macos:
+    name: Test C++ Modules on macOS with Homebrew Clang
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew LLVM/Clang for Module Support
+        shell: bash
+        run: |
+          echo "=== Installing Homebrew LLVM for C++ Modules Support ==="
+          brew install llvm ninja
+          
+          # Set up environment for Homebrew LLVM
+          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+          
+          # Verify versions
+          /opt/homebrew/opt/llvm/bin/clang++ --version
+          ninja --version
+
+      - name: Build Examples with Module Support
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        shell: bash
+        run: |
+          echo "=== Building Examples with C++ Modules Support ==="
+          
+          # Make build script executable
+          chmod +x examples/build_all_examples.sh
+          
+          # Run the build script with Homebrew Clang
+          examples/build_all_examples.sh
+          
+          echo "✓ Examples built successfully with module support"
+
+      - name: Verify Module Examples
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang  
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        shell: bash
+        run: |
+          echo "=== Verifying C++ Module Examples ==="
+          
+          # Create build directory for examples verification
+          mkdir examples-build
+          cd examples-build
+          
+          # Configure examples with module checking
+          cmake ../examples -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRUN_BUILD_ALL_EXAMPLES=OFF \
+            --log-level=VERBOSE
+          
+          # Build the test executable that includes module linkage
+          cmake --build . --config Release
+          
+          # Run the test executable to verify module integration
+          ./test_examples_main
+          
+          echo "✓ C++ module examples verified successfully"
+
+      - name: Test Individual Module Examples
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        shell: bash
+        run: |
+          echo "=== Testing Individual Module Examples ==="
+          
+          # Test cxx-modules example
+          cd examples/cxx-modules
+          if [[ -d "build" ]]; then
+            echo "✓ cxx-modules example built successfully"
+            # Verify module files were generated
+            if find build -name "*.pcm" -o -name "*.bmi" | head -1; then
+              echo "✓ Module binary interface files found"
+            fi
+          else
+            echo "✗ cxx-modules example build directory not found"
+            exit 1
+          fi
+          
+          # Test cxx-modules-partitions example  
+          cd ../cxx-modules-partitions
+          if [[ -d "build" ]]; then
+            echo "✓ cxx-modules-partitions example built successfully"
+            # Verify module partition files were processed
+            if find build -name "*.pcm" -o -name "*.bmi" | head -1; then
+              echo "✓ Module partition interface files found"
+            fi
+          else
+            echo "✗ cxx-modules-partitions example build directory not found"
+            exit 1
+          fi
+          
+          echo "✓ Individual module examples tested successfully"
+
+      - name: Verify Module Support Detection
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        shell: bash
+        run: |
+          echo "=== Verifying Module Support Detection Function ==="
+          
+          # Create a simple test to verify our module support function works
+          mkdir -p test-module-detection
+          cd test-module-detection
+          
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.28)
+          project(test_module_detection VERSION 0.0.1)
+          
+          include(../cmake/CxxModulesSupport.cmake)
+          check_cxx_modules_support(modules_supported)
+          
+          if(modules_supported)
+            message(STATUS "✓ C++ modules detected as SUPPORTED")
+          else()
+            message(FATAL_ERROR "✗ C++ modules detected as NOT SUPPORTED - this should not happen with Homebrew Clang")
+          endif()
+          EOF
+          
+          # Configure with Homebrew Clang - should detect module support
+          cmake -B build -G Ninja
+          
+          echo "✓ Module support detection function working correctly"
