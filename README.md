@@ -31,7 +31,7 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 | [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 
 >[!NOTE] 
-> The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package. 
+> The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
 The `target_install_package()` function searches for the targets config templates in this order:
@@ -186,9 +186,14 @@ cmake --install build
 cmake --install build --prefix /opt/cmake-utils
 
 # The package is now available for use in your CMake projects. e.g
+
+## 1.
 # find_package(target_install_package CONFIG REQUIRED)
+
+## 2.
 # find_package(target_install_package CONFIG REQUIRED PATHS /opt/cmake-utils)
 
+## 3.
 # set(CMAKE_PREFIX_PATH "/opt/cmake-utils") # Or command line, cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 # find_package(target_install_package CONFIG REQUIRED)
 ```

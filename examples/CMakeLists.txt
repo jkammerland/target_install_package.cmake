@@ -76,7 +76,7 @@ foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
 endforeach()
 
 # Check C++ modules support using centralized function
-include(${CMAKE_SOURCE_DIR}/cmake/CxxModulesSupport.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/check_cxx_modules_support.cmake)
 check_cxx_modules_support(SHOULD_TEST_CXX_MODULES)
 
 # Step 6: Find all packages

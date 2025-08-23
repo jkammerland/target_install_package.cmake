@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Check for C++20 modules support using centralized function
-include(../../cmake/CxxModulesSupport.cmake)
+include(../check_cxx_modules_support.cmake)
 check_cxx_modules_support(modules_supported)
 if(NOT modules_supported)
   return()
