@@ -57,8 +57,7 @@ endif()
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
 #     PUBLIC_CMAKE_FILES <files...>
-#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...
-#     NO_DEFAULT_RPATH)
+#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # Parameters:
 #   TARGET_NAME                  - Name of the target to install.
@@ -81,12 +80,6 @@ endif()
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
 #   PUBLIC_CMAKE_FILES           - Additional CMake files to install as public.
 #   COMPONENT_DEPENDENCIES       - Component-specific dependencies (pairs: component name, dependencies).
-#   NO_DEFAULT_RPATH             - Disable automatic RPATH configuration for this target.
-#                                  By default, RPATH is configured to "@loader_path/../lib" (macOS) or
-#                                  "$ORIGIN/../lib" (Linux) to allow libraries to find dependencies.
-#                                  Use this flag for system packages or when custom RPATH is needed.
-#                                  Automatic detection: RPATH is disabled for DEB/RPM packages and
-#                                  system installations (/usr, /usr/local).
 #
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.
