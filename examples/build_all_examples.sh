@@ -287,6 +287,7 @@ EXAMPLES=(
     "cpack-signed"
     "custom-alias"
     "multi-cpack"
+    "rpath-control"
 )
 
 # Parse command line arguments

@@ -35,6 +35,51 @@ else()
 endif()
 
 # ~~~
+# Helper function to check if we should configure default RPATH for a target.
+#
+# This function checks if the user has already configured RPATH settings on the target,
+# respecting their explicit configuration choices. It's used by the finalization process
+# to avoid overriding user-defined RPATH settings.
+#
+# Parameters:
+#   target - The target name to check
+#   result_var - Variable name to store the result (TRUE if we can set defaults, FALSE otherwise)
+#
+# Returns TRUE (can configure defaults) if:
+#   - No INSTALL_RPATH property is set on the target
+#   - SKIP_RPATH and SKIP_INSTALL_RPATH are both not TRUE
+#
+# Returns FALSE (preserve user settings) if:
+#   - INSTALL_RPATH is already set (user configured)
+#   - SKIP_RPATH or SKIP_INSTALL_RPATH is TRUE (user disabled)
+# ~~~
+function(_should_configure_default_rpath target result_var)
+    # Check if INSTALL_RPATH is already set
+    get_target_property(existing_rpath ${target} INSTALL_RPATH)
+    
+    if(existing_rpath)
+        # User has already configured RPATH
+        set(${result_var} FALSE PARENT_SCOPE)
+        project_log(VERBOSE "Preserving user-configured RPATH for ${target}: ${existing_rpath}")
+        return()
+    endif()
+    
+    # Check if user explicitly disabled RPATH
+    get_target_property(skip_rpath ${target} SKIP_RPATH)
+    get_target_property(skip_install_rpath ${target} SKIP_INSTALL_RPATH)
+    
+    if(skip_rpath OR skip_install_rpath)
+        # User explicitly disabled RPATH
+        set(${result_var} FALSE PARENT_SCOPE)
+        project_log(VERBOSE "Respecting user's RPATH disable for ${target}")
+        return()
+    endif()
+    
+    # No user configuration found, we can set defaults
+    set(${result_var} TRUE PARENT_SCOPE)
+endfunction()
+
+# ~~~
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
@@ -65,13 +110,14 @@ endif()
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
 #     PUBLIC_CMAKE_FILES <files...>
-#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
+#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...
+#     NO_DEFAULT_RPATH)
 #
 # See target_install_package() for parameter descriptions.
 # ~~~
 function(target_prepare_package TARGET_NAME)
   # Parse function arguments
-  set(options "") # No boolean options
+  set(options "NO_DEFAULT_RPATH") # Boolean options
   set(oneValueArgs
       NAMESPACE
       ALIAS_NAME
@@ -200,6 +246,7 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_NO_DEFAULT_RPATH" "${ARG_NO_DEFAULT_RPATH}")
 
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
@@ -583,23 +630,73 @@ function(finalize_package)
       project_log(DEBUG "Set EXPORT_NAME '${TARGET_ALIAS_NAME}' for target '${TARGET_NAME}'")
     endif()
 
-    # Configure platform-specific RPATH settings to prevent installation errors
-    if(APPLE)
-      # Prevent macOS install_name_tool errors by properly configuring RPATH
-      set_target_properties(${TARGET_NAME} PROPERTIES
-        SKIP_BUILD_RPATH FALSE
-        BUILD_WITH_INSTALL_RPATH FALSE
-        INSTALL_RPATH "@loader_path/../lib"
-        INSTALL_RPATH_USE_LINK_PATH TRUE
-      )
-      project_log(DEBUG "Set macOS RPATH properties for target '${TARGET_NAME}'")
-    elseif(UNIX)
-      # Linux/Unix RPATH configuration using $ORIGIN
-      set_target_properties(${TARGET_NAME} PROPERTIES
-        INSTALL_RPATH "$ORIGIN/../lib"
-        INSTALL_RPATH_USE_LINK_PATH TRUE
-      )
-      project_log(DEBUG "Set Unix RPATH properties for target '${TARGET_NAME}'")
+    # Configure RPATH with precedence-based approach
+    get_property(TARGET_NO_DEFAULT_RPATH GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_NO_DEFAULT_RPATH")
+    
+    # Determine if RPATH should be configured based on precedence order
+    set(SHOULD_CONFIGURE_RPATH TRUE)
+    
+    # Priority 1: Check if user already configured RPATH on the target
+    _should_configure_default_rpath(${TARGET_NAME} USER_ALLOWS_DEFAULT_RPATH)
+    if(NOT USER_ALLOWS_DEFAULT_RPATH)
+      set(SHOULD_CONFIGURE_RPATH FALSE)
+    endif()
+
+    # Priority 2: Explicit NO_DEFAULT_RPATH argument
+    if(TARGET_NO_DEFAULT_RPATH AND SHOULD_CONFIGURE_RPATH)
+      set(SHOULD_CONFIGURE_RPATH FALSE)
+      project_log(VERBOSE "RPATH disabled via NO_DEFAULT_RPATH for ${TARGET_NAME}")
+    endif()
+
+    # Priority 3: Auto-detect CPack environment (only if not already decided)
+    if(SHOULD_CONFIGURE_RPATH)
+      # Check environment variable from CPack
+      if(DEFINED ENV{CPACK_GENERATOR})
+        if("$ENV{CPACK_GENERATOR}" MATCHES "^(DEB|RPM)$")
+          set(SHOULD_CONFIGURE_RPATH FALSE)
+          project_log(VERBOSE "Auto-disabled RPATH for $ENV{CPACK_GENERATOR} package")
+        endif()
+      # Check CMake variable
+      elseif(DEFINED CPACK_GENERATOR)
+        if("${CPACK_GENERATOR}" MATCHES "^(DEB|RPM)$")
+          set(SHOULD_CONFIGURE_RPATH FALSE)
+          project_log(VERBOSE "Auto-disabled RPATH for ${CPACK_GENERATOR} package")
+        endif()
+      endif()
+    endif()
+
+    # Priority 4: Auto-detect system installation
+    if(SHOULD_CONFIGURE_RPATH)
+      if(CMAKE_INSTALL_PREFIX STREQUAL "/usr" OR 
+         CMAKE_INSTALL_PREFIX STREQUAL "/usr/local")
+        set(SHOULD_CONFIGURE_RPATH FALSE)
+        project_log(VERBOSE "Auto-disabled RPATH for system installation to ${CMAKE_INSTALL_PREFIX}")
+      endif()
+    endif()
+
+    # Only set RPATH if all checks pass
+    if(SHOULD_CONFIGURE_RPATH)
+      if(APPLE)
+        # Prevent macOS install_name_tool errors by properly configuring RPATH
+        set_target_properties(${TARGET_NAME} PROPERTIES
+          SKIP_BUILD_RPATH FALSE
+          BUILD_WITH_INSTALL_RPATH FALSE
+          INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR};@loader_path"
+          INSTALL_RPATH_USE_LINK_PATH FALSE
+        )
+        project_log(VERBOSE "Configured default RPATH for ${TARGET_NAME}: @loader_path/../${CMAKE_INSTALL_LIBDIR};@loader_path")
+      elseif(UNIX)
+        # Linux/Unix RPATH configuration using $ORIGIN
+        set_target_properties(${TARGET_NAME} PROPERTIES
+          INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR};$ORIGIN"
+          BUILD_WITH_INSTALL_RPATH FALSE
+          INSTALL_RPATH_USE_LINK_PATH FALSE
+        )
+        project_log(VERBOSE "Configured default RPATH for ${TARGET_NAME}: $ORIGIN/../${CMAKE_INSTALL_LIBDIR};$ORIGIN")
+      endif()
+      # Windows: No RPATH configuration needed (uses DLL search paths)
+    else()
+      project_log(DEBUG "Skipped RPATH configuration for ${TARGET_NAME}")
     endif()
 
     # Primary install with export (to base components)
