@@ -8,7 +8,7 @@ Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 - **Detached signatures**: Creates `.sig` files alongside packages
 - **Cryptographic checksums**: Generates SHA256 and SHA512 for integrity verification
 - **Example verification script**: Provides template for consumer verification
-- **Seamless workflow**: Zero additional steps - signing happens during `cpack`
+- **Simple workflow**: Zero additional steps - signing happens during `cpack`
 
 **More Features**
 - Environment variable integration (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)

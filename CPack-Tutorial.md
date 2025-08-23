@@ -803,4 +803,4 @@ mylib-tools_1.0.0_amd64.deb
 - **Supports advanced use cases** through comprehensive override mechanisms
 - **Works cross-platform** with appropriate generator selection
 
-For most projects, `export_cpack()` provides the perfect balance of **simplicity and flexability**, allowing you to focus on building software rather than wrestling with packaging configuration.
+For most projects, `export_cpack()` provides a balance of **simplicity and flexability**, allowing you to focus on building software rather than wrestling with packaging configuration.
