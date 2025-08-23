@@ -138,7 +138,11 @@ if(SHOULD_TEST_CXX_MODULES)
   target_link_libraries(test_examples_main PRIVATE MathPartitions::math_partitions)
   target_compile_definitions(test_examples_main PRIVATE HAVE_MATH_PARTITIONS=1 MODULES_AVAILABLE=1)
   target_compile_features(test_examples_main PRIVATE cxx_std_20)
-  set_target_properties(test_examples_main PROPERTIES CXX_SCAN_FOR_MODULES ON)
+  # Ensure consistent compiler flags with module libraries (no GNU extensions)
+  set_target_properties(test_examples_main PROPERTIES 
+    CXX_EXTENSIONS OFF
+    CXX_SCAN_FOR_MODULES ON
+  )
   message(STATUS "--- Module linking enabled for test_examples_main ---")
 endif()
 
