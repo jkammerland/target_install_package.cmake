@@ -3,26 +3,26 @@ project(examples-test VERSION 0.1.0)
 
 message(NOTICE "Current CMAKE_VERSION: ${CMAKE_VERSION}")
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Fetch dependencies needed for dependency-aggregation example
 include(FetchContent)
 
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 10.0.0
-  FIND_PACKAGE_ARGS NAMES fmt)
+  GIT_TAG 11.1.4)
 
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.12.0
-  FIND_PACKAGE_ARGS NAMES spdlog)
+  GIT_TAG v1.12.0)
 
 FetchContent_Declare(
   cxxopts
   GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-  GIT_TAG v3.1.1
-  FIND_PACKAGE_ARGS NAMES cxxopts)
+  GIT_TAG v3.1.1)
 
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
@@ -138,17 +138,16 @@ if(SHOULD_TEST_CXX_MODULES)
   target_link_libraries(test_examples_main PRIVATE MathPartitions::math_partitions)
   target_compile_definitions(test_examples_main PRIVATE HAVE_MATH_PARTITIONS=1 MODULES_AVAILABLE=1)
   target_compile_features(test_examples_main PRIVATE cxx_std_20)
-  set_target_properties(test_examples_main PROPERTIES CXX_SCAN_FOR_MODULES ON)
+  # Ensure consistent compiler flags with module libraries (no GNU extensions)
+  set_target_properties(test_examples_main PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES ON)
   message(STATUS "--- Module linking enabled for test_examples_main ---")
 endif()
 
 # Enable testing and add the integration test
 enable_testing()
 add_test(NAME examples_integration_test COMMAND test_examples_main)
-set_tests_properties(examples_integration_test PROPERTIES
-  TIMEOUT 300  # 5 minute timeout
-  LABELS "integration"
-)
+set_tests_properties(examples_integration_test PROPERTIES TIMEOUT 300 # 5 minute timeout
+                                                          LABELS "integration")
 
 message(STATUS "--- Linking OK ---")
 message(STATUS "--- Integration test configured ---")
