@@ -410,7 +410,6 @@ export_cpack(
 - **Authenticity**: Verifies packages come from trusted sources
 - **Integrity**: Detects tampering or corruption during transfer
 - **Trust Chain**: Establishes cryptographic proof of origin
-- **Compliance**: Meets enterprise security requirements
 
 **Real-World Attack Prevention:**
 - Supply chain attacks (compromised package repositories)
@@ -474,11 +473,6 @@ GPG_PASSPHRASE_FILE "/var/secrets/gpg_passphrase"
 GPG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}"
 ```
 
-**Security Note**: File-based approach is more secure than environment variables as it:
-- Avoids command-line visibility
-- Isn't inherited by child processes  
-- Supports proper file permissions
-
 #### SIGNING_METHOD
 **Purpose**: Controls how signatures are attached to packages.
 
@@ -500,24 +494,17 @@ SIGNING_METHOD "both"
 GENERATE_CHECKSUMS ON  # Creates .sha256 and .sha512 files
 ```
 
-**Benefits:**
-- Faster verification than GPG (SHA256 vs RSA operations)
-- Bandwidth-efficient update checking
-- Defense in depth (signatures + checksums)
-- Air-gapped environment support
-
-
 #### GPG_KEYSERVER
 **Purpose**: Specifies keyserver for public key distribution.
 
 ```cmake
-# Ubuntu's reliable keyserver (default)
+# Ubuntu's keyserver (default)
 GPG_KEYSERVER "keyserver.ubuntu.com"
 
-# Corporate keyserver
+# Corporate keyservers
 GPG_KEYSERVER "keys.corp.internal"
 
-# Multiple keyservers for redundancy
+# Multiple keyservers
 GPG_KEYSERVER "keyserver.ubuntu.com;keys.corp.internal"
 ```
 
@@ -549,7 +536,7 @@ target_install_package(secure_tool
     COMPONENT "Tools"
 )
 
-# Configure CPack with comprehensive signing
+# Configure CPack
 export_cpack(
     PACKAGE_NAME "SecureLibrary"
     PACKAGE_VENDOR "Security Corp"
@@ -563,8 +550,6 @@ export_cpack(
     GENERATE_CHECKSUMS ON
     GPG_KEYSERVER "keyserver.ubuntu.com"
 )
-
-include(CPack)
 ```
 
 ### Consumer Verification Workflow
@@ -808,63 +793,6 @@ mylib-tools_1.0.0_amd64.deb
 
 4. **Generator Selection**: Auto-detection might not match specific requirements
    - **Workaround**: Use `GENERATORS` and `NO_DEFAULT_GENERATORS` for explicit control
-
-### When to Use Manual CPack
-
-Consider manual CPack configuration when you need:
-
-- **Highly Custom Component Structure**: Non-standard component hierarchies
-- **Specialized Generator Settings**: WiX customization, custom DEB control files
-- **Legacy Integration**: Existing complex packaging scripts
-- **Platform-Specific Packages**: Dramatically different packaging per platform
-
----
-
-## Migration Guide
-
-### From Manual CPack to export_cpack()
-
-1. **Replace Installation Rules**:
-   ```cmake
-   # Before
-   install(TARGETS mylib LIBRARY DESTINATION lib COMPONENT Runtime)
-   install(FILES mylib.h DESTINATION include COMPONENT Development)
-   
-   # After  
-   target_install_package(mylib RUNTIME_COMPONENT "Runtime" DEVELOPMENT_COMPONENT "Development")
-   ```
-
-2. **Replace CPack Variables**:
-   ```cmake
-   # Before
-   set(CPACK_PACKAGE_NAME "MyLib")
-   set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-   set(CPACK_COMPONENTS_ALL Runtime Development)
-   # ... 50+ lines of configuration ...
-   
-   # After
-   export_cpack(
-       PACKAGE_NAME "MyLib"
-       # Auto-detects version, components, generators
-   )
-   ```
-
-3. **Handle Dependencies**:
-   ```cmake
-   # Before
-   find_package(fmt REQUIRED)
-   target_link_libraries(mylib PUBLIC fmt::fmt)
-   # Manual CMake config file generation...
-   
-   # After
-   find_package(fmt REQUIRED)
-   target_link_libraries(mylib PUBLIC fmt::fmt)
-   target_install_package(mylib 
-       PUBLIC_DEPENDENCIES "fmt 9.0 REQUIRED"
-       # Automatic CMake config generation with dependencies
-   )
-   ```
----
 
 ## Conclusion
 
