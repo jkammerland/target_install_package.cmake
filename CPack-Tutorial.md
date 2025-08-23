@@ -229,7 +229,7 @@ export_cpack(
     # - Component relationships and descriptions
 )
 
-include(CPack)
+# No need to call include(CPack) - export_cpack() does it automatically
 ```
 
 **Total Lines of CMake Code: ~20 lines** - a **75% reduction**!
@@ -300,7 +300,7 @@ export_cpack(
     COMPONENT_GROUPS  # Enables group-based UI
 )
 
-include(CPack)
+# CPack is automatically included by export_cpack()
 ```
 
 ### Example 2: Custom Generator Selection

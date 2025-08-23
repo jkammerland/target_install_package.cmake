@@ -477,6 +477,19 @@ jobs:
           
           echo "✓ CMake configuration of examples/CMakeLists.txt succeeded."
           echo "✓ This confirms the build script ran and all packages were found as expected."
+          
+          # Build and run test_examples_main executable
+          cmake --build . --config ${{ matrix.build_type }}
+          
+          # Run the main integration test
+          echo "=== Running Main Integration Test ==="
+          ./test_examples_main
+          if [[ $? -eq 0 ]]; then
+            echo "✓ Main integration test passed"
+          else
+            echo "✗ Main integration test failed"
+            exit 1
+          fi
 
       - name: Configure and Verify Examples (Multi-Config)
         if: matrix.config_mode == 'multi'

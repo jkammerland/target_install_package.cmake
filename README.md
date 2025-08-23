@@ -22,8 +22,8 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
 | [install_package_helpers](install_package_helpers.cmake) | Function | Implementation of target_install_package |
-| [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and automatically add them to target's file sets |
-| [export_cpack](export_cpack.cmake) | Function | Automatic CPack configuration with component detection, architecture detection, signing, and cross-platform package generation (see [tutorial](CPack-Tutorial.md)) |
+| [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and add them to target's FILE_SET |
+| [export_cpack](export_cpack.cmake) | Function | CPack configuration with component detection, platform-appropriate generators, and optional GPG signing (see [tutorial](CPack-Tutorial.md)) |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
 | [sign_packages.cmake.in](cmake/sign_packages.cmake.in) | Template | GPG signing template (see [tutorial](CPack-Tutorial.md)) |
 | [project_log](cmake/project_log.cmake) | Function | Enhanced logging with color support and project context |
@@ -31,7 +31,7 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 | [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 
 >[!NOTE] 
-> The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to easily find and use your installed target via the standard `find_package(<TargetName>)` command, automatically handling include directories, link libraries, and version compatibility. This makes your project a well-behaved CMake package.
+> The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
 The `target_install_package()` function searches for the targets config templates in this order:
@@ -73,10 +73,10 @@ The `target_install_package()` function searches for the targets config template
 ## Features ✨
 
 - **Templated source file configuration** with proper include paths
-- **Package installation** with automatic CMake config generation
-- **CPack integration** with automatic package generation (TGZ, ZIP, DEB, RPM, WIX)
+- **Package installation** with CMake config file generation
+- **CPack integration** with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - **CPack signing** for all platforms using GPG
-- **Support for modern CMake** including file sets and C++20 modules
+- **Support for modern CMake** including file sets and C++20 modules (CMake 3.28+)
 - **Component-based installation** with runtime/development separation
 - **Build variant support** for debug/release/custom configurations
 - **Flexible destination paths** for headers and configured files
@@ -94,18 +94,18 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 > FILE_SET solves key limitations of `PUBLIC_HEADER`:
 > 1. preserves directory structure
 > 2. [provides integration with IDEs](https://cmake.org/cmake/help/latest/prop_tgt/HEADER_SETS.html)
-> 3. allows automatic per-target/file-set header installation instead of installing entire directories/files
+> 3. allows per-target/file-set header installation instead of installing entire directories/files
 > 4. same api for c++20 modules(add TYPE CXX_MODULES too, see [module example](examples/cxx-modules/CMakeLists.txt))
 
  ```cmake
- # FILE_SET usage for automatic header install and includes
+ # FILE_SET usage for header install and includes
  target_sources(my_library PUBLIC 
    FILE_SET HEADERS 
    BASE_DIRS include
    FILES include/my_library/api.h
  )
  
- # Automatic installation - detects all HEADER_SETS (not only HEADERS)
+ # Installation - detects all HEADER_SETS (not only HEADERS)
  target_install_package(my_library)  # Installs all HEADER file sets
  ```
 
@@ -337,7 +337,7 @@ target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 
 ### CPack Package Generation 📦
 
-Automatically generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation:
+Generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation:
 
 ```cmake
 add_library(my_library SHARED)
@@ -364,7 +364,7 @@ export_cpack(
   # AUTO-DETECTED: Architecture (amd64, i386, arm64, etc.)
 )
 
-include(CPack)
+# No need for include(CPack) - export_cpack() does it automatically
 ```
 
 **Generate packages:**
@@ -863,8 +863,8 @@ target_install_package(math_header_lib
 
 ## Key Benefits of FILE_SET Approach 🌟
 
-- ✅ **Automatic Installation**: Headers are installed automatically by `target_install_package`
-- ✅ **Automatic Include Directories**: BASE_DIRS become include directories automatically
+- ✅ **Easy Installation**: Headers are installed by `target_install_package`
+- ✅ **Include Directories**: BASE_DIRS become include directories
 - ✅ **Proper Dependencies**: CMake correctly tracks header file dependencies
 - ✅ **Transitive Properties**: Headers are properly propagated to consuming targets
 - ✅ **Modern CMake**: Follows current best practices (CMake 3.23+)
@@ -902,7 +902,7 @@ target_sources(my_library PUBLIC
   FILES ${HEADER_FILES}
 )
 target_install_package(my_library NAMESPACE MyLib::)
-# That's it - include directories, installation, and config files are automatic
+# That's it - include directories, installation, and config files are handled
 ```
 
 The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution with minimal boilerplate while still allowing you to mix in standard `install()` commands where needed.

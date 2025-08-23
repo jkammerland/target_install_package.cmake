@@ -13,8 +13,8 @@ export import :algebra;
 export import :geometry;
 export import :calculus;
 
-// Import implementation partition (not re-exported)
-import :internal;
+// Forward declare implementation functions
+void log_calculator_operation(const std::string& operation, double operand1, double operand2, double result);
 
 // Primary module exports - Calculator class that uses all partitions
 export class Calculator {
@@ -28,7 +28,7 @@ public:
     void reset() { 
         accumulator = 0.0;
         if (verbose_logging) {
-            internal::log_operation("reset", 0, 0, accumulator);
+            log_calculator_operation("reset", 0, 0, accumulator);
         }
     }
     
@@ -37,7 +37,7 @@ public:
         double old_value = accumulator;
         accumulator = algebra::add(accumulator, value);
         if (verbose_logging) {
-            internal::log_operation("add", old_value, value, accumulator);
+            log_calculator_operation("add", old_value, value, accumulator);
         }
     }
     
@@ -45,7 +45,7 @@ public:
         double old_value = accumulator;
         accumulator = algebra::subtract(accumulator, value);
         if (verbose_logging) {
-            internal::log_operation("subtract", old_value, value, accumulator);
+            log_calculator_operation("subtract", old_value, value, accumulator);
         }
     }
     
@@ -53,7 +53,7 @@ public:
         double old_value = accumulator;
         accumulator = algebra::multiply(accumulator, value);
         if (verbose_logging) {
-            internal::log_operation("multiply", old_value, value, accumulator);
+            log_calculator_operation("multiply", old_value, value, accumulator);
         }
     }
     
@@ -61,7 +61,7 @@ public:
         double old_value = accumulator;
         accumulator = algebra::divide(accumulator, value);
         if (verbose_logging) {
-            internal::log_operation("divide", old_value, value, accumulator);
+            log_calculator_operation("divide", old_value, value, accumulator);
         }
     }
     
@@ -69,7 +69,7 @@ public:
         double old_value = accumulator;
         accumulator = algebra::power(accumulator, exponent);
         if (verbose_logging) {
-            internal::log_operation("power", old_value, exponent, accumulator);
+            log_calculator_operation("power", old_value, exponent, accumulator);
         }
     }
     

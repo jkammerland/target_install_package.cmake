@@ -105,7 +105,7 @@ build_example() {
     
     # Create build directory
     if [ -d "build" ]; then
-        print_warning "Build directory exists, cleaning..."
+        print_status "Build directory exists, cleaning..."
         rm -rf build
     fi
     mkdir build
