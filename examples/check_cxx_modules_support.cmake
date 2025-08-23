@@ -17,14 +17,21 @@ function(check_cxx_modules_support out_var)
   # Check compiler support
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
-      set(modules_supported TRUE)
+      # GCC 14.x has template instantiation issues with C++ modules in some cases
+      # Temporarily disable for stability until compiler fixes are available
+      if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
+        message(WARNING "C++ modules temporarily disabled for GCC ${CMAKE_CXX_COMPILER_VERSION} due to template instantiation issues")
+        set(modules_supported FALSE)
+      else()
+        set(modules_supported TRUE)
+      endif()
     endif()
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
       set(modules_supported TRUE)
     endif()
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.34")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29")
       set(modules_supported TRUE)
     endif()
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
@@ -35,9 +42,9 @@ function(check_cxx_modules_support out_var)
     return()
   endif()
 
-  # Check generator support
-  if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-    message(WARNING "C++ modules not supported: generator ${CMAKE_GENERATOR} not supported (use Ninja or Visual Studio)")
+  # Check generator support - Ninja is required for reliable C++ modules support
+  if(NOT CMAKE_GENERATOR MATCHES "Ninja")
+    message(WARNING "C++ modules not supported: generator ${CMAKE_GENERATOR} not supported (use Ninja)")
     set(modules_supported FALSE)
   endif()
 

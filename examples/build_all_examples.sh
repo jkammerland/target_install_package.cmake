@@ -111,12 +111,27 @@ build_example() {
     mkdir build
     cd build
     
-    # Configure
-    print_status "Configuring $example_name..."
-    if ! cmake .. -G Ninja \
-        -DCMAKE_INSTALL_PREFIX=./install \
-        -DPROJECT_LOG_COLORS=ON \
-        --log-level=TRACE; then
+    # Configure with consistent build type and MSVC runtime library
+    local build_type="${CMAKE_BUILD_TYPE:-Release}"
+    local cmake_args=(
+        ".." "-G" "Ninja"
+        "-DCMAKE_BUILD_TYPE=$build_type"
+        "-DCMAKE_INSTALL_PREFIX=./install"
+        "-DPROJECT_LOG_COLORS=ON"
+        "--log-level=TRACE"
+    )
+    
+    # Ensure consistent MSVC runtime library on Windows
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+        if [[ "$build_type" == "Debug" ]]; then
+            cmake_args+=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL")
+        else
+            cmake_args+=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL")
+        fi
+    fi
+    
+    print_status "Configuring $example_name (BuildType: $build_type)..."
+    if ! cmake "${cmake_args[@]}"; then
         print_error "Configuration failed for $example_name"
         cd ../..
         return 1

@@ -94,6 +94,8 @@ jobs:
 
     - name: Install fmt dependency
       shell: bash
+      env:
+        CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
       run: |
         echo "=== Installing fmt library ==="
         git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
@@ -460,6 +462,7 @@ jobs:
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
         shell: bash
         run: |
           # The build script needs execute permissions on Unix-like systems.
@@ -509,6 +512,7 @@ jobs:
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
         shell: bash
         run: |
           # The build script needs execute permissions on Unix-like systems.
@@ -575,6 +579,7 @@ jobs:
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
         shell: bash
         run: |
           echo "=== Testing Multi-Config Integration ==="
