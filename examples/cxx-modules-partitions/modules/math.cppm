@@ -13,7 +13,7 @@ export import :algebra;
 export import :geometry;
 export import :calculus;
 
-// Forward declare implementation functions
+// Forward declare implementation function (defined in implementation unit)
 void log_calculator_operation(const std::string& operation, double operand1, double operand2, double result);
 
 // Primary module exports - Calculator class that uses all partitions

@@ -44,6 +44,12 @@ target_sources(
          "modules/math-calculus.cppm"
          "modules/math-internal.cppm")
 
+# Add module implementation unit (not part of the public interface)
+target_sources(
+  math_partitions
+  PRIVATE
+  "modules/math-impl.cpp")
+
 # Set module-specific properties
 set_target_properties(math_partitions PROPERTIES CXX_SCAN_FOR_MODULES ON)
 
