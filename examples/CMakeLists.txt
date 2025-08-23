@@ -142,4 +142,13 @@ if(SHOULD_TEST_CXX_MODULES)
   message(STATUS "--- Module linking enabled for test_examples_main ---")
 endif()
 
+# Enable testing and add the integration test
+enable_testing()
+add_test(NAME examples_integration_test COMMAND test_examples_main)
+set_tests_properties(examples_integration_test PROPERTIES
+  TIMEOUT 300  # 5 minute timeout
+  LABELS "integration"
+)
+
 message(STATUS "--- Linking OK ---")
+message(STATUS "--- Integration test configured ---")

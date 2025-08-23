@@ -29,6 +29,11 @@ jobs:
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+            compiler_variant: appleclang
+          - os: macos-latest
+            c_compiler: /opt/homebrew/opt/llvm/bin/clang
+            cpp_compiler: /opt/homebrew/opt/llvm/bin/clang++
+            compiler_variant: homebrew
         exclude:
           - os: windows-latest
             c_compiler: gcc
@@ -40,6 +45,9 @@ jobs:
             c_compiler: gcc
           - os: macos-latest
             c_compiler: cl
+          # Exclude base clang entries for macOS since we're using explicit variants
+          - os: macos-latest
+            c_compiler: clang
 
     steps:
     - uses: actions/checkout@v4
@@ -47,6 +55,12 @@ jobs:
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install Homebrew Clang (macOS)
+      if: runner.os == 'macOS' && matrix.compiler_variant == 'homebrew'
+      run: |
+        brew install llvm
+        echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
     - name: Install Ninja
       shell: bash
@@ -265,9 +279,9 @@ jobs:
 
     - name: Upload Installation Artifacts
       uses: actions/upload-artifact@v4
-      if: matrix.build_type == 'Release' && matrix.c_compiler == 'gcc'
+      if: matrix.build_type == 'Release' && (matrix.c_compiler == 'gcc' || matrix.compiler_variant == 'appleclang')
       with:
-        name: target-install-package-${{ matrix.os }}-${{ matrix.build_type }}
+        name: target-install-package-${{ matrix.os }}-${{ matrix.build_type }}-${{ matrix.compiler_variant || 'gcc' }}
         path: |
           ${{ steps.strings.outputs.install-output-dir }}
           ${{ steps.strings.outputs.fmt-install-dir }}
@@ -291,7 +305,7 @@ jobs:
     - name: Download Installation Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: target-install-package-ubuntu-latest-Release
+        name: target-install-package-ubuntu-latest-Release-gcc
         path: install-artifacts
     
     - name: Test Integration with FetchContent
@@ -395,8 +409,13 @@ jobs:
             c_compiler: gcc-14
             cpp_compiler: g++-14
           - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            compiler_variant: appleclang
+          - os: macos-latest
             c_compiler: /opt/homebrew/opt/llvm/bin/clang
             cpp_compiler: /opt/homebrew/opt/llvm/bin/clang++
+            compiler_variant: homebrew
 
     steps:
       - uses: actions/checkout@v4
@@ -431,7 +450,7 @@ jobs:
           sudo apt-get install -y gcc-14 g++-14
 
       - name: Install Homebrew Clang on macOS (for C++ Modules)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && matrix.compiler_variant == 'homebrew'
         run: |
           brew install llvm
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
@@ -478,18 +497,12 @@ jobs:
           echo "✓ CMake configuration of examples/CMakeLists.txt succeeded."
           echo "✓ This confirms the build script ran and all packages were found as expected."
           
-          # Build and run test_examples_main executable
+          # Build and run integration tests
           cmake --build . --config ${{ matrix.build_type }}
           
-          # Run the main integration test
-          echo "=== Running Main Integration Test ==="
-          ./test_examples_main
-          if [[ $? -eq 0 ]]; then
-            echo "✓ Main integration test passed"
-          else
-            echo "✗ Main integration test failed"
-            exit 1
-          fi
+          # Run the integration test using CTest
+          echo "=== Running Integration Tests ==="
+          ctest --output-on-failure --build-config ${{ matrix.build_type }}
 
       - name: Configure and Verify Examples (Multi-Config)
         if: matrix.config_mode == 'multi'
@@ -556,3 +569,34 @@ jobs:
           fi
           
           echo "✓ Multi-config artifacts verification completed successfully"
+
+      - name: Test Multi-Config Integration
+        if: matrix.config_mode == 'multi'
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+        shell: bash
+        run: |
+          echo "=== Testing Multi-Config Integration ==="
+          
+          # Create a build directory for the verification step.
+          mkdir examples-build-multiconfig
+          cd examples-build-multiconfig
+
+          # Configure the examples CMakeLists.txt to verify find_package works
+          cmake ../examples \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DRUN_BUILD_ALL_EXAMPLES=OFF \
+            --log-level=VERBOSE
+
+          # Test each configuration for multi-config builds
+          configs=("Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+          for config in "${configs[@]}"; do
+            echo "=== Testing Integration for Configuration: $config ==="
+            
+            # Build and test for this configuration
+            cmake --build . --config $config
+            ctest --output-on-failure --build-config $config
+          done
+          
+          echo "✓ All multi-config integration tests passed"
