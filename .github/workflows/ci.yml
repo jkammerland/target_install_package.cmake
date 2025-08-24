@@ -104,14 +104,14 @@ jobs:
         cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=${{ steps.strings.outputs.fmt-install-dir }} \
           -DFMT_DOC=OFF \
           -DFMT_TEST=OFF \
           -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         
-        cmake --build build --config ${{ matrix.build_type }}
-        cmake --install build --config ${{ matrix.build_type }}
+        cmake --build build
+        cmake --install build
         
         echo "✓ fmt installed to ${{ steps.strings.outputs.fmt-install-dir }}"
 

@@ -6,28 +6,57 @@ message(NOTICE "Current CMAKE_VERSION: ${CMAKE_VERSION}")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Fetch dependencies needed for dependency-aggregation example
-include(FetchContent)
+# Handle dependencies needed for dependency-aggregation example
+# Use different strategies based on environment (CI vs local development)
 
-FetchContent_Declare(
-  fmt
-  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 11.1.4
-  FIND_PACKAGE_ARGS NAMES fmt3)
+# Detect CI environment
+set(IN_CI_ENVIRONMENT FALSE)
+if(DEFINED ENV{CI} OR DEFINED ENV{GITHUB_ACTIONS} OR DEFINED ENV{BUILD_BUILDID})
+  set(IN_CI_ENVIRONMENT TRUE)
+  message(STATUS "CI environment detected, using find_package for pre-installed dependencies")
+endif()
 
-FetchContent_Declare(
-  spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.12.0
-  FIND_PACKAGE_ARGS NAMES spdlog)
+if(IN_CI_ENVIRONMENT)
+  # CI: Use find_package for pre-installed dependencies
+  find_package(fmt QUIET)
+  find_package(spdlog QUIET) 
+  find_package(cxxopts QUIET)
+  
+  # Report which dependencies were found
+  if(fmt_FOUND)
+    message(STATUS "Using pre-installed fmt: ${fmt_VERSION}")
+  endif()
+  if(spdlog_FOUND)
+    message(STATUS "Using pre-installed spdlog: ${spdlog_VERSION}")
+  endif()
+  if(cxxopts_FOUND)
+    message(STATUS "Using pre-installed cxxopts: ${cxxopts_VERSION}")
+  endif()
+else()
+  # Local development: Use FetchContent to download dependencies
+  message(STATUS "Local development environment, using FetchContent for dependencies")
+  include(FetchContent)
 
-FetchContent_Declare(
-  cxxopts
-  GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-  GIT_TAG v3.1.1
-  FIND_PACKAGE_ARGS NAMES cxxopts)
+  FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 11.1.4
+    FIND_PACKAGE_ARGS NAMES fmt3)
 
-FetchContent_MakeAvailable(fmt spdlog cxxopts)
+  FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.12.0
+    FIND_PACKAGE_ARGS NAMES spdlog)
+
+  FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.1.1
+    FIND_PACKAGE_ARGS NAMES cxxopts)
+
+  FetchContent_MakeAvailable(fmt spdlog cxxopts)
+endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 
@@ -36,11 +65,20 @@ if(RUN_BUILD_ALL_EXAMPLES)
   # Step 1: Run the build script
   #
   message(STATUS "Running build script, this may take some time...")
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
-    RESULT_VARIABLE build_result
-    OUTPUT_VARIABLE build_output
-    ERROR_VARIABLE build_error)
+  # Use cross-platform shell command execution
+  if(WIN32)
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} bash build_all_examples.sh
+      RESULT_VARIABLE build_result
+      OUTPUT_VARIABLE build_output
+      ERROR_VARIABLE build_error)
+  else()
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
+      RESULT_VARIABLE build_result
+      OUTPUT_VARIABLE build_output
+      ERROR_VARIABLE build_error)
+  endif()
 
   # Step 2: Handle build result
   if(NOT build_result EQUAL 0)
