@@ -17,7 +17,7 @@ if(DEFINED ENV{CI} OR DEFINED ENV{GITHUB_ACTIONS} OR DEFINED ENV{BUILD_BUILDID})
 endif()
 
 if(IN_CI_ENVIRONMENT)
-  # CI: Use find_package for pre-installed dependencies
+  # CI: Try to use find_package for pre-installed dependencies first
   find_package(fmt QUIET)
   find_package(spdlog QUIET) 
   find_package(cxxopts QUIET)
@@ -32,30 +32,59 @@ if(IN_CI_ENVIRONMENT)
   if(cxxopts_FOUND)
     message(STATUS "Using pre-installed cxxopts: ${cxxopts_VERSION}")
   endif()
+  
+  # If some dependencies are missing in CI, fall back to FetchContent
+  if(NOT fmt_FOUND OR NOT spdlog_FOUND OR NOT cxxopts_FOUND)
+    message(STATUS "Some dependencies not pre-installed in CI, falling back to FetchContent")
+    set(USE_FETCHCONTENT TRUE)
+  endif()
 else()
-  # Local development: Use FetchContent to download dependencies
-  message(STATUS "Local development environment, using FetchContent for dependencies")
+  set(USE_FETCHCONTENT TRUE)
+endif()
+
+if(USE_FETCHCONTENT)
+  # Use FetchContent to download dependencies (local dev or CI fallback)
+  if(IN_CI_ENVIRONMENT)
+    message(STATUS "CI fallback: Using FetchContent for missing dependencies")
+  else()
+    message(STATUS "Local development environment, using FetchContent for dependencies")
+  endif()
   include(FetchContent)
 
-  FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 11.1.4
-    FIND_PACKAGE_ARGS NAMES fmt3)
+  # Only fetch dependencies that weren't already found
+  set(FETCH_DEPS "")
+  
+  if(NOT fmt_FOUND)
+    FetchContent_Declare(
+      fmt
+      GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+      GIT_TAG 11.1.4
+      FIND_PACKAGE_ARGS NAMES fmt3)
+    list(APPEND FETCH_DEPS fmt)
+  endif()
 
-  FetchContent_Declare(
-    spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.12.0
-    FIND_PACKAGE_ARGS NAMES spdlog)
+  if(NOT spdlog_FOUND)
+    FetchContent_Declare(
+      spdlog
+      GIT_REPOSITORY https://github.com/gabime/spdlog.git
+      GIT_TAG v1.12.0
+      FIND_PACKAGE_ARGS NAMES spdlog)
+    list(APPEND FETCH_DEPS spdlog)
+  endif()
 
-  FetchContent_Declare(
-    cxxopts
-    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-    GIT_TAG v3.1.1
-    FIND_PACKAGE_ARGS NAMES cxxopts)
+  if(NOT cxxopts_FOUND)
+    FetchContent_Declare(
+      cxxopts
+      GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+      GIT_TAG v3.1.1
+      FIND_PACKAGE_ARGS NAMES cxxopts)
+    list(APPEND FETCH_DEPS cxxopts)
+  endif()
 
-  FetchContent_MakeAvailable(fmt spdlog cxxopts)
+  # Only make available the dependencies we actually need to fetch
+  if(FETCH_DEPS)
+    FetchContent_MakeAvailable(${FETCH_DEPS})
+  endif()
 endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
