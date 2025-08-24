@@ -128,10 +128,10 @@ jobs:
         -S ${{ github.workspace }}
 
     - name: Build (Main Project)
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
     - name: Install (Main Project)
-      run: cmake --install ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --install ${{ steps.strings.outputs.build-output-dir }}
 
     - name: Test Installation Structure
       shell: bash
@@ -181,11 +181,11 @@ jobs:
           -DCMAKE_PREFIX_PATH="${INSTALL_PATH};${FMT_PATH}"
         
         # Build consumer
-        cmake --build build --config ${{ matrix.build_type }}
+        cmake --build build
         
         # Test running the consumer executables
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          ./build/${{ matrix.build_type }}/consumer_app.exe || echo "✓ Consumer app executed"
+          ./build/consumer_app.exe || echo "✓ Consumer app executed"
         else
           ./build/consumer_app || echo "✓ Consumer app executed"
         fi
@@ -255,8 +255,8 @@ jobs:
           -Dtarget_install_package_BUILD_TESTS=ON \
           -S ${{ github.workspace }}
         
-        cmake --build ${{ steps.strings.outputs.build-output-dir }}-variant --config ${{ matrix.build_type }}
-        cmake --install ${{ steps.strings.outputs.build-output-dir }}-variant --config ${{ matrix.build_type }}
+        cmake --build ${{ steps.strings.outputs.build-output-dir }}-variant
+        cmake --install ${{ steps.strings.outputs.build-output-dir }}-variant
         
         echo "✓ Variant build completed"
 
@@ -501,11 +501,11 @@ jobs:
           echo "✓ This confirms the build script ran and all packages were found as expected."
           
           # Build and run integration tests
-          cmake --build . --config ${{ matrix.build_type }}
+          cmake --build .
           
           # Run the integration test using CTest
           echo "=== Running Integration Tests ==="
-          ctest --output-on-failure --build-config ${{ matrix.build_type }}
+          ctest --output-on-failure
 
       - name: Configure and Verify Examples (Multi-Config)
         if: matrix.config_mode == 'multi'
