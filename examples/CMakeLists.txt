@@ -3,28 +3,89 @@ project(examples-test VERSION 0.1.0)
 
 message(NOTICE "Current CMAKE_VERSION: ${CMAKE_VERSION}")
 
-# Fetch dependencies needed for dependency-aggregation example
-include(FetchContent)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-FetchContent_Declare(
-  fmt
-  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 10.0.0
-  FIND_PACKAGE_ARGS NAMES fmt)
+# Handle dependencies needed for dependency-aggregation example
+# Use different strategies based on environment (CI vs local development)
 
-FetchContent_Declare(
-  spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.12.0
-  FIND_PACKAGE_ARGS NAMES spdlog)
+# Detect CI environment
+set(IN_CI_ENVIRONMENT FALSE)
+if(DEFINED ENV{CI} OR DEFINED ENV{GITHUB_ACTIONS} OR DEFINED ENV{BUILD_BUILDID})
+  set(IN_CI_ENVIRONMENT TRUE)
+  message(STATUS "CI environment detected, using find_package for pre-installed dependencies")
+endif()
 
-FetchContent_Declare(
-  cxxopts
-  GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-  GIT_TAG v3.1.1
-  FIND_PACKAGE_ARGS NAMES cxxopts)
+if(IN_CI_ENVIRONMENT)
+  # CI: Try to use find_package for pre-installed dependencies first
+  find_package(fmt QUIET)
+  find_package(spdlog QUIET) 
+  find_package(cxxopts QUIET)
+  
+  # Report which dependencies were found
+  if(fmt_FOUND)
+    message(STATUS "Using pre-installed fmt: ${fmt_VERSION}")
+  endif()
+  if(spdlog_FOUND)
+    message(STATUS "Using pre-installed spdlog: ${spdlog_VERSION}")
+  endif()
+  if(cxxopts_FOUND)
+    message(STATUS "Using pre-installed cxxopts: ${cxxopts_VERSION}")
+  endif()
+  
+  # If some dependencies are missing in CI, fall back to FetchContent
+  if(NOT fmt_FOUND OR NOT spdlog_FOUND OR NOT cxxopts_FOUND)
+    message(STATUS "Some dependencies not pre-installed in CI, falling back to FetchContent")
+    set(USE_FETCHCONTENT TRUE)
+  endif()
+else()
+  set(USE_FETCHCONTENT TRUE)
+endif()
 
-FetchContent_MakeAvailable(fmt spdlog cxxopts)
+if(USE_FETCHCONTENT)
+  # Use FetchContent to download dependencies (local dev or CI fallback)
+  if(IN_CI_ENVIRONMENT)
+    message(STATUS "CI fallback: Using FetchContent for missing dependencies")
+  else()
+    message(STATUS "Local development environment, using FetchContent for dependencies")
+  endif()
+  include(FetchContent)
+
+  # Only fetch dependencies that weren't already found
+  set(FETCH_DEPS "")
+  
+  if(NOT fmt_FOUND)
+    FetchContent_Declare(
+      fmt
+      GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+      GIT_TAG 11.1.4
+      FIND_PACKAGE_ARGS NAMES fmt3)
+    list(APPEND FETCH_DEPS fmt)
+  endif()
+
+  if(NOT spdlog_FOUND)
+    FetchContent_Declare(
+      spdlog
+      GIT_REPOSITORY https://github.com/gabime/spdlog.git
+      GIT_TAG v1.12.0
+      FIND_PACKAGE_ARGS NAMES spdlog)
+    list(APPEND FETCH_DEPS spdlog)
+  endif()
+
+  if(NOT cxxopts_FOUND)
+    FetchContent_Declare(
+      cxxopts
+      GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+      GIT_TAG v3.1.1
+      FIND_PACKAGE_ARGS NAMES cxxopts)
+    list(APPEND FETCH_DEPS cxxopts)
+  endif()
+
+  # Only make available the dependencies we actually need to fetch
+  if(FETCH_DEPS)
+    FetchContent_MakeAvailable(${FETCH_DEPS})
+  endif()
+endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 
@@ -33,11 +94,20 @@ if(RUN_BUILD_ALL_EXAMPLES)
   # Step 1: Run the build script
   #
   message(STATUS "Running build script, this may take some time...")
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
-    RESULT_VARIABLE build_result
-    OUTPUT_VARIABLE build_output
-    ERROR_VARIABLE build_error)
+  # Use cross-platform shell command execution
+  if(WIN32)
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} bash build_all_examples.sh
+      RESULT_VARIABLE build_result
+      OUTPUT_VARIABLE build_output
+      ERROR_VARIABLE build_error)
+  else()
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
+      RESULT_VARIABLE build_result
+      OUTPUT_VARIABLE build_output
+      ERROR_VARIABLE build_error)
+  endif()
 
   # Step 2: Handle build result
   if(NOT build_result EQUAL 0)
@@ -75,24 +145,9 @@ foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
   list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
 endforeach()
 
-# ~~~
-# This logic *must mirror* the logic in cxx-modules/CMakeLists.txt
-# It determines if we should find_package(math_modules).
-# ~~~
-set(SHOULD_TEST_CXX_MODULES FALSE)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-endif()
+# Check C++ modules support using centralized function
+include(${CMAKE_CURRENT_SOURCE_DIR}/check_cxx_modules_support.cmake)
+check_cxx_modules_support(SHOULD_TEST_CXX_MODULES)
 
 # Step 6: Find all packages
 find_package(algorithms CONFIG REQUIRED)
@@ -113,18 +168,9 @@ find_package(libA CONFIG REQUIRED)
 find_package(libB CONFIG REQUIRED)
 
 # Conditionally find the modules package
-if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-  # Check generator support for modules when trying to use them
-  if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-    message(WARNING "C++20 modules require Ninja, Ninja Multi-Config, or Visual Studio generator. Current generator: ${CMAKE_GENERATOR}")
-    message(WARNING "Skipping module packages due to unsupported generator")
-    set(SHOULD_TEST_CXX_MODULES FALSE)
-  else()
-    find_package(math_modules CONFIG REQUIRED)
-    find_package(math_partitions CONFIG REQUIRED)
-  endif()
-else()
-  message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) and find_package(math_partitions) checks.")
+if(SHOULD_TEST_CXX_MODULES)
+  find_package(math_modules CONFIG REQUIRED)
+  find_package(math_partitions CONFIG REQUIRED)
 endif()
 
 message(STATUS "--- Verification Summary ---")
@@ -158,12 +204,20 @@ add_executable(test_examples_main test_examples_main.cpp)
 target_link_libraries(test_examples_main PRIVATE MyLib::core_lib cbor::tags json::parser data::core data::utils)
 
 # Add conditional module linking and compile definitions
-if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+if(SHOULD_TEST_CXX_MODULES)
   target_link_libraries(test_examples_main PRIVATE MathPartitions::math_partitions)
   target_compile_definitions(test_examples_main PRIVATE HAVE_MATH_PARTITIONS=1 MODULES_AVAILABLE=1)
   target_compile_features(test_examples_main PRIVATE cxx_std_20)
-  set_target_properties(test_examples_main PROPERTIES CXX_SCAN_FOR_MODULES ON)
+  # Ensure consistent compiler flags with module libraries (no GNU extensions)
+  set_target_properties(test_examples_main PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES ON)
   message(STATUS "--- Module linking enabled for test_examples_main ---")
 endif()
 
+# Enable testing and add the integration test
+enable_testing()
+add_test(NAME examples_integration_test COMMAND test_examples_main)
+set_tests_properties(examples_integration_test PROPERTIES TIMEOUT 300 # 5 minute timeout
+                                                          LABELS "integration")
+
 message(STATUS "--- Linking OK ---")
+message(STATUS "--- Integration test configured ---")

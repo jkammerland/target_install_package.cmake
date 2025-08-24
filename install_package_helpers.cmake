@@ -583,6 +583,25 @@ function(finalize_package)
       project_log(DEBUG "Set EXPORT_NAME '${TARGET_ALIAS_NAME}' for target '${TARGET_NAME}'")
     endif()
 
+    # Configure platform-specific RPATH settings to prevent installation errors
+    if(APPLE)
+      # Prevent macOS install_name_tool errors by properly configuring RPATH
+      set_target_properties(${TARGET_NAME} PROPERTIES
+        SKIP_BUILD_RPATH FALSE
+        BUILD_WITH_INSTALL_RPATH FALSE
+        INSTALL_RPATH "@loader_path/../lib"
+        INSTALL_RPATH_USE_LINK_PATH TRUE
+      )
+      project_log(DEBUG "Set macOS RPATH properties for target '${TARGET_NAME}'")
+    elseif(UNIX)
+      # Linux/Unix RPATH configuration using $ORIGIN
+      set_target_properties(${TARGET_NAME} PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../lib"
+        INSTALL_RPATH_USE_LINK_PATH TRUE
+      )
+      project_log(DEBUG "Set Unix RPATH properties for target '${TARGET_NAME}'")
+    endif()
+
     # Primary install with export (to base components)
     set(INSTALL_ARGS TARGETS ${TARGET_NAME} EXPORT ${ARG_EXPORT_NAME})
 

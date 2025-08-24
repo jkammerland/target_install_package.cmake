@@ -10,36 +10,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Check for C++20 modules support - exit early if not supported
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "14.0")
-    message(WARNING "GCC 14.0 or later is required for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.0")
-    message(WARNING "Clang 19.0 or later is required for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.29")
-    message(WARNING "MSVC 19.29 (Visual Studio 2019 16.10) or later is required for C++20 modules support. Current version: ${CMAKE_CXX_COMPILER_VERSION}")
-    return()
-  endif()
-else()
-  message(WARNING "C++20 modules support may not be available with ${CMAKE_CXX_COMPILER_ID}. Skipping modules example.")
-  return()
-endif()
-
-message(STATUS "C++20 modules support detected - building with modules")
-
-# Check generator support for modules
-if(NOT CMAKE_GENERATOR MATCHES "Ninja")
-  message(WARNING "C++20 modules require Ninja, Ninja Multi-Config. Current generator: ${CMAKE_GENERATOR}")
-  message(WARNING "Supported generators: Ninja, Ninja Multi-Config")
-  if(WIN32)
-    message(WARNING "Unlike the other the other module example, you need Ninja for this one back when I tested it.")
-  endif()
+# Check for C++20 modules support using centralized function
+include(../check_cxx_modules_support.cmake)
+check_cxx_modules_support(modules_supported)
+if(NOT modules_supported)
   return()
 endif()
 
@@ -69,6 +43,12 @@ target_sources(
          "modules/math-geometry.cppm"
          "modules/math-calculus.cppm"
          "modules/math-internal.cppm")
+
+# Add module implementation unit (not part of the public interface)
+target_sources(
+  math_partitions
+  PRIVATE
+  "modules/math-impl.cpp")
 
 # Set module-specific properties
 set_target_properties(math_partitions PROPERTIES CXX_SCAN_FOR_MODULES ON)
