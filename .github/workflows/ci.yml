@@ -110,8 +110,8 @@ jobs:
           -DFMT_TEST=OFF \
           -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         
-        cmake --build build --config ${{ matrix.build_type }}
-        cmake --install build --config ${{ matrix.build_type }}
+        cmake --build build
+        cmake --install build
         
         echo "✓ fmt installed to ${{ steps.strings.outputs.fmt-install-dir }}"
 
@@ -501,11 +501,11 @@ jobs:
           echo "✓ This confirms the build script ran and all packages were found as expected."
           
           # Build and run integration tests
-          cmake --build . --config ${{ matrix.build_type }}
+          cmake --build .
           
           # Run the integration test using CTest
           echo "=== Running Integration Tests ==="
-          ctest --output-on-failure --build-config ${{ matrix.build_type }}
+          ctest --output-on-failure
 
       - name: Configure and Verify Examples (Multi-Config)
         if: matrix.config_mode == 'multi'
@@ -589,8 +589,8 @@ jobs:
           cd examples-build-multiconfig
 
           # Configure the examples CMakeLists.txt to verify find_package works
-          cmake ../examples \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          # Use Ninja Multi-Config for C++ modules support on all platforms
+          cmake ../examples -G "Ninja Multi-Config" \
             -DRUN_BUILD_ALL_EXAMPLES=OFF \
             --log-level=VERBOSE
 

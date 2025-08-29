@@ -70,19 +70,11 @@ detect_multiconfig_generator() {
             fi
             ;;
         "MINGW"*|"MSYS"*|"CYGWIN"*|"Windows"*)
-            # Try to detect Visual Studio generators
-            if cmake --help | grep -q "Visual Studio 17 2022"; then
-                echo "Visual Studio 17 2022"
-                return 0
-            elif cmake --help | grep -q "Visual Studio 16 2019"; then
-                echo "Visual Studio 16 2019"
-                return 0
-            elif cmake --help | grep -q "Visual Studio"; then
-                # Get first available VS generator
-                local vs_gen=$(cmake --help | grep "Visual Studio" | head -n1 | sed 's/.*= //' | sed 's/ .*//')
-                echo "$vs_gen"
-                return 0
-            fi
+            # On Windows, prefer Ninja Multi-Config for C++ modules support over Visual Studio
+            # Visual Studio generator doesn't support BMI compilation for C++ modules
+            print_warning "Windows: Visual Studio generator doesn't support C++ modules BMI"
+            print_status "Skipping Visual Studio generators for C++ modules compatibility"
+            # Fall back to error - only Ninja Multi-Config should be used
             ;;
     esac
     
