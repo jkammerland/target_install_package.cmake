@@ -541,13 +541,13 @@ target_sources(myproject_cli PRIVATE src/cli.cpp)
 target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"  # Shared by all targets
+  PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Shared by all targets
 )
 
 target_install_package(myproject_utils
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED"  # Additional dependency
+  PUBLIC_DEPENDENCIES "spdlog 1.15.3 REQUIRED"  # Additional dependency
 )
 
 target_install_package(myproject_cli
@@ -602,7 +602,7 @@ target_sources(engine_network PUBLIC
 target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"  # Always loaded
+  PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Always loaded
   COMPONENT_DEPENDENCIES
     "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"  # Only when graphics requested
 )
@@ -693,7 +693,7 @@ target_link_libraries(level_editor PRIVATE engine_core engine_graphics)
 target_install_package(engine_core
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED"
+  PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"
   RUNTIME_COMPONENT "Runtime"
   DEVELOPMENT_COMPONENT "SDK"
 )

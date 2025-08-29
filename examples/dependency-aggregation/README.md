@@ -11,15 +11,15 @@ This example demonstrates dependency aggregation in multi-target exports - how m
 
 ```cmake
 # Each target declares its own PUBLIC_DEPENDENCIES
-target_install_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 10.0.0 REQUIRED")
-target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.12.0 REQUIRED")
+target_install_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED")
+target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.15.3 REQUIRED")
 target_install_package(utils_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED")
 ```
 
 **Generated `mylibConfig.cmake` contains:**
 ```cmake
-find_dependency(fmt 10.0.0 REQUIRED)
-find_dependency(spdlog 1.12.0 REQUIRED)
+find_dependency(fmt 11.1.4 REQUIRED)
+find_dependency(spdlog 1.15.3 REQUIRED)
 find_dependency(cxxopts 3.1.1 REQUIRED)
 ```
 
@@ -57,8 +57,8 @@ cat install/share/cmake/mylib/mylib-config.cmake
 
 You should see all dependencies aggregated:
 ```cmake
-find_dependency(fmt 10.0.0 REQUIRED)
-find_dependency(spdlog 1.12.0 REQUIRED)
+find_dependency(fmt 11.1.4 REQUIRED)
+find_dependency(spdlog 1.15.3 REQUIRED)
 find_dependency(cxxopts 3.1.1 REQUIRED)
 ```
 

@@ -400,7 +400,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        build_type: [Release]
+        build_type: [Debug, Release]
         config_mode: [single, multi]
         # Define the compilers we will use on each OS
         include:
@@ -507,6 +507,26 @@ jobs:
           echo "=== Running Integration Tests ==="
           ctest --output-on-failure
 
+      - name: Verify Binary Linking and Return Values (Single-Config)
+        if: matrix.config_mode == 'single'
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
+        shell: bash
+        run: |
+          cd examples-build
+          
+          # Use the verification script for comprehensive testing
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            TEST_EXECUTABLE="./test_examples_main.exe"
+          else
+            TEST_EXECUTABLE="./test_examples_main"
+          fi
+          
+          # Run the comprehensive verification script
+          ../examples/verify_binary_linking.sh "$TEST_EXECUTABLE" "${{ matrix.build_type }}" "${{ runner.os }}"
+
       - name: Configure and Verify Examples (Multi-Config)
         if: matrix.config_mode == 'multi'
         env:
@@ -605,3 +625,21 @@ jobs:
           done
           
           echo "✓ All multi-config integration tests passed"
+          
+          # Verify binary linking for each configuration using our verification script
+          echo "=== Verifying Binary Linking for Multi-Config Builds ==="
+          for config in "${configs[@]}"; do
+            echo "=== Verifying Configuration: $config ==="
+            
+            # Determine executable path based on platform and config
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              TEST_EXECUTABLE="./$config/test_examples_main.exe"
+            else
+              TEST_EXECUTABLE="./$config/test_examples_main"
+            fi
+            
+            # Run the comprehensive verification script for this configuration
+            ../examples/verify_binary_linking.sh "$TEST_EXECUTABLE" "$config" "${{ runner.os }}"
+          done
+          
+          echo "✓ Multi-config binary linking verification completed"

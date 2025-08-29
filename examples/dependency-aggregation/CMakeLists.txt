@@ -37,7 +37,7 @@ target_install_package(
   NAMESPACE
   MyLib::
   PUBLIC_DEPENDENCIES
-  "fmt 10.0.0 REQUIRED"
+  "fmt 11.1.4 REQUIRED"
   RUNTIME_COMPONENT
   "runtime"
   DEVELOPMENT_COMPONENT
@@ -50,7 +50,7 @@ target_install_package(
   NAMESPACE
   MyLib::
   PUBLIC_DEPENDENCIES
-  "spdlog 1.12.0 REQUIRED"
+  "spdlog 1.15.3 REQUIRED"
   DEVELOPMENT_COMPONENT
   "dev")
 
