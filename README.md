@@ -2,7 +2,7 @@
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-A collection of CMake utilities for creating installable packages with minimal boilerplate. Linux(🐧), Windows(🪟) and macOS(🍎) are supported. With this project, CMake installation configuration boils down to a single function that can generate a CMake package with sane defaults
+CMake utilities for creating installable packages. Linux, Windows and macOS are supported. CMake installation configuration uses a single function that generates a CMake package with default settings.
 
 ```cmake
 # Producer project
@@ -12,7 +12,7 @@ target_install_package(my_library)
 find_package(my_library CONFIG REQUIRED)
 ```
 
-**It should not be harder than this in most cases!**
+**It should not be harder than this in most cases.**
 
 This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), but for ease of use, they have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
 
@@ -75,14 +75,14 @@ The `target_install_package()` function searches for the targets config template
 
 ## Features ✨
 
-- **Templated source file configuration** with proper include paths
-- **Package installation** with CMake config file generation
-- **CPack integration** with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
-- **CPack signing** for all platforms using GPG
-- **Support for modern CMake** including file sets and C++20 modules (CMake 3.28+)
-- **Component-based installation** with runtime/development separation
-- **Build variant support** for debug/release/custom configurations
-- **Flexible destination paths** for headers and configured files
+- Templated source file configuration with proper include paths
+- Package installation with CMake config file generation
+- CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
+- CPack signing for all platforms using GPG
+- Support for modern CMake including file sets and C++20 modules (CMake 3.25+)
+- Component-based installation with runtime/development separation
+- Build variant support for debug/release/custom configurations
+- Destination paths for headers and configured files
 
 ### Tips: 💡
 > [!TIP]
@@ -258,7 +258,7 @@ target_sources(math_utils PUBLIC
 target_install_package(math_utils NAMESPACE Math::)
 ```
 
-This is same would work with a INTERFACE or SHARED library target. Just sure to check the defaults in [target_install_package](target_install_package.cmake), which can will also be printed when you use --log-level=DEBUG. 
+This works with INTERFACE or SHARED library targets. Check the defaults in [target_install_package](target_install_package.cmake), which are printed when you use --log-level=DEBUG. 
 
 **What this creates:**
 - Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by cross-platform friendly **GNUInstallDirs**)
@@ -513,7 +513,7 @@ For projects with multiple related targets that should be packaged together, cal
 - **Component Organization**: Different targets with different component assignments
 
 > [!NOTE] 
-> I find it is more advisable to stick to single target packages due to the extra complexity! One use case is when you want to package a set of static libraries, so that one static can forward the others via public linking.
+> Single target packages have less complexity. Multi-target exports are useful when packaging a set of static libraries where one static library forwards others via public linking.
 
 ### Simple Multi-Target Package 📦
 
@@ -864,16 +864,16 @@ target_install_package(math_header_lib
 )
 ```
 
-## Key Benefits of FILE_SET Approach 🌟
+## Key Benefits of FILE_SET Approach
 
-- ✅ **Easy Installation**: Headers are installed by `target_install_package`
-- ✅ **Include Directories**: BASE_DIRS become include directories
-- ✅ **Proper Dependencies**: CMake correctly tracks header file dependencies
-- ✅ **Transitive Properties**: Headers are properly propagated to consuming targets
-- ✅ **Modern CMake**: Follows current best practices (CMake 3.23+)
-- ✅ **IDE Support**: Better integration with IDEs for header file management
-- ✅ **Component Separation**: Cleaner separation between runtime and development files
-- ✅ **Flexible Integration**: Works alongside standard CMake install() commands
+- Headers are installed by `target_install_package`
+- BASE_DIRS become include directories
+- CMake correctly tracks header file dependencies
+- Headers are properly propagated to consuming targets
+- Follows current best practices (CMake 3.23+)
+- Integration with IDEs for header file management
+- Separation between runtime and development files
+- Works alongside standard CMake install() commands
 
 ## FILE_SET vs Manual Installation
 
