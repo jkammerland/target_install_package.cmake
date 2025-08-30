@@ -4,7 +4,7 @@
 # This script verifies that executables link correctly against libraries with proper debug postfixes
 # Usage: ./verify_binary_linking.sh [executable_path] [build_type] [platform]
 #
-# Windows Fix: Improved dumpbin path handling and added objdump fallback for MinGW/MSYS2 environments
+# Windows Fix: Git Bash converts /DEPENDENTS to Windows path, use //DEPENDENTS
 
 set -e
 
@@ -193,31 +193,10 @@ verify_windows_dependencies() {
             exe_path=$(cygpath -w "$executable" 2>/dev/null || echo "$executable")
         fi
         
-        # Use /DEPENDENTS flag and handle path properly for Windows
-        print_info "Attempting to run: dumpbin /DEPENDENTS \"$exe_path\""
-        local dumpbin_output
-        if dumpbin_output=$(dumpbin /DEPENDENTS "$exe_path" 2>&1); then
-            echo "$dumpbin_output"
-            print_success "dumpbin analysis completed"
-        else
-            print_warning "dumpbin command failed with exit code $?"
-            print_info "dumpbin output: $dumpbin_output"
-            print_info "This may be normal if the executable uses static linking, has no dependencies, or if there are path/permission issues"
-        fi
-    else
-        print_info "dumpbin not available - trying alternative Windows dependency analysis"
-        
-        # Try objdump as fallback (available in MinGW/MSYS2)
-        if command -v objdump >/dev/null 2>&1; then
-            print_info "Using objdump to analyze dependencies..."
-            if objdump -p "$executable" 2>/dev/null | grep "DLL Name"; then
-                print_success "Found dependencies using objdump"
-            else
-                print_info "No DLL dependencies found or objdump failed"
-            fi
-        else
-            print_info "No dependency analysis tools available - this is normal for static executables"
-        fi
+        # Use dumpbin - fix Git Bash path conversion with double slash
+        local flag_dependents="//DEPENDENTS"
+        print_info "Using dumpbin to analyze dependencies..."
+        dumpbin "$flag_dependents" "$exe_path" 2>/dev/null || print_warning "dumpbin failed or not available"
     fi
 }
 

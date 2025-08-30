@@ -148,7 +148,10 @@ if(SHOULD_TEST_CXX_MODULES)
   message(STATUS "--- Module linking enabled for test_examples_main ---")
 endif()
 
+# ~~~
 # Windows: No RPATH mechanism exists - DLLs must be co-located with executables or in PATH
+# Since we installed deps t custom locations, copy DLLs to executable directory
+# ~~~
 if(WIN32)
   add_custom_command(
     TARGET test_examples_main
