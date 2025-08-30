@@ -89,7 +89,10 @@ verify_linux_dependencies() {
     
     if command -v ldd >/dev/null 2>&1; then
         echo "Shared library dependencies:"
-        ldd "$executable" || true
+        if ! ldd "$executable"; then
+            print_error "ldd failed - cannot verify dependencies"
+            return 1
+        fi
         
         if [[ "$build_type" == "Debug" ]]; then
             print_info "Checking for debug postfix libraries (ending with 'd')..."
@@ -108,7 +111,8 @@ verify_linux_dependencies() {
         fi
         
     else
-        print_warning "ldd command not available"
+        print_error "ldd command not available - cannot verify dependencies"
+        return 1
     fi
 }
 
@@ -121,7 +125,10 @@ verify_macos_dependencies() {
     
     if command -v otool >/dev/null 2>&1; then
         echo "Shared library dependencies:"
-        otool -L "$executable" || true
+        if ! otool -L "$executable"; then
+            print_error "otool failed - cannot verify dependencies"
+            return 1
+        fi
         
         if [[ "$build_type" == "Debug" ]]; then
             print_info "Checking for debug postfix libraries (ending with 'd')..."
@@ -140,7 +147,8 @@ verify_macos_dependencies() {
         fi
         
     else
-        print_warning "otool command not available"
+        print_error "otool command not available - cannot verify dependencies"
+        return 1
     fi
 }
 
@@ -196,7 +204,13 @@ verify_windows_dependencies() {
         # Use dumpbin - fix Git Bash path conversion with double slash
         local flag_dependents="//DEPENDENTS"
         print_info "Using dumpbin to analyze dependencies..."
-        dumpbin "$flag_dependents" "$exe_path" 2>/dev/null || print_warning "dumpbin failed or not available"
+        if ! dumpbin "$flag_dependents" "$exe_path" 2>/dev/null; then
+            print_error "dumpbin failed - cannot verify dependencies"
+            return 1
+        fi
+    else
+        print_error "dumpbin not available - cannot verify dependencies"
+        return 1
     fi
 }
 
