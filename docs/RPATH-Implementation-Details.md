@@ -8,9 +8,7 @@
 target_install_package(TARGET_NAME
   # ... existing parameters ...
   
-  INSTALL_RPATH <path1;path2;...>    # Custom RPATH entries
-  DISABLE_RPATH                       # Disable automatic RPATH  
-  RPATH_USE_LINK_PATH                # Add linked library dirs
+  DISABLE_RPATH                       # Disable automatic RPATH
 )
 ```
 
@@ -18,7 +16,7 @@ target_install_package(TARGET_NAME
 
 **File:** `install_package_helpers.cmake`  
 **Function:** `target_prepare_package()`  
-**Location:** Before `install(${INSTALL_ARGS})` call (around line 644)
+**Location:** Before `install(${INSTALL_ARGS})` call (around line 700)
 
 ### Code Structure
 
@@ -36,7 +34,7 @@ endif()
 
 | Platform | Executable RPATH | Library RPATH |
 |----------|------------------|---------------|
-| Linux | `$ORIGIN/../lib` | `$ORIGIN/../lib` |
+| Linux | `$ORIGIN/../lib:$ORIGIN/../lib64` | `$ORIGIN/../lib:$ORIGIN/../lib64` |
 | macOS | `@executable_path/../lib` | `@loader_path/../lib` |  
 | Windows | None (N/A) | None (N/A) |
 
@@ -44,16 +42,34 @@ endif()
 
 ```cmake
 # In target_prepare_package()
-set(options DISABLE_RPATH RPATH_USE_LINK_PATH)
-set(multiValueArgs ... INSTALL_RPATH)
+set(options DISABLE_RPATH)
+set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
 ```
+
+### System Prefix Detection
+
+RPATH is automatically skipped for system installations:
+
+```cmake
+function(is_system_install_prefix result)
+  set(SYSTEM_PREFIXES "/usr" "/usr/local" "/System" "/Library")
+  # Also includes Windows system paths
+  # Checks if CMAKE_INSTALL_PREFIX matches any system prefix
+endfunction()
+```
+
+**Detected system prefixes:**
+- `/usr` and subdirectories  
+- `/usr/local` and subdirectories
+- `/System`, `/Library` (macOS)
+- `C:/Program Files` (Windows)
 
 ## Testing Commands
 
 ### Build with Debug Logging
 ```bash
 cmake -B build --log-level=DEBUG
-# Look for: "[DEBUG] Set INSTALL_RPATH for 'target': ..."
+# Look for: "[DEBUG] Set default INSTALL_RPATH for 'target': ..."
 ```
 
 ### Verify RPATH in Binary
@@ -77,7 +93,7 @@ cmake --install build --prefix /tmp/test
 ```bash
 cd examples/basic-shared
 cmake -B build --log-level=DEBUG 2>&1 | grep "Set INSTALL_RPATH"
-# Output: Set INSTALL_RPATH for 'string_utils': $ORIGIN/../lib
+# Output: Set default INSTALL_RPATH for 'string_utils': $ORIGIN/../lib:$ORIGIN/../lib64
 ```
 
 ### Complex Multi-target  
@@ -90,15 +106,14 @@ cmake -B build --log-level=DEBUG 2>&1 | grep "Set INSTALL_RPATH"
 ## Files Modified
 
 1. **target_install_package.cmake:**
-   - Added RPATH parameters to API documentation (lines 61-63, 86-88)
-   - Added usage examples (lines 127-133)
-   - Updated behavior description (line 97)
+   - Added DISABLE_RPATH parameter to API documentation
+   - Added DISABLE_RPATH usage example
+   - Updated behavior description to mention automatic RPATH configuration
 
 2. **install_package_helpers.cmake:**
-   - Added options to argument parsing (line 74)
-   - Added INSTALL_RPATH to multiValueArgs (line 90)
-   - Added RPATH logic before installation (lines 647-683)
-   - Added API documentation (lines 69-71)
+   - Added DISABLE_RPATH to options parsing (line 74)
+   - Added RPATH configuration logic before installation (lines 655-682)
+   - Stores DISABLE_RPATH as target property for deferred evaluation
 
 ## Logic Flow
 
@@ -117,10 +132,8 @@ graph TD
     I -->|Yes| K[Preserve existing RPATH]
     H --> L[Set target properties]
     J --> L
-    K --> M[Check RPATH_USE_LINK_PATH]
-    L --> M
-    M -->|Set| N[Enable INSTALL_RPATH_USE_LINK_PATH]
-    M -->|Not set| O[Continue to installation]
+    K --> O[Continue to installation]
+    L --> O
     N --> O
     Z --> O
     B -->|Disabled| O
@@ -131,19 +144,24 @@ graph TD
 
 ### Successful RPATH Configuration
 ```
--- [target_install_package][DEBUG] Set INSTALL_RPATH for 'mylib': $ORIGIN/../lib
--- [target_install_package][DEBUG] Set INSTALL_RPATH for 'myapp': $ORIGIN/../lib
+-- [target_install_package][DEBUG] Set default INSTALL_RPATH for 'mylib': $ORIGIN/../lib:$ORIGIN/../lib64
+-- [target_install_package][DEBUG] Set default INSTALL_RPATH for 'myapp': $ORIGIN/../lib:$ORIGIN/../lib64
 ```
 
-### Custom RPATH
+### Custom RPATH (via CMAKE_INSTALL_RPATH)
 ```
--- [target_install_package][DEBUG] Set INSTALL_RPATH for 'myapp': /opt/custom/lib;$ORIGIN/../lib
+-- [target_install_package][DEBUG] Using global CMAKE_INSTALL_RPATH for 'myapp': /opt/custom/lib
 ```
 
-### RPATH_USE_LINK_PATH
+### Target-Specific RPATH
 ```
--- [target_install_package][DEBUG] Set INSTALL_RPATH for 'myapp': $ORIGIN/../lib
--- [target_install_package][DEBUG] Enabled INSTALL_RPATH_USE_LINK_PATH for 'myapp'
+-- [target_install_package][DEBUG] Target 'myapp' already has INSTALL_RPATH: $ORIGIN/../vendor/lib
+```
+
+### System Installation (RPATH Skipped)
+```
+-- [target_install_package][DEBUG] Skipping RPATH for system installation to '/usr/local' for 'mylib'
+-- [target_install_package][DEBUG] Skipping RPATH for system installation to '/usr/local' for 'myapp'
 ```
 
 ### Disabled RPATH
@@ -151,23 +169,23 @@ graph TD
 # No RPATH debug messages appear
 ```
 
-## Known Issues (To Fix in Redesign)
+## Implementation Notes
 
-1. **Custom RPATH Parameter Parsing**: Custom RPATH entries may not be applied correctly
-2. **DISABLE_RPATH Logic**: Flag doesn't always prevent RPATH from being set
-3. **Integration Timing**: May need to apply RPATH earlier in target preparation
+1. **DISABLE_RPATH Logic**: Correctly prevents RPATH from being set using target properties
+2. **Respects User Configuration**: Only sets defaults when no RPATH is configured
+3. **Platform Support**: Includes lib64 support for Linux distributions
 
 ## Installation Verification
 
 ### Successful RPATH Installation
 ```
--- Set non-toolchain portion of runtime path of ".../lib/libmylib.so" to "$ORIGIN/../lib"
+-- Set non-toolchain portion of runtime path of ".../lib/libmylib.so" to "$ORIGIN/../lib:$ORIGIN/../lib64"
 ```
 
 ### Binary Verification
 ```bash
 $ readelf -d lib/libmylib.so | grep RUNPATH
- 0x000000000000001d (RUNPATH)    Library runpath: [$ORIGIN/../lib]
+ 0x000000000000001d (RUNPATH)    Library runpath: [$ORIGIN/../lib:$ORIGIN/../lib64]
 ```
 
 This confirms the RPATH implementation is working correctly and the binary will search for dependencies in the expected location.

@@ -71,7 +71,7 @@ endif()
 # ~~~
 function(target_prepare_package TARGET_NAME)
   # Parse function arguments
-  set(options "") # No boolean options
+  set(options DISABLE_RPATH)
   set(oneValueArgs
       NAMESPACE
       ALIAS_NAME
@@ -89,6 +89,11 @@ function(target_prepare_package TARGET_NAME)
       ADDITIONAL_FILES_DESTINATION)
   set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  # Store DISABLE_RPATH as a target property for later use
+  if(ARG_DISABLE_RPATH)
+    set_target_properties(${TARGET_NAME} PROPERTIES TARGET_INSTALL_PACKAGE_DISABLE_RPATH TRUE)
+  endif()
 
   # Check if target exists
   if(NOT TARGET ${TARGET_NAME})
@@ -644,6 +649,85 @@ function(finalize_package)
             ${MODULE_DESTINATION}
             ${TARGET_DEV_COMPONENT_ARGS})
         endforeach()
+      endif()
+    endif()
+
+    # Helper function to detect system installation prefixes
+    function(is_system_install_prefix result)
+      set(SYSTEM_PREFIXES
+        "/usr"
+        "/usr/local" 
+        "/System"  # macOS system paths
+        "/Library"  # macOS system paths
+      )
+      
+      # Windows system paths
+      if(WIN32)
+        list(APPEND SYSTEM_PREFIXES 
+          "C:/Program Files"
+          "C:/Program Files (x86)"
+          "${SYSTEMROOT}/System32"
+        )
+      endif()
+      
+      get_filename_component(NORMALIZED_PREFIX "${CMAKE_INSTALL_PREFIX}" REALPATH)
+      
+      foreach(prefix ${SYSTEM_PREFIXES})
+        get_filename_component(NORMALIZED_SYSTEM_PREFIX "${prefix}" REALPATH)
+        if(NORMALIZED_PREFIX STREQUAL NORMALIZED_SYSTEM_PREFIX OR 
+           NORMALIZED_PREFIX MATCHES "^${NORMALIZED_SYSTEM_PREFIX}/")
+          set(${result} TRUE PARENT_SCOPE)
+          return()
+        endif()
+      endforeach()
+      
+      set(${result} FALSE PARENT_SCOPE)
+    endfunction()
+
+    # Configure RPATH for Unix/Linux/macOS if not disabled
+    get_target_property(TARGET_DISABLE_RPATH ${TARGET_NAME} TARGET_INSTALL_PACKAGE_DISABLE_RPATH)
+    is_system_install_prefix(IS_SYSTEM_INSTALL)
+    
+    if(WIN32)
+      project_log(DEBUG "Skipping RPATH configuration on Windows for '${TARGET_NAME}'")
+    elseif(CMAKE_SKIP_INSTALL_RPATH)
+      project_log(DEBUG "Skipping RPATH due to CMAKE_SKIP_INSTALL_RPATH for '${TARGET_NAME}'")
+    elseif(TARGET_DISABLE_RPATH)
+      project_log(DEBUG "Skipping RPATH due to DISABLE_RPATH parameter for '${TARGET_NAME}'")
+    elseif(IS_SYSTEM_INSTALL)
+      project_log(DEBUG "Skipping RPATH for system installation to '${CMAKE_INSTALL_PREFIX}' for '${TARGET_NAME}'")
+    endif()
+    
+    if(NOT WIN32 AND NOT CMAKE_SKIP_INSTALL_RPATH AND NOT TARGET_DISABLE_RPATH AND NOT IS_SYSTEM_INSTALL)
+      get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+      
+      if(TARGET_TYPE STREQUAL "EXECUTABLE" OR TARGET_TYPE STREQUAL "SHARED_LIBRARY")
+        # Check if RPATH is already configured
+        get_target_property(TARGET_RPATH ${TARGET_NAME} INSTALL_RPATH)
+        
+        # Only set defaults if NO RPATH is configured anywhere
+        if(NOT TARGET_RPATH AND NOT CMAKE_INSTALL_RPATH)
+          set(DEFAULT_RPATH)
+          
+          if(APPLE)
+            if(TARGET_TYPE STREQUAL "EXECUTABLE")
+              list(APPEND DEFAULT_RPATH "@executable_path/../lib")
+            else()
+              list(APPEND DEFAULT_RPATH "@loader_path/../lib")
+            endif()
+          else() # Linux/Unix
+            list(APPEND DEFAULT_RPATH "$ORIGIN/../lib" "$ORIGIN/../lib64")
+          endif()
+          
+          set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "${DEFAULT_RPATH}")
+          project_log(DEBUG "Set default INSTALL_RPATH for '${TARGET_NAME}': ${DEFAULT_RPATH}")
+        else()
+          if(TARGET_RPATH)
+            project_log(DEBUG "Target '${TARGET_NAME}' already has INSTALL_RPATH: ${TARGET_RPATH}")
+          else()
+            project_log(DEBUG "Using global CMAKE_INSTALL_RPATH for '${TARGET_NAME}': ${CMAKE_INSTALL_RPATH}")
+          endif()
+        endif()
       endif()
     endif()
 

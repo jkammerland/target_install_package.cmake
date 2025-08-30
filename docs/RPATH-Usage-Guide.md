@@ -10,7 +10,7 @@
 
 By default, `target_install_package` sets platform-appropriate RPATH entries:
 
-- **Linux**: `$ORIGIN/../lib` - Look for libraries relative to the binary's location
+- **Linux**: `$ORIGIN/../lib:$ORIGIN/../lib64` - Look for libraries relative to the binary's location
 - **macOS**: 
   - Executables: `@executable_path/../lib`
   - Libraries: `@loader_path/../lib`
@@ -32,13 +32,13 @@ Interface libraries and static libraries are automatically excluded.
 # Library with automatic RPATH
 add_library(mylib SHARED src/mylib.cpp)
 target_install_package(mylib)
-# Result: Linux gets $ORIGIN/../lib, macOS gets @loader_path/../lib
+# Result: Linux gets $ORIGIN/../lib:$ORIGIN/../lib64, macOS gets @loader_path/../lib
 
 # Executable with automatic RPATH  
 add_executable(myapp src/main.cpp)
 target_link_libraries(myapp mylib)
 target_install_package(myapp)
-# Result: Linux gets $ORIGIN/../lib, macOS gets @executable_path/../lib
+# Result: Linux gets $ORIGIN/../lib:$ORIGIN/../lib64, macOS gets @executable_path/../lib
 ```
 
 **Installation Layout:**
@@ -48,27 +48,52 @@ prefix/
 └── lib/libmylib.so    # RPATH points to ../lib (for dependencies)
 ```
 
-### Custom RPATH Entries
+### Custom RPATH Configuration
 
-For non-standard layouts or additional library locations:
+For custom RPATH requirements, set `CMAKE_INSTALL_RPATH` before calling `target_install_package`:
 
 ```cmake
-target_install_package(myapp
-  INSTALL_RPATH "/opt/myapp/lib;/usr/local/custom/lib")
-# Result: Custom paths instead of automatic defaults
+# Set custom global RPATH
+set(CMAKE_INSTALL_RPATH "/opt/myapp/lib;/usr/local/custom/lib")
+target_install_package(myapp)
+# Result: Uses custom RPATH instead of defaults
 ```
 
-### Multiple Custom Paths
+### Per-Target Custom RPATH
 
 ```cmake
-target_install_package(myexe
-  INSTALL_RPATH 
-    "/opt/vendor/lib"
-    "/usr/local/special/lib"  
-    "$ORIGIN/../vendor/lib")    # Can mix absolute and relative
+# Set target-specific RPATH
+set_target_properties(myexe PROPERTIES 
+  INSTALL_RPATH "/opt/vendor/lib;$ORIGIN/../vendor/lib")
+target_install_package(myexe)
+# Result: Uses target-specific RPATH
 ```
 
 ## Advanced Configuration
+
+### Automatic System Installation Detection
+
+RPATH is automatically skipped when installing to system directories, as these are already in the system's default library search path:
+
+**System directories (RPATH automatically skipped):**
+- `/usr` and subdirectories (e.g., `/usr/local`, `/usr/local/myapp`)
+- `/System` and `/Library` (macOS)
+- `C:/Program Files` (Windows)
+
+**Non-system directories (RPATH automatically configured):**
+- `/opt/myapp`
+- `$HOME/.local`
+- Custom paths like `./install`
+
+```bash
+# System installation - no RPATH needed
+cmake -DCMAKE_INSTALL_PREFIX=/usr/local
+# Debug output: "Skipping RPATH for system installation to '/usr/local'"
+
+# Custom installation - RPATH configured
+cmake -DCMAKE_INSTALL_PREFIX=/opt/myapp  
+# Debug output: "Set default INSTALL_RPATH for 'target': $ORIGIN/../lib:$ORIGIN/../lib64"
+```
 
 ### Disable RPATH for System Libraries
 
@@ -82,21 +107,21 @@ target_install_package(system_library
 
 ### Include Linked Library Directories
 
-Automatically add directories of linked libraries to RPATH:
+Automatically add directories of linked libraries to RPATH using CMake's built-in mechanism:
 
 ```cmake
-target_install_package(myapp
-  RPATH_USE_LINK_PATH)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+target_install_package(myapp)
 # Result: Directories of all linked libraries added to RPATH
 ```
 
 ### Combined Configuration
 
 ```cmake
-target_install_package(complex_app
-  INSTALL_RPATH "/opt/app/lib"      # Custom base path
-  RPATH_USE_LINK_PATH               # Plus linked library paths
-  VERSION 2.1.0)
+# Set custom base path plus linked library paths
+set(CMAKE_INSTALL_RPATH "/opt/app/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+target_install_package(complex_app VERSION 2.1.0)
 ```
 
 ## Platform-Specific Behavior
@@ -104,7 +129,7 @@ target_install_package(complex_app
 ### Linux
 
 ```cmake
-# Default RPATH: $ORIGIN/../lib
+# Default RPATH: $ORIGIN/../lib:$ORIGIN/../lib64
 target_install_package(mylib)
 ```
 
@@ -173,16 +198,17 @@ target_install_package(myapp
 
 ```cmake
 # Non-standard layout: libraries in subdirectories
-target_install_package(graphics_lib
-  INSTALL_RPATH "$ORIGIN/../lib/graphics;$ORIGIN/../lib/core"
-  LIBRARY DESTINATION lib/graphics)
-
-target_install_package(core_lib  
-  INSTALL_RPATH "$ORIGIN"         # Look in same directory
-  LIBRARY DESTINATION lib/core)
-
-target_install_package(myapp
+set_target_properties(graphics_lib PROPERTIES 
   INSTALL_RPATH "$ORIGIN/../lib/graphics;$ORIGIN/../lib/core")
+target_install_package(graphics_lib LIBRARY DESTINATION lib/graphics)
+
+set_target_properties(core_lib PROPERTIES 
+  INSTALL_RPATH "$ORIGIN")  # Look in same directory
+target_install_package(core_lib LIBRARY DESTINATION lib/core)
+
+set_target_properties(myapp PROPERTIES 
+  INSTALL_RPATH "$ORIGIN/../lib/graphics;$ORIGIN/../lib/core")
+target_install_package(myapp)
 ```
 
 ### Development vs Production
@@ -190,11 +216,9 @@ target_install_package(myapp
 ```cmake
 # Development: Include build-tree library directories
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_install_package(myapp
-    RPATH_USE_LINK_PATH)          # Find libraries in build dirs
-else()
-  target_install_package(myapp)   # Standard relative RPATH
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)  # Find libraries in build dirs
 endif()
+target_install_package(myapp)
 ```
 
 ## Troubleshooting
@@ -215,7 +239,7 @@ Enable debug logging to see RPATH decisions:
 
 ```bash
 cmake -B build --log-level=DEBUG
-# Look for: "Set INSTALL_RPATH for 'target': ..."
+# Look for: "Set default INSTALL_RPATH for 'target': ..."
 ```
 
 ### Common Issues
@@ -223,7 +247,7 @@ cmake -B build --log-level=DEBUG
 1. **Libraries not found at runtime:**
    - Check RPATH with `readelf`/`otool`
    - Verify installation layout matches RPATH expectations
-   - Consider using `RPATH_USE_LINK_PATH` for complex dependencies
+   - Consider setting `CMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE` for complex dependencies
 
 2. **RPATH not being set:**
    - Ensure target is EXECUTABLE or SHARED_LIBRARY
@@ -231,8 +255,8 @@ cmake -B build --log-level=DEBUG
    - Verify not on Windows (RPATH not supported)
 
 3. **Custom RPATH ignored:**
-   - Check argument syntax: `INSTALL_RPATH "/path1;/path2"`
-   - Ensure no existing INSTALL_RPATH property
+   - Check if `CMAKE_INSTALL_RPATH` is set before calling `target_install_package`
+   - Ensure target doesn't already have `INSTALL_RPATH` property
 
 ## Best Practices
 
@@ -240,17 +264,17 @@ cmake -B build --log-level=DEBUG
 
 ```cmake
 # Good: Relocatable
-INSTALL_RPATH "$ORIGIN/../lib"
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 
 # Avoid: Hard-coded paths (unless necessary)
-INSTALL_RPATH "/usr/local/lib"
+set(CMAKE_INSTALL_RPATH "/usr/local/lib")
 ```
 
 ### 2. Design Installation Layout for RPATH
 
 ```cmake
 # Standard layout works with default RPATH
-install(TARGETS myapp DESTINATION bin)          # Gets $ORIGIN/../lib
+install(TARGETS myapp DESTINATION bin)          # Gets $ORIGIN/../lib:$ORIGIN/../lib64
 install(TARGETS mylib DESTINATION lib)          # Found by executables
 ```
 
@@ -265,9 +289,9 @@ cmake --install build --prefix /tmp/test_install
 
 ```cmake
 # Document why custom RPATH is needed
-target_install_package(vendor_wrapper
-  INSTALL_RPATH "/opt/vendor/lib"    # Vendor libs in fixed location
-  COMMENT "Requires vendor libraries in /opt/vendor/lib")
+set_target_properties(vendor_wrapper PROPERTIES 
+  INSTALL_RPATH "/opt/vendor/lib")    # Vendor libs in fixed location
+target_install_package(vendor_wrapper)
 ```
 
 ## Migration from Manual RPATH
@@ -280,7 +304,7 @@ set_target_properties(myapp PROPERTIES
   INSTALL_RPATH "$ORIGIN/../lib")
 
 # After: Use target_install_package automatic RPATH
-target_install_package(myapp)  # Same result, more robust
+target_install_package(myapp)  # Same result with automatic configuration
 ```
 
 For custom requirements:
@@ -290,7 +314,8 @@ For custom requirements:
 set_target_properties(myapp PROPERTIES 
   INSTALL_RPATH "/custom/path;$ORIGIN/../lib")
 
-# After: Use INSTALL_RPATH parameter
-target_install_package(myapp
+# After: Set target property before calling target_install_package
+set_target_properties(myapp PROPERTIES 
   INSTALL_RPATH "/custom/path;$ORIGIN/../lib")
+target_install_package(myapp)
 ```
