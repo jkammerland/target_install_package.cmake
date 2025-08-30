@@ -64,7 +64,7 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>
+#     INCLUDE_ON_FIND_PACKAGE <files...>
 #     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # See target_install_package() for parameter descriptions.
@@ -87,7 +87,7 @@ function(target_prepare_package TARGET_NAME)
       DEVELOPMENT_COMPONENT
       DEBUG_POSTFIX
       ADDITIONAL_FILES_DESTINATION)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Check if target exists
@@ -238,15 +238,15 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES" "${EXISTING_DEPS}")
   endif()
 
-  if(ARG_PUBLIC_CMAKE_FILES)
-    get_property(EXISTING_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
+  if(ARG_INCLUDE_ON_FIND_PACKAGE)
+    get_property(EXISTING_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
     if(EXISTING_CMAKE_FILES)
-      list(APPEND EXISTING_CMAKE_FILES ${ARG_PUBLIC_CMAKE_FILES})
+      list(APPEND EXISTING_CMAKE_FILES ${ARG_INCLUDE_ON_FIND_PACKAGE})
       list(REMOVE_DUPLICATES EXISTING_CMAKE_FILES)
     else()
-      set(EXISTING_CMAKE_FILES ${ARG_PUBLIC_CMAKE_FILES})
+      set(EXISTING_CMAKE_FILES ${ARG_INCLUDE_ON_FIND_PACKAGE})
     endif()
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES" "${EXISTING_CMAKE_FILES}")
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE" "${EXISTING_CMAKE_FILES}")
   endif()
 
   # Handle component-dependent dependencies
@@ -506,7 +506,7 @@ function(finalize_package)
   get_property(ADDITIONAL_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES")
   get_property(ADDITIONAL_FILES_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES_DESTINATION")
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
-  get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
+  get_property(INCLUDE_ON_FIND_PACKAGE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
   get_property(COMPONENT_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
   get_property(DEBUG_POSTFIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX")
 
@@ -865,11 +865,11 @@ function(finalize_package)
     endif()
   endif()
 
-  # Prepare public CMake files content
-  set(PACKAGE_PUBLIC_CMAKE_FILES "")
-  if(PUBLIC_CMAKE_FILES)
-    project_log(DEBUG "Processing public CMake files for export '${ARG_EXPORT_NAME}':")
-    foreach(cmake_file ${PUBLIC_CMAKE_FILES})
+  # Prepare CMake files to include on find_package
+  set(PACKAGE_INCLUDE_ON_FIND_PACKAGE "")
+  if(INCLUDE_ON_FIND_PACKAGE)
+    project_log(DEBUG "Processing CMake files to include on find_package for export '${ARG_EXPORT_NAME}':")
+    foreach(cmake_file ${INCLUDE_ON_FIND_PACKAGE})
       if(IS_ABSOLUTE "${cmake_file}")
         set(SRC_CMAKE_FILE "${cmake_file}")
       else()
@@ -877,7 +877,7 @@ function(finalize_package)
       endif()
 
       if(NOT EXISTS "${SRC_CMAKE_FILE}")
-        project_log(WARNING "  Public CMake file not found: ${SRC_CMAKE_FILE}")
+        project_log(WARNING "  CMake file to include on find_package not found: ${SRC_CMAKE_FILE}")
         continue()
       endif()
 
@@ -888,7 +888,7 @@ function(finalize_package)
         DESTINATION "${CMAKE_CONFIG_DESTINATION}"
         ${CONFIG_COMPONENT_ARGS})
 
-      string(APPEND PACKAGE_PUBLIC_CMAKE_FILES "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
+      string(APPEND PACKAGE_INCLUDE_ON_FIND_PACKAGE "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
     endforeach()
   endif()
 

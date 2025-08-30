@@ -117,7 +117,7 @@ endif()
 #
 #   # Custom package with specific generators
 #   export_cpack(
-#     PACKAGE_NAME "MyAwesomeLib"
+#     PACKAGE_NAME "MyLib"
 #     PACKAGE_VENDOR "Acme Corp"
 #     GENERATORS "TGZ;DEB;RPM"
 #     DEFAULT_COMPONENTS "Runtime"

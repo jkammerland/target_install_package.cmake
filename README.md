@@ -12,7 +12,7 @@ target_install_package(my_library)
 find_package(my_library CONFIG REQUIRED)
 ```
 
-**It should not be harder than this in most cases.**
+Most use cases require minimal configuration. The goal is to simplify this process in a intuitive way, while still allowing interleaving CMake installs and configuration.
 
 This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), but for ease of use, they have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
 
@@ -73,7 +73,7 @@ The `target_install_package()` function searches for the targets config template
 7. [Key Benefits](#key-benefits-of-file_set-approach-)
 8. [Similar projects](#similar-projects)
 
-## Features ✨
+## Features
 
 - Templated source file configuration with proper include paths
 - Package installation with CMake config file generation
@@ -84,7 +84,7 @@ The `target_install_package()` function searches for the targets config template
 - Build variant support for debug/release/custom configurations
 - Destination paths for headers and configured files
 
-### Tips: 💡
+### Tips
 > [!TIP]
 > Use colors and higher log level for more information about what's going on.
 ```bash
@@ -201,7 +201,7 @@ cmake --install build --prefix /opt/cmake-utils
 # find_package(target_install_package CONFIG REQUIRED)
 ```
 
-This project installs itself via the `PUBLIC_CMAKE_FILES` option. See the main [CMakeLists.txt](CMakeLists.txt). An example of a pure cmake package.
+This project installs itself via the `INCLUDE_ON_FIND_PACKAGE` option. See the main [CMakeLists.txt](CMakeLists.txt). An example of a pure cmake package.
 
 **Using the manually installed utilities:**
 
@@ -858,7 +858,7 @@ target_install_package(math_header_lib
   NAMESPACE MathLib::
   PUBLIC_DEPENDENCIES "Eigen3 3.4 REQUIRED"
   # Additional CMake utilities for consumers
-  PUBLIC_CMAKE_FILES 
+  INCLUDE_ON_FIND_PACKAGE 
     cmake/MathLibHelpers.cmake
     cmake/CompilerWarnings.cmake
 )
@@ -870,7 +870,6 @@ target_install_package(math_header_lib
 - BASE_DIRS become include directories
 - CMake correctly tracks header file dependencies
 - Headers are properly propagated to consuming targets
-- Follows current best practices (CMake 3.23+)
 - Integration with IDEs for header file management
 - Separation between runtime and development files
 - Works alongside standard CMake install() commands

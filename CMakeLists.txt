@@ -35,7 +35,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
       ADDITIONAL_FILES_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake # The reason for the extra cmake dir is because this is the normal override location for the target.
-      PUBLIC_CMAKE_FILES
+      INCLUDE_ON_FIND_PACKAGE
       ${CMAKE_CURRENT_LIST_DIR}/cmake/list_file_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_log.cmake

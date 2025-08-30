@@ -30,8 +30,8 @@ find_component_dependencies(@ARG_EXPORT_NAME@ "@PACKAGE_COMPONENT_DEPENDENCIES_C
 # Package global dependencies (always loaded regardless of components)
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@
 
-# Include additional CMake files
-@PACKAGE_PUBLIC_CMAKE_FILES@
+# Include additional CMake files on find_package
+@PACKAGE_INCLUDE_ON_FIND_PACKAGE@
 
 # CMake's generated export file automatically handles configuration-specific includes
 include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@.cmake")
