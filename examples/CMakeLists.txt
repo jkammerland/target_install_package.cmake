@@ -9,21 +9,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Fetch dependencies needed for dependency-aggregation example
 include(FetchContent)
 
+# Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages
+# will automatically redirect to FetchContent, ensuring seamless integration
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 11.1.4)
+  GIT_TAG 11.1.4
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.15.3)
+  GIT_TAG v1.15.3
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   cxxopts
   GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-  GIT_TAG v3.1.1)
+  GIT_TAG v3.1.1
+  OVERRIDE_FIND_PACKAGE)
 
+# Make dependencies available - find_package() calls will now use FetchContent automatically
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)

@@ -5,6 +5,57 @@ project(dependency_aggregation_example VERSION 2.1.0)
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(../../CMakeLists.txt)
 
+# Use FetchContent to provide dependencies needed by the generated config
+include(FetchContent)
+
+# Use OVERRIDE_FIND_PACKAGE so downstream find_dependency() calls work seamlessly
+FetchContent_Declare(
+  fmt
+  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+  GIT_TAG 11.1.4
+  OVERRIDE_FIND_PACKAGE
+  EXCLUDE_FROM_ALL)  # Don't install these dependencies by default
+
+FetchContent_Declare(
+  spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG v1.15.3
+  OVERRIDE_FIND_PACKAGE
+  EXCLUDE_FROM_ALL)
+
+FetchContent_Declare(
+  cxxopts
+  GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+  GIT_TAG v3.1.1
+  OVERRIDE_FIND_PACKAGE
+  EXCLUDE_FROM_ALL)
+
+# Option to control whether to install the dependencies
+option(DEPENDENCY_AGGREGATION_INSTALL_DEPS "Install FetchContent dependencies with this package" OFF)
+
+# Set policy to avoid FetchContent_Populate deprecation warnings
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD)
+endif()
+
+if(DEPENDENCY_AGGREGATION_INSTALL_DEPS)
+  # Install dependencies along with this package
+  FetchContent_MakeAvailable(fmt spdlog cxxopts)
+else()
+  # Make dependencies available for building but exclude from installation
+  FetchContent_MakeAvailable(fmt spdlog cxxopts)
+  
+  # Mark FetchContent targets to exclude from installation
+  # This prevents them from being installed with cmake --install
+  set_target_properties(fmt PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  if(TARGET spdlog)
+    set_target_properties(spdlog PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  endif()
+  if(TARGET cxxopts)
+    set_target_properties(cxxopts PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  endif()
+endif()
+
 # Core library - dummy implementation with fmt dependency
 add_library(core_lib SHARED)
 target_sources(core_lib PRIVATE src/dummy.cpp)
