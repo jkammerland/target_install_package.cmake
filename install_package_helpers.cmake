@@ -587,6 +587,12 @@ function(finalize_package)
     set(INSTALL_ARGS TARGETS ${TARGET_NAME} EXPORT ${ARG_EXPORT_NAME})
 
     # Add destination and component for each target type
+    # Platform-specific installation destinations:
+    # - RUNTIME: Executables and Windows DLLs → bin/
+    #   (DLLs must be in bin/ to be found by executables on Windows)
+    # - LIBRARY: Unix shared libraries (.so, .dylib) → lib/
+    # - ARCHIVE: Static libraries and Windows import libs → lib/
+    #   (Import .lib files are development artifacts, not runtime)
     list(
       APPEND
       INSTALL_ARGS
