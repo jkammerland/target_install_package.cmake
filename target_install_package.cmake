@@ -56,7 +56,7 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>
+#     INCLUDE_ON_FIND_PACKAGE <files...>
 #     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...
 #     DISABLE_RPATH)
 #
@@ -79,7 +79,7 @@ endif()
 #   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "${CMAKE_INSTALL_PREFIX}").
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
-#   PUBLIC_CMAKE_FILES           - Additional CMake files to install as public.
+#   INCLUDE_ON_FIND_PACKAGE     - Additional CMake files to include when package is found.
 #   COMPONENT_DEPENDENCIES       - Component-specific dependencies (pairs: component name, dependencies).
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
