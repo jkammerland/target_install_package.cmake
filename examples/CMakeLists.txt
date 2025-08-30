@@ -9,8 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Fetch dependencies needed for dependency-aggregation example
 include(FetchContent)
 
-# Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages
-# will automatically redirect to FetchContent, ensuring seamless integration
+# Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages will automatically redirect to FetchContent, ensuring seamless integration
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
@@ -147,6 +146,15 @@ if(SHOULD_TEST_CXX_MODULES)
   # Ensure consistent compiler flags with module libraries (no GNU extensions)
   set_target_properties(test_examples_main PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES ON)
   message(STATUS "--- Module linking enabled for test_examples_main ---")
+endif()
+
+# Windows: No RPATH mechanism exists - DLLs must be co-located with executables or in PATH
+if(WIN32)
+  add_custom_command(
+    TARGET test_examples_main
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:test_examples_main> $<TARGET_RUNTIME_DLLS:test_examples_main>
+    COMMAND_EXPAND_LISTS)
 endif()
 
 # Enable testing and add the integration test

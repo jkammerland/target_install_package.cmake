@@ -617,13 +617,7 @@ jobs:
             --log-level=VERBOSE
 
           # Test each configuration for multi-config builds
-          # On Windows, only test Release to avoid DLL loading issues with Debug builds
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            configs=("Release")
-            echo "Windows: Testing Release configuration only (avoids Debug DLL issues)"
-          else
-            configs=("Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-          fi
+          configs=("Debug" "Release" "MinSizeRel" "RelWithDebInfo")
           
           for config in "${configs[@]}"; do
             echo "=== Testing Integration for Configuration: $config ==="
