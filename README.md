@@ -45,6 +45,9 @@ The `target_install_package()` function searches for the targets config template
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
+>[!NOTE]
+> `target_install_package()` uses standard CMake installation directories: executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
+
 ## Table of Contents
 
 1. [Features](#features-)

@@ -1,8 +1,10 @@
 # Windows DLL Handling
 
+DLLs are co-located with executables by default when using `target_install_package()`. The section below is relevant if you want to consume the package from a custom location **NOT** on your PATH.
+
 ## The Problem
 
-On Windows, executables cannot automatically find shared libraries (DLLs) at runtime like they can on Linux/macOS.
+On Windows, executables cannot automatically find shared libraries (DLLs) at runtime like they can on Linux/macOS. If you find_package(...) to link a shared library, the DLLs must be on your PATH or in the same directory as the executable.
 
 - **Linux/macOS**: `target_install_package` automatically configures RPATH/RUNPATH (see [RPATH Implementation Analysis](RPATH-Implementation-Analysis.md))
 - **Windows**: No RPATH mechanism exists - DLLs must be co-located with executables or in PATH
