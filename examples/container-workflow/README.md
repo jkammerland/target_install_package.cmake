@@ -284,8 +284,58 @@ podman run --rm -it --entrypoint /bin/sh webapp:runtime
 podman run --rm webapp:runtime ldd /usr/local/bin/webapp
 ```
 
+## systemd Integration
+
+This example now includes systemd integration support:
+
+### systemd Service Templates
+
+The build process generates systemd service files:
+- `webapp.service` - Direct systemd service configuration
+- `webapp.nspawn` - systemd-nspawn container configuration
+
+### systemd Deployment Methods
+
+Use the included deployment script to deploy as systemd services:
+
+```bash
+# Deploy with Podman container integration
+./scripts/systemd-deploy.sh podman --build --enable --start
+
+# Deploy with systemd-nspawn (lightweight)  
+./scripts/systemd-deploy.sh nspawn --build --enable --start
+
+# Deploy as multi-container pod
+./scripts/systemd-deploy.sh pod --build --start
+
+# Deploy as portable service
+./scripts/systemd-deploy.sh portable --build --enable
+```
+
+### Service Management
+
+After deployment, manage with standard systemd commands:
+
+```bash
+# Control the service
+systemctl start webapp
+systemctl stop webapp
+systemctl restart webapp
+
+# Check status and logs
+systemctl status webapp
+journalctl -u webapp -f
+
+# Enable/disable startup
+systemctl enable webapp
+systemctl disable webapp
+```
+
 ## Related Documentation
 
+- [Systemd Container Integration](../../docs/Systemd-Container-Integration.md) - Detailed systemd integration patterns
+- [Systemd Integration Comparison](../../docs/Systemd-Integration-Comparison.md) - Method comparison guide
+- [Container Runtime Strategy](../../docs/Container-Runtime-Strategy.md) - Runtime compatibility
 - [Main Container Workflow Guide](../../docs/CPack-to-Container-Workflow.md)
 - [CPack Integration Tutorial](../../CPack-Tutorial.md)
 - [CMake Presets Documentation](https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html)

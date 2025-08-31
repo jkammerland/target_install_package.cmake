@@ -1,0 +1,48 @@
+[Unit]
+Description=@PROJECT_NAME@ Web Application Service
+Documentation=https://github.com/example/webapp
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=@CMAKE_INSTALL_PREFIX@
+
+[Service]
+Type=exec
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/webapp
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+# Security settings
+User=webapp
+Group=webapp
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/webapp /var/lib/webapp
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+# Resource limits
+MemoryMax=1G
+MemorySwapMax=0
+CPUQuota=50%
+TasksMax=100
+
+# Environment
+Environment=LD_LIBRARY_PATH=@CMAKE_INSTALL_PREFIX@/lib
+Environment=PORT=8080
+Environment=LOG_LEVEL=info
+WorkingDirectory=@CMAKE_INSTALL_PREFIX@
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webapp
+
+[Install]
+WantedBy=multi-user.target

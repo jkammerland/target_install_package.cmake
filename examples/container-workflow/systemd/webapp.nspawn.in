@@ -1,0 +1,20 @@
+[Exec]
+# Command to run inside container
+Boot=false
+ProcessTwo=false
+Parameters=@CMAKE_INSTALL_PREFIX@/bin/webapp
+
+[Files]
+# Bind mount configuration files from host
+BindReadOnly=/etc/resolv.conf
+BindReadOnly=/etc/ssl/certs
+Bind=/var/log/webapp
+
+# Private temporary directory
+PrivateUsersChown=true
+Volatile=false
+
+[Network]
+# Use host networking for simplicity
+Private=false
+VirtualEthernet=false

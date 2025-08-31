@@ -45,6 +45,27 @@ target_install_package(webapp_tool
     VERSION ${PROJECT_VERSION}
 )
 
+# Configure systemd service file templates
+configure_file(
+    ${CMAKE_SOURCE_DIR}/systemd/webapp.service.in
+    ${CMAKE_BINARY_DIR}/webapp.service
+    @ONLY
+)
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/systemd/webapp.nspawn.in
+    ${CMAKE_BINARY_DIR}/webapp.nspawn
+    @ONLY
+)
+
+# Install systemd service files as part of Runtime component
+install(FILES 
+    ${CMAKE_BINARY_DIR}/webapp.service
+    ${CMAKE_BINARY_DIR}/webapp.nspawn
+    DESTINATION lib/systemd/system
+    COMPONENT Runtime
+)
+
 # Configure CPack for container-ready packages
 export_cpack(
     PACKAGE_NAME "WebApp"
@@ -58,7 +79,7 @@ export_cpack(
     
     # Component descriptions
     COMPONENT_DESCRIPTIONS
-        "Runtime" "Web application runtime files"
+        "Runtime" "Web application runtime files with systemd integration"
         "Development" "Headers and development files for WebApp"
         "Tools" "Administrative and utility tools"
 )
