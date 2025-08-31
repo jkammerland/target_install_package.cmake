@@ -735,7 +735,17 @@ function(finalize_package)
     install(${INSTALL_ARGS})
 
     # Secondary install to custom component (if needed)
-    if(TARGET_COMP AND (TARGET_RUNTIME_COMPONENT_DUAL_INSTALL OR TARGET_DEV_COMPONENT_DUAL_INSTALL))
+    # For executables, only check runtime component dual install (no dev artifacts)
+    get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+    set(NEEDS_DUAL_INSTALL FALSE)
+    if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
+      set(NEEDS_DUAL_INSTALL TRUE)
+    endif()
+    if(TARGET_DEV_COMPONENT_DUAL_INSTALL AND NOT TARGET_TYPE STREQUAL "EXECUTABLE")
+      set(NEEDS_DUAL_INSTALL TRUE)
+    endif()
+    
+    if(TARGET_COMP AND NEEDS_DUAL_INSTALL)
       project_log(DEBUG "  Dual-installing '${TARGET_NAME}' to custom component: ${TARGET_COMP}")
 
       # For custom components, we need a different approach: 1. Don't include EXPORT (to avoid duplicate export targets) 2. Use EXCLUDE_FROM_ALL to prevent default installation 3. Create explicit
