@@ -586,6 +586,7 @@ function(finalize_package)
     # Primary install with export (to base components)
     set(INSTALL_ARGS TARGETS ${TARGET_NAME} EXPORT ${ARG_EXPORT_NAME})
 
+    # ~~~
     # Add destination and component for each target type
     # Platform-specific installation destinations:
     # - RUNTIME: Executables and Windows DLLs → bin/
@@ -593,6 +594,7 @@ function(finalize_package)
     # - LIBRARY: Unix shared libraries (.so, .dylib) → lib/
     # - ARCHIVE: Static libraries and Windows import libs → lib/
     #   (Import .lib files are development artifacts, not runtime)
+    # ~~~
     list(
       APPEND
       INSTALL_ARGS
@@ -892,6 +894,9 @@ function(finalize_package)
     endforeach()
   endif()
 
+  # Validate template contains required placeholders for provided parameters
+  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${PUBLIC_DEPENDENCIES}" "${COMPONENT_DEPENDENCIES}")
+
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
 
@@ -1009,5 +1014,51 @@ function(_auto_finalize_single_export EXPORT_NAME)
     set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}_FINALIZED" TRUE)
   else()
     project_log(DEBUG "Export '${EXPORT_NAME}' already finalized, skipping")
+  endif()
+endfunction()
+
+# Template validation helper function
+function(_validate_config_template_placeholders template_path export_name include_files public_deps component_deps)
+  # Read template content to validate required placeholders exist
+  if(NOT EXISTS "${template_path}")
+    project_log(FATAL_ERROR "Template file does not exist: ${template_path}")
+    return()
+  endif()
+
+  file(READ "${template_path}" template_content)
+
+  # Check for required placeholders based on provided parameters
+  set(missing_placeholders)
+
+  # Always required placeholder
+  if(NOT template_content MATCHES "@ARG_EXPORT_NAME@")
+    list(APPEND missing_placeholders "@ARG_EXPORT_NAME@")
+  endif()
+
+  # Check placeholders that depend on parameters being provided
+  if(include_files AND NOT template_content MATCHES "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
+    list(APPEND missing_placeholders "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
+  endif()
+
+  if(public_deps AND NOT template_content MATCHES "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
+    list(APPEND missing_placeholders "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
+  endif()
+
+  if(component_deps AND NOT template_content MATCHES "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+    list(APPEND missing_placeholders "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  endif()
+
+  # Report missing placeholders with actionable error message
+  if(missing_placeholders)
+    set(error_msg "Template '${template_path}' is missing required placeholders for export '${export_name}':")
+    foreach(placeholder ${missing_placeholders})
+      string(APPEND error_msg "\n  Missing: ${placeholder}")
+    endforeach()
+
+    string(APPEND error_msg "\n\nTo fix this, add the missing placeholders to your template file.")
+    string(APPEND error_msg "\nRefer to the generic template for guidance:")
+    string(APPEND error_msg "\n  ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+
+    project_log(FATAL_ERROR "${error_msg}")
   endif()
 endfunction()
