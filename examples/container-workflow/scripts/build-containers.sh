@@ -30,7 +30,7 @@ show_help() {
     echo "Usage: $0 [OPTION] [CONTAINER_TOOL]"
     echo ""
     echo "Options:"
-    echo "  runtime      Build minimal runtime container (static linking)"
+    echo "  runtime      Build minimal runtime container (with base image)"
     echo "  development  Build development container (shared libs + headers)"
     echo "  tools        Build tools container"
     echo "  all          Build all container variants"
@@ -99,7 +99,7 @@ cd "$(dirname "$0")/.."
 build_runtime_container() {
     print_status "Building runtime container..."
     
-    # Build with static linking for minimal container
+    # Build with shared libraries for runtime container
     cmake --workflow --preset runtime-container
     
     if [[ "$CONTAINER_TOOL" == "none" ]]; then
@@ -116,7 +116,7 @@ build_runtime_container() {
     
     print_status "Creating runtime container from $RUNTIME_TARBALL"
     
-    # Import as minimal runtime container
+    # Import with Alpine base for musl runtime compatibility
     $CONTAINER_TOOL import \
         --change "CMD ['/usr/local/bin/webapp']" \
         --change "WORKDIR /usr/local" \
@@ -127,7 +127,10 @@ build_runtime_container() {
         --change "LABEL org.opencontainers.image.description=WebApp Runtime Container" \
         --change "LABEL org.opencontainers.image.version=1.0.0" \
         "$RUNTIME_TARBALL" \
-        webapp:runtime
+        alpine:latest
+    
+    # Tag the result
+    $CONTAINER_TOOL tag localhost/$(basename "$RUNTIME_TARBALL" .tar.gz | tr '[:upper:]' '[:lower:]'):latest webapp:runtime
     
     print_success "Created container: webapp:runtime"
 }
@@ -152,9 +155,9 @@ build_development_container() {
     
     print_status "Creating development container from $DEV_TARBALL"
     
-    # Import as development container (with shell for development)
+    # Import with Ubuntu base for development tools
     $CONTAINER_TOOL import \
-        --change "CMD ['/bin/sh']" \
+        --change "CMD ['/bin/bash']" \
         --change "WORKDIR /usr/local" \
         --change "ENV LD_LIBRARY_PATH=/usr/local/lib" \
         --change "ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" \
@@ -163,7 +166,10 @@ build_development_container() {
         --change "LABEL org.opencontainers.image.description=WebApp Development Container" \
         --change "LABEL org.opencontainers.image.version=1.0.0" \
         "$DEV_TARBALL" \
-        webapp:devel
+        ubuntu:22.04
+    
+    # Tag the result  
+    $CONTAINER_TOOL tag localhost/$(basename "$DEV_TARBALL" .tar.gz | tr '[:upper:]' '[:lower:]'):latest webapp:devel
     
     print_success "Created container: webapp:devel"
 }

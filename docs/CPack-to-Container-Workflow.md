@@ -359,15 +359,50 @@ jobs:
 
 ## Configuration Guidelines
 
-### 1. Prefer Static Linking for Scratch Containers
+### 1. C Runtime Compatibility Strategy
 
+**The Problem**: Scratch containers have no C runtime library, but your binaries need libc.
+
+**Solution Options:**
+
+#### Option A: Alpine Base (musl libc)
 ```cmake
-# For minimal containers, static linking eliminates runtime dependencies
-if(CONTAINER_BUILD)
-    set(CMAKE_EXE_LINKER_FLAGS "-static")
-    set(BUILD_SHARED_LIBS OFF)
-endif()
+# Build preset for musl compatibility
+{
+  "name": "container-alpine",
+  "cacheVariables": {
+    "CMAKE_INSTALL_PREFIX": "/usr/local",
+    "CMAKE_BUILD_TYPE": "Release"
+  }
+}
 ```
+
+```bash
+# Import with Alpine base (5MB, includes musl)
+podman import \
+    --change "CMD ['/usr/local/bin/myapp']" \
+    tarball.tar.gz \
+    alpine:latest  # Base provides musl runtime
+```
+
+#### Option B: Distroless Base (glibc minimal)
+```bash
+# Multi-stage with distroless (20MB, glibc only)
+cat > Dockerfile << 'EOF'
+FROM gcr.io/distroless/cc-debian12
+COPY extracted-tarball/ /
+CMD ["/usr/local/bin/myapp"]
+EOF
+```
+
+#### Option C: Runtime Library Bundling
+```cmake
+# Include specific glibc libraries in CPack
+find_library(GLIBC_C libc)
+install(FILES ${GLIBC_C} DESTINATION lib COMPONENT Runtime)
+```
+
+**Recommendation**: Use Alpine base for minimal size with musl, or distroless for glibc compatibility.
 
 ### 2. Use Appropriate Install Prefixes
 
