@@ -156,6 +156,13 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Runtime component not provided, using default: ${ARG_RUNTIME_COMPONENT}")
   endif()
 
+  # Track whether DEVELOPMENT_COMPONENT was explicitly specified (before applying defaults)
+  if(ARG_DEVELOPMENT_COMPONENT)
+    set(DEV_COMPONENT_WAS_EXPLICIT TRUE)
+  else()
+    set(DEV_COMPONENT_WAS_EXPLICIT FALSE)
+  endif()
+  
   if(NOT ARG_DEVELOPMENT_COMPONENT)
     set(ARG_DEVELOPMENT_COMPONENT "Development")
     project_log(DEBUG "  Development component not provided, using default: ${ARG_DEVELOPMENT_COMPONENT}")
@@ -205,6 +212,10 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
+  
+  # Store whether DEVELOPMENT_COMPONENT was explicitly specified (using the flag set earlier)
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" ${DEV_COMPONENT_WAS_EXPLICIT})
+  project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': ${DEV_COMPONENT_WAS_EXPLICIT}")
 
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
@@ -580,7 +591,20 @@ function(finalize_package)
 
     # Build component args for this target using helper function
     _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}" "${TARGET_COMP}")
-    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}" "${TARGET_COMP}")
+    
+    # For executables: if DEVELOPMENT_COMPONENT was not explicitly specified and COMPONENT == RUNTIME_COMPONENT,
+    # then don't create development component dual install (executables typically don't have separate dev artifacts)
+    get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+    get_property(DEV_COMP_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT")
+    
+    
+    if(TARGET_TYPE STREQUAL "EXECUTABLE" AND NOT DEV_COMP_EXPLICIT AND TARGET_COMP AND TARGET_COMP STREQUAL TARGET_RUNTIME_COMP)
+      # Skip development component processing for executables with matching COMPONENT and RUNTIME_COMPONENT
+      set(TARGET_DEV_COMPONENT_DUAL_INSTALL FALSE)
+      project_log(DEBUG "Skipping development component dual install for executable '${TARGET_NAME}' (no separate dev artifacts)")
+    else()
+      _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}" "${TARGET_COMP}")
+    endif()
 
     # Set the export name for the target if different from target name
     if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
@@ -735,17 +759,7 @@ function(finalize_package)
     install(${INSTALL_ARGS})
 
     # Secondary install to custom component (if needed)
-    # For executables, only check runtime component dual install (no dev artifacts)
-    get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
-    set(NEEDS_DUAL_INSTALL FALSE)
-    if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
-      set(NEEDS_DUAL_INSTALL TRUE)
-    endif()
-    if(TARGET_DEV_COMPONENT_DUAL_INSTALL AND NOT TARGET_TYPE STREQUAL "EXECUTABLE")
-      set(NEEDS_DUAL_INSTALL TRUE)
-    endif()
-    
-    if(TARGET_COMP AND NEEDS_DUAL_INSTALL)
+    if(TARGET_COMP AND (TARGET_RUNTIME_COMPONENT_DUAL_INSTALL OR TARGET_DEV_COMPONENT_DUAL_INSTALL))
       project_log(DEBUG "  Dual-installing '${TARGET_NAME}' to custom component: ${TARGET_COMP}")
 
       # For custom components, we need a different approach: 1. Don't include EXPORT (to avoid duplicate export targets) 2. Use EXCLUDE_FROM_ALL to prevent default installation 3. Create explicit
