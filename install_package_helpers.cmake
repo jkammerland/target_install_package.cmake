@@ -319,22 +319,23 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
   set(COMPONENT_TARGET_MAP "")
 
   foreach(TARGET_NAME ${TARGETS})
-    get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
-    get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
     get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
 
-    if(TARGET_RUNTIME_COMP)
-      list(APPEND ALL_RUNTIME_COMPONENTS ${TARGET_RUNTIME_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_RUNTIME_COMP}:${TARGET_NAME}")
+    # Generate actual component names using the prefix pattern
+    if(TARGET_COMP)
+      # With prefix: Core -> Core_Runtime, Core_Development
+      set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}_Runtime")
+      set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
+    else()
+      # Without prefix: -> Runtime, Development
+      set(RUNTIME_COMPONENT_NAME "Runtime")
+      set(DEV_COMPONENT_NAME "Development")
     endif()
-    if(TARGET_DEV_COMP)
-      list(APPEND ALL_DEVELOPMENT_COMPONENTS ${TARGET_DEV_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_DEV_COMP}:${TARGET_NAME}")
-    endif()
-    if(TARGET_COMP AND NOT TARGET_COMP STREQUAL TARGET_DEV_COMP)
-      list(APPEND ALL_COMPONENTS ${TARGET_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_COMP}:${TARGET_NAME}")
-    endif()
+
+    list(APPEND ALL_RUNTIME_COMPONENTS ${RUNTIME_COMPONENT_NAME})
+    list(APPEND ALL_DEVELOPMENT_COMPONENTS ${DEV_COMPONENT_NAME})
+    list(APPEND COMPONENT_TARGET_MAP "${RUNTIME_COMPONENT_NAME}:${TARGET_NAME}")
+    list(APPEND COMPONENT_TARGET_MAP "${DEV_COMPONENT_NAME}:${TARGET_NAME}")
   endforeach()
 
   # Remove duplicates
@@ -343,9 +344,6 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
   endif()
   if(ALL_DEVELOPMENT_COMPONENTS)
     list(REMOVE_DUPLICATES ALL_DEVELOPMENT_COMPONENTS)
-  endif()
-  if(ALL_COMPONENTS)
-    list(REMOVE_DUPLICATES ALL_COMPONENTS)
   endif()
 
   # Return values to parent scope
@@ -364,54 +362,39 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
 endfunction(_collect_export_components)
 
 # ~~~
-# Helper: Build CMake component arguments for install() commands.
+# Helper: Build CMake component arguments for install() commands using prefix pattern.
 #
-# This internal helper function converts component names into CMake install()
-# argument format, handling empty components gracefully. For custom components
-# (when CUSTOM_COMPONENT != GLOBAL_COMPONENT), detects dual install needs.
+# This internal helper function generates component names using the Component Prefix Pattern:
+# - If COMPONENT_PREFIX is provided: "${COMPONENT_PREFIX}_${COMPONENT_TYPE}"
+# - If no prefix: "${COMPONENT_TYPE}" only
+# - Always single install (no dual install complexity)
 #
 # Parameters:
 #   VAR_PREFIX - Variable name prefix for the output arguments
-#   GLOBAL_COMPONENT - Global component name (Runtime/Development)
-#   CUSTOM_COMPONENT - Custom component name (can be empty or same as global)
+#   COMPONENT_PREFIX - Optional prefix for component names (e.g., "Core", "GUI")
+#   COMPONENT_TYPE - Component type: "Runtime" or "Development"
 #
 # Returns via parent scope:
-#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT dev")
-#   ${VAR_PREFIX}_DUAL_INSTALL - Boolean indicating if dual install is needed
-#   ${VAR_PREFIX}_CUSTOM_ARGS - Args for custom component (when dual install)
+#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT Core_Runtime")
+#
+# Examples:
+#   _build_component_args(TARGET "Core" "Runtime") → "COMPONENT Core_Runtime"  
+#   _build_component_args(TARGET "" "Runtime") → "COMPONENT Runtime"
 # ~~~
-function(_build_component_args VAR_PREFIX GLOBAL_COMPONENT CUSTOM_COMPONENT)
-  if(NOT GLOBAL_COMPONENT)
-    set(${VAR_PREFIX}_ARGS
-        ""
-        PARENT_SCOPE)
-    set(${VAR_PREFIX}_DUAL_INSTALL
-        FALSE
-        PARENT_SCOPE)
+function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
+  if(NOT COMPONENT_TYPE)
+    set(${VAR_PREFIX}_ARGS "" PARENT_SCOPE)
     return()
   endif()
 
-  if(NOT CUSTOM_COMPONENT OR CUSTOM_COMPONENT STREQUAL GLOBAL_COMPONENT)
-    # Single component install (no custom component or same as global)
-    set(${VAR_PREFIX}_ARGS
-        COMPONENT ${GLOBAL_COMPONENT}
-        PARENT_SCOPE)
-    set(${VAR_PREFIX}_DUAL_INSTALL
-        FALSE
-        PARENT_SCOPE)
+  # Generate component name using prefix pattern
+  if(COMPONENT_PREFIX)
+    set(COMPONENT_NAME "${COMPONENT_PREFIX}_${COMPONENT_TYPE}")
   else()
-    # Dual component install
-    set(${VAR_PREFIX}_DUAL_INSTALL
-        TRUE
-        PARENT_SCOPE)
-    set(${VAR_PREFIX}_ARGS
-        COMPONENT ${GLOBAL_COMPONENT}
-        PARENT_SCOPE)
-    # Use the custom component name directly, not combined
-    set(${VAR_PREFIX}_CUSTOM_ARGS
-        COMPONENT ${CUSTOM_COMPONENT}
-        PARENT_SCOPE)
+    set(COMPONENT_NAME "${COMPONENT_TYPE}")
   endif()
+
+  set(${VAR_PREFIX}_ARGS COMPONENT ${COMPONENT_NAME} PARENT_SCOPE)
 endfunction()
 
 # Helper to setup CPack component relationships
@@ -589,22 +572,9 @@ function(finalize_package)
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
 
-    # Build component args for this target using helper function
-    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}" "${TARGET_COMP}")
-    
-    # For executables: if DEVELOPMENT_COMPONENT was not explicitly specified and COMPONENT == RUNTIME_COMPONENT,
-    # then don't create development component dual install (executables typically don't have separate dev artifacts)
-    get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
-    get_property(DEV_COMP_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT")
-    
-    
-    if(TARGET_TYPE STREQUAL "EXECUTABLE" AND NOT DEV_COMP_EXPLICIT AND TARGET_COMP AND TARGET_COMP STREQUAL TARGET_RUNTIME_COMP)
-      # Skip development component processing for executables with matching COMPONENT and RUNTIME_COMPONENT
-      set(TARGET_DEV_COMPONENT_DUAL_INSTALL FALSE)
-      project_log(DEBUG "Skipping development component dual install for executable '${TARGET_NAME}' (no separate dev artifacts)")
-    else()
-      _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}" "${TARGET_COMP}")
-    endif()
+    # Build component args for this target using new prefix pattern
+    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
+    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_COMP}" "Development")
 
     # Set the export name for the target if different from target name
     if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
@@ -755,71 +725,8 @@ function(finalize_package)
       endif()
     endif()
 
-    # Execute primary install
+    # Execute single install with prefix-based component names
     install(${INSTALL_ARGS})
-
-    # Secondary install to custom component (if needed)
-    if(TARGET_COMP AND (TARGET_RUNTIME_COMPONENT_DUAL_INSTALL OR TARGET_DEV_COMPONENT_DUAL_INSTALL))
-      project_log(DEBUG "  Dual-installing '${TARGET_NAME}' to custom component: ${TARGET_COMP}")
-
-      # For custom components, we need a different approach: 1. Don't include EXPORT (to avoid duplicate export targets) 2. Use EXCLUDE_FROM_ALL to prevent default installation 3. Create explicit
-      # component install rules
-
-      set(CUSTOM_INSTALL_ARGS TARGETS ${TARGET_NAME})
-
-      # Runtime artifacts to custom component
-      if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
-        list(
-          APPEND
-          CUSTOM_INSTALL_ARGS
-          LIBRARY
-          DESTINATION
-          ${CMAKE_INSTALL_LIBDIR}
-          RUNTIME
-          DESTINATION
-          ${CMAKE_INSTALL_BINDIR})
-
-        # Apply custom component to all artifact types
-        list(APPEND CUSTOM_INSTALL_ARGS ${TARGET_RUNTIME_COMPONENT_CUSTOM_ARGS})
-      endif()
-
-      # Development artifacts to custom component
-      if(TARGET_DEV_COMPONENT_DUAL_INSTALL)
-        # Create separate install command for development artifacts
-        set(CUSTOM_DEV_ARGS TARGETS ${TARGET_NAME})
-
-        list(APPEND CUSTOM_DEV_ARGS ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-        # Add headers
-        if(TARGET_INTERFACE_HEADER_SETS)
-          foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
-            list(APPEND CUSTOM_DEV_ARGS FILE_SET ${CURRENT_SET_NAME} DESTINATION ${INCLUDE_DESTINATION})
-          endforeach()
-        endif()
-
-        if(TARGET_PUBLIC_HEADERS)
-          list(APPEND CUSTOM_DEV_ARGS PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION})
-        endif()
-
-        # Add modules
-        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28" AND TARGET_INTERFACE_MODULE_SETS)
-          foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
-            list(APPEND CUSTOM_DEV_ARGS FILE_SET ${CURRENT_MODULE_SET_NAME} DESTINATION ${MODULE_DESTINATION})
-          endforeach()
-        endif()
-
-        # Apply custom component
-        list(APPEND CUSTOM_DEV_ARGS ${TARGET_DEV_COMPONENT_CUSTOM_ARGS})
-
-        # Execute custom development install
-        install(${CUSTOM_DEV_ARGS})
-      endif()
-
-      # Execute custom runtime install if needed
-      if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
-        install(${CUSTOM_INSTALL_ARGS})
-      endif()
-    endif()
   endforeach()
 
   # After all targets are installed, set up CPack components
@@ -827,8 +734,8 @@ function(finalize_package)
     _setup_cpack_components("${ARG_EXPORT_NAME}" "${ALL_RUNTIME_COMPONENTS}" "${ALL_DEVELOPMENT_COMPONENTS}" "${ALL_COMPONENTS}")
   endif()
 
-  # Set up component args for config files (config files use global development component only)
-  _build_component_args(CONFIG_COMPONENT "${CONFIG_DEV_COMPONENT}" "")
+  # Set up component args for config files (config files always go to plain Development component)
+  _build_component_args(CONFIG_COMPONENT "" "Development")
 
   # Install additional files with config component
   if(ADDITIONAL_FILES)

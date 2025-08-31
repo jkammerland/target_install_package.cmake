@@ -1,6 +1,6 @@
 # CPack Integration Tutorial
 
-This tutorial demonstrates how `export_cpack()` attempts simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
+This tutorial demonstrates how `export_cpack()` attempts to simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
 
 ## How CPack Works
 

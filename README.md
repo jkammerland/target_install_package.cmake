@@ -70,10 +70,10 @@ The `target_install_package()` function searches for the targets config template
    - [Game Engine with Modular Components](#game-engine-with-modular-components-)
    - [Build Variant Support](#build-variant-support-)
    - [Header-Only Libraries](#header-only-libraries-)
-7. [Key Benefits](#key-benefits-of-file_set-approach-)
+7. [FILE_SET Features](#file_set-approach-features)
 8. [Similar projects](#similar-projects)
 
-## Features ✨
+## Features
 
 - Templated source file configuration with proper include paths
 - Package installation with CMake config file generation
@@ -84,7 +84,7 @@ The `target_install_package()` function searches for the targets config template
 - Build variant support for debug/release/custom configurations
 - Destination paths for headers and configured files
 
-### Tips: 💡
+### Tips
 > [!TIP]
 > Use colors and higher log level for more information about what's going on.
 ```bash
@@ -254,7 +254,7 @@ target_sources(math_utils PUBLIC
     "include/math/constants.h"
 )
 
-# Install the complete package - that's it!
+# Install the package
 target_install_package(math_utils NAMESPACE Math::)
 ```
 
@@ -436,13 +436,13 @@ cmake --install . --component Documentation
 
 ## Component-Based Installation 🧩
 
-`target_install_package` supports component-based installation, allowing fine-grained control over what gets installed in different scenarios.
+`target_install_package` supports logical component grouping using the **Component Prefix Pattern** (v6.0+), providing predictable component naming and clean installation control.
 
-### Default Component Behavior 📋
+### Component Prefix Pattern 📋
 
-By default, the function uses standard CMake component conventions:
-- **Runtime Component**: Contains shared libraries (.so, .dll) and executables
-- **Development Component**: Contains static libraries (.a, .lib), headers, and CMake config files
+The Component Prefix Pattern creates logical component groups with predictable naming:
+- **Without COMPONENT**: Creates `Runtime` and `Development` components (traditional)
+- **With COMPONENT**: Creates `{COMPONENT}_Runtime` and `{COMPONENT}_Development` components
 
 ```cmake
 add_library(my_library SHARED)
@@ -453,16 +453,19 @@ target_sources(my_library PUBLIC
   FILES "include/my_library/api.h"
 )
 
-# Uses default components: Runtime and Development
+# Traditional: Creates Runtime and Development components
 target_install_package(my_library)
+
+# Logical grouping: Creates Core_Runtime and Core_Development components  
+target_install_package(my_library COMPONENT Core)
 ```
 
-### Custom Component Names 🏷️
+### Logical Component Grouping 🏷️
 
-You can specify custom component names for different installation scenarios:
+Multiple targets can share the same logical component group by using the same COMPONENT name:
 
 ```cmake
-# Create multiple related targets
+# Create related targets for a game engine
 add_library(engine_core SHARED)
 add_library(engine_tools STATIC) 
 add_executable(level_editor)
@@ -471,36 +474,84 @@ add_executable(level_editor)
 target_sources(engine_core PUBLIC FILE_SET HEADERS BASE_DIRS include FILES include/engine/core.h)
 target_sources(engine_tools PUBLIC FILE_SET HEADERS BASE_DIRS include FILES include/engine/tools.h)
 
-# Install with custom component names
+# Logical grouping with shared export
 target_install_package(engine_core
-  RUNTIME_COMPONENT "game_runtime"     # For end users
-  DEVELOPMENT_COMPONENT "game_sdk"     # For developers
-)
+  EXPORT_NAME "GameEngine"
+  NAMESPACE Engine::
+  COMPONENT Core)              # Creates: Core_Runtime, Core_Development
 
-target_install_package(engine_tools
-  DEVELOPMENT_COMPONENT "game_sdk"     # Development tools
-)
+target_install_package(engine_tools  
+  EXPORT_NAME "GameEngine"
+  NAMESPACE Engine::
+  COMPONENT Core)              # Shares Core logical group with engine_core
 
 target_install_package(level_editor
-  COMPONENT "editor_tools"             # Separate tool component
-)
+  EXPORT_NAME "GameEngine" 
+  NAMESPACE Engine::
+  COMPONENT Tools)             # Creates: Tools_Runtime, Tools_Development
 ```
+
+**Result**: Single `GameEngine` package with logical component groups:
+- **Core_Runtime**: `libengine_core.so` 
+- **Core_Development**: Headers from both targets + `libengine_tools.a`
+- **Tools_Runtime**: `level_editor` executable
+- **Development**: Shared CMake config files
 
 ### Installing Specific Components 📥
 
 ```bash
-# Install only what end users need
-cmake --install . --component game_runtime
+# Install Core logical group - runtime only (deployment)
+cmake --install . --component Core_Runtime
 
-# Install everything developers need  
-cmake --install . --component game_runtime --component game_sdk
+# Install Core logical group - development files
+cmake --install . --component Core_Development  
 
-# Install editor tools
-cmake --install . --component editor_tools
+# Install Tools logical group - runtime only
+cmake --install . --component Tools_Runtime
+
+# Install shared CMake config files (needed for find_package)
+cmake --install . --component Development
+
+# Install everything for developers
+cmake --install . --component Core_Runtime --component Core_Development
+cmake --install . --component Tools_Runtime --component Development
 
 # Install everything
 cmake --install .
 ```
+
+### Migration from v5.x to v6.0 ⬆️
+
+**Breaking Change**: The Component Prefix Pattern (v6.0) eliminates dual install complexity but changes component naming.
+
+**Before (v5.x - complex dual install)**:
+```cmake
+target_install_package(mylib 
+  COMPONENT "tools")  # Created dual installs to both "Runtime" + "tools"
+```
+
+**After (v6.0 - simple prefix pattern)**:
+```cmake  
+target_install_package(mylib
+  COMPONENT "Tools")  # Creates "Tools_Runtime" + "Tools_Development" only
+```
+
+**Installation command changes**:
+```bash
+# v5.x commands
+cmake --install . --component tools      # Custom component
+cmake --install . --component Runtime    # Standard component
+
+# v6.0 commands  
+cmake --install . --component Tools_Runtime      # Predictable naming
+cmake --install . --component Tools_Development  # Predictable naming
+```
+
+**Changes in v6.0**:
+- `COMPONENT="X"` creates `X_Runtime`, `X_Development` components
+- Each target installs to exactly two components (no dual installs)
+- Eliminates complex dual install routing logic
+- Multiple targets can share the same logical component group
 
 ## Multi-Target Exports 🔗
 
@@ -540,25 +591,33 @@ target_sources(myproject_utils PUBLIC
 add_executable(myproject_cli)
 target_sources(myproject_cli PRIVATE src/cli.cpp)
 
-# Package all targets together
+# Package all targets with logical component grouping
 target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
+  COMPONENT Core                             # Creates: Core_Runtime, Core_Development
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Shared by all targets
 )
 
 target_install_package(myproject_utils
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
+  COMPONENT Core                             # Shares Core logical group
   PUBLIC_DEPENDENCIES "spdlog 1.15.3 REQUIRED"  # Additional dependency
 )
 
 target_install_package(myproject_cli
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT "tools"  # CLI goes to tools component
+  COMPONENT Tools                            # Creates: Tools_Runtime, Tools_Development
 )
 ```
+
+**Result**: Single package with logical component groups:
+- **Core_Runtime**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`)
+- **Core_Development**: Headers from both Core libraries
+- **Tools_Runtime**: CLI executable (`myproject_cli`)
+- **Development**: Shared CMake config files
 
 **Consumer usage:**
 ```cmake
@@ -864,7 +923,7 @@ target_install_package(math_header_lib
 )
 ```
 
-## Key Benefits of FILE_SET Approach
+## FILE_SET Approach Features
 
 - Headers are installed by `target_install_package`
 - BASE_DIRS become include directories

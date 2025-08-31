@@ -1,22 +1,27 @@
-# Component-Based Installation Example
+# Component Prefix Pattern Example
 
-This example demonstrates component-based installation using custom component names and selective installation strategies.
+This example demonstrates the **Component Prefix Pattern** (v6.0) for logical component grouping with shared exports and predictable naming.
 
 ## Features Demonstrated
 
-- Custom component names instead of defaults
-- Mixed library types (shared, static, executable)
-- Selective installation workflows
-- Shared export between different targets
+- **Component Prefix Pattern**: `COMPONENT="Core"` creates `Core_Runtime`, `Core_Development`
+- **Logical Grouping**: Multiple targets share the same logical component group
+- **Shared Export**: All targets packaged under single `MediaLib` export
+- **Mixed Target Types**: Shared library, static library, and executable
+- **Selective Installation**: Install specific logical groups or individual components
 
 ## Architecture
 
 ```
-Media Package Components:
-├── runtime/     → media_core (shared library)
-├── devel/       → media_core headers + media_dev_tools (static library)
-└── tools/       → asset_converter (executable)
+MediaLib Package (shared export with Component Prefix Pattern):
+├── Core_Runtime     → libmedia_core.so (shared library) 
+├── Core_Development → headers + libmedia_dev_tools.a (development files from both Core targets)
+├── Tools_Runtime    → asset_converter (executable)
+├── Tools_Development → (empty - executables typically have no dev files)
+└── Development      → MediaLib CMake config files (shared across all targets)
 ```
+
+The Component Prefix Pattern creates predictable component names using the format `{COMPONENT}_{TYPE}`.
 
 ## Building and Installing
 
@@ -38,36 +43,52 @@ cmake --build .
 #### Install All Components
 
 ```bash
-# Install everything
+# Install everything - all logical groups
 cmake --install .
 ```
 
-#### Install Only Runtime Components
+#### Install Core Logical Group
 
 ```bash
-# Install only what end-users need to run applications
-cmake --install . --component runtime
+# Install only Core runtime files (end-user deployment)
+cmake --install . --component Core_Runtime
+
+# Install only Core development files (headers + static libs)  
+cmake --install . --component Core_Development
+
+# Install both Core runtime and development
+cmake --install . --component Core_Runtime
+cmake --install . --component Core_Development
 ```
 
-#### Install Development Components
+#### Install Tools Logical Group  
 
 ```bash
-# Install headers, static libraries, and CMake configs
-cmake --install . --component devel
+# Install only Tools runtime (executable)
+cmake --install . --component Tools_Runtime
+
+# Tools typically have no development component (Tools_Development would be empty)
 ```
 
-#### Install Developer Tools
+#### Install CMake Configuration
 
 ```bash
-# Install command-line tools
-cmake --install . --component tools
+# Install shared CMake config files (needed for find_package)
+cmake --install . --component Development
 ```
 
-#### Combined Installation
+#### Deployment Scenarios
 
 ```bash
-# Install runtime + development (typical developer setup)
-cmake --install . --component runtime --component devel
+# Minimal runtime deployment (libraries + tools)
+cmake --install . --component Core_Runtime
+cmake --install . --component Tools_Runtime
+
+# Full development setup (runtime + development + cmake configs)  
+cmake --install . --component Core_Runtime
+cmake --install . --component Core_Development
+cmake --install . --component Tools_Runtime  
+cmake --install . --component Development
 ```
 
 ### Step 3: Verify Installation
@@ -77,87 +98,106 @@ cmake --install . --component runtime --component devel
 ```
 install/
 ├── bin/
-│   └── asset_converter          # tools component
+│   └── asset_converter                    # Tools_Runtime
 ├── include/
 │   └── media/
-│       ├── core.h              # devel component
-│       └── dev_tools.h         # devel component
-├── lib/
-│   ├── libmedia_core.so.1.0.0  # runtime component
-│   ├── libmedia_core.so.1       # runtime component
-│   ├── libmedia_core.so         # devel component (dev symlink)
-│   └── libmedia_dev_tools.a     # devel component
+│       ├── core.h                        # Core_Development  
+│       └── dev_tools.h                   # Core_Development
+├── lib64/
+│   ├── libmedia_core.so.5.6.2           # Core_Runtime
+│   ├── libmedia_core.so.5                # Core_Runtime  
+│   ├── libmedia_core.so                  # Core_Runtime (dev symlink)
+│   └── libmedia_dev_tools.a              # Core_Development
 └── share/
     └── cmake/
-        ├── media_core/          # devel component
-        │   ├── media_core-config.cmake
-        │   ├── media_core-config-version.cmake
-        │   └── media_core-targets.cmake
-        └── asset_converter/     # tools component
-            ├── asset_converter-config.cmake
-            ├── asset_converter-config-version.cmake
-            └── asset_converter-targets.cmake
+        └── MediaLib/                      # Development (shared)
+            ├── MediaLib.cmake
+            ├── MediaLib-noconfig.cmake  
+            ├── MediaLibConfig.cmake
+            └── MediaLib-config-version.cmake
 ```
 
-#### Runtime-Only Installation
+#### Component-Specific Installation Examples
 
+**Core Runtime Only** (minimal deployment):
 ```
-install/
-└── lib/
-    ├── libmedia_core.so.1.0.0
-    └── libmedia_core.so.1
+install/lib64/libmedia_core.so.5.6.2
+```
+
+**Tools Runtime Only**:
+```
+install/bin/asset_converter
+```
+
+**Core Development Only**: 
+```
+install/include/media/core.h
+install/include/media/dev_tools.h  
+install/lib64/libmedia_dev_tools.a
 ```
 
 ## Component Details
 
-### Runtime Component (`runtime`)
+### Core Logical Group
 
-Contains only what's needed to run applications:
-- Shared libraries (`.so`, `.dll`)
-- No headers or development files
+**Core_Runtime**: Contains runtime files for the Core logical group
+- Shared libraries: `libmedia_core.so.*`
+- No headers or development files  
 - Minimal footprint for deployment
 
-### Development Component (`devel`)
-
-Contains everything developers need:
-- Headers for both libraries
-- Static libraries
+**Core_Development**: Contains development files for the Core logical group
+- Headers from both `media_core` and `media_dev_tools`
+- Static libraries: `libmedia_dev_tools.a`
 - Development symlinks for shared libraries
-- CMake configuration files
+- No CMake config files (those are shared)
 
-### Tools Component (`tools`)
+### Tools Logical Group
 
-Contains command-line utilities:
-- Asset converter executable
-- Independent from core library components
+**Tools_Runtime**: Contains runtime files for the Tools logical group
+- Executables: `asset_converter`
+- Independent from Core logical group
+
+**Tools_Development**: Typically empty for executable-only logical groups
+- Executables rarely have development artifacts
+
+### Shared Components
+
+**Development**: Contains shared files across all logical groups
+- CMake configuration files for `MediaLib` package
+- Required for `find_package(MediaLib)` to work
+- Independent of specific logical groups
 
 ## Using the Installed Package
 
-### Consumer for Runtime Library
+### Consumer Usage
 
 ```cmake
-# CMakeLists.txt
+# CMakeLists.txt  
 cmake_minimum_required(VERSION 3.25)
 project(media_app)
 
-# Find the runtime library
-find_package(media_core REQUIRED COMPONENTS core)
+# Find the unified MediaLib package
+find_package(MediaLib REQUIRED)
 
 add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE Media::media_core)
+
+# Link against targets from different logical groups
+target_link_libraries(my_app PRIVATE 
+  Media::media_core        # From Core logical group
+  Media::media_dev_tools   # From Core logical group  
+  # Media::asset_converter is an executable, not linkable
+)
 ```
 
-### Consumer with Component Validation
+### Available Targets
 
-The package defines supported components, so invalid requests will fail:
+The `MediaLib` package provides these targets:
 
-```cmake
-# This works - 'core' is supported
-find_package(media_core REQUIRED COMPONENTS core)
+- `Media::media_core` - Shared library from Core logical group
+- `Media::media_dev_tools` - Static library from Core logical group  
+- `Media::asset_converter` - Executable from Tools logical group (not linkable)
 
-# This fails - 'graphics' is not a supported component
-find_package(media_core REQUIRED COMPONENTS graphics)  # ERROR!
-```
+**Key Insight**: The consumer doesn't need to know about components - `find_package(MediaLib)` provides all targets. Components are purely for installation control.
 
 ### Consumer Usage example
 
@@ -194,7 +234,7 @@ int main() {
 The installed tool provides media conversion capabilities:
 
 ```bash
-# Basic usage
+# Basic usage (if Tools_Runtime component is installed)
 ./install/bin/asset_converter input.wav output.mp3
 
 # With options
@@ -204,10 +244,12 @@ The installed tool provides media conversion capabilities:
 ./install/bin/asset_converter --help
 ```
 
-## Key Features
+## Component Prefix Pattern Features
 
-- **Custom Components**: Uses `runtime`, `devel`, `tools` instead of defaults
-- **Shared Exports**: `media_dev_tools` shares export with `media_core`
-- **Mixed Target Types**: Handles shared libs, static libs, and executables
+- **Predictable Naming**: `COMPONENT="Core"` always creates `Core_Runtime`, `Core_Development`
+- **Logical Grouping**: Multiple targets (`media_core`, `media_dev_tools`) share the same logical group (`Core`)
+- **Shared Export**: All targets packaged under unified `MediaLib` export  
+- **No Dual Install Complexity**: Each target installs to exactly one runtime and one development component
+- **Mixed Target Types**: Handles shared libs, static libs, and executables uniformly
 
-This example demonstrates production-ready component-based packaging strategies.
+This example demonstrates the Component Prefix Pattern for logical component organization with predictable naming and clean separation.

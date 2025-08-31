@@ -90,7 +90,7 @@ endif()
 #   LICENSE_FILE            - Path to license file (default: auto-detected)
 #   GENERATORS              - Explicit list of CPack generators to use
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
-#   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected)
+#   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
 #   DEFAULT_COMPONENTS      - Components installed by default (default: Runtime)
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
@@ -100,15 +100,17 @@ endif()
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
+#   - Auto-detects logical component groups from naming patterns (e.g., Core_Runtime → Core group)
 #   - Sets platform-appropriate default generators (TGZ/ZIP on all, DEB/RPM on Linux, WIX on Windows)
-#   - Configures component dependencies and descriptions
+#   - Configures component dependencies and descriptions automatically
 #   - Handles both single-component and multi-component packages
 #   - Integrates with existing CMake project metadata
 #
 # Auto-detected components and their typical usage:
-#   - Runtime: Shared libraries, executables needed at runtime
-#   - Development: Headers, static libraries, CMake config files
-#   - <Custom>: Any custom components defined in target_install_package calls
+#   - Runtime/PREFIX_Runtime: Shared libraries, executables needed at runtime
+#   - Development/PREFIX_Development: Headers, static libraries, CMake config files
+#   - Logical Groups: Auto-created from prefixes (e.g., Core_Runtime + Core_Development → Core group)
+#   - Component Dependencies: *_Development automatically depends on corresponding *_Runtime
 #
 # Examples:
 #   # Basic usage with auto-detection (CPack is automatically included)
@@ -178,6 +180,104 @@ function(_tip_store_cpack_var var_name var_value)
   if(NOT var_name IN_LIST all_vars)
     list(APPEND all_vars "${var_name}")
     set_property(GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS" "${all_vars}")
+  endif()
+endfunction()
+
+# Helper function to determine if component groups should be auto-enabled
+# Auto-enable when we detect logical component prefixes (e.g., Core_Runtime, GUI_Development)
+function(_should_auto_enable_component_groups component_list)
+  foreach(component ${component_list})
+    # Check if component follows prefix pattern (contains underscore and ends with Runtime/Development)
+    if(component MATCHES "^(.+)_(Runtime|Development)$")
+      # Found at least one prefixed component - enable grouping
+      set(_ENABLE_GROUPS TRUE PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+  set(_ENABLE_GROUPS FALSE PARENT_SCOPE)
+endfunction()
+
+# Helper function to auto-detect and configure logical component groups
+function(_configure_logical_component_groups component_list)
+  set(logical_groups "")
+  set(runtime_components "")
+  set(development_components "")
+  
+  # Parse components to extract logical groups and categorize components
+  foreach(component ${component_list})
+    if(component MATCHES "^(.+)_(Runtime|Development)$")
+      # Component follows prefix pattern: PREFIX_TYPE
+      set(group_name "${CMAKE_MATCH_1}")
+      set(component_type "${CMAKE_MATCH_2}")
+      
+      # Collect unique group names
+      if(NOT group_name IN_LIST logical_groups)
+        list(APPEND logical_groups "${group_name}")
+      endif()
+      
+      # Categorize components by type
+      if(component_type STREQUAL "Runtime")
+        list(APPEND runtime_components "${component}")
+      else() # Development
+        list(APPEND development_components "${component}")
+      endif()
+    elseif(component STREQUAL "Runtime")
+      # Traditional standalone Runtime component
+      list(APPEND runtime_components "${component}")
+    elseif(component STREQUAL "Development")
+      # Traditional standalone Development component
+      list(APPEND development_components "${component}")
+    endif()
+  endforeach()
+  
+  # Create CPack component groups for each logical group
+  foreach(group ${logical_groups})
+    string(TOUPPER "${group}" group_upper)
+    _tip_store_cpack_var(CPACK_COMPONENT_GROUP_${group_upper}_DISPLAY_NAME "${group} Components")
+    _tip_store_cpack_var(CPACK_COMPONENT_GROUP_${group_upper}_DESCRIPTION "Components for ${group} functionality")
+    _tip_store_cpack_var(CPACK_COMPONENT_GROUP_${group_upper}_EXPANDED TRUE)
+    
+    project_log(DEBUG "Created CPack component group: ${group}")
+  endforeach()
+  
+  # Configure component group assignments and dependencies
+  foreach(component ${component_list})
+    string(TOUPPER "${component}" component_upper)
+    
+    if(component MATCHES "^(.+)_(Runtime|Development)$")
+      # Prefixed component - assign to logical group
+      set(group_name "${CMAKE_MATCH_1}")
+      set(component_type "${CMAKE_MATCH_2}")
+      string(TOUPPER "${group_name}" group_upper)
+      
+      _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
+      
+      # Set up dependencies: Development components depend on Runtime components within same group
+      if(component_type STREQUAL "Development")
+        set(runtime_counterpart "${group_name}_Runtime")
+        if(runtime_counterpart IN_LIST component_list)
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${runtime_counterpart}")
+          project_log(DEBUG "Set dependency: ${component} depends on ${runtime_counterpart}")
+        endif()
+      endif()
+    else()
+      # Traditional component - set up classic Runtime/Development dependency
+      if(component STREQUAL "Development" AND "Runtime" IN_LIST component_list)
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "Runtime")
+        project_log(DEBUG "Set traditional dependency: Development depends on Runtime")
+      endif()
+    endif()
+  endforeach()
+  
+  # Log the configuration
+  if(logical_groups)
+    project_log(STATUS "Auto-detected logical component groups: ${logical_groups}")
+  endif()
+  if(runtime_components)
+    project_log(DEBUG "Runtime components: ${runtime_components}")
+  endif()  
+  if(development_components)
+    project_log(DEBUG "Development components: ${development_components}")
   endif()
 endfunction()
 
@@ -352,22 +452,32 @@ function(_execute_deferred_cpack_config)
       _tip_store_cpack_var(CPACK_COMPONENTS_DEFAULT "${ARG_DEFAULT_COMPONENTS}")
     endif()
 
-    # Configure component grouping
-    if(ARG_COMPONENT_GROUPS)
+    # Configure component grouping (auto-detect logical groups from component naming)
+    _should_auto_enable_component_groups("${ARG_COMPONENTS}")
+    if(ARG_COMPONENT_GROUPS OR _ENABLE_GROUPS)
       _tip_store_cpack_var(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
-
-      # Set up standard groups
-      if("Runtime" IN_LIST ARG_COMPONENTS OR "Development" IN_LIST ARG_COMPONENTS)
-        if("Development" IN_LIST ARG_COMPONENTS)
-          _tip_store_cpack_var(CPACK_COMPONENT_DEVELOPMENT_DEPENDS "Runtime")
-        endif()
-      endif()
+      
+      # Auto-detect logical groups from component naming patterns
+      _configure_logical_component_groups("${ARG_COMPONENTS}")
     endif()
 
-    # Set component descriptions
+    # Set component descriptions (enhanced for prefix patterns)
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
-      if(component STREQUAL "Runtime")
+      
+      if(component MATCHES "^(.+)_(Runtime|Development)$")
+        # Prefixed component - use logical group name in descriptions
+        set(group_name "${CMAKE_MATCH_1}")
+        set(component_type "${CMAKE_MATCH_2}")
+        
+        if(component_type STREQUAL "Runtime")
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} runtime libraries and executables")
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Runtime")
+        else() # Development
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
+        endif()
+      elseif(component STREQUAL "Runtime")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Runtime libraries and executables")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Runtime Files")
       elseif(component STREQUAL "Development")
