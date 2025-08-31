@@ -87,12 +87,21 @@ function(target_prepare_package TARGET_NAME)
       DEVELOPMENT_COMPONENT
       DEBUG_POSTFIX
       ADDITIONAL_FILES_DESTINATION)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE COMPONENT_DEPENDENCIES)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Store DISABLE_RPATH as a target property for later use
   if(ARG_DISABLE_RPATH)
     set_target_properties(${TARGET_NAME} PROPERTIES TARGET_INSTALL_PACKAGE_DISABLE_RPATH TRUE)
+  endif()
+
+  # Handle backward compatibility: PUBLIC_CMAKE_FILES -> INCLUDE_ON_FIND_PACKAGE
+  if(ARG_PUBLIC_CMAKE_FILES)
+    if(ARG_INCLUDE_ON_FIND_PACKAGE)
+      project_log(FATAL_ERROR "Cannot specify both PUBLIC_CMAKE_FILES and INCLUDE_ON_FIND_PACKAGE. Use INCLUDE_ON_FIND_PACKAGE instead.")
+    endif()
+    set(ARG_INCLUDE_ON_FIND_PACKAGE ${ARG_PUBLIC_CMAKE_FILES})
+    project_log(DEBUG "  Using deprecated PUBLIC_CMAKE_FILES parameter. Consider migrating to INCLUDE_ON_FIND_PACKAGE.")
   endif()
 
   # Check if target exists
@@ -150,21 +159,21 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
-  # BREAKING CHANGE: Validate against deprecated component names
-  # Users should use COMPONENT instead for cleaner naming
+  # BREAKING CHANGE: Validate against deprecated component names Users should use COMPONENT instead for cleaner naming
   if(ARG_COMPONENT AND (ARG_COMPONENT STREQUAL "Runtime" OR ARG_COMPONENT STREQUAL "Development"))
-    message(FATAL_ERROR "COMPONENT name '${ARG_COMPONENT}' is deprecated. "
-      "The purpose of COMPONENT is to create meaningful component groups that differ from the default 'Runtime'/'Development'. "
-      "Use COMPONENT with a descriptive name (e.g., 'Core', 'Graphics', 'Network') to separate components logically. "
-      "If you want default behavior, simply omit the COMPONENT parameter entirely.")
+    message(
+      FATAL_ERROR
+        "COMPONENT name '${ARG_COMPONENT}' is deprecated. " "The purpose of COMPONENT is to create meaningful component groups that differ from the default 'Runtime'/'Development'. "
+        "Use COMPONENT with a descriptive name (e.g., 'Core', 'Graphics', 'Network') to separate components logically. " "If you want default behavior, simply omit the COMPONENT parameter entirely.")
   endif()
 
-  # DEPRECATED: RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters
-  # These are still parsed for backwards compatibility but discouraged
+  # DEPRECATED: RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters These are still parsed for backwards compatibility but discouraged
   if(ARG_RUNTIME_COMPONENT OR ARG_DEVELOPMENT_COMPONENT)
-    message(FATAL_ERROR "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
-      "Use COMPONENT instead - it will automatically create '${ARG_COMPONENT}' for runtime files and '${ARG_COMPONENT}_Development' for development files. "
-      "This provides cleaner, more consistent component naming.")
+    message(
+      FATAL_ERROR
+        "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
+        "Use COMPONENT instead - it will automatically create '${ARG_COMPONENT}' for runtime files and '${ARG_COMPONENT}_Development' for development files. "
+        "This provides cleaner, more consistent component naming.")
   endif()
 
   # Set default component values following CMake conventions
@@ -179,7 +188,7 @@ function(target_prepare_package TARGET_NAME)
   else()
     set(DEV_COMPONENT_WAS_EXPLICIT FALSE)
   endif()
-  
+
   if(NOT ARG_DEVELOPMENT_COMPONENT)
     set(ARG_DEVELOPMENT_COMPONENT "Development")
     project_log(DEBUG "  Development component not provided, using default: ${ARG_DEVELOPMENT_COMPONENT}")
@@ -229,7 +238,7 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
-  
+
   # Store whether DEVELOPMENT_COMPONENT was explicitly specified (using the flag set earlier)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" ${DEV_COMPONENT_WAS_EXPLICIT})
   project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': ${DEV_COMPONENT_WAS_EXPLICIT}")
@@ -340,9 +349,8 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Determine actual component names
-    # Priority: explicit components > prefix pattern > defaults
-    
+    # Determine actual component names Priority: explicit components > prefix pattern > defaults
+
     if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
       # Explicit components specified (deprecated mode) - should be caught by validation
       set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
@@ -403,12 +411,14 @@ endfunction(_collect_export_components)
 #   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT Core_Runtime")
 #
 # Examples:
-#   _build_component_args(TARGET "Core" "Runtime") → "COMPONENT Core_Runtime"  
+#   _build_component_args(TARGET "Core" "Runtime") → "COMPONENT Core_Runtime"
 #   _build_component_args(TARGET "" "Runtime") → "COMPONENT Runtime"
 # ~~~
 function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
   if(NOT COMPONENT_TYPE)
-    set(${VAR_PREFIX}_ARGS "" PARENT_SCOPE)
+    set(${VAR_PREFIX}_ARGS
+        ""
+        PARENT_SCOPE)
     return()
   endif()
 
@@ -419,7 +429,9 @@ function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
     set(COMPONENT_NAME "${COMPONENT_TYPE}")
   endif()
 
-  set(${VAR_PREFIX}_ARGS COMPONENT ${COMPONENT_NAME} PARENT_SCOPE)
+  set(${VAR_PREFIX}_ARGS
+      COMPONENT ${COMPONENT_NAME}
+      PARENT_SCOPE)
 endfunction()
 
 # Helper to setup CPack component relationships
@@ -600,9 +612,8 @@ function(finalize_package)
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
 
-    # Build component args for this target
-    # Priority: explicit components > prefix pattern > defaults
-    
+    # Build component args for this target Priority: explicit components > prefix pattern > defaults
+
     if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
       # Explicit runtime component specified (traditional mode)
       set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
@@ -613,7 +624,7 @@ function(finalize_package)
       # Default: Runtime
       _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
     endif()
-    
+
     if(TARGET_DEV_COMP AND NOT TARGET_COMP)
       # Explicit development component specified (traditional mode)
       set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
@@ -699,40 +710,36 @@ function(finalize_package)
 
     # Helper function to detect system installation prefixes
     function(is_system_install_prefix result)
-      set(SYSTEM_PREFIXES
-        "/usr"
-        "/usr/local" 
-        "/System"  # macOS system paths
-        "/Library"  # macOS system paths
+      set(SYSTEM_PREFIXES "/usr" "/usr/local" "/System" # macOS system paths
+                          "/Library" # macOS system paths
       )
-      
+
       # Windows system paths
       if(WIN32)
-        list(APPEND SYSTEM_PREFIXES 
-          "C:/Program Files"
-          "C:/Program Files (x86)"
-          "${SYSTEMROOT}/System32"
-        )
+        list(APPEND SYSTEM_PREFIXES "C:/Program Files" "C:/Program Files (x86)" "${SYSTEMROOT}/System32")
       endif()
-      
+
       get_filename_component(NORMALIZED_PREFIX "${CMAKE_INSTALL_PREFIX}" REALPATH)
-      
+
       foreach(prefix ${SYSTEM_PREFIXES})
         get_filename_component(NORMALIZED_SYSTEM_PREFIX "${prefix}" REALPATH)
-        if(NORMALIZED_PREFIX STREQUAL NORMALIZED_SYSTEM_PREFIX OR 
-           NORMALIZED_PREFIX MATCHES "^${NORMALIZED_SYSTEM_PREFIX}/")
-          set(${result} TRUE PARENT_SCOPE)
+        if(NORMALIZED_PREFIX STREQUAL NORMALIZED_SYSTEM_PREFIX OR NORMALIZED_PREFIX MATCHES "^${NORMALIZED_SYSTEM_PREFIX}/")
+          set(${result}
+              TRUE
+              PARENT_SCOPE)
           return()
         endif()
       endforeach()
-      
-      set(${result} FALSE PARENT_SCOPE)
+
+      set(${result}
+          FALSE
+          PARENT_SCOPE)
     endfunction()
 
     # Configure RPATH for Unix/Linux/macOS if not disabled
     get_target_property(TARGET_DISABLE_RPATH ${TARGET_NAME} TARGET_INSTALL_PACKAGE_DISABLE_RPATH)
     is_system_install_prefix(IS_SYSTEM_INSTALL)
-    
+
     if(WIN32)
       project_log(DEBUG "Skipping RPATH configuration on Windows for '${TARGET_NAME}'")
     elseif(CMAKE_SKIP_INSTALL_RPATH)
@@ -742,18 +749,21 @@ function(finalize_package)
     elseif(IS_SYSTEM_INSTALL)
       project_log(DEBUG "Skipping RPATH for system installation to '${CMAKE_INSTALL_PREFIX}' for '${TARGET_NAME}'")
     endif()
-    
-    if(NOT WIN32 AND NOT CMAKE_SKIP_INSTALL_RPATH AND NOT TARGET_DISABLE_RPATH AND NOT IS_SYSTEM_INSTALL)
+
+    if(NOT WIN32
+       AND NOT CMAKE_SKIP_INSTALL_RPATH
+       AND NOT TARGET_DISABLE_RPATH
+       AND NOT IS_SYSTEM_INSTALL)
       get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
-      
+
       if(TARGET_TYPE STREQUAL "EXECUTABLE" OR TARGET_TYPE STREQUAL "SHARED_LIBRARY")
         # Check if RPATH is already configured
         get_target_property(TARGET_RPATH ${TARGET_NAME} INSTALL_RPATH)
-        
+
         # Only set defaults if NO RPATH is configured anywhere
         if(NOT TARGET_RPATH AND NOT CMAKE_INSTALL_RPATH)
           set(DEFAULT_RPATH)
-          
+
           if(APPLE)
             if(TARGET_TYPE STREQUAL "EXECUTABLE")
               list(APPEND DEFAULT_RPATH "@executable_path/../lib")
@@ -763,7 +773,7 @@ function(finalize_package)
           else() # Linux/Unix
             list(APPEND DEFAULT_RPATH "$ORIGIN/../lib" "$ORIGIN/../lib64")
           endif()
-          
+
           set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "${DEFAULT_RPATH}")
           project_log(DEBUG "Set default INSTALL_RPATH for '${TARGET_NAME}': ${DEFAULT_RPATH}")
         else()
