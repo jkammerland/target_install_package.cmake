@@ -1,0 +1,201 @@
+{
+  "version": 6,
+  "vendor": {
+    "target_install_package.cmake/container-workflow": {
+      "description": "Reusable preset fragments for container workflows",
+      "version": "1.0.0"
+    }
+  },
+  "configurePresets": [
+    {
+      "name": "container-base",
+      "hidden": true,
+      "displayName": "Container Base Configuration",
+      "description": "Base settings for container-ready builds",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "/usr/local",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON"
+      }
+    },
+    {
+      "name": "container-static",
+      "inherits": "container-base",
+      "displayName": "Container Static Build",
+      "description": "Static linking for minimal scratch containers",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": "OFF",
+        "CMAKE_EXE_LINKER_FLAGS": "-static-libgcc -static-libstdc++",
+        "CMAKE_SHARED_LINKER_FLAGS": "-static-libgcc -static-libstdc++"
+      }
+    },
+    {
+      "name": "container-shared",
+      "inherits": "container-base", 
+      "displayName": "Container Shared Build",
+      "description": "Shared libraries with proper RPATH for containers",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": "ON",
+        "CMAKE_INSTALL_RPATH": "/usr/local/lib",
+        "CMAKE_BUILD_WITH_INSTALL_RPATH": "ON"
+      }
+    },
+    {
+      "name": "container-debug",
+      "inherits": "container-shared",
+      "displayName": "Container Debug Build", 
+      "description": "Debug build for development containers",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "container-static",
+      "configurePreset": "container-static",
+      "displayName": "Build for Static Container",
+      "description": "Build statically linked binaries for minimal containers"
+    },
+    {
+      "name": "container-shared", 
+      "configurePreset": "container-shared",
+      "displayName": "Build for Shared Container",
+      "description": "Build with shared libraries for standard containers"
+    },
+    {
+      "name": "container-debug",
+      "configurePreset": "container-debug",
+      "displayName": "Build Debug Container",
+      "description": "Debug build for development containers"
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "runtime-tgz",
+      "displayName": "Runtime Container Package",
+      "description": "Package runtime components for container import",
+      "generators": ["TGZ"],
+      "configurations": ["Release"],
+      "packageDirectory": "${sourceDir}/build/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON",
+        "CPACK_COMPONENTS_ALL": "Runtime"
+      }
+    },
+    {
+      "name": "development-tgz",
+      "displayName": "Development Container Package", 
+      "description": "Package development components for SDK containers",
+      "generators": ["TGZ"],
+      "configurations": ["Release"],
+      "packageDirectory": "${sourceDir}/build/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON",
+        "CPACK_COMPONENTS_ALL": "Development"
+      }
+    },
+    {
+      "name": "all-components-tgz",
+      "displayName": "All Components Package",
+      "description": "Package all components as separate tarballs", 
+      "generators": ["TGZ"],
+      "configurations": ["Release"],
+      "packageDirectory": "${sourceDir}/build/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON"
+      }
+    },
+    {
+      "name": "single-tgz",
+      "displayName": "Single Container Package",
+      "description": "Package everything into single tarball",
+      "generators": ["TGZ"], 
+      "configurations": ["Release"],
+      "packageDirectory": "${sourceDir}/build/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "OFF"
+      }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "build-runtime-container",
+      "displayName": "Build Runtime Container Package",
+      "description": "Complete workflow for minimal runtime container",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "container-static"
+        },
+        {
+          "type": "build", 
+          "name": "container-static"
+        },
+        {
+          "type": "package",
+          "name": "runtime-tgz"
+        }
+      ]
+    },
+    {
+      "name": "build-development-container",
+      "displayName": "Build Development Container Package",
+      "description": "Complete workflow for development container with shared libs",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "container-shared"
+        },
+        {
+          "type": "build",
+          "name": "container-shared" 
+        },
+        {
+          "type": "package",
+          "name": "development-tgz"
+        }
+      ]
+    },
+    {
+      "name": "build-all-containers",
+      "displayName": "Build All Container Variants",
+      "description": "Build all component-based container packages",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "container-shared"
+        },
+        {
+          "type": "build",
+          "name": "container-shared"
+        },
+        {
+          "type": "package", 
+          "name": "all-components-tgz"
+        }
+      ]
+    },
+    {
+      "name": "build-debug-container",
+      "displayName": "Build Debug Container Package", 
+      "description": "Debug build for development containers",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "container-debug"
+        },
+        {
+          "type": "build",
+          "name": "container-debug"
+        },
+        {
+          "type": "package",
+          "name": "development-tgz"
+        }
+      ]
+    }
+  ]
+}

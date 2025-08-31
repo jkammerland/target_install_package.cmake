@@ -1,0 +1,158 @@
+{
+  "version": 6,
+  "include": ["../../cmake/ContainerPresets.json"],
+  "configurePresets": [
+    {
+      "name": "example-runtime",
+      "inherits": "container-static",
+      "displayName": "Example Runtime Container",
+      "description": "Build for minimal runtime container (static linking)",
+      "binaryDir": "${sourceDir}/build/runtime",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "/usr/local"
+      }
+    },
+    {
+      "name": "example-development", 
+      "inherits": "container-shared",
+      "displayName": "Example Development Container",
+      "description": "Build for development container (shared libs)",
+      "binaryDir": "${sourceDir}/build/development",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "/usr/local"
+      }
+    },
+    {
+      "name": "example-debug",
+      "inherits": "container-debug", 
+      "displayName": "Example Debug Container",
+      "description": "Debug build for container development",
+      "binaryDir": "${sourceDir}/build/debug"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "example-runtime",
+      "configurePreset": "example-runtime",
+      "displayName": "Build Runtime Container"
+    },
+    {
+      "name": "example-development",
+      "configurePreset": "example-development", 
+      "displayName": "Build Development Container"
+    },
+    {
+      "name": "example-debug",
+      "configurePreset": "example-debug",
+      "displayName": "Build Debug Container"
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "runtime-only",
+      "configurePreset": "example-runtime",
+      "displayName": "Runtime Components Only",
+      "description": "Package only runtime components for minimal container",
+      "generators": ["TGZ"],
+      "packageDirectory": "${sourceDir}/build/runtime/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON",
+        "CPACK_COMPONENTS_ALL": "Runtime"
+      }
+    },
+    {
+      "name": "development-only",
+      "configurePreset": "example-development",
+      "displayName": "Development Components Only",
+      "description": "Package development components for SDK container",
+      "generators": ["TGZ"],
+      "packageDirectory": "${sourceDir}/build/development/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON", 
+        "CPACK_COMPONENTS_ALL": "Development"
+      }
+    },
+    {
+      "name": "tools-only",
+      "configurePreset": "example-development",
+      "displayName": "Tools Components Only", 
+      "description": "Package tools for admin container",
+      "generators": ["TGZ"],
+      "packageDirectory": "${sourceDir}/build/development/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON",
+        "CPACK_COMPONENTS_ALL": "Tools"
+      }
+    },
+    {
+      "name": "all-components",
+      "configurePreset": "example-development",
+      "displayName": "All Components",
+      "description": "Package all components as separate tarballs",
+      "generators": ["TGZ"], 
+      "packageDirectory": "${sourceDir}/build/development/packages",
+      "variables": {
+        "CPACK_ARCHIVE_COMPONENT_INSTALL": "ON"
+      }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "runtime-container",
+      "displayName": "Build Runtime Container Package",
+      "description": "Complete workflow for minimal runtime container (static)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "example-runtime"
+        },
+        {
+          "type": "build",
+          "name": "example-runtime"
+        },
+        {
+          "type": "package", 
+          "name": "runtime-only"
+        }
+      ]
+    },
+    {
+      "name": "development-container",
+      "displayName": "Build Development Container Package",
+      "description": "Complete workflow for development container with shared libs",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "example-development"
+        },
+        {
+          "type": "build",
+          "name": "example-development"
+        },
+        {
+          "type": "package",
+          "name": "development-only"
+        }
+      ]
+    },
+    {
+      "name": "all-container-variants",
+      "displayName": "Build All Container Variants",
+      "description": "Build all container package variants",
+      "steps": [
+        {
+          "type": "configure", 
+          "name": "example-development"
+        },
+        {
+          "type": "build",
+          "name": "example-development"
+        },
+        {
+          "type": "package",
+          "name": "all-components"
+        }
+      ]
+    }
+  ]
+}
