@@ -16,7 +16,7 @@ Most use cases require minimal configuration. The goal is to simplify this proce
 
 This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), but for ease of use, they have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
 
-## Shipped Functions & Files 
+## Shipped Functions & Files 📚
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
@@ -73,7 +73,7 @@ The `target_install_package()` function searches for the targets config template
 7. [Key Benefits](#key-benefits-of-file_set-approach-)
 8. [Similar projects](#similar-projects)
 
-## Features
+## Features ✨
 
 - Templated source file configuration with proper include paths
 - Package installation with CMake config file generation
@@ -84,7 +84,7 @@ The `target_install_package()` function searches for the targets config template
 - Build variant support for debug/release/custom configurations
 - Destination paths for headers and configured files
 
-### Tips
+### Tips 💡
 > [!TIP]
 > Use colors and higher log level for more information about what's going on.
 ```bash
@@ -128,7 +128,7 @@ if(WIN32)
 endif()
 ```
 
-## Installation 
+## Installation 🚀
 
 ### FetchContent ⭐
 
@@ -233,7 +233,7 @@ find_package(target_install_package REQUIRED)
 # cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 ```
 
-## Usage
+## Usage 🛠️
 
 ### Basic Library Installation
 
@@ -645,7 +645,7 @@ target_link_libraries(my_game PRIVATE
 )
 ```
 
-## More Examples
+## More Examples 📁
 
 ### Game Engine with Modular Components 🎮
 
@@ -864,7 +864,7 @@ target_install_package(math_header_lib
 )
 ```
 
-## Key Benefits of FILE_SET Approach
+## Key Benefits of FILE_SET Approach ✨
 
 - Headers are installed by `target_install_package`
 - BASE_DIRS become include directories
@@ -909,7 +909,7 @@ target_install_package(my_library NAMESPACE MyLib::)
 
 The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution with minimal boilerplate while still allowing you to mix in standard `install()` commands where needed.
 
-## Similar projects
+## Similar projects 🔗
 
 - [CPM](https://github.com/cpm-cmake/cpm.cmake)
 - [ModernCppStarter](https://github.com/TheLartians/ModernCppStarter)
