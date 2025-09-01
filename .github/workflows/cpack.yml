@@ -275,12 +275,12 @@ jobs:
           (tar -tzf MyLibrary-*-Development.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           echo "=== Tools package contents ==="
-          (tar -tzf MyLibrary-*-Tools.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
+          (tar -tzf MyLibrary-*-TOOLS.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           # Verify component separation
           runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || true)
           dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || true)
-          tools_has_exe=$(tar -tzf MyLibrary-*-Tools.tar.gz | grep -c "bin/mytool" || true)
+          tools_has_exe=$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c "bin/mytool" || true)
           
           echo "Runtime package has executable: $runtime_has_exe (should be 0)"
           echo "Development package has headers: $dev_has_headers (should be > 0)"
@@ -388,7 +388,7 @@ jobs:
         # Extract Tools package
         mkdir -p test-tools
         cd test-tools
-        tar -xzf ../MyLibrary-*-Tools.tar.gz
+        tar -xzf ../MyLibrary-*-TOOLS.tar.gz
         
         # Test the tool executable
         if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -460,24 +460,8 @@ jobs:
         # Test installation
         cmake --install .
         
-        echo "=== Adding CPack to existing components example ==="
-        
-        # Add CPack configuration by appending to CMakeLists.txt
-        cat >> ../CMakeLists.txt << 'EOF'
-
-        # Add CPack integration for testing
-        export_cpack(
-          PACKAGE_NAME "MediaLibrary"
-          PACKAGE_VENDOR "Media Corp"
-          GENERATORS "TGZ;DEB"
-          COMPONENT_GROUPS
-        )
-
-        include(CPack)
-        EOF
-        
-        # Reconfigure to pick up CPack changes
-        cmake ..
+        echo "=== Components example already has export_cpack(), skipping addition ==="
+        echo "The components example already includes export_cpack() configuration"
         
         # Generate packages
         cpack --verbose
@@ -485,21 +469,26 @@ jobs:
         echo "=== Generated packages from existing components example ==="
         ls -la *.tar.gz *.deb 2>/dev/null || echo "Packages not generated as expected"
         
-        # Verify component-based packages were created
-        if ls MediaLibrary-*-runtime.tar.gz 1> /dev/null 2>&1; then
+        # Verify component-based packages were created with new prefix naming
+        if ls MediaLibrary-*-Core_Runtime.tar.gz 1> /dev/null 2>&1; then
           echo "✅ Components example CPack integration successful"
           
           # Check component contents
-          echo "=== Runtime component ==="
-          tar -tzf MediaLibrary-*-runtime.tar.gz
+          echo "=== Core Runtime component ==="
+          tar -tzf MediaLibrary-*-Core_Runtime.tar.gz
           
-          echo "=== Development component ==="
-          tar -tzf MediaLibrary-*-devel.tar.gz
+          echo "=== Core Development component ==="
+          tar -tzf MediaLibrary-*-Core_Development.tar.gz
           
-          echo "=== Tools component ==="
-          tar -tzf MediaLibrary-*-tools.tar.gz
+          echo "=== Tools Runtime component ==="
+          tar -tzf MediaLibrary-*-Tools_Runtime.tar.gz
+          
+          echo "=== Tools Development component ==="  
+          tar -tzf MediaLibrary-*-Tools_Development.tar.gz
         else
           echo "⚠ Component packages not generated (may be expected based on configuration)"
+          echo "Checking what packages were actually generated:"
+          ls -la MediaLibrary-*.tar.gz 2>/dev/null || echo "No MediaLibrary packages found"
         fi
 
   cpack-cross-platform:
@@ -555,7 +544,7 @@ jobs:
             echo "❌ Development component package missing"
           fi
           
-          if ls *-Tools.tar.gz 1> /dev/null 2>&1; then
+          if ls *-TOOLS.tar.gz 1> /dev/null 2>&1; then
             echo "✅ Tools component package found"
           else
             echo "❌ Tools component package missing"

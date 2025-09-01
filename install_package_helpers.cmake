@@ -320,14 +320,20 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
 
   foreach(TARGET_NAME ${TARGETS})
     get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
+    get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
+    get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Generate actual component names using the prefix pattern
-    if(TARGET_COMP)
-      # With prefix: Core -> Core_Runtime, Core_Development
+    # Determine actual component names - use explicit if provided, otherwise use prefix pattern
+    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
+      # Explicit component names provided (traditional mode)
+      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
+      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
+    elseif(TARGET_COMP)
+      # Prefix pattern mode: Core -> Core_Runtime, Core_Development
       set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}_Runtime")
       set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
     else()
-      # Without prefix: -> Runtime, Development
+      # Default mode: -> Runtime, Development
       set(RUNTIME_COMPONENT_NAME "Runtime")
       set(DEV_COMPONENT_NAME "Development")
     endif()
@@ -572,9 +578,22 @@ function(finalize_package)
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
 
-    # Build component args for this target using new prefix pattern
-    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
-    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_COMP}" "Development")
+    # Build component args for this target - use explicit components if provided, otherwise use prefix pattern
+    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
+      # Explicit component name provided (traditional mode)
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
+    else()
+      # Use prefix pattern (new mode) 
+      _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
+    endif()
+    
+    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
+      # Explicit component name provided (traditional mode)
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
+    else()
+      # Use prefix pattern (new mode)
+      _build_component_args(TARGET_DEV_COMPONENT "${TARGET_COMP}" "Development")
+    endif()
 
     # Set the export name for the target if different from target name
     if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
@@ -734,8 +753,14 @@ function(finalize_package)
     _setup_cpack_components("${ARG_EXPORT_NAME}" "${ALL_RUNTIME_COMPONENTS}" "${ALL_DEVELOPMENT_COMPONENTS}" "${ALL_COMPONENTS}")
   endif()
 
-  # Set up component args for config files (config files always go to plain Development component)
-  _build_component_args(CONFIG_COMPONENT "" "Development")
+  # Set up component args for config files using the first development component
+  if(ALL_DEVELOPMENT_COMPONENTS)
+    list(GET ALL_DEVELOPMENT_COMPONENTS 0 FIRST_DEV_COMPONENT)
+    set(CONFIG_COMPONENT_ARGS COMPONENT ${FIRST_DEV_COMPONENT})
+  else()
+    # Fallback to generic Development component
+    _build_component_args(CONFIG_COMPONENT "" "Development")
+  endif()
 
   # Install additional files with config component
   if(ADDITIONAL_FILES)
