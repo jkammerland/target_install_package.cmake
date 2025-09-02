@@ -17,14 +17,8 @@ function(check_cxx_modules_support out_var)
   # Check compiler support
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
-      # GCC 14.x has template instantiation issues with C++ modules in some cases
-      # Temporarily disable for stability until compiler fixes are available
-      if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
-        message(WARNING "C++ modules temporarily disabled for GCC ${CMAKE_CXX_COMPILER_VERSION} due to template instantiation issues")
-        set(modules_supported FALSE)
-      else()
-        set(modules_supported TRUE)
-      endif()
+      # GCC 14.x+ supports C++ modules
+      set(modules_supported TRUE)
     endif()
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
