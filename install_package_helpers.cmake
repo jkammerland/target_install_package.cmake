@@ -323,12 +323,14 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Determine actual component names - simplified logic
-    # TODO: In future, RUNTIME_COMPONENT will be suffix name for runtime component
-    # TODO: DEVELOPMENT_COMPONENT will be suffix name for development component  
-    # For now, ignore explicit components and always use defaults
+    # Determine actual component names
+    # Priority: explicit components > prefix pattern > defaults
     
-    if(TARGET_COMP)
+    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
+      # Explicit components specified (traditional mode)
+      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
+      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
+    elseif(TARGET_COMP)
       # Prefix pattern: Core -> Core_Runtime, Core_Development
       set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}_Runtime")
       set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
@@ -578,18 +580,28 @@ function(finalize_package)
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
 
-    # Build component args for this target - always use prefix pattern or defaults
-    # TODO: In future, RUNTIME_COMPONENT will be suffix name for runtime component
-    # TODO: DEVELOPMENT_COMPONENT will be suffix name for development component
-    # For now, ignore explicit components and always use defaults
+    # Build component args for this target
+    # Priority: explicit components > prefix pattern > defaults
     
-    if(TARGET_COMP)
+    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
+      # Explicit runtime component specified (traditional mode)
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
+    elseif(TARGET_COMP)
       # Prefix pattern: COMPONENT creates COMPONENT_Runtime, COMPONENT_Development  
       _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
+    else()
+      # Default: Runtime
+      _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
+    endif()
+    
+    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
+      # Explicit development component specified (traditional mode)
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
+    elseif(TARGET_COMP)
+      # Prefix pattern: COMPONENT creates COMPONENT_Runtime, COMPONENT_Development  
       _build_component_args(TARGET_DEV_COMPONENT "${TARGET_COMP}" "Development")
     else()
-      # Default components: Runtime, Development
-      _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
+      # Default: Development
       _build_component_args(TARGET_DEV_COMPONENT "" "Development")
     endif()
 

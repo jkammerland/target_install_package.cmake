@@ -275,12 +275,12 @@ jobs:
           (tar -tzf MyLibrary-*-Development.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           echo "=== Tools package contents ==="
-          (tar -tzf MyLibrary-*-TOOLS_RUNTIME.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
+          (tar -tzf MyLibrary-*-TOOLS.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           # Verify component separation
           runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || true)
           dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || true)
-          tools_has_exe=$(tar -tzf MyLibrary-*-TOOLS_RUNTIME.tar.gz | grep -c "bin/mytool" || true)
+          tools_has_exe=$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c "bin/mytool" || true)
           
           echo "Runtime package has executable: $runtime_has_exe (should be 0)"
           echo "Development package has headers: $dev_has_headers (should be > 0)"
