@@ -401,7 +401,7 @@ jobs:
           fi
         else
           if find . -name "mytool" | grep -q .; then
-            tool_path=$(find . -name "mytool")
+            tool_path=$(find . -name "mytool" | head -n 1)
             echo "✅ Tool executable found at: $tool_path"
             
             # Make executable and test basic functionality

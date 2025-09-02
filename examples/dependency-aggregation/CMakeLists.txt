@@ -19,7 +19,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.15.3
+  GIT_TAG v1.14.1
   OVERRIDE_FIND_PACKAGE
   EXCLUDE_FROM_ALL)
 
@@ -37,6 +37,11 @@ option(DEPENDENCY_AGGREGATION_INSTALL_DEPS "Install FetchContent dependencies wi
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
 endif()
+
+# Set spdlog options for better compatibility
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
 if(DEPENDENCY_AGGREGATION_INSTALL_DEPS)
   # Install dependencies along with this package
@@ -101,7 +106,7 @@ target_install_package(
   NAMESPACE
   MyLib::
   PUBLIC_DEPENDENCIES
-  "spdlog 1.15.3 REQUIRED"
+  "spdlog 1.14.1 REQUIRED"
   DEVELOPMENT_COMPONENT
   "dev")
 
