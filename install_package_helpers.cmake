@@ -560,11 +560,14 @@ function(finalize_package)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
   endif()
 
-  # Apply DEBUG_POSTFIX to all targets if specified
+  # Apply DEBUG_POSTFIX only to library targets if specified
   if(DEBUG_POSTFIX)
     foreach(TARGET_NAME ${TARGETS})
-      set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
-      project_log(DEBUG "Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for target '${TARGET_NAME}'")
+      get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+      if(TARGET_TYPE MATCHES "LIBRARY")
+        set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
+        project_log(DEBUG "Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for library '${TARGET_NAME}'")
+      endif()
     endforeach()
   endif()
 
