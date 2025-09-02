@@ -52,9 +52,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       # Override include destination to put modules in the cmake dir
       INCLUDE_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
-      RUNTIME_COMPONENT
-      "CMakeUtilities"
-      DEVELOPMENT_COMPONENT
+      COMPONENT
       "CMakeUtilities")
   endif()
 endif()
