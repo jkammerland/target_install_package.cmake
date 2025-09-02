@@ -230,9 +230,9 @@ jobs:
         cmake --install . --config ${{ matrix.build_type }} --component Development --prefix ./dev-only
         find dev-only/ -type f | sort
         
-        echo "=== Testing Tools component ==="
-        cmake --install . --config ${{ matrix.build_type }} --component Tools --prefix ./tools-only
-        find tools-only/ -type f | sort
+        echo "=== Testing Runtime component (contains mytool executable) ==="
+        cmake --install . --config ${{ matrix.build_type }} --component Runtime --prefix ./runtime-with-tool
+        find runtime-with-tool/ -type f | sort
 
     - name: Generate CPack Packages with GPG Signing
       shell: bash
@@ -274,30 +274,20 @@ jobs:
           echo "=== Development package contents ==="
           (tar -tzf MyLibrary-*-Development.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
-          echo "=== Tools package contents ==="
-          (tar -tzf MyLibrary-*-TOOLS.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
-          
           # Verify component separation
           runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || true)
           dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || true)
-          tools_has_exe=$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c "bin/mytool" || true)
           
-          echo "Runtime package has executable: $runtime_has_exe (should be 0)"
+          echo "Runtime package has executable: $runtime_has_exe (should be > 0)"
           echo "Development package has headers: $dev_has_headers (should be > 0)"
-          echo "Tools package has executable: $tools_has_exe (should be > 0)"
           
-          if [[ "$runtime_has_exe" != "0" ]]; then
-            echo "❌ Runtime package incorrectly contains executable"
+          if [[ "$runtime_has_exe" == "0" ]]; then
+            echo "❌ Runtime package missing executable"
             exit 1
           fi
           
           if [[ "$dev_has_headers" == "0" ]]; then
             echo "❌ Development package missing headers"
-            exit 1
-          fi
-          
-          if [[ "$tools_has_exe" == "0" ]]; then
-            echo "❌ Tools package missing executable"
             exit 1
           fi
           

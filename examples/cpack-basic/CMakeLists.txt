@@ -32,23 +32,18 @@ add_executable(mytool)
 target_sources(mytool PRIVATE src/tool.cpp)
 target_link_libraries(mytool PRIVATE cpack_lib)
 
-# Install with target_install_package using standard components
+# Install with target_install_package using default components
 target_install_package(
   cpack_lib
-  NAMESPACE cpack_lib::
-  RUNTIME_COMPONENT "Runtime"
-  DEVELOPMENT_COMPONENT "Development")
+  NAMESPACE cpack_lib::)
 
 target_install_package(
   cpack_lib_utils 
-  NAMESPACE cpack_lib:: 
-  DEVELOPMENT_COMPONENT "Development")
+  NAMESPACE cpack_lib::)
 
 target_install_package(
   mytool
-  NAMESPACE cpack_lib::
-  COMPONENT "Tools"
-  RUNTIME_COMPONENT "Tools")
+  NAMESPACE cpack_lib::)
 
 # Configure CPack with auto-detection
 # Note: CPack is automatically included by export_cpack

@@ -323,22 +323,17 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Determine actual component names using same priority logic as installation
-    # Priority: explicit components > same component name (backward compatibility) > prefix pattern
-    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Traditional mode: explicit component names without prefix
-      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
-      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
-    elseif(TARGET_RUNTIME_COMP AND TARGET_COMP AND TARGET_RUNTIME_COMP STREQUAL TARGET_COMP)
-      # Backward compatibility: when COMPONENT and RUNTIME_COMPONENT are the same, use explicit naming
-      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
-      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
-    elseif(TARGET_COMP)
-      # New mode: prefix pattern (Core -> Core_Runtime, Core_Development)
+    # Determine actual component names - simplified logic
+    # TODO: In future, RUNTIME_COMPONENT will be suffix name for runtime component
+    # TODO: DEVELOPMENT_COMPONENT will be suffix name for development component  
+    # For now, ignore explicit components and always use defaults
+    
+    if(TARGET_COMP)
+      # Prefix pattern: Core -> Core_Runtime, Core_Development
       set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}_Runtime")
       set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
     else()
-      # Default mode: -> Runtime, Development
+      # Default components: Runtime, Development
       set(RUNTIME_COMPONENT_NAME "Runtime")
       set(DEV_COMPONENT_NAME "Development")
     endif()
@@ -583,28 +578,19 @@ function(finalize_package)
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
 
-    # Build component args for this target
-    # Priority: explicit components > same component name (backward compatibility) > prefix pattern
-    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Traditional mode: explicit component names without prefix
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
-    elseif(TARGET_RUNTIME_COMP AND TARGET_COMP AND TARGET_RUNTIME_COMP STREQUAL TARGET_COMP)
-      # Backward compatibility: when COMPONENT and RUNTIME_COMPONENT are the same, use explicit naming
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
-    else()
-      # New mode: use prefix pattern (COMPONENT creates COMPONENT_Runtime, COMPONENT_Development)
-      _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
-    endif()
+    # Build component args for this target - always use prefix pattern or defaults
+    # TODO: In future, RUNTIME_COMPONENT will be suffix name for runtime component
+    # TODO: DEVELOPMENT_COMPONENT will be suffix name for development component
+    # For now, ignore explicit components and always use defaults
     
-    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
-      # Traditional mode: explicit component names without prefix
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
-    elseif(TARGET_DEV_COMP AND TARGET_COMP AND TARGET_DEV_COMP STREQUAL TARGET_COMP)
-      # Backward compatibility: when COMPONENT and DEVELOPMENT_COMPONENT are the same, use explicit naming
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
-    else()
-      # New mode: use prefix pattern (COMPONENT creates COMPONENT_Runtime, COMPONENT_Development)
+    if(TARGET_COMP)
+      # Prefix pattern: COMPONENT creates COMPONENT_Runtime, COMPONENT_Development  
+      _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
       _build_component_args(TARGET_DEV_COMPONENT "${TARGET_COMP}" "Development")
+    else()
+      # Default components: Runtime, Development
+      _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
+      _build_component_args(TARGET_DEV_COMPONENT "" "Development")
     endif()
 
     # Set the export name for the target if different from target name
