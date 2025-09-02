@@ -43,7 +43,8 @@ target_install_package(
 
 target_install_package(
   mytool
-  NAMESPACE cpack_lib::)
+  NAMESPACE cpack_lib::
+  COMPONENT "Tools")
 
 # Configure CPack with auto-detection
 # Note: CPack is automatically included by export_cpack
