@@ -150,6 +150,23 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
+  # BREAKING CHANGE: Validate against deprecated component names
+  # Users should use COMPONENT instead for cleaner naming
+  if(ARG_COMPONENT AND (ARG_COMPONENT STREQUAL "Runtime" OR ARG_COMPONENT STREQUAL "Development"))
+    message(FATAL_ERROR "COMPONENT name '${ARG_COMPONENT}' is deprecated. "
+      "The purpose of COMPONENT is to create meaningful component groups that differ from the default 'Runtime'/'Development'. "
+      "Use COMPONENT with a descriptive name (e.g., 'Core', 'Graphics', 'Network') to separate components logically. "
+      "If you want default behavior, simply omit the COMPONENT parameter entirely.")
+  endif()
+
+  # DEPRECATED: RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters
+  # These are still parsed for backwards compatibility but discouraged
+  if(ARG_RUNTIME_COMPONENT OR ARG_DEVELOPMENT_COMPONENT)
+    message(FATAL_ERROR "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
+      "Use COMPONENT instead - it will automatically create '${ARG_COMPONENT}' for runtime files and '${ARG_COMPONENT}_Development' for development files. "
+      "This provides cleaner, more consistent component naming.")
+  endif()
+
   # Set default component values following CMake conventions
   if(NOT ARG_RUNTIME_COMPONENT)
     set(ARG_RUNTIME_COMPONENT "Runtime")
@@ -327,12 +344,12 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
     # Priority: explicit components > prefix pattern > defaults
     
     if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Explicit components specified (traditional mode)
+      # Explicit components specified (deprecated mode) - should be caught by validation
       set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
       set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
     elseif(TARGET_COMP)
-      # Prefix pattern: Core -> Core_Runtime, Core_Development
-      set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}_Runtime")
+      # NEW SCHEME: COMPONENT -> runtime, COMPONENT_Development -> development files
+      set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}")
       set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
     else()
       # Default components: Runtime, Development

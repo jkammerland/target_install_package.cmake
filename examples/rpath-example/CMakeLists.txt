@@ -41,5 +41,4 @@ target_install_package(mylib NAMESPACE RpathExample:: VERSION ${PROJECT_VERSION}
 target_install_package(
   rpath_demo
   NAMESPACE RpathExample::
-  COMPONENT "tools"
-  RUNTIME_COMPONENT "tools")
+  COMPONENT "Tools")

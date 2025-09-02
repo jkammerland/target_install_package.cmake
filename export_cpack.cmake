@@ -184,12 +184,18 @@ function(_tip_store_cpack_var var_name var_value)
 endfunction()
 
 # Helper function to determine if component groups should be auto-enabled
-# Auto-enable when we detect logical component prefixes (e.g., Core_Runtime, GUI_Development)
+# Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development or Core_Runtime/Core_Development)
 function(_should_auto_enable_component_groups component_list)
   foreach(component ${component_list})
-    # Check if component follows prefix pattern (contains underscore and ends with Runtime/Development)
+    # NEW SCHEME: Check if component follows COMPONENT_Development pattern
+    if(component MATCHES "^(.+)_Development$")
+      # Found at least one new-style development component - enable grouping
+      set(_ENABLE_GROUPS TRUE PARENT_SCOPE)
+      return()
+    endif()
+    # OLD SCHEME: Check if component follows prefix pattern (contains underscore and ends with Runtime/Development)
     if(component MATCHES "^(.+)_(Runtime|Development)$")
-      # Found at least one prefixed component - enable grouping
+      # Found at least one old-style prefixed component - enable grouping
       set(_ENABLE_GROUPS TRUE PARENT_SCOPE)
       return()
     endif()
@@ -205,8 +211,28 @@ function(_configure_logical_component_groups component_list)
   
   # Parse components to extract logical groups and categorize components
   foreach(component ${component_list})
-    if(component MATCHES "^(.+)_(Runtime|Development)$")
-      # Component follows prefix pattern: PREFIX_TYPE
+    if(component MATCHES "^(.+)_Development$")
+      # NEW SCHEME: Component follows COMPONENT_Development pattern
+      set(group_name "${CMAKE_MATCH_1}")
+      set(component_type "Development")
+      
+      # Collect unique group names
+      if(NOT group_name IN_LIST logical_groups)
+        list(APPEND logical_groups "${group_name}")
+      endif()
+      
+      # Categorize as development component
+      list(APPEND development_components "${component}")
+      
+      # Check if corresponding runtime component exists (without _Development suffix)
+      if("${group_name}" IN_LIST component_list)
+        list(APPEND runtime_components "${group_name}")
+        if(NOT group_name IN_LIST logical_groups)
+          list(APPEND logical_groups "${group_name}")
+        endif()
+      endif()
+    elseif(component MATCHES "^(.+)_(Runtime|Development)$")
+      # OLD SCHEME: Component follows PREFIX_Runtime/PREFIX_Development pattern (deprecated)
       set(group_name "${CMAKE_MATCH_1}")
       set(component_type "${CMAKE_MATCH_2}")
       
@@ -227,6 +253,15 @@ function(_configure_logical_component_groups component_list)
     elseif(component STREQUAL "Development")
       # Traditional standalone Development component
       list(APPEND development_components "${component}")
+    else()
+      # NEW SCHEME: Component without _Development suffix is runtime component
+      # Only add to runtime if there's a corresponding _Development component
+      if("${component}_Development" IN_LIST component_list)
+        list(APPEND runtime_components "${component}")
+        if(NOT component IN_LIST logical_groups)
+          list(APPEND logical_groups "${component}")
+        endif()
+      endif()
     endif()
   endforeach()
   
@@ -244,8 +279,20 @@ function(_configure_logical_component_groups component_list)
   foreach(component ${component_list})
     string(TOUPPER "${component}" component_upper)
     
-    if(component MATCHES "^(.+)_(Runtime|Development)$")
-      # Prefixed component - assign to logical group
+    if(component MATCHES "^(.+)_Development$")
+      # NEW SCHEME: COMPONENT_Development pattern
+      set(group_name "${CMAKE_MATCH_1}")
+      string(TOUPPER "${group_name}" group_upper)
+      
+      _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
+      
+      # Set up dependencies: Development components depend on Runtime components within same group
+      if("${group_name}" IN_LIST component_list)
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${group_name}")
+        project_log(DEBUG "Set dependency: ${component} depends on ${group_name}")
+      endif()
+    elseif(component MATCHES "^(.+)_(Runtime|Development)$")
+      # OLD SCHEME: Prefixed component - assign to logical group (deprecated)
       set(group_name "${CMAKE_MATCH_1}")
       set(component_type "${CMAKE_MATCH_2}")
       string(TOUPPER "${group_name}" group_upper)
@@ -260,6 +307,10 @@ function(_configure_logical_component_groups component_list)
           project_log(DEBUG "Set dependency: ${component} depends on ${runtime_counterpart}")
         endif()
       endif()
+    elseif("${component}_Development" IN_LIST component_list)
+      # NEW SCHEME: Runtime component (has corresponding _Development component)
+      string(TOUPPER "${component}" group_upper)
+      _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
     else()
       # Traditional component - set up classic Runtime/Development dependency
       if(component STREQUAL "Development" AND "Runtime" IN_LIST component_list)
@@ -465,8 +516,13 @@ function(_execute_deferred_cpack_config)
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
       
-      if(component MATCHES "^(.+)_(Runtime|Development)$")
-        # Prefixed component - use logical group name in descriptions
+      if(component MATCHES "^(.+)_Development$")
+        # NEW SCHEME: COMPONENT_Development pattern
+        set(group_name "${CMAKE_MATCH_1}")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
+      elseif(component MATCHES "^(.+)_(Runtime|Development)$")
+        # OLD SCHEME: Prefixed component - use logical group name in descriptions (deprecated)
         set(group_name "${CMAKE_MATCH_1}")
         set(component_type "${CMAKE_MATCH_2}")
         
@@ -477,6 +533,10 @@ function(_execute_deferred_cpack_config)
           _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
           _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
         endif()
+      elseif("${component}_Development" IN_LIST ARG_COMPONENTS)
+        # NEW SCHEME: Runtime component (has corresponding _Development component)
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} runtime libraries and executables")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component} Runtime")
       elseif(component STREQUAL "Runtime")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Runtime libraries and executables")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Runtime Files")

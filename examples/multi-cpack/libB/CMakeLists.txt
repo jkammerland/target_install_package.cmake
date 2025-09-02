@@ -53,13 +53,8 @@ target_install_package(
   "libB"
   NAMESPACE
   LibB::
-  RUNTIME_COMPONENT
-  "Runtime"
-  DEVELOPMENT_COMPONENT
-  "Development"
   PUBLIC_DEPENDENCIES
-  "libA REQUIRED" # Declare dependency on libA
-)
+  "libA REQUIRED") # Declare dependency on libA
 
 target_install_package(
   libB_tool
@@ -68,8 +63,6 @@ target_install_package(
   NAMESPACE
   LibB::
   COMPONENT
-  "Tools"
-  RUNTIME_COMPONENT
   "Tools")
 
 # Configure CPack only if requested
