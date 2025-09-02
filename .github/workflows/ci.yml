@@ -48,6 +48,10 @@ jobs:
           # Exclude base clang entries for macOS since we're using explicit variants
           - os: macos-latest
             c_compiler: clang
+          # Skip MinSizeRel with GCC 14 due to C++ modules template instantiation issues with -Os
+          - os: ubuntu-latest
+            c_compiler: gcc
+            build_type: MinSizeRel
 
     steps:
     - uses: actions/checkout@v4

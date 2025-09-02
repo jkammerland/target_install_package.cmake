@@ -19,6 +19,11 @@ function(check_cxx_modules_support out_var)
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
       # GCC 14.x+ supports C++ modules
       set(modules_supported TRUE)
+      
+      # Warn about known issues with GCC 14 and MinSizeRel
+      if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0" AND CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+        message(WARNING "GCC ${CMAKE_CXX_COMPILER_VERSION} with MinSizeRel may have C++ modules issues with -Os optimization")
+      endif()
     endif()
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
