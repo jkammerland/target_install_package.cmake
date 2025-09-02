@@ -163,7 +163,8 @@ set_tests_properties(examples_integration_test PROPERTIES TIMEOUT 300 # 5 minute
                                                           LABELS "integration")
 
 # Add RPATH test to verify installed binaries can find their shared library dependencies
-find_program(RPATH_DEMO_EXECUTABLE 
+find_program(
+  RPATH_DEMO_EXECUTABLE
   NAMES rpath_demo
   PATHS ${CMAKE_PREFIX_PATH}
   PATH_SUFFIXES bin
@@ -171,13 +172,10 @@ find_program(RPATH_DEMO_EXECUTABLE
 
 if(RPATH_DEMO_EXECUTABLE)
   add_test(NAME rpath_functionality_test COMMAND ${RPATH_DEMO_EXECUTABLE})
-  set_tests_properties(rpath_functionality_test PROPERTIES 
-    TIMEOUT 30
-    LABELS "rpath;integration"
-    PASS_REGULAR_EXPRESSION "RPATH example completed successfully!")
+  set_tests_properties(rpath_functionality_test PROPERTIES TIMEOUT 30 LABELS "rpath;integration" PASS_REGULAR_EXPRESSION "RPATH example completed successfully!")
   message(STATUS "--- RPATH test configured with executable: ${RPATH_DEMO_EXECUTABLE} ---")
 else()
-  message(WARNING "rpath_demo executable not found - RPATH test will be skipped")
+  message(FATAL_ERROR "rpath_demo executable not found - RPATH test will be skipped")
 endif()
 
 message(STATUS "--- Linking OK ---")
