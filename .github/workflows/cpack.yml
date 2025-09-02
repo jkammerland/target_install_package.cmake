@@ -231,7 +231,7 @@ jobs:
         find dev-only/ -type f | sort
         
         echo "=== Testing Tools component ==="
-        cmake --install . --config ${{ matrix.build_type }} --component Tools_Runtime --prefix ./tools-only
+        cmake --install . --config ${{ matrix.build_type }} --component Tools --prefix ./tools-only
         find tools-only/ -type f | sort
 
     - name: Generate CPack Packages with GPG Signing
@@ -469,19 +469,19 @@ jobs:
         echo "=== Generated packages from existing components example ==="
         ls -la *.tar.gz *.deb 2>/dev/null || echo "Packages not generated as expected"
         
-        # Verify component-based packages were created with new prefix naming
-        if ls MediaLibrary-*-Core_Runtime.tar.gz 1> /dev/null 2>&1; then
+        # Verify component-based packages were created with new naming scheme
+        if ls MediaLibrary-*-Core.tar.gz 1> /dev/null 2>&1; then
           echo "✅ Components example CPack integration successful"
           
           # Check component contents
-          echo "=== Core Runtime component ==="
-          tar -tzf MediaLibrary-*-Core_Runtime.tar.gz
+          echo "=== Core runtime component ==="
+          tar -tzf MediaLibrary-*-Core.tar.gz
           
           echo "=== Core Development component ==="
           tar -tzf MediaLibrary-*-Core_Development.tar.gz
           
-          echo "=== Tools Runtime component ==="
-          tar -tzf MediaLibrary-*-Tools_Runtime.tar.gz
+          echo "=== Tools runtime component ==="
+          tar -tzf MediaLibrary-*-Tools.tar.gz
           
           echo "=== Tools Development component ==="  
           tar -tzf MediaLibrary-*-Tools_Development.tar.gz

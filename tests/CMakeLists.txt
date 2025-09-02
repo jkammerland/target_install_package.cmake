@@ -102,7 +102,7 @@ add_executable(bin0)
 target_sources(bin0 PRIVATE src3.cpp)
 target_link_libraries(bin0 PRIVATE fmt)
 target_include_directories(bin0 PRIVATE include)
-target_install_package(bin0 RUNTIME_COMPONENT "bin")
+target_install_package(bin0 COMPONENT "Binaries")
 
 add_library(component-devel SHARED)
 target_sources(component-devel PRIVATE src4.cpp)
@@ -124,4 +124,4 @@ target_configure_sources(
   FILES
   include/component/configure_me.h)
 
-target_install_package(component-devel DEVELOPMENT_COMPONENT "devel")
+target_install_package(component-devel COMPONENT "Developer")
