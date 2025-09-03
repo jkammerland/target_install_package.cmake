@@ -105,6 +105,15 @@ jobs:
         git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
         
+        # Fix for Clang 21 + macOS compatibility issue with fmt 11.1.4
+        # Add missing cstdlib include to fix malloc/free undeclared identifiers
+        if [[ "${{ runner.os }}" == "macOS" && "${{ matrix.cpp_compiler }}" == *"clang"* ]]; then
+          echo "Applying fmt compatibility fix for Clang 21..."
+          sed -i '' '1i\
+#include <cstdlib>
+' include/fmt/format.h
+        fi
+        
         cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
