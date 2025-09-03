@@ -607,8 +607,8 @@ function(finalize_package)
       # Explicit runtime component specified (traditional mode)
       set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
     elseif(TARGET_COMP)
-      # Prefix pattern: COMPONENT creates COMPONENT_Runtime, COMPONENT_Development  
-      _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_COMP}" "Runtime")
+      # NEW SCHEME: COMPONENT name directly for runtime files
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_COMP})
     else()
       # Default: Runtime
       _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
@@ -618,8 +618,8 @@ function(finalize_package)
       # Explicit development component specified (traditional mode)
       set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
     elseif(TARGET_COMP)
-      # Prefix pattern: COMPONENT creates COMPONENT_Runtime, COMPONENT_Development  
-      _build_component_args(TARGET_DEV_COMPONENT "${TARGET_COMP}" "Development")
+      # NEW SCHEME: COMPONENT_Development for development files
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT "${TARGET_COMP}_Development")
     else()
       # Default: Development
       _build_component_args(TARGET_DEV_COMPONENT "" "Development")
