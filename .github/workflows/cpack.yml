@@ -275,12 +275,12 @@ jobs:
           (tar -tzf MyLibrary-*-Development.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           echo "=== Tools package contents ==="
-          (tar -tzf MyLibrary-*-Tools.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
+          (tar -tzf MyLibrary-*-TOOLS.tar.gz | head -10) 2>/dev/null || [ $? -eq 141 ] || true
           
           # Verify component separation
           runtime_has_exe=$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c "bin/mytool" || true)
           dev_has_headers=$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c "include/" || true)
-          tools_has_exe=$(tar -tzf MyLibrary-*-Tools.tar.gz | grep -c "bin/mytool" || true)
+          tools_has_exe=$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c "bin/mytool" || true)
           
           echo "Runtime package has executable: $runtime_has_exe (should be 0)"
           echo "Development package has headers: $dev_has_headers (should be > 0)"
@@ -470,21 +470,21 @@ jobs:
         ls -la *.tar.gz *.deb 2>/dev/null || echo "Packages not generated as expected"
         
         # Verify component-based packages were created with new naming scheme
-        if ls MediaLibrary-*-Core.tar.gz 1> /dev/null 2>&1; then
+        if ls MediaLibrary-*-CORE.tar.gz 1> /dev/null 2>&1; then
           echo "✅ Components example CPack integration successful"
           
           # Check component contents
           echo "=== Core runtime component ==="
-          tar -tzf MediaLibrary-*-Core.tar.gz
+          tar -tzf MediaLibrary-*-CORE.tar.gz
           
           echo "=== Core Development component ==="
-          tar -tzf MediaLibrary-*-Core_Development.tar.gz
+          tar -tzf MediaLibrary-*-CORE_DEVELOPMENT.tar.gz
           
           echo "=== Tools runtime component ==="
-          tar -tzf MediaLibrary-*-Tools.tar.gz
+          tar -tzf MediaLibrary-*-TOOLS.tar.gz
           
           echo "=== Tools Development component ==="  
-          tar -tzf MediaLibrary-*-Tools_Development.tar.gz
+          tar -tzf MediaLibrary-*-TOOLS_DEVELOPMENT.tar.gz
         else
           echo "⚠ Component packages not generated (may be expected based on configuration)"
           echo "Checking what packages were actually generated:"
