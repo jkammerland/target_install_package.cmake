@@ -36,13 +36,7 @@ FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
 # Fix fmt compilation on macOS by ensuring standard library headers are included
 if(APPLE)
-  target_compile_definitions(fmt INTERFACE FMT_USE_CSTDLIB=1)
-  if(TARGET fmt::fmt)
-    target_compile_definitions(fmt::fmt INTERFACE FMT_USE_CSTDLIB=1)
-  endif()
-  if(TARGET fmt::fmt-header-only)
-    target_compile_definitions(fmt::fmt-header-only INTERFACE FMT_USE_CSTDLIB=1)
-  endif()
+  add_compile_definitions(FMT_USE_CSTDLIB=1)
 endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
