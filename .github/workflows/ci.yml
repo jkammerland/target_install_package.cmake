@@ -187,11 +187,11 @@ jobs:
         # Build consumer
         cmake --build build
         
-        # Test running the consumer executables
+        # Test running the consumer executable
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          ./build/consumer_app.exe || echo "✓ Consumer app executed"
+          ./build/consumer.exe || echo "✓ Consumer app executed"
         else
-          ./build/consumer_app || echo "✓ Consumer app executed"
+          ./build/consumer || echo "✓ Consumer app executed"
         fi
         
         echo "✓ Consumer project built and tested successfully"
@@ -228,9 +228,9 @@ jobs:
       run: |
         echo "=== Testing Component-Based Installation ==="
         
-        # Test installing only CMakeUtilities component
+        # Test installing only CMakeUtilities_Development component (INTERFACE libraries go to development component)
         cmake --install ${{ steps.strings.outputs.build-output-dir }} \
-          --component CMakeUtilities \
+          --component CMakeUtilities_Development \
           --prefix ${{ steps.strings.outputs.install-output-dir }}-components
         
         # Verify component installation
