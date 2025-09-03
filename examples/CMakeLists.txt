@@ -13,7 +13,7 @@ include(FetchContent)
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 11.2.1
+  GIT_TAG 11.1.4
   OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
@@ -33,6 +33,17 @@ set(FMT_HEADER_ONLY ON CACHE BOOL "Use header-only fmt to avoid linking issues" 
 
 # Make dependencies available - find_package() calls will now use FetchContent automatically
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
+
+# Fix fmt compilation on macOS by ensuring standard library headers are included
+if(APPLE)
+  target_compile_definitions(fmt INTERFACE FMT_USE_CSTDLIB=1)
+  if(TARGET fmt::fmt)
+    target_compile_definitions(fmt::fmt INTERFACE FMT_USE_CSTDLIB=1)
+  endif()
+  if(TARGET fmt::fmt-header-only)
+    target_compile_definitions(fmt::fmt-header-only INTERFACE FMT_USE_CSTDLIB=1)
+  endif()
+endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 
