@@ -474,17 +474,11 @@ jobs:
           echo "✅ Components example CPack integration successful"
           
           # Check component contents
-          echo "=== Core runtime component ==="
+          echo "=== Core component group (contains both runtime and development) ==="
           tar -tzf MediaLibrary-*-CORE.tar.gz
           
-          echo "=== Core Development component ==="
-          tar -tzf MediaLibrary-*-CORE_DEVELOPMENT.tar.gz
-          
-          echo "=== Tools runtime component ==="
+          echo "=== Tools component group (contains both runtime and development) ==="
           tar -tzf MediaLibrary-*-TOOLS.tar.gz
-          
-          echo "=== Tools Development component ==="  
-          tar -tzf MediaLibrary-*-TOOLS_DEVELOPMENT.tar.gz
         else
           echo "⚠ Component packages not generated (may be expected based on configuration)"
           echo "Checking what packages were actually generated:"
