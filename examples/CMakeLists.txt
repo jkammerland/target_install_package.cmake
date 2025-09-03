@@ -28,6 +28,9 @@ FetchContent_Declare(
   GIT_TAG v3.1.1
   OVERRIDE_FIND_PACKAGE)
 
+# Set fmt to header-only mode to avoid macOS compilation issues with Homebrew Clang
+set(FMT_HEADER_ONLY ON CACHE BOOL "Use header-only fmt to avoid linking issues" FORCE)
+
 # Make dependencies available - find_package() calls will now use FetchContent automatically
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
