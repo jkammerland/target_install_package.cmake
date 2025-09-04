@@ -28,11 +28,9 @@ FetchContent_Declare(
   GIT_TAG v3.1.1
   OVERRIDE_FIND_PACKAGE)
 
-# Fix fmt compilation on macOS by adding required system headers
+# Fix fmt compilation issues on macOS by using header-only mode
 if(APPLE)
-  # Set compile definitions before FetchContent to fix malloc/free undefined errors
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include cstdlib")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include stdlib.h")
+  set(FMT_HEADER_ONLY ON CACHE BOOL "Use header-only fmt on macOS" FORCE)
 endif()
 
 # Make dependencies available - find_package() calls will now use FetchContent automatically  
