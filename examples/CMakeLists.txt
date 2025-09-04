@@ -28,18 +28,24 @@ FetchContent_Declare(
   GIT_TAG v3.1.1
   OVERRIDE_FIND_PACKAGE)
 
-# Fix fmt compilation on macOS by setting compiler flags before FetchContent
+# On macOS, completely avoid building fmt static library to prevent malloc/free errors
 if(APPLE)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFMT_USE_CSTDLIB=1")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFMT_USE_CSTDLIB=1")
+  # Populate fmt source without building
+  FetchContent_Populate(fmt)
+  
+  # Create header-only interface target manually
+  add_library(fmt_header_only INTERFACE)
+  target_include_directories(fmt_header_only INTERFACE ${fmt_SOURCE_DIR}/include)
+  target_compile_definitions(fmt_header_only INTERFACE FMT_HEADER_ONLY=1)
+  add_library(fmt::fmt ALIAS fmt_header_only)
+  add_library(fmt::fmt-header-only ALIAS fmt_header_only)
+  
+  # Now make available spdlog and cxxopts normally
+  FetchContent_MakeAvailable(spdlog cxxopts)
+else()
+  # On other platforms, use normal FetchContent
+  FetchContent_MakeAvailable(fmt spdlog cxxopts)
 endif()
-
-# Set fmt to header-only mode to avoid macOS compilation issues with Homebrew Clang
-set(FMT_HEADER_ONLY ON CACHE BOOL "Use header-only fmt to avoid linking issues" FORCE)
-set(FMT_TEST OFF CACHE BOOL "Disable fmt tests" FORCE)
-
-# Make dependencies available - find_package() calls will now use FetchContent automatically
-FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 
