@@ -28,24 +28,15 @@ FetchContent_Declare(
   GIT_TAG v3.1.1
   OVERRIDE_FIND_PACKAGE)
 
-# On macOS, completely avoid building fmt static library to prevent malloc/free errors
+# Fix fmt compilation on macOS by adding required system headers
 if(APPLE)
-  # Populate fmt source without building
-  FetchContent_Populate(fmt)
-  
-  # Create header-only interface target manually
-  add_library(fmt_header_only INTERFACE)
-  target_include_directories(fmt_header_only INTERFACE ${fmt_SOURCE_DIR}/include)
-  target_compile_definitions(fmt_header_only INTERFACE FMT_HEADER_ONLY=1)
-  add_library(fmt::fmt ALIAS fmt_header_only)
-  add_library(fmt::fmt-header-only ALIAS fmt_header_only)
-  
-  # Now make available spdlog and cxxopts normally
-  FetchContent_MakeAvailable(spdlog cxxopts)
-else()
-  # On other platforms, use normal FetchContent
-  FetchContent_MakeAvailable(fmt spdlog cxxopts)
+  # Set compile definitions before FetchContent to fix malloc/free undefined errors
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include cstdlib")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include stdlib.h")
 endif()
+
+# Make dependencies available - find_package() calls will now use FetchContent automatically  
+FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 
