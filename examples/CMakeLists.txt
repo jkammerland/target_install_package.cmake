@@ -28,16 +28,18 @@ FetchContent_Declare(
   GIT_TAG v3.1.1
   OVERRIDE_FIND_PACKAGE)
 
+# Fix fmt compilation on macOS by setting compiler flags before FetchContent
+if(APPLE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DFMT_USE_CSTDLIB=1")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFMT_USE_CSTDLIB=1")
+endif()
+
 # Set fmt to header-only mode to avoid macOS compilation issues with Homebrew Clang
 set(FMT_HEADER_ONLY ON CACHE BOOL "Use header-only fmt to avoid linking issues" FORCE)
+set(FMT_TEST OFF CACHE BOOL "Disable fmt tests" FORCE)
 
 # Make dependencies available - find_package() calls will now use FetchContent automatically
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
-
-# Fix fmt compilation on macOS by ensuring standard library headers are included
-if(APPLE)
-  add_compile_definitions(FMT_USE_CSTDLIB=1)
-endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 
