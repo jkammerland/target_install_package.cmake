@@ -4,7 +4,7 @@ project(tests VERSION 1.0.0)
 
 include(get_cpm.cmake)
 set(FMT_INSTALL ON)
-cpmaddpackage("gh:fmtlib/fmt#11.1.4")
+cpmaddpackage("gh:fmtlib/fmt#53d006abfdc0653f7d3e4e180e694fcb720524b5")
 # Use CMake's built-in property for position independent code instead of -fPIC.
 set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
