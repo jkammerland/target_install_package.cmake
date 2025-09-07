@@ -463,6 +463,29 @@ jobs:
           brew install llvm
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
+      - name: Install fmt for Examples
+        if: matrix.config_mode == 'single' || matrix.config_mode == 'multi'
+        shell: bash
+        run: |
+          echo "=== Installing fmt library for examples ==="
+          git clone https://github.com/fmtlib/fmt.git fmt-examples-src
+          cd fmt-examples-src
+          git checkout 53d006abfdc0653f7d3e4e180e694fcb720524b5
+          
+          cmake -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-examples-install \
+            -DFMT_DOC=OFF \
+            -DFMT_TEST=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          
+          cmake --build build
+          cmake --install build
+          
+          echo "✓ fmt installed to ${{ github.workspace }}/fmt-examples-install"
+
       - name: Configure and Verify Examples (Single-Config)
         if: matrix.config_mode == 'single'
         env:
@@ -500,6 +523,7 @@ jobs:
           # environment variables would also work.
           cmake ../examples -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/fmt-examples-install" \
             -DRUN_BUILD_ALL_EXAMPLES=OFF \
             --log-level=VERBOSE
           
@@ -625,6 +649,7 @@ jobs:
           
           cmake ../examples -G "Ninja Multi-Config" \
             -DCMAKE_CONFIGURATION_TYPES="$CMAKE_CONFIG_TYPES" \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/fmt-examples-install" \
             -DRUN_BUILD_ALL_EXAMPLES=OFF \
             --log-level=VERBOSE
 
