@@ -473,18 +473,13 @@ jobs:
         if ls MediaLibrary-*-CORE.tar.gz 1> /dev/null 2>&1; then
           echo "✅ Components example CPack integration successful"
           
-          # Check component contents
-          echo "=== Core runtime component ==="
+          # Check component group contents (CORE group contains Core and Core_Development)
+          echo "=== CORE component group (Core + Core_Development) ==="
           tar -tzf MediaLibrary-*-CORE.tar.gz
           
-          echo "=== Core Development component ==="
-          tar -tzf MediaLibrary-*-CORE_DEVELOPMENT.tar.gz
-          
-          echo "=== Tools runtime component ==="
+          # Check component group contents (TOOLS group contains Tools and Tools_Development)
+          echo "=== TOOLS component group (Tools + Tools_Development) ==="
           tar -tzf MediaLibrary-*-TOOLS.tar.gz
-          
-          echo "=== Tools Development component ==="  
-          tar -tzf MediaLibrary-*-TOOLS_DEVELOPMENT.tar.gz
         else
           echo "⚠ Component packages not generated (may be expected based on configuration)"
           echo "Checking what packages were actually generated:"
