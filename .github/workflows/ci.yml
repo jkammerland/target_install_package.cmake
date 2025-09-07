@@ -102,8 +102,9 @@ jobs:
         CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
       run: |
         echo "=== Installing fmt library ==="
-        git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
+        git clone https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
+        git checkout 3cabf3757b6bc00330b55975317b2c145e4c689d
         
         cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
@@ -318,8 +319,9 @@ jobs:
         echo "=== Testing FetchContent Integration ==="
         
         # Install fmt first for FetchContent test
-        git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
+        git clone https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
+        git checkout 3cabf3757b6bc00330b55975317b2c145e4c689d
         cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-install -DFMT_DOC=OFF -DFMT_TEST=OFF
         cmake --build build
         cmake --install build
