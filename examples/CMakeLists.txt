@@ -13,7 +13,7 @@ include(FetchContent)
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 3cabf3757b6bc00330b55975317b2c145e4c689d
+  GIT_TAG 53d006abfdc0653f7d3e4e180e694fcb720524b5
   OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
