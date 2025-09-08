@@ -36,24 +36,24 @@ target_install_package(
   media_core
   EXPORT_NAME MediaLib
   NAMESPACE Media::
-  COMPONENT Core)      # Creates: Core_Runtime, Core_Development
+  COMPONENT Core)      # Creates: Core (runtime), Core_Development (development)
 
 target_install_package(
   media_dev_tools 
   EXPORT_NAME MediaLib
   NAMESPACE Media:: 
-  COMPONENT Core)      # Creates: Core_Runtime, Core_Development (same logical group as media_core)
+  COMPONENT Core)      # Creates: Core (runtime), Core_Development (development) - same logical group as media_core
 
 target_install_package(
   asset_converter
   EXPORT_NAME MediaLib
   NAMESPACE Media::
-  COMPONENT Tools)     # Creates: Tools_Runtime, Tools_Development
+  COMPONENT Tools)     # Creates: Tools (runtime), Tools_Development (development)
 
 # Use enhanced export_cpack with auto-detection of logical groups
-# Components will auto-detected as: Core_Runtime, Core_Development, Tools_Runtime, Tools_Development
-# Logical groups will be auto-created: Core (contains Core_*), Tools (contains Tools_*)
-# Component dependencies will be auto-set: *_Development depends on *_Runtime
+# Components will auto-detected as: Core, Core_Development, Tools, Tools_Development
+# Logical groups will be auto-created: Core (contains Core and Core_Development), Tools (contains Tools and Tools_Development)
+# Component dependencies will be auto-set: *_Development depends on corresponding runtime component
 export_cpack(
   PACKAGE_NAME "MediaLibrary"
   PACKAGE_VENDOR "Example Corp" 
@@ -61,5 +61,5 @@ export_cpack(
   GENERATORS "TGZ"
   # COMPONENT_GROUPS automatically enabled due to prefix detection
   # Components are auto-detected from target_install_package calls
-  DEFAULT_COMPONENTS "Core_Runtime;Tools_Runtime"
+  DEFAULT_COMPONENTS "Core;Tools"
 )

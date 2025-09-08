@@ -442,7 +442,7 @@ cmake --install . --component Documentation
 
 The Component Prefix Pattern creates logical component groups with predictable naming:
 - **Without COMPONENT**: Creates `Runtime` and `Development` components (traditional)
-- **With COMPONENT**: Creates `{COMPONENT}_Runtime` and `{COMPONENT}_Development` components
+- **With COMPONENT**: Creates `{COMPONENT}` (runtime) and `{COMPONENT}_Development` (development) components
 
 ```cmake
 add_library(my_library SHARED)
@@ -456,7 +456,7 @@ target_sources(my_library PUBLIC
 # Traditional: Creates Runtime and Development components
 target_install_package(my_library)
 
-# Logical grouping: Creates Core_Runtime and Core_Development components  
+# Logical grouping: Creates Core (runtime) and Core_Development (development) components  
 target_install_package(my_library COMPONENT Core)
 ```
 
@@ -478,7 +478,7 @@ target_sources(engine_tools PUBLIC FILE_SET HEADERS BASE_DIRS include FILES incl
 target_install_package(engine_core
   EXPORT_NAME "GameEngine"
   NAMESPACE Engine::
-  COMPONENT Core)              # Creates: Core_Runtime, Core_Development
+  COMPONENT Core)              # Creates: Core (runtime), Core_Development (development)
 
 target_install_package(engine_tools  
   EXPORT_NAME "GameEngine"
@@ -488,33 +488,33 @@ target_install_package(engine_tools
 target_install_package(level_editor
   EXPORT_NAME "GameEngine" 
   NAMESPACE Engine::
-  COMPONENT Tools)             # Creates: Tools_Runtime, Tools_Development
+  COMPONENT Tools)             # Creates: Tools (runtime), Tools_Development (development)
 ```
 
 **Result**: Single `GameEngine` package with logical component groups:
-- **Core_Runtime**: `libengine_core.so` 
+- **Core**: `libengine_core.so` (runtime)
 - **Core_Development**: Headers from both targets + `libengine_tools.a`
-- **Tools_Runtime**: `level_editor` executable
+- **Tools**: `level_editor` executable (runtime)
 - **Development**: Shared CMake config files
 
 ### Installing Specific Components 📥
 
 ```bash
 # Install Core logical group - runtime only (deployment)
-cmake --install . --component Core_Runtime
+cmake --install . --component Core
 
 # Install Core logical group - development files
 cmake --install . --component Core_Development  
 
 # Install Tools logical group - runtime only
-cmake --install . --component Tools_Runtime
+cmake --install . --component Tools
 
 # Install shared CMake config files (needed for find_package)
 cmake --install . --component Development
 
 # Install everything for developers
-cmake --install . --component Core_Runtime --component Core_Development
-cmake --install . --component Tools_Runtime --component Development
+cmake --install . --component Core --component Core_Development
+cmake --install . --component Tools --component Development
 
 # Install everything
 cmake --install .
@@ -533,7 +533,7 @@ target_install_package(mylib
 **After (v6.0 - simple prefix pattern)**:
 ```cmake  
 target_install_package(mylib
-  COMPONENT "Tools")  # Creates "Tools_Runtime" + "Tools_Development" only
+  COMPONENT "Tools")  # Creates "Tools" (runtime) + "Tools_Development" (development)
 ```
 
 **Installation command changes**:
@@ -543,12 +543,12 @@ cmake --install . --component tools      # Custom component
 cmake --install . --component Runtime    # Standard component
 
 # v6.0 commands  
-cmake --install . --component Tools_Runtime      # Predictable naming
-cmake --install . --component Tools_Development  # Predictable naming
+cmake --install . --component Tools              # Runtime component
+cmake --install . --component Tools_Development  # Development component
 ```
 
 **Changes in v6.0**:
-- `COMPONENT="X"` creates `X_Runtime`, `X_Development` components
+- `COMPONENT="X"` creates `X` (runtime), `X_Development` (development) components
 - Each target installs to exactly two components (no dual installs)
 - Eliminates complex dual install routing logic
 - Multiple targets can share the same logical component group
@@ -595,7 +595,7 @@ target_sources(myproject_cli PRIVATE src/cli.cpp)
 target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT Core                             # Creates: Core_Runtime, Core_Development
+  COMPONENT Core                             # Creates: Core (runtime), Core_Development (development)
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Shared by all targets
 )
 
@@ -609,14 +609,14 @@ target_install_package(myproject_utils
 target_install_package(myproject_cli
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT Tools                            # Creates: Tools_Runtime, Tools_Development
+  COMPONENT Tools                            # Creates: Tools (runtime), Tools_Development (development)
 )
 ```
 
 **Result**: Single package with logical component groups:
-- **Core_Runtime**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`)
+- **Core**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) (runtime)
 - **Core_Development**: Headers from both Core libraries
-- **Tools_Runtime**: CLI executable (`myproject_cli`)
+- **Tools**: CLI executable (`myproject_cli`) (runtime)
 - **Development**: Shared CMake config files
 
 **Consumer usage:**
