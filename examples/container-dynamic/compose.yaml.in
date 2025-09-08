@@ -1,0 +1,115 @@
+version: '3.8'
+
+# Shared volume for libraries - key to memory sharing
+volumes:
+  shared-libs:
+    driver: local
+
+services:
+  # Library provider container - must stay running
+  libs:
+    image: container_dynamic-libs:@PROJECT_VERSION@
+    container_name: container_dynamic-libs
+    volumes:
+      # Mount libs with nocopy to establish volume content
+      - type: volume
+        source: shared-libs
+        target: /lib
+        volume:
+          nocopy: true
+      - type: volume
+        source: shared-libs
+        target: /lib64
+        volume:
+          nocopy: true
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Application 1 - short-lived task
+  app1:
+    image: container_dynamic-apps:@PROJECT_VERSION@
+    container_name: container_dynamic-app1
+    depends_on:
+      libs:
+        condition: service_healthy
+    volumes:
+      # Mount shared libs read-only with nocopy for memory sharing
+      - type: volume
+        source: shared-libs
+        target: /usr/local/lib
+        read_only: true
+        volume:
+          nocopy: true
+      - type: volume
+        source: shared-libs
+        target: /usr/local/lib64
+        read_only: true
+        volume:
+          nocopy: true
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+    command: ["/bin/app1"]
+    restart: "no"
+
+  # Application 2 - another short-lived task
+  app2:
+    image: container_dynamic-apps:@PROJECT_VERSION@
+    container_name: container_dynamic-app2
+    depends_on:
+      libs:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: shared-libs
+        target: /usr/local/lib
+        read_only: true
+        volume:
+          nocopy: true
+      - type: volume
+        source: shared-libs
+        target: /usr/local/lib64
+        read_only: true
+        volume:
+          nocopy: true
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+    command: ["/bin/app2"]
+    restart: "no"
+
+  # Application 3 - long-running service
+  app3:
+    image: container_dynamic-apps:@PROJECT_VERSION@
+    container_name: container_dynamic-app3
+    depends_on:
+      libs:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: shared-libs
+        target: /usr/local/lib
+        read_only: true
+        volume:
+          nocopy: true
+      - type: volume
+        source: shared-libs
+        target: /usr/local/lib64
+        read_only: true
+        volume:
+          nocopy: true
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+    command: ["/bin/app3"]
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+
+# Network configuration (optional)
+networks:
+  default:
+    name: container_dynamic-network
+    driver: bridge

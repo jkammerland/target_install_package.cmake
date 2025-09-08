@@ -1,0 +1,803 @@
+{
+  "version": 10,
+  "$comment": [
+    "Complete CMake Presets - Standard Build Types + Diagnostic Testing",
+    "",
+    "Standard Build Types:",
+    "- debug: Standard debug build (-DCMAKE_BUILD_TYPE=Debug)",
+    "- release: Standard release build (-DCMAKE_BUILD_TYPE=Release)", 
+    "- relwithdebinfo: Release with debug info (-DCMAKE_BUILD_TYPE=RelWithDebInfo)",
+    "- minsizerel: Minimum size release (-DCMAKE_BUILD_TYPE=MinSizeRel)",
+    "",
+    "Diagnostic Sanitizer Presets:",
+    "- alsan: ASan+LSan (address errors, buffer overflows, memory leaks)",
+    "- alusan: ASan+LSan+UBSan (address errors, memory leaks, undefined behavior)", 
+    "- msan: MSan (uninitialized memory reads)",
+    "- cfihwasan: CFI+HWASan (control flow hijacking and hardware memory safety)",
+    "- fullsan: All compatible sanitizers (address errors, leaks, undefined behavior, bounds checking)",
+    "",
+    "Key Design Decisions:",
+    "- Standard build types for everyday development",
+    "- Progressive sanitizer testing for comprehensive diagnostics",
+    "- Built-in vcpkg integration (CMAKE_TOOLCHAIN_FILE set by default)",
+    "- ASan always includes LSan (industry standard practice)",
+    "- Optimized for developer productivity and CI integration",
+    "- Compiler capability detection for cross-platform support",
+    "",
+    "Usage Examples:",
+    "cmake --preset=debug               # Standard debug build",
+    "cmake --preset=release             # Standard release build",
+    "cmake --preset=alsan               # Quick memory testing",
+    "cmake --preset=alusan              # Comprehensive testing",
+    "cmake --preset=fullsan             # Exhaustive testing",
+    "cmake --workflow --preset=debug      # Full debug workflow",
+    "cmake --workflow --preset=alsan      # Quick diagnostic workflow",
+    "cmake --workflow --preset=alusan     # Deep diagnostic workflow (RECOMMENDED)",
+    "cmake --workflow --preset=fullsan    # Full diagnostic suite"
+  ],
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "base-debug",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "base-release",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "base-relwithdebinfo",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "base-minsizerel",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "base-debug",
+      "displayName": "Debug",
+      "description": "Debug build with no optimizations (-O0), full debug info (-g), suitable for interactive debugging"
+    },
+    {
+      "name": "release",
+      "inherits": "base-release",
+      "displayName": "Release",
+      "description": "Optimized release build (-O3), no debug info, maximum performance for production"
+    },
+    {
+      "name": "relwithdebinfo",
+      "inherits": "base-relwithdebinfo",
+      "displayName": "Release with Debug Info",
+      "description": "Optimized build (-O2) with debug symbols, ideal for profiling and production debugging"
+    },
+    {
+      "name": "minsizerel",
+      "inherits": "base-minsizerel",
+      "displayName": "Minimum Size Release",
+      "description": "Size-optimized build (-Os), minimal binary size for embedded or space-constrained deployments"
+    },
+    {
+      "name": "coverage",
+      "inherits": "base-debug",
+      "displayName": "Coverage",
+      "description": "Debug build with code coverage instrumentation (gcov/llvm-cov)",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-g -O0 --coverage",
+        "CMAKE_C_FLAGS": "-g -O0 --coverage",
+        "CMAKE_EXE_LINKER_FLAGS": "--coverage",
+        "CMAKE_SHARED_LINKER_FLAGS": "--coverage"
+      }
+    },
+    {
+      "name": "tidy",
+      "inherits": "base-debug", 
+      "displayName": "Clang-Tidy",
+      "description": "Debug build with clang-tidy static analysis",
+      "cacheVariables": {
+        "pmr-tutorials_ENABLE_CLANG_TIDY_CMAKE": "ON",
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy"
+      }
+    },
+    {
+      "name": "tidy-fix",
+      "inherits": "base-debug",
+      "displayName": "Clang-Tidy Fix", 
+      "description": "Debug build with clang-tidy auto-fixing enabled",
+      "cacheVariables": {
+        "pmr-tutorials_ENABLE_CLANG_TIDY_CMAKE": "ON",
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;-fix;-fix-errors"
+      }
+    },
+    {
+      "name": "profile",
+      "inherits": "base-relwithdebinfo",
+      "displayName": "Production-Like Profile",
+      "description": "Profiling build maintaining release performance characteristics (RelWithDebInfo + frame pointers)",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer",
+        "CMAKE_C_FLAGS": "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
+      }
+    },
+    {
+      "name": "profile-gprof",
+      "inherits": "base-relwithdebinfo",
+      "displayName": "Instrumented Profile (gprof)",
+      "description": "High-overhead profiling with gprof instrumentation",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-pg -fno-omit-frame-pointer",
+        "CMAKE_C_FLAGS": "-pg -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-pg",
+        "CMAKE_SHARED_LINKER_FLAGS": "-pg"
+      }
+    },
+    {
+      "name": "pgo-generate",
+      "inherits": "base-release",
+      "displayName": "PGO Profile Generation",
+      "description": "Generate profile data for profile-guided optimization",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fprofile-generate -O2",
+        "CMAKE_C_FLAGS": "-fprofile-generate -O2",
+        "CMAKE_EXE_LINKER_FLAGS": "-fprofile-generate",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fprofile-generate"
+      }
+    },
+    {
+      "name": "pgo-use",
+      "inherits": "base-release",
+      "displayName": "PGO Optimized Build", 
+      "description": "Use profile data for optimized build",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fprofile-use -O3",
+        "CMAKE_C_FLAGS": "-fprofile-use -O3", 
+        "CMAKE_EXE_LINKER_FLAGS": "-fprofile-use",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fprofile-use"
+      }
+    },
+    {
+      "name": "alsan",
+      "displayName": "AddressSanitizer + LeakSanitizer",
+      "description": "Address errors, buffer overflows, and memory leaks detection (2-3x slower, -fsanitize=address,leak)",
+      "inherits": "base-debug",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,leak -g -O1 -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,leak",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=address,leak",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,leak"
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:print_stats=1:check_initialization_order=1:strict_init_order=1",
+        "LSAN_OPTIONS": "print_suppressions=false:report_objects=1"
+      }
+    },
+    {
+      "name": "alusan", 
+      "displayName": "AddressSanitizer + LeakSanitizer + UndefinedBehaviorSanitizer",
+      "description": "Address errors, memory leaks, and undefined behavior detection (3-4x slower, comprehensive diagnostics)",
+      "inherits": "base-debug",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,leak,undefined -g -O1 -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,leak,undefined",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=address,leak,undefined", 
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,leak,undefined"
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:print_stats=1:check_initialization_order=1:strict_init_order=1",
+        "LSAN_OPTIONS": "print_suppressions=false:report_objects=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:report_error_type=1"
+      }
+    },
+    {
+      "name": "msan",
+      "displayName": "MemorySanitizer", 
+      "description": "Uninitialized memory reads detection (Clang only, 3x slower, requires MSan-instrumented libraries)",
+      "inherits": "base-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=memory -fsanitize-memory-track-origins=2 -g -O1",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=memory",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=memory",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=memory"
+      },
+      "environment": {
+        "MSAN_OPTIONS": "halt_on_error=1:print_stats=1:print_module_map=1"
+      }
+    },
+    {
+      "name": "cfihwasan",
+      "displayName": "Control Flow Integrity + Hardware AddressSanitizer", 
+      "description": "Control flow hijacking and hardware memory safety (ARM64 only, requires LTO, -fsanitize=cfi,hwaddress)",
+      "inherits": "base-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=cfi,hwaddress -flto -fvisibility=hidden -g -O1",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=cfi,hwaddress -flto",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=cfi,hwaddress -flto",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=cfi,hwaddress -flto"
+      },
+      "environment": {
+        "HWASAN_OPTIONS": "halt_on_error=1:print_stats=1",
+        "CFI_OPTIONS": "print_stats=1"
+      }
+    },
+    {
+      "name": "fullsan",
+      "displayName": "All Compatible Sanitizers",
+      "description": "Maximum diagnostic coverage: ASan+LSan+UBSan+bounds+overflow (4-8x slower, exhaustive testing)",
+      "inherits": "base-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,leak,undefined,float-divide-by-zero,float-cast-overflow,bounds-strict -g -O1 -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,leak,undefined,float-divide-by-zero,float-cast-overflow,bounds-strict",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=address,leak,undefined,float-divide-by-zero,float-cast-overflow,bounds-strict",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,leak,undefined,float-divide-by-zero,float-cast-overflow,bounds-strict"
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:print_stats=1:check_initialization_order=1:strict_init_order=1:strict_string_checks=1:detect_stack_use_after_return=1",
+        "LSAN_OPTIONS": "print_suppressions=false:report_objects=1:use_unaligned=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:report_error_type=1:silence_unsigned_overflow=0"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "displayName": "Debug Build",
+      "description": "Build with debug configuration, no optimizations and full debug symbols",
+      "jobs": 0
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "displayName": "Release Build",
+      "description": "Build with release configuration, full optimizations and no debug symbols",
+      "jobs": 0
+    },
+    {
+      "name": "relwithdebinfo",
+      "configurePreset": "relwithdebinfo",
+      "displayName": "Release with Debug Info",
+      "description": "Build with optimizations and debug symbols for profiling and debugging",
+      "jobs": 0
+    },
+    {
+      "name": "minsizerel",
+      "configurePreset": "minsizerel",
+      "displayName": "Minimum Size Release",
+      "description": "Build with size optimizations for minimal binary size",
+      "jobs": 0
+    },
+    {
+      "name": "coverage",
+      "configurePreset": "coverage",
+      "displayName": "Coverage Build",
+      "description": "Build with code coverage instrumentation",
+      "jobs": 0
+    },
+    {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "displayName": "Clang-Tidy Build",
+      "description": "Build with clang-tidy static analysis checks",
+      "jobs": 0
+    },
+    {
+      "name": "tidy-fix",
+      "configurePreset": "tidy-fix",
+      "displayName": "Clang-Tidy Fix Build",
+      "description": "Build with clang-tidy auto-fixing enabled",
+      "jobs": 0
+    },
+    {
+      "name": "profile",
+      "configurePreset": "profile",
+      "displayName": "Production-Like Profile Build",
+      "description": "Build with frame pointers for production-like profiling",
+      "jobs": 0
+    },
+    {
+      "name": "profile-gprof",
+      "configurePreset": "profile-gprof",
+      "displayName": "Instrumented Profile Build",
+      "description": "Build with gprof instrumentation",
+      "jobs": 0
+    },
+    {
+      "name": "pgo-generate",
+      "configurePreset": "pgo-generate",
+      "displayName": "PGO Profile Generation Build",
+      "description": "Build for generating PGO profile data",
+      "jobs": 0
+    },
+    {
+      "name": "pgo-use",
+      "configurePreset": "pgo-use",
+      "displayName": "PGO Optimized Build",
+      "description": "Build using PGO profile data for optimization",
+      "jobs": 0
+    },
+    {
+      "name": "alsan",
+      "configurePreset": "alsan",
+      "displayName": "Build Quick Diagnostics",
+      "description": "Build with AddressSanitizer and LeakSanitizer for memory error detection",
+      "jobs": 0
+    },
+    {
+      "name": "alusan", 
+      "configurePreset": "alusan",
+      "displayName": "Build Deep Diagnostics",
+      "description": "Build with AddressSanitizer, LeakSanitizer, and UndefinedBehaviorSanitizer",
+      "jobs": 0
+    },
+    {
+      "name": "msan",
+      "configurePreset": "msan",
+      "displayName": "Build Memory Diagnostics",
+      "description": "Build with MemorySanitizer for uninitialized memory read detection",
+      "jobs": 0
+    },
+    {
+      "name": "cfihwasan",
+      "configurePreset": "cfihwasan",
+      "displayName": "Build Security Diagnostics",
+      "description": "Build with Control Flow Integrity and Hardware AddressSanitizer",
+      "jobs": 0
+    },
+    {
+      "name": "fullsan",
+      "configurePreset": "fullsan",
+      "displayName": "Build Full Diagnostics",
+      "description": "Build with all compatible sanitizers for comprehensive diagnostic coverage",
+      "jobs": 0
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true,
+        "verbosity": "default"
+      }
+    },
+    {
+      "name": "test-debug",
+      "inherits": "test-base",
+      "configurePreset": "debug",
+      "displayName": "Debug Tests",
+      "description": "Run all tests in debug mode"
+    },
+    {
+      "name": "test-release",
+      "inherits": "test-base",
+      "configurePreset": "release",
+      "displayName": "Release Tests",
+      "description": "Run all tests in release mode"
+    },
+    {
+      "name": "test-relwithdebinfo",
+      "inherits": "test-base",
+      "configurePreset": "relwithdebinfo",
+      "displayName": "Release with Debug Info Tests",
+      "description": "Run all tests with release+debug info"
+    },
+    {
+      "name": "test-minsizerel",
+      "inherits": "test-base",
+      "configurePreset": "minsizerel",
+      "displayName": "Minimum Size Release Tests",
+      "description": "Run all tests with size-optimized build"
+    },
+    {
+      "name": "coverage",
+      "inherits": "test-base",
+      "configurePreset": "coverage",
+      "displayName": "Coverage Tests",
+      "description": "Run all tests with coverage instrumentation"
+    },
+    {
+      "name": "tidy",
+      "inherits": "test-base",
+      "configurePreset": "tidy",
+      "displayName": "Clang-Tidy Tests",
+      "description": "Run all tests with clang-tidy checks"
+    },
+    {
+      "name": "tidy-fix",
+      "inherits": "test-base",
+      "configurePreset": "tidy-fix",
+      "displayName": "Clang-Tidy Fix Tests", 
+      "description": "Run all tests with clang-tidy auto-fixing"
+    },
+    {
+      "name": "profile",
+      "inherits": "test-base",
+      "configurePreset": "profile",
+      "displayName": "Production-Like Profile Tests",
+      "description": "Run all tests with production-like profiling build"
+    },
+    {
+      "name": "profile-gprof",
+      "inherits": "test-base", 
+      "configurePreset": "profile-gprof",
+      "displayName": "Instrumented Profile Tests",
+      "description": "Run all tests with gprof instrumentation"
+    },
+    {
+      "name": "pgo-generate",
+      "inherits": "test-base",
+      "configurePreset": "pgo-generate",
+      "displayName": "PGO Profile Generation Tests",
+      "description": "Run all tests to generate PGO profile data"
+    },
+    {
+      "name": "pgo-use",
+      "inherits": "test-base",
+      "configurePreset": "pgo-use",
+      "displayName": "PGO Optimized Tests",
+      "description": "Run all tests with PGO-optimized build"
+    },
+    {
+      "name": "alsan",
+      "inherits": "test-base",
+      "configurePreset": "alsan",
+      "displayName": "Test with Quick Diagnostics",
+      "description": "Run tests with AddressSanitizer and LeakSanitizer (2-3x slower, catches memory errors and leaks)",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:print_stats=1:check_initialization_order=1:strict_init_order=1",
+        "LSAN_OPTIONS": "print_suppressions=false:report_objects=1"
+      }
+    },
+    {
+      "name": "alusan",
+      "inherits": "test-base",
+      "configurePreset": "alusan", 
+      "displayName": "Test with Deep Diagnostics",
+      "description": "Run tests with ASan+LSan+UBSan (3-4x slower, comprehensive memory and UB detection)",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:print_stats=1:check_initialization_order=1:strict_init_order=1",
+        "LSAN_OPTIONS": "print_suppressions=false:report_objects=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:report_error_type=1"
+      }
+    },
+    {
+      "name": "msan",
+      "inherits": "test-base",
+      "configurePreset": "msan",
+      "displayName": "Test with Memory Diagnostics",
+      "description": "Run tests with MemorySanitizer (3x slower, detects uninitialized memory reads, Clang only)",
+      "environment": {
+        "MSAN_OPTIONS": "halt_on_error=1:print_stats=1:print_module_map=1"
+      }
+    },
+    {
+      "name": "cfihwasan",
+      "inherits": "test-base",
+      "configurePreset": "cfihwasan",
+      "displayName": "Test with Security Diagnostics",
+      "description": "Run tests with CFI and HWASan (ARM64 only, detects control flow hijacking and memory corruption)",
+      "environment": {
+        "HWASAN_OPTIONS": "halt_on_error=1:print_stats=1",
+        "CFI_OPTIONS": "print_stats=1"
+      }
+    },
+    {
+      "name": "fullsan",
+      "inherits": "test-base",
+      "configurePreset": "fullsan",
+      "displayName": "Test with Full Diagnostics",
+      "description": "Run tests with all compatible sanitizers (4-8x slower, maximum diagnostic coverage)",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:print_stats=1:check_initialization_order=1:strict_init_order=1:strict_string_checks=1:detect_stack_use_after_return=1",
+        "LSAN_OPTIONS": "print_suppressions=false:report_objects=1:use_unaligned=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:report_error_type=1:silence_unsigned_overflow=0"
+      }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "debug",
+      "displayName": "Debug Workflow",
+      "description": "Standard debug build and test workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "debug"
+        },
+        {
+          "type": "build",
+          "name": "debug"
+        },
+        {
+          "type": "test",
+          "name": "test-debug"
+        }
+      ]
+    },
+    {
+      "name": "release",
+      "displayName": "Release Workflow",
+      "description": "Standard release build and test workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release"
+        },
+        {
+          "type": "build",
+          "name": "release"
+        },
+        {
+          "type": "test",
+          "name": "test-release"
+        }
+      ]
+    },
+    {
+      "name": "relwithdebinfo",
+      "displayName": "Release with Debug Info Workflow",
+      "description": "Release build with debug info for profiling and debugging",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "relwithdebinfo"
+        },
+        {
+          "type": "build",
+          "name": "relwithdebinfo"
+        },
+        {
+          "type": "test",
+          "name": "test-relwithdebinfo"
+        }
+      ]
+    },
+    {
+      "name": "minsizerel",
+      "displayName": "Minimum Size Release Workflow",
+      "description": "Size-optimized build for embedded or space-constrained deployments",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "minsizerel"
+        },
+        {
+          "type": "build",
+          "name": "minsizerel"
+        },
+        {
+          "type": "test",
+          "name": "test-minsizerel"
+        }
+      ]
+    },
+    {
+      "name": "coverage",
+      "displayName": "Coverage Workflow",
+      "description": "Build and test with code coverage instrumentation",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "coverage"
+        },
+        {
+          "type": "build",
+          "name": "coverage"
+        },
+        {
+          "type": "test",
+          "name": "coverage"
+        }
+      ]
+    },
+    {
+      "name": "tidy",
+      "displayName": "Clang-Tidy Workflow",
+      "description": "Build with clang-tidy static analysis checks",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "tidy"
+        },
+        {
+          "type": "build",
+          "name": "tidy"
+        }
+      ]
+    },
+    {
+      "name": "tidy-fix",
+      "displayName": "Clang-Tidy Fix Workflow",
+      "description": "Build with clang-tidy auto-fixing enabled",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "tidy-fix"
+        },
+        {
+          "type": "build",
+          "name": "tidy-fix"
+        }
+      ]
+    },
+    {
+      "name": "package",
+      "displayName": "Package Workflow",
+      "description": "Complete release workflow: configure → build → test → package with CPack",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release"
+        },
+        {
+          "type": "build",
+          "name": "release"
+        },
+        {
+          "type": "test",
+          "name": "test-release"
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "displayName": "Production-Like Profile Workflow",
+      "description": "Build and test with production-like profiling configuration",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "profile"
+        },
+        {
+          "type": "build",
+          "name": "profile"
+        },
+        {
+          "type": "test",
+          "name": "profile"
+        }
+      ]
+    },
+    {
+      "name": "profile-gprof",
+      "displayName": "Instrumented Profile Workflow",
+      "description": "Build and test with gprof instrumentation",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "profile-gprof"
+        },
+        {
+          "type": "build",
+          "name": "profile-gprof"
+        },
+        {
+          "type": "test",
+          "name": "profile-gprof"
+        }
+      ]
+    },
+    {
+      "name": "pgo",
+      "displayName": "Complete PGO Optimization Workflow",
+      "description": "Generate profile, then build optimized version (requires manual benchmark run between steps)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pgo-generate"
+        },
+        {
+          "type": "build",
+          "name": "pgo-generate"
+        }
+      ]
+    },
+    {
+      "name": "alsan",
+      "displayName": "Quick Diagnostic Workflow", 
+      "description": "ASan+LSan testing for fast feedback (recommended for development)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "alsan"
+        },
+        {
+          "type": "build",
+          "name": "alsan"
+        },
+        {
+          "type": "test",
+          "name": "alsan"
+        }
+      ]
+    },
+    {
+      "name": "alusan",
+      "displayName": "Deep Diagnostic Workflow",
+      "description": "ASan+LSan+UBSan for comprehensive testing (recommended for pre-commit)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "alusan"
+        },
+        {
+          "type": "build",
+          "name": "alusan"
+        },
+        {
+          "type": "test",
+          "name": "alusan"
+        }
+      ]
+    },
+    {
+      "name": "fullsan",
+      "displayName": "Full Diagnostic Workflow",
+      "description": "Complete sanitizer suite for exhaustive testing (recommended for critical code paths)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "fullsan"
+        },
+        {
+          "type": "build",
+          "name": "fullsan"
+        },
+        {
+          "type": "test",
+          "name": "fullsan"
+        }
+      ]
+    }
+  ]
+}
