@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        build_type: [Release, Debug]
+        build_type: [Debug, Release, MinSizeRel, RelWithDebInfo]
         c_compiler: [gcc, clang, cl]
         include:
           - os: windows-latest
@@ -29,6 +29,11 @@ jobs:
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+            compiler_variant: appleclang
+          - os: macos-latest
+            c_compiler: /opt/homebrew/opt/llvm/bin/clang
+            cpp_compiler: /opt/homebrew/opt/llvm/bin/clang++
+            compiler_variant: homebrew
         exclude:
           - os: windows-latest
             c_compiler: gcc
@@ -40,6 +45,13 @@ jobs:
             c_compiler: gcc
           - os: macos-latest
             c_compiler: cl
+          # Exclude base clang entries for macOS since we're using explicit variants
+          - os: macos-latest
+            c_compiler: clang
+          # Skip MinSizeRel with GCC 14 due to C++ modules template instantiation issues with -Os
+          - os: ubuntu-latest
+            c_compiler: gcc
+            build_type: MinSizeRel
 
     steps:
     - uses: actions/checkout@v4
@@ -47,6 +59,12 @@ jobs:
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install Homebrew Clang (macOS)
+      if: runner.os == 'macOS' && matrix.compiler_variant == 'homebrew'
+      run: |
+        brew install llvm
+        echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
     - name: Install Ninja
       shell: bash
@@ -80,10 +98,13 @@ jobs:
 
     - name: Install fmt dependency
       shell: bash
+      env:
+        CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
       run: |
         echo "=== Installing fmt library ==="
-        git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
+        git clone https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
+        git checkout 53d006abfdc0653f7d3e4e180e694fcb720524b5
         
         cmake -B build -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
@@ -94,8 +115,8 @@ jobs:
           -DFMT_TEST=OFF \
           -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         
-        cmake --build build --config ${{ matrix.build_type }}
-        cmake --install build --config ${{ matrix.build_type }}
+        cmake --build build
+        cmake --install build
         
         echo "✓ fmt installed to ${{ steps.strings.outputs.fmt-install-dir }}"
 
@@ -112,10 +133,10 @@ jobs:
         -S ${{ github.workspace }}
 
     - name: Build (Main Project)
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
     - name: Install (Main Project)
-      run: cmake --install ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --install ${{ steps.strings.outputs.build-output-dir }}
 
     - name: Test Installation Structure
       shell: bash
@@ -165,53 +186,27 @@ jobs:
           -DCMAKE_PREFIX_PATH="${INSTALL_PATH};${FMT_PATH}"
         
         # Build consumer
-        cmake --build build --config ${{ matrix.build_type }}
+        cmake --build build
         
-        # Test running the consumer executables
+        # Test running the consumer executable
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          ./build/${{ matrix.build_type }}/consumer_app.exe || echo "✓ Consumer app executed"
+          ./build/consumer.exe
+          echo "✓ Consumer app executed"
         else
-          ./build/consumer_app || echo "✓ Consumer app executed"
+          ./build/consumer
+          echo "✓ Consumer app executed"
         fi
         
         echo "✓ Consumer project built and tested successfully"
-
-    - name: Test Consumer Without Pre-installed Dependencies
-      shell: bash
-      run: |
-        echo "=== Testing Consumer Project Error Handling ==="
-        
-        # Fix: Convert Windows paths for bash compatibility
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
-          WORKSPACE_PATH=$(echo "${{ github.workspace }}" | sed 's|\\|/|g')
-          INSTALL_PATH=$(echo "${{ steps.strings.outputs.install-output-dir }}" | sed 's|\\|/|g')
-        else
-          WORKSPACE_PATH="${{ github.workspace }}"
-          INSTALL_PATH="${{ steps.strings.outputs.install-output-dir }}"
-        fi
-        
-        cd "${WORKSPACE_PATH}/tests/consumer"
-        
-        # This should fail gracefully when fmt is not found
-        if cmake -B build-no-deps -G Ninja \
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_PREFIX_PATH="${INSTALL_PATH}" 2>&1 | grep -i "fmt.*not found\|Could not find"; then
-          echo "✓ Properly reports missing fmt dependency"
-        else
-          echo "⚠ Expected fmt dependency error not detected"
-        fi
 
     - name: Test Component Installation
       shell: bash
       run: |
         echo "=== Testing Component-Based Installation ==="
         
-        # Test installing only CMakeUtilities component
+        # Test installing only CMakeUtilities_Development component (INTERFACE libraries go to development component)
         cmake --install ${{ steps.strings.outputs.build-output-dir }} \
-          --config ${{ matrix.build_type }} \
-          --component CMakeUtilities \
+          --component CMakeUtilities_Development \
           --prefix ${{ steps.strings.outputs.install-output-dir }}-components
         
         # Verify component installation
@@ -228,19 +223,18 @@ jobs:
       run: |
         echo "=== Testing Build Variants ==="
         
-        # Test custom variant
+        # Test alternative build configuration
         cmake -B ${{ steps.strings.outputs.build-output-dir }}-variant -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_INSTALL_PREFIX=${{ steps.strings.outputs.install-output-dir }}-variant \
           -DCMAKE_PREFIX_PATH=${{ steps.strings.outputs.fmt-install-dir }} \
-          -DCUSTOM_VARIANT=ci-test \
           -Dtarget_install_package_BUILD_TESTS=ON \
           -S ${{ github.workspace }}
         
-        cmake --build ${{ steps.strings.outputs.build-output-dir }}-variant --config ${{ matrix.build_type }}
-        cmake --install ${{ steps.strings.outputs.build-output-dir }}-variant --config ${{ matrix.build_type }}
+        cmake --build ${{ steps.strings.outputs.build-output-dir }}-variant
+        cmake --install ${{ steps.strings.outputs.build-output-dir }}-variant
         
         echo "✓ Variant build completed"
 
@@ -265,9 +259,9 @@ jobs:
 
     - name: Upload Installation Artifacts
       uses: actions/upload-artifact@v4
-      if: matrix.build_type == 'Release' && matrix.c_compiler == 'gcc'
+      if: matrix.build_type == 'Release' && (matrix.c_compiler == 'gcc' || matrix.compiler_variant == 'appleclang')
       with:
-        name: target-install-package-${{ matrix.os }}-${{ matrix.build_type }}
+        name: target-install-package-${{ matrix.os }}-${{ matrix.build_type }}-${{ matrix.compiler_variant || 'gcc' }}
         path: |
           ${{ steps.strings.outputs.install-output-dir }}
           ${{ steps.strings.outputs.fmt-install-dir }}
@@ -291,7 +285,7 @@ jobs:
     - name: Download Installation Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: target-install-package-ubuntu-latest-Release
+        name: target-install-package-ubuntu-latest-Release-gcc
         path: install-artifacts
     
     - name: Test Integration with FetchContent
@@ -299,8 +293,9 @@ jobs:
         echo "=== Testing FetchContent Integration ==="
         
         # Install fmt first for FetchContent test
-        git clone --depth 1 --branch 11.1.4 https://github.com/fmtlib/fmt.git fmt-src
+        git clone https://github.com/fmtlib/fmt.git fmt-src
         cd fmt-src
+        git checkout 53d006abfdc0653f7d3e4e180e694fcb720524b5
         cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-install -DFMT_DOC=OFF -DFMT_TEST=OFF
         cmake --build build
         cmake --install build
@@ -384,7 +379,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        build_type: [Release]
+        build_type: [Debug, Release]
         config_mode: [single, multi]
         # Define the compilers we will use on each OS
         include:
@@ -397,6 +392,11 @@ jobs:
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+            compiler_variant: appleclang
+          - os: macos-latest
+            c_compiler: /opt/homebrew/opt/llvm/bin/clang
+            cpp_compiler: /opt/homebrew/opt/llvm/bin/clang++
+            compiler_variant: homebrew
 
     steps:
       - uses: actions/checkout@v4
@@ -421,6 +421,7 @@ jobs:
           fi
           ninja --version
 
+
       - name: Install Modern GCC on Ubuntu (for C++ Modules)
         if: runner.os == 'Linux'
         run: |
@@ -430,11 +431,41 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-14 g++-14
 
+      - name: Install Homebrew Clang on macOS (for C++ Modules)
+        if: runner.os == 'macOS' && matrix.compiler_variant == 'homebrew'
+        run: |
+          brew install llvm
+          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+
+      - name: Install fmt for Examples
+        if: matrix.config_mode == 'single' || matrix.config_mode == 'multi'
+        shell: bash
+        run: |
+          echo "=== Installing fmt library for examples ==="
+          git clone https://github.com/fmtlib/fmt.git fmt-examples-src
+          cd fmt-examples-src
+          git checkout 53d006abfdc0653f7d3e4e180e694fcb720524b5
+          
+          cmake -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/fmt-examples-install \
+            -DFMT_DOC=OFF \
+            -DFMT_TEST=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          
+          cmake --build build
+          cmake --install build
+          
+          echo "✓ fmt installed to ${{ github.workspace }}/fmt-examples-install"
+
       - name: Configure and Verify Examples (Single-Config)
         if: matrix.config_mode == 'single'
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
         shell: bash
         run: |
           # The build script needs execute permissions on Unix-like systems.
@@ -466,17 +497,46 @@ jobs:
           # environment variables would also work.
           cmake ../examples -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/fmt-examples-install" \
             -DRUN_BUILD_ALL_EXAMPLES=OFF \
             --log-level=VERBOSE
           
           echo "✓ CMake configuration of examples/CMakeLists.txt succeeded."
           echo "✓ This confirms the build script ran and all packages were found as expected."
+          
+          # Build and run integration tests
+          cmake --build .
+          
+          # Run the integration test using CTest
+          echo "=== Running Integration Tests ==="
+          ctest --output-on-failure
+
+      - name: Verify Binary Linking and Return Values (Single-Config)
+        if: matrix.config_mode == 'single'
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
+        shell: bash
+        run: |
+          cd examples-build
+          
+          # Use the verification script for comprehensive testing
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            TEST_EXECUTABLE="./test_examples_main.exe"
+          else
+            TEST_EXECUTABLE="./test_examples_main"
+          fi
+          
+          # Run the comprehensive verification script
+          ../examples/verify_binary_linking.sh "$TEST_EXECUTABLE" "${{ matrix.build_type }}" "${{ runner.os }}"
 
       - name: Configure and Verify Examples (Multi-Config)
         if: matrix.config_mode == 'multi'
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
         shell: bash
         run: |
           # The build script needs execute permissions on Unix-like systems.
@@ -537,3 +597,69 @@ jobs:
           fi
           
           echo "✓ Multi-config artifacts verification completed successfully"
+
+      - name: Test Multi-Config Integration
+        if: matrix.config_mode == 'multi'
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+          CMAKE_BUILD_TYPE: ${{ matrix.build_type }}
+        shell: bash
+        run: |
+          echo "=== Testing Multi-Config Integration ==="
+          
+          # Create a build directory for the verification step.
+          mkdir examples-build-multiconfig
+          cd examples-build-multiconfig
+
+          # Configure the examples CMakeLists.txt to verify find_package works
+          # Use Ninja Multi-Config for C++ modules support on all platforms
+          # Skip MinSizeRel configuration for Ubuntu GCC due to C++ modules issues
+          if [[ "${{ runner.os }}" == "Linux" && "${{ matrix.c_compiler }}" == "gcc-14" ]]; then
+            CMAKE_CONFIG_TYPES="Debug;Release;RelWithDebInfo"
+          else
+            CMAKE_CONFIG_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          fi
+          
+          cmake ../examples -G "Ninja Multi-Config" \
+            -DCMAKE_CONFIGURATION_TYPES="$CMAKE_CONFIG_TYPES" \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/fmt-examples-install" \
+            -DRUN_BUILD_ALL_EXAMPLES=OFF \
+            --log-level=VERBOSE
+
+          # Test each configuration for multi-config builds
+          configs=("Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+          
+          # Skip MinSizeRel for Ubuntu GCC due to C++ modules template instantiation issues
+          if [[ "${{ runner.os }}" == "Linux" && "${{ matrix.c_compiler }}" == "gcc-14" ]]; then
+            configs=("Debug" "Release" "RelWithDebInfo")
+            echo "Skipping MinSizeRel for GCC 14 due to C++ modules issues with -Os optimization"
+          fi
+          
+          for config in "${configs[@]}"; do
+            echo "=== Testing Integration for Configuration: $config ==="
+            
+            # Build and test for this configuration
+            cmake --build . --config $config
+            ctest --output-on-failure --build-config $config
+          done
+          
+          echo "✓ All multi-config integration tests passed"
+          
+          # Verify binary linking for each configuration using our verification script
+          echo "=== Verifying Binary Linking for Multi-Config Builds ==="
+          for config in "${configs[@]}"; do
+            echo "=== Verifying Configuration: $config ==="
+            
+            # Determine executable path based on platform and config
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              TEST_EXECUTABLE="./$config/test_examples_main.exe"
+            else
+              TEST_EXECUTABLE="./$config/test_examples_main"
+            fi
+            
+            # Run the comprehensive verification script for this configuration
+            ../examples/verify_binary_linking.sh "$TEST_EXECUTABLE" "$config" "${{ runner.os }}"
+          done
+          
+          echo "✓ Multi-config binary linking verification completed"

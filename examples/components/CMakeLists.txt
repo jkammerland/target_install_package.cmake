@@ -30,47 +30,36 @@ target_compile_features(media_dev_tools PUBLIC cxx_std_17)
 add_executable(asset_converter)
 target_sources(asset_converter PRIVATE src/asset_converter.cpp)
 
-# Install with custom components
+# Install with new component prefix pattern (v6.0) - shared export demonstrates logical grouping
+# All targets share EXPORT_NAME="MediaLib" to create unified package
 target_install_package(
   media_core
-  NAMESPACE
-  Media::
-  RUNTIME_COMPONENT
-  "runtime"
-  DEVELOPMENT_COMPONENT
-  "devel")
+  EXPORT_NAME MediaLib
+  NAMESPACE Media::
+  COMPONENT Core)      # Creates: Core (runtime), Core_Development (development)
 
-target_install_package(media_dev_tools NAMESPACE Media:: DEVELOPMENT_COMPONENT "devel")
+target_install_package(
+  media_dev_tools 
+  EXPORT_NAME MediaLib
+  NAMESPACE Media:: 
+  COMPONENT Core)      # Creates: Core (runtime), Core_Development (development) - same logical group as media_core
 
 target_install_package(
   asset_converter
-  NAMESPACE
-  Media::
-  COMPONENT
-  "tools" # Tools get their own component
-  RUNTIME_COMPONENT
-  "tools")
+  EXPORT_NAME MediaLib
+  NAMESPACE Media::
+  COMPONENT Tools)     # Creates: Tools (runtime), Tools_Development (development)
 
-# Basic CPack configuration to test component packaging
-set(CPACK_PACKAGE_NAME "MediaLibrary")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_GENERATOR "TGZ")
-
-# Define components
-set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Runtime Libraries")
-set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Runtime libraries required to run applications")
-
-set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Development Files")
-set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Headers and development files")
-
-set(CPACK_COMPONENT_TOOLS_DISPLAY_NAME "Tools")
-set(CPACK_COMPONENT_TOOLS_DESCRIPTION "Asset conversion tools")
-
-# Custom components (these should be auto-created by our dual install)
-set(CPACK_COMPONENT_TOOLS-RUNTIME_DISPLAY_NAME "Tools Runtime")
-set(CPACK_COMPONENT_TOOLS-RUNTIME_DESCRIPTION "Runtime files for tools component")
-
-set(CPACK_COMPONENT_TOOLS-DEVELOPMENT_DISPLAY_NAME "Tools Development")
-set(CPACK_COMPONENT_TOOLS-DEVELOPMENT_DESCRIPTION "Development files for tools component")
-
-include(CPack)
+# Use enhanced export_cpack with auto-detection of logical groups
+# Components will auto-detected as: Core, Core_Development, Tools, Tools_Development
+# Logical groups will be auto-created: Core (contains Core and Core_Development), Tools (contains Tools and Tools_Development)
+# Component dependencies will be auto-set: *_Development depends on corresponding runtime component
+export_cpack(
+  PACKAGE_NAME "MediaLibrary"
+  PACKAGE_VENDOR "Example Corp" 
+  PACKAGE_CONTACT "support@example.com"
+  GENERATORS "TGZ"
+  # COMPONENT_GROUPS automatically enabled due to prefix detection
+  # Components are auto-detected from target_install_package calls
+  DEFAULT_COMPONENTS "Core;Tools"
+)

@@ -4,7 +4,7 @@ project(tests VERSION 1.0.0)
 
 include(get_cpm.cmake)
 set(FMT_INSTALL ON)
-cpmaddpackage("gh:fmtlib/fmt#11.1.4")
+cpmaddpackage("gh:fmtlib/fmt#53d006abfdc0653f7d3e4e180e694fcb720524b5")
 # Use CMake's built-in property for position independent code instead of -fPIC.
 set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -102,7 +102,7 @@ add_executable(bin0)
 target_sources(bin0 PRIVATE src3.cpp)
 target_link_libraries(bin0 PRIVATE fmt)
 target_include_directories(bin0 PRIVATE include)
-target_install_package(bin0 RUNTIME_COMPONENT "bin")
+target_install_package(bin0 COMPONENT "Binaries")
 
 add_library(component-devel SHARED)
 target_sources(component-devel PRIVATE src4.cpp)
@@ -124,4 +124,4 @@ target_configure_sources(
   FILES
   include/component/configure_me.h)
 
-target_install_package(component-devel DEVELOPMENT_COMPONENT "devel")
+target_install_package(component-devel COMPONENT "Developer")

@@ -3,27 +3,32 @@ project(examples-test VERSION 0.1.0)
 
 message(NOTICE "Current CMAKE_VERSION: ${CMAKE_VERSION}")
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Fetch dependencies needed for dependency-aggregation example
 include(FetchContent)
 
+# Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages will automatically redirect to FetchContent, ensuring seamless integration
 FetchContent_Declare(
   fmt
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 10.0.0
-  FIND_PACKAGE_ARGS NAMES fmt)
+  GIT_TAG 53d006abfdc0653f7d3e4e180e694fcb720524b5
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.12.0
-  FIND_PACKAGE_ARGS NAMES spdlog)
+  GIT_TAG v1.15.3
+  OVERRIDE_FIND_PACKAGE)
 
 FetchContent_Declare(
   cxxopts
   GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
   GIT_TAG v3.1.1
-  FIND_PACKAGE_ARGS NAMES cxxopts)
+  OVERRIDE_FIND_PACKAGE)
 
+# Make dependencies available - find_package() calls will now use FetchContent automatically
 FetchContent_MakeAvailable(fmt spdlog cxxopts)
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
@@ -75,33 +80,16 @@ foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
   list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
 endforeach()
 
-# ~~~
-# This logic *must mirror* the logic in cxx-modules/CMakeLists.txt
-# It determines if we should find_package(math_modules).
-# ~~~
-set(SHOULD_TEST_CXX_MODULES FALSE)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.0")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29")
-    set(SHOULD_TEST_CXX_MODULES TRUE)
-  endif()
-endif()
+# Check C++ modules support using centralized function
+include(${CMAKE_CURRENT_SOURCE_DIR}/check_cxx_modules_support.cmake)
+check_cxx_modules_support(SHOULD_TEST_CXX_MODULES)
 
 # Step 6: Find all packages
 find_package(algorithms CONFIG REQUIRED)
 find_package(string_utils CONFIG REQUIRED)
 find_package(math_lib CONFIG REQUIRED)
 find_package(math_utils CONFIG REQUIRED)
-find_package(media_core CONFIG REQUIRED)
-find_package(media_dev_tools CONFIG REQUIRED)
-find_package(asset_converter CONFIG REQUIRED)
+find_package(MediaLib CONFIG REQUIRED)
 find_package(config_lib CONFIG REQUIRED)
 find_package(engine2 CONFIG REQUIRED)
 find_package(mylib CONFIG REQUIRED)
@@ -113,18 +101,9 @@ find_package(libA CONFIG REQUIRED)
 find_package(libB CONFIG REQUIRED)
 
 # Conditionally find the modules package
-if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-  # Check generator support for modules when trying to use them
-  if(NOT CMAKE_GENERATOR MATCHES "Ninja" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-    message(WARNING "C++20 modules require Ninja, Ninja Multi-Config, or Visual Studio generator. Current generator: ${CMAKE_GENERATOR}")
-    message(WARNING "Skipping module packages due to unsupported generator")
-    set(SHOULD_TEST_CXX_MODULES FALSE)
-  else()
-    find_package(math_modules CONFIG REQUIRED)
-    find_package(math_partitions CONFIG REQUIRED)
-  endif()
-else()
-  message(WARNING "Compiler/CMake does not meet C++ Modules requirements. Skipping find_package(math_modules) and find_package(math_partitions) checks.")
+if(SHOULD_TEST_CXX_MODULES)
+  find_package(math_modules CONFIG REQUIRED)
+  find_package(math_partitions CONFIG REQUIRED)
 endif()
 
 message(STATUS "--- Verification Summary ---")
@@ -132,9 +111,7 @@ message(STATUS "Found package algorithms: ${algorithms_FOUND}")
 message(STATUS "Found package string_utils: ${string_utils_FOUND}")
 message(STATUS "Found package math_lib: ${math_lib_FOUND}")
 message(STATUS "Found package math_utils: ${math_utils_FOUND}")
-message(STATUS "Found package media_core: ${media_core_FOUND}")
-message(STATUS "Found package media_dev_tools: ${media_dev_tools_FOUND}")
-message(STATUS "Found package asset_converter: ${asset_converter_FOUND}")
+message(STATUS "Found package MediaLib: ${MediaLib_FOUND}")
 message(STATUS "Found package config_lib: ${config_lib_FOUND}")
 message(STATUS "Found package game_engine: ${game_engine_FOUND}")
 message(STATUS "Found package engine2: ${engine2_FOUND}")
@@ -158,12 +135,48 @@ add_executable(test_examples_main test_examples_main.cpp)
 target_link_libraries(test_examples_main PRIVATE MyLib::core_lib cbor::tags json::parser data::core data::utils)
 
 # Add conditional module linking and compile definitions
-if(SHOULD_TEST_CXX_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+if(SHOULD_TEST_CXX_MODULES)
   target_link_libraries(test_examples_main PRIVATE MathPartitions::math_partitions)
   target_compile_definitions(test_examples_main PRIVATE HAVE_MATH_PARTITIONS=1 MODULES_AVAILABLE=1)
   target_compile_features(test_examples_main PRIVATE cxx_std_20)
-  set_target_properties(test_examples_main PROPERTIES CXX_SCAN_FOR_MODULES ON)
+  # Ensure consistent compiler flags with module libraries (no GNU extensions)
+  set_target_properties(test_examples_main PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES ON)
   message(STATUS "--- Module linking enabled for test_examples_main ---")
 endif()
 
+# ~~~
+# Windows: No RPATH mechanism exists - DLLs must be co-located with executables or in PATH
+# Since we installed deps t custom locations, copy DLLs to executable directory
+# ~~~
+if(WIN32)
+  add_custom_command(
+    TARGET test_examples_main
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:test_examples_main> $<TARGET_RUNTIME_DLLS:test_examples_main>
+    COMMAND_EXPAND_LISTS)
+endif()
+
+# Enable testing and add the integration test
+enable_testing()
+add_test(NAME examples_integration_test COMMAND test_examples_main)
+set_tests_properties(examples_integration_test PROPERTIES TIMEOUT 300 # 5 minute timeout
+                                                          LABELS "integration")
+
+# Add RPATH test to verify installed binaries can find their shared library dependencies
+find_program(
+  RPATH_DEMO_EXECUTABLE
+  NAMES rpath_demo
+  PATHS ${CMAKE_PREFIX_PATH}
+  PATH_SUFFIXES bin
+  NO_DEFAULT_PATH)
+
+if(RPATH_DEMO_EXECUTABLE)
+  add_test(NAME rpath_functionality_test COMMAND ${RPATH_DEMO_EXECUTABLE})
+  set_tests_properties(rpath_functionality_test PROPERTIES TIMEOUT 30 LABELS "rpath;integration" PASS_REGULAR_EXPRESSION "RPATH example completed successfully!")
+  message(STATUS "--- RPATH test configured with executable: ${RPATH_DEMO_EXECUTABLE} ---")
+else()
+  message(FATAL_ERROR "rpath_demo executable not found - RPATH test will be skipped")
+endif()
+
 message(STATUS "--- Linking OK ---")
+message(STATUS "--- Integration test configured ---")

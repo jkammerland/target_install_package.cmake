@@ -1,4 +1,5 @@
 #include <exception>
+#include <functional>
 #include <iostream>
 #include <string>
 
@@ -110,8 +111,10 @@ bool test_math_modules() {
     std::cout << "  ✓ Geometry partition verified\n";
 
     // Test calculus partition - actual function call
+    // Explicitly wrap lambda to avoid module name collision with std::function
     auto square_func = [](double x) { return x * x; };
-    double derivative_result = calculus::derivative(square_func, 3.0);
+    std::function<double(double)> square_func_wrapped = square_func;
+    double derivative_result = calculus::derivative(square_func_wrapped, 3.0);
     // Should be approximately 6.0 for derivative of x^2 at x=3
     if (derivative_result < 5.9 || derivative_result > 6.1) {
       std::cout << "  ✗ Calculus partition test failed (got "

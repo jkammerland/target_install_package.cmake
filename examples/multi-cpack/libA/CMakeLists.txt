@@ -32,26 +32,20 @@ target_sources(libA_utils PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOU
 set_target_properties(libA_utils PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_features(libA_utils PUBLIC cxx_std_17)
 
-# Prepare packages for both targets with same export
+# Prepare packages for both targets with same export using default components
 target_install_package(
   libA_core
   EXPORT_NAME
   "libA"
   NAMESPACE
-  LibA::
-  RUNTIME_COMPONENT
-  "Runtime"
-  DEVELOPMENT_COMPONENT
-  "Development")
+  LibA::)
 
 target_install_package(
   libA_utils
   EXPORT_NAME
   "libA"
   NAMESPACE
-  LibA::
-  DEVELOPMENT_COMPONENT
-  "Development")
+  LibA::)
 
 # Create aliases for when building as part of parent project
 if(NOT TARGET LibA::libA_core)

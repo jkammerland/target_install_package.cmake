@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.6.2)
+  list_file_include_guard(VERSION 6.0.1)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -38,7 +38,7 @@ endif()
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization. Since v5.6.2, finalization happens
+# the configuration for later finalization. Since v6.0.1, finalization happens
 # automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
@@ -64,14 +64,14 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>
+#     INCLUDE_ON_FIND_PACKAGE <files...>
 #     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # See target_install_package() for parameter descriptions.
 # ~~~
 function(target_prepare_package TARGET_NAME)
   # Parse function arguments
-  set(options "") # No boolean options
+  set(options DISABLE_RPATH)
   set(oneValueArgs
       NAMESPACE
       ALIAS_NAME
@@ -87,8 +87,22 @@ function(target_prepare_package TARGET_NAME)
       DEVELOPMENT_COMPONENT
       DEBUG_POSTFIX
       ADDITIONAL_FILES_DESTINATION)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
+  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  # Store DISABLE_RPATH as a target property for later use
+  if(ARG_DISABLE_RPATH)
+    set_target_properties(${TARGET_NAME} PROPERTIES TARGET_INSTALL_PACKAGE_DISABLE_RPATH TRUE)
+  endif()
+
+  # Handle backward compatibility: PUBLIC_CMAKE_FILES -> INCLUDE_ON_FIND_PACKAGE
+  if(ARG_PUBLIC_CMAKE_FILES)
+    if(ARG_INCLUDE_ON_FIND_PACKAGE)
+      project_log(FATAL_ERROR "Cannot specify both PUBLIC_CMAKE_FILES and INCLUDE_ON_FIND_PACKAGE. Use INCLUDE_ON_FIND_PACKAGE instead.")
+    endif()
+    set(ARG_INCLUDE_ON_FIND_PACKAGE ${ARG_PUBLIC_CMAKE_FILES})
+    project_log(DEBUG "  Using deprecated PUBLIC_CMAKE_FILES parameter. Consider migrating to INCLUDE_ON_FIND_PACKAGE.")
+  endif()
 
   # Check if target exists
   if(NOT TARGET ${TARGET_NAME})
@@ -145,10 +159,34 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
   endif()
 
+  # BREAKING CHANGE: Validate against deprecated component names Users should use COMPONENT instead for cleaner naming
+  if(ARG_COMPONENT AND (ARG_COMPONENT STREQUAL "Runtime" OR ARG_COMPONENT STREQUAL "Development"))
+    message(
+      FATAL_ERROR
+        "COMPONENT name '${ARG_COMPONENT}' is deprecated. " "The purpose of COMPONENT is to create meaningful component groups that differ from the default 'Runtime'/'Development'. "
+        "Use COMPONENT with a descriptive name (e.g., 'Core', 'Graphics', 'Network') to separate components logically. " "If you want default behavior, simply omit the COMPONENT parameter entirely.")
+  endif()
+
+  # DEPRECATED: RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters These are still parsed for backwards compatibility but discouraged
+  if(ARG_RUNTIME_COMPONENT OR ARG_DEVELOPMENT_COMPONENT)
+    message(
+      FATAL_ERROR
+        "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
+        "Use COMPONENT instead - it will automatically create '${ARG_COMPONENT}' for runtime files and '${ARG_COMPONENT}_Development' for development files. "
+        "This provides cleaner, more consistent component naming.")
+  endif()
+
   # Set default component values following CMake conventions
   if(NOT ARG_RUNTIME_COMPONENT)
     set(ARG_RUNTIME_COMPONENT "Runtime")
     project_log(DEBUG "  Runtime component not provided, using default: ${ARG_RUNTIME_COMPONENT}")
+  endif()
+
+  # Track whether DEVELOPMENT_COMPONENT was explicitly specified (before applying defaults)
+  if(ARG_DEVELOPMENT_COMPONENT)
+    set(DEV_COMPONENT_WAS_EXPLICIT TRUE)
+  else()
+    set(DEV_COMPONENT_WAS_EXPLICIT FALSE)
   endif()
 
   if(NOT ARG_DEVELOPMENT_COMPONENT)
@@ -201,6 +239,10 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
 
+  # Store whether DEVELOPMENT_COMPONENT was explicitly specified (using the flag set earlier)
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" ${DEV_COMPONENT_WAS_EXPLICIT})
+  project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': ${DEV_COMPONENT_WAS_EXPLICIT}")
+
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE" "${ARG_NAMESPACE}")
@@ -238,15 +280,15 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES" "${EXISTING_DEPS}")
   endif()
 
-  if(ARG_PUBLIC_CMAKE_FILES)
-    get_property(EXISTING_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
+  if(ARG_INCLUDE_ON_FIND_PACKAGE)
+    get_property(EXISTING_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
     if(EXISTING_CMAKE_FILES)
-      list(APPEND EXISTING_CMAKE_FILES ${ARG_PUBLIC_CMAKE_FILES})
+      list(APPEND EXISTING_CMAKE_FILES ${ARG_INCLUDE_ON_FIND_PACKAGE})
       list(REMOVE_DUPLICATES EXISTING_CMAKE_FILES)
     else()
-      set(EXISTING_CMAKE_FILES ${ARG_PUBLIC_CMAKE_FILES})
+      set(EXISTING_CMAKE_FILES ${ARG_INCLUDE_ON_FIND_PACKAGE})
     endif()
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES" "${EXISTING_CMAKE_FILES}")
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE" "${EXISTING_CMAKE_FILES}")
   endif()
 
   # Handle component-dependent dependencies
@@ -303,22 +345,30 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
   set(COMPONENT_TARGET_MAP "")
 
   foreach(TARGET_NAME ${TARGETS})
+    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
-    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
 
-    if(TARGET_RUNTIME_COMP)
-      list(APPEND ALL_RUNTIME_COMPONENTS ${TARGET_RUNTIME_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_RUNTIME_COMP}:${TARGET_NAME}")
+    # Determine actual component names Priority: explicit components > prefix pattern > defaults
+
+    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
+      # Explicit components specified (deprecated mode) - should be caught by validation
+      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
+      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
+    elseif(TARGET_COMP)
+      # NEW SCHEME: COMPONENT -> runtime, COMPONENT_Development -> development files
+      set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}")
+      set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
+    else()
+      # Default components: Runtime, Development
+      set(RUNTIME_COMPONENT_NAME "Runtime")
+      set(DEV_COMPONENT_NAME "Development")
     endif()
-    if(TARGET_DEV_COMP)
-      list(APPEND ALL_DEVELOPMENT_COMPONENTS ${TARGET_DEV_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_DEV_COMP}:${TARGET_NAME}")
-    endif()
-    if(TARGET_COMP AND NOT TARGET_COMP STREQUAL TARGET_DEV_COMP)
-      list(APPEND ALL_COMPONENTS ${TARGET_COMP})
-      list(APPEND COMPONENT_TARGET_MAP "${TARGET_COMP}:${TARGET_NAME}")
-    endif()
+
+    list(APPEND ALL_RUNTIME_COMPONENTS ${RUNTIME_COMPONENT_NAME})
+    list(APPEND ALL_DEVELOPMENT_COMPONENTS ${DEV_COMPONENT_NAME})
+    list(APPEND COMPONENT_TARGET_MAP "${RUNTIME_COMPONENT_NAME}:${TARGET_NAME}")
+    list(APPEND COMPONENT_TARGET_MAP "${DEV_COMPONENT_NAME}:${TARGET_NAME}")
   endforeach()
 
   # Remove duplicates
@@ -327,9 +377,6 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
   endif()
   if(ALL_DEVELOPMENT_COMPONENTS)
     list(REMOVE_DUPLICATES ALL_DEVELOPMENT_COMPONENTS)
-  endif()
-  if(ALL_COMPONENTS)
-    list(REMOVE_DUPLICATES ALL_COMPONENTS)
   endif()
 
   # Return values to parent scope
@@ -348,54 +395,43 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
 endfunction(_collect_export_components)
 
 # ~~~
-# Helper: Build CMake component arguments for install() commands.
+# Helper: Build CMake component arguments for install() commands using prefix pattern.
 #
-# This internal helper function converts component names into CMake install()
-# argument format, handling empty components gracefully. For custom components
-# (when CUSTOM_COMPONENT != GLOBAL_COMPONENT), detects dual install needs.
+# This internal helper function generates component names using the Component Prefix Pattern:
+# - If COMPONENT_PREFIX is provided: "${COMPONENT_PREFIX}_${COMPONENT_TYPE}"
+# - If no prefix: "${COMPONENT_TYPE}" only
+# - Always single install (no dual install complexity)
 #
 # Parameters:
 #   VAR_PREFIX - Variable name prefix for the output arguments
-#   GLOBAL_COMPONENT - Global component name (Runtime/Development)
-#   CUSTOM_COMPONENT - Custom component name (can be empty or same as global)
+#   COMPONENT_PREFIX - Optional prefix for component names (e.g., "Core", "GUI")
+#   COMPONENT_TYPE - Component type: "Runtime" or "Development"
 #
 # Returns via parent scope:
-#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT dev")
-#   ${VAR_PREFIX}_DUAL_INSTALL - Boolean indicating if dual install is needed
-#   ${VAR_PREFIX}_CUSTOM_ARGS - Args for custom component (when dual install)
+#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT Core_Runtime")
+#
+# Examples:
+#   _build_component_args(TARGET "Core" "Runtime") → "COMPONENT Core_Runtime"
+#   _build_component_args(TARGET "" "Runtime") → "COMPONENT Runtime"
 # ~~~
-function(_build_component_args VAR_PREFIX GLOBAL_COMPONENT CUSTOM_COMPONENT)
-  if(NOT GLOBAL_COMPONENT)
+function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
+  if(NOT COMPONENT_TYPE)
     set(${VAR_PREFIX}_ARGS
         ""
-        PARENT_SCOPE)
-    set(${VAR_PREFIX}_DUAL_INSTALL
-        FALSE
         PARENT_SCOPE)
     return()
   endif()
 
-  if(NOT CUSTOM_COMPONENT OR CUSTOM_COMPONENT STREQUAL GLOBAL_COMPONENT)
-    # Single component install (no custom component or same as global)
-    set(${VAR_PREFIX}_ARGS
-        COMPONENT ${GLOBAL_COMPONENT}
-        PARENT_SCOPE)
-    set(${VAR_PREFIX}_DUAL_INSTALL
-        FALSE
-        PARENT_SCOPE)
+  # Generate component name using prefix pattern
+  if(COMPONENT_PREFIX)
+    set(COMPONENT_NAME "${COMPONENT_PREFIX}_${COMPONENT_TYPE}")
   else()
-    # Dual component install
-    set(${VAR_PREFIX}_DUAL_INSTALL
-        TRUE
-        PARENT_SCOPE)
-    set(${VAR_PREFIX}_ARGS
-        COMPONENT ${GLOBAL_COMPONENT}
-        PARENT_SCOPE)
-    # Use the custom component name directly, not combined
-    set(${VAR_PREFIX}_CUSTOM_ARGS
-        COMPONENT ${CUSTOM_COMPONENT}
-        PARENT_SCOPE)
+    set(COMPONENT_NAME "${COMPONENT_TYPE}")
   endif()
+
+  set(${VAR_PREFIX}_ARGS
+      COMPONENT ${COMPONENT_NAME}
+      PARENT_SCOPE)
 endfunction()
 
 # Helper to setup CPack component relationships
@@ -441,7 +477,7 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
-# NOTE: Since v5.6.2, this function is OPTIONAL. All exports are automatically
+# NOTE: Since v6.0.1, this function is OPTIONAL. All exports are automatically
 # finalized at the end of configuration using cmake_language(DEFER CALL).
 # Use this function only when you need explicit control over finalization timing.
 #
@@ -506,7 +542,7 @@ function(finalize_package)
   get_property(ADDITIONAL_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES")
   get_property(ADDITIONAL_FILES_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES_DESTINATION")
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
-  get_property(PUBLIC_CMAKE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_CMAKE_FILES")
+  get_property(INCLUDE_ON_FIND_PACKAGE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
   get_property(COMPONENT_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
   get_property(DEBUG_POSTFIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX")
 
@@ -540,11 +576,22 @@ function(finalize_package)
     # TODO: Component registration for CPack auto-detection The _tip_register_component function is defined in export_cpack.cmake but may not be available here if that file isn't included. For now,
     # register components directly in the global property. Future improvement: Move this functionality to a shared location or ensure export_cpack is always available when needed.
     get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
+
+    # IMPORTANT: Always ensure global Runtime and Development components are registered This ensures that custom components can depend on them for proper installation
+    set(global_components "Runtime" "Development")
+    foreach(global_comp ${global_components})
+      if(NOT global_comp IN_LIST detected_components)
+        list(APPEND detected_components "${global_comp}")
+      endif()
+    endforeach()
+
+    # Add all unique components from this export
     foreach(component ${ALL_UNIQUE_COMPONENTS})
       if(NOT component IN_LIST detected_components)
         list(APPEND detected_components "${component}")
       endif()
     endforeach()
+
     if(detected_components)
       list(REMOVE_DUPLICATES detected_components)
       set_property(GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS" "${detected_components}")
@@ -553,11 +600,14 @@ function(finalize_package)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
   endif()
 
-  # Apply DEBUG_POSTFIX to all targets if specified
+  # Apply DEBUG_POSTFIX only to library targets if specified
   if(DEBUG_POSTFIX)
     foreach(TARGET_NAME ${TARGETS})
-      set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
-      project_log(DEBUG "Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for target '${TARGET_NAME}'")
+      get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+      if(TARGET_TYPE MATCHES "LIBRARY")
+        set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
+        project_log(DEBUG "Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for library '${TARGET_NAME}'")
+      endif()
     endforeach()
   endif()
 
@@ -573,9 +623,29 @@ function(finalize_package)
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
 
-    # Build component args for this target using helper function
-    _build_component_args(TARGET_RUNTIME_COMPONENT "${TARGET_RUNTIME_COMP}" "${TARGET_COMP}")
-    _build_component_args(TARGET_DEV_COMPONENT "${TARGET_DEV_COMP}" "${TARGET_COMP}")
+    # Build component args for this target Priority: explicit components > prefix pattern > defaults
+
+    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
+      # Explicit runtime component specified (traditional mode)
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
+    elseif(TARGET_COMP)
+      # NEW SCHEME: COMPONENT name directly for runtime files
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_COMP})
+    else()
+      # Default: Runtime
+      _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
+    endif()
+
+    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
+      # Explicit development component specified (traditional mode)
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
+    elseif(TARGET_COMP)
+      # NEW SCHEME: COMPONENT_Development for development files
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT "${TARGET_COMP}_Development")
+    else()
+      # Default: Development
+      _build_component_args(TARGET_DEV_COMPONENT "" "Development")
+    endif()
 
     # Set the export name for the target if different from target name
     if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
@@ -586,7 +656,15 @@ function(finalize_package)
     # Primary install with export (to base components)
     set(INSTALL_ARGS TARGETS ${TARGET_NAME} EXPORT ${ARG_EXPORT_NAME})
 
+    # ~~~
     # Add destination and component for each target type
+    # Platform-specific installation destinations:
+    # - RUNTIME: Executables and Windows DLLs → bin/
+    #   (DLLs must be in bin/ to be found by executables on Windows)
+    # - LIBRARY: Unix shared libraries (.so, .dylib) → lib/
+    # - ARCHIVE: Static libraries and Windows import libs → lib/
+    #   (Import .lib files are development artifacts, not runtime)
+    # ~~~
     list(
       APPEND
       INSTALL_ARGS
@@ -641,71 +719,86 @@ function(finalize_package)
       endif()
     endif()
 
-    # Execute primary install
-    install(${INSTALL_ARGS})
+    # Helper function to detect system installation prefixes
+    function(is_system_install_prefix result)
+      set(SYSTEM_PREFIXES "/usr" "/usr/local" "/System" # macOS system paths
+                          "/Library" # macOS system paths
+      )
 
-    # Secondary install to custom component (if needed)
-    if(TARGET_COMP AND (TARGET_RUNTIME_COMPONENT_DUAL_INSTALL OR TARGET_DEV_COMPONENT_DUAL_INSTALL))
-      project_log(DEBUG "  Dual-installing '${TARGET_NAME}' to custom component: ${TARGET_COMP}")
-
-      # For custom components, we need a different approach: 1. Don't include EXPORT (to avoid duplicate export targets) 2. Use EXCLUDE_FROM_ALL to prevent default installation 3. Create explicit
-      # component install rules
-
-      set(CUSTOM_INSTALL_ARGS TARGETS ${TARGET_NAME})
-
-      # Runtime artifacts to custom component
-      if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
-        list(
-          APPEND
-          CUSTOM_INSTALL_ARGS
-          LIBRARY
-          DESTINATION
-          ${CMAKE_INSTALL_LIBDIR}
-          RUNTIME
-          DESTINATION
-          ${CMAKE_INSTALL_BINDIR})
-
-        # Apply custom component to all artifact types
-        list(APPEND CUSTOM_INSTALL_ARGS ${TARGET_RUNTIME_COMPONENT_CUSTOM_ARGS})
+      # Windows system paths
+      if(WIN32)
+        list(APPEND SYSTEM_PREFIXES "C:/Program Files" "C:/Program Files (x86)" "${SYSTEMROOT}/System32")
       endif()
 
-      # Development artifacts to custom component
-      if(TARGET_DEV_COMPONENT_DUAL_INSTALL)
-        # Create separate install command for development artifacts
-        set(CUSTOM_DEV_ARGS TARGETS ${TARGET_NAME})
+      get_filename_component(NORMALIZED_PREFIX "${CMAKE_INSTALL_PREFIX}" REALPATH)
 
-        list(APPEND CUSTOM_DEV_ARGS ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-        # Add headers
-        if(TARGET_INTERFACE_HEADER_SETS)
-          foreach(CURRENT_SET_NAME ${TARGET_INTERFACE_HEADER_SETS})
-            list(APPEND CUSTOM_DEV_ARGS FILE_SET ${CURRENT_SET_NAME} DESTINATION ${INCLUDE_DESTINATION})
-          endforeach()
+      foreach(prefix ${SYSTEM_PREFIXES})
+        get_filename_component(NORMALIZED_SYSTEM_PREFIX "${prefix}" REALPATH)
+        if(NORMALIZED_PREFIX STREQUAL NORMALIZED_SYSTEM_PREFIX OR NORMALIZED_PREFIX MATCHES "^${NORMALIZED_SYSTEM_PREFIX}/")
+          set(${result}
+              TRUE
+              PARENT_SCOPE)
+          return()
         endif()
+      endforeach()
 
-        if(TARGET_PUBLIC_HEADERS)
-          list(APPEND CUSTOM_DEV_ARGS PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION})
+      set(${result}
+          FALSE
+          PARENT_SCOPE)
+    endfunction()
+
+    # Configure RPATH for Unix/Linux/macOS if not disabled
+    get_target_property(TARGET_DISABLE_RPATH ${TARGET_NAME} TARGET_INSTALL_PACKAGE_DISABLE_RPATH)
+    is_system_install_prefix(IS_SYSTEM_INSTALL)
+
+    if(WIN32)
+      project_log(DEBUG "Skipping RPATH configuration on Windows for '${TARGET_NAME}'")
+    elseif(CMAKE_SKIP_INSTALL_RPATH)
+      project_log(DEBUG "Skipping RPATH due to CMAKE_SKIP_INSTALL_RPATH for '${TARGET_NAME}'")
+    elseif(TARGET_DISABLE_RPATH)
+      project_log(DEBUG "Skipping RPATH due to DISABLE_RPATH parameter for '${TARGET_NAME}'")
+    elseif(IS_SYSTEM_INSTALL)
+      project_log(DEBUG "Skipping RPATH for system installation to '${CMAKE_INSTALL_PREFIX}' for '${TARGET_NAME}'")
+    endif()
+
+    if(NOT WIN32
+       AND NOT CMAKE_SKIP_INSTALL_RPATH
+       AND NOT TARGET_DISABLE_RPATH
+       AND NOT IS_SYSTEM_INSTALL)
+      get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+
+      if(TARGET_TYPE STREQUAL "EXECUTABLE" OR TARGET_TYPE STREQUAL "SHARED_LIBRARY")
+        # Check if RPATH is already configured
+        get_target_property(TARGET_RPATH ${TARGET_NAME} INSTALL_RPATH)
+
+        # Only set defaults if NO RPATH is configured anywhere
+        if(NOT TARGET_RPATH AND NOT CMAKE_INSTALL_RPATH)
+          set(DEFAULT_RPATH)
+
+          if(APPLE)
+            if(TARGET_TYPE STREQUAL "EXECUTABLE")
+              list(APPEND DEFAULT_RPATH "@executable_path/../lib")
+            else()
+              list(APPEND DEFAULT_RPATH "@loader_path/../lib")
+            endif()
+          else() # Linux/Unix
+            list(APPEND DEFAULT_RPATH "$ORIGIN/../lib" "$ORIGIN/../lib64")
+          endif()
+
+          set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "${DEFAULT_RPATH}")
+          project_log(DEBUG "Set default INSTALL_RPATH for '${TARGET_NAME}': ${DEFAULT_RPATH}")
+        else()
+          if(TARGET_RPATH)
+            project_log(DEBUG "Target '${TARGET_NAME}' already has INSTALL_RPATH: ${TARGET_RPATH}")
+          else()
+            project_log(DEBUG "Using global CMAKE_INSTALL_RPATH for '${TARGET_NAME}': ${CMAKE_INSTALL_RPATH}")
+          endif()
         endif()
-
-        # Add modules
-        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28" AND TARGET_INTERFACE_MODULE_SETS)
-          foreach(CURRENT_MODULE_SET_NAME ${TARGET_INTERFACE_MODULE_SETS})
-            list(APPEND CUSTOM_DEV_ARGS FILE_SET ${CURRENT_MODULE_SET_NAME} DESTINATION ${MODULE_DESTINATION})
-          endforeach()
-        endif()
-
-        # Apply custom component
-        list(APPEND CUSTOM_DEV_ARGS ${TARGET_DEV_COMPONENT_CUSTOM_ARGS})
-
-        # Execute custom development install
-        install(${CUSTOM_DEV_ARGS})
-      endif()
-
-      # Execute custom runtime install if needed
-      if(TARGET_RUNTIME_COMPONENT_DUAL_INSTALL)
-        install(${CUSTOM_INSTALL_ARGS})
       endif()
     endif()
+
+    # Execute single install with prefix-based component names
+    install(${INSTALL_ARGS})
   endforeach()
 
   # After all targets are installed, set up CPack components
@@ -713,8 +806,14 @@ function(finalize_package)
     _setup_cpack_components("${ARG_EXPORT_NAME}" "${ALL_RUNTIME_COMPONENTS}" "${ALL_DEVELOPMENT_COMPONENTS}" "${ALL_COMPONENTS}")
   endif()
 
-  # Set up component args for config files (config files use global development component only)
-  _build_component_args(CONFIG_COMPONENT "${CONFIG_DEV_COMPONENT}" "")
+  # Set up component args for config files using the first development component
+  if(ALL_DEVELOPMENT_COMPONENTS)
+    list(GET ALL_DEVELOPMENT_COMPONENTS 0 FIRST_DEV_COMPONENT)
+    set(CONFIG_COMPONENT_ARGS COMPONENT ${FIRST_DEV_COMPONENT})
+  else()
+    # Fallback to generic Development component
+    _build_component_args(CONFIG_COMPONENT "" "Development")
+  endif()
 
   # Install additional files with config component
   if(ADDITIONAL_FILES)
@@ -859,11 +958,11 @@ function(finalize_package)
     endif()
   endif()
 
-  # Prepare public CMake files content
-  set(PACKAGE_PUBLIC_CMAKE_FILES "")
-  if(PUBLIC_CMAKE_FILES)
-    project_log(DEBUG "Processing public CMake files for export '${ARG_EXPORT_NAME}':")
-    foreach(cmake_file ${PUBLIC_CMAKE_FILES})
+  # Prepare CMake files to include on find_package
+  set(PACKAGE_INCLUDE_ON_FIND_PACKAGE "")
+  if(INCLUDE_ON_FIND_PACKAGE)
+    project_log(DEBUG "Processing CMake files to include on find_package for export '${ARG_EXPORT_NAME}':")
+    foreach(cmake_file ${INCLUDE_ON_FIND_PACKAGE})
       if(IS_ABSOLUTE "${cmake_file}")
         set(SRC_CMAKE_FILE "${cmake_file}")
       else()
@@ -871,7 +970,7 @@ function(finalize_package)
       endif()
 
       if(NOT EXISTS "${SRC_CMAKE_FILE}")
-        project_log(WARNING "  Public CMake file not found: ${SRC_CMAKE_FILE}")
+        project_log(WARNING "  CMake file to include on find_package not found: ${SRC_CMAKE_FILE}")
         continue()
       endif()
 
@@ -882,9 +981,12 @@ function(finalize_package)
         DESTINATION "${CMAKE_CONFIG_DESTINATION}"
         ${CONFIG_COMPONENT_ARGS})
 
-      string(APPEND PACKAGE_PUBLIC_CMAKE_FILES "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
+      string(APPEND PACKAGE_INCLUDE_ON_FIND_PACKAGE "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
     endforeach()
   endif()
+
+  # Validate template contains required placeholders for provided parameters
+  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${PUBLIC_DEPENDENCIES}" "${COMPONENT_DEPENDENCIES}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
@@ -1003,5 +1105,51 @@ function(_auto_finalize_single_export EXPORT_NAME)
     set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}_FINALIZED" TRUE)
   else()
     project_log(DEBUG "Export '${EXPORT_NAME}' already finalized, skipping")
+  endif()
+endfunction()
+
+# Template validation helper function
+function(_validate_config_template_placeholders template_path export_name include_files public_deps component_deps)
+  # Read template content to validate required placeholders exist
+  if(NOT EXISTS "${template_path}")
+    project_log(FATAL_ERROR "Template file does not exist: ${template_path}")
+    return()
+  endif()
+
+  file(READ "${template_path}" template_content)
+
+  # Check for required placeholders based on provided parameters
+  set(missing_placeholders)
+
+  # Always required placeholder
+  if(NOT template_content MATCHES "@ARG_EXPORT_NAME@")
+    list(APPEND missing_placeholders "@ARG_EXPORT_NAME@")
+  endif()
+
+  # Check placeholders that depend on parameters being provided
+  if(include_files AND NOT template_content MATCHES "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
+    list(APPEND missing_placeholders "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
+  endif()
+
+  if(public_deps AND NOT template_content MATCHES "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
+    list(APPEND missing_placeholders "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
+  endif()
+
+  if(component_deps AND NOT template_content MATCHES "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+    list(APPEND missing_placeholders "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  endif()
+
+  # Report missing placeholders with actionable error message
+  if(missing_placeholders)
+    set(error_msg "Template '${template_path}' is missing required placeholders for export '${export_name}':")
+    foreach(placeholder ${missing_placeholders})
+      string(APPEND error_msg "\n  Missing: ${placeholder}")
+    endforeach()
+
+    string(APPEND error_msg "\n\nTo fix this, add the missing placeholders to your template file.")
+    string(APPEND error_msg "\nRefer to the generic template for guidance:")
+    string(APPEND error_msg "\n  ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
+
+    project_log(FATAL_ERROR "${error_msg}")
   endif()
 endfunction()
