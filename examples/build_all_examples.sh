@@ -70,19 +70,11 @@ detect_multiconfig_generator() {
             fi
             ;;
         "MINGW"*|"MSYS"*|"CYGWIN"*|"Windows"*)
-            # Try to detect Visual Studio generators
-            if cmake --help | grep -q "Visual Studio 17 2022"; then
-                echo "Visual Studio 17 2022"
-                return 0
-            elif cmake --help | grep -q "Visual Studio 16 2019"; then
-                echo "Visual Studio 16 2019"
-                return 0
-            elif cmake --help | grep -q "Visual Studio"; then
-                # Get first available VS generator
-                local vs_gen=$(cmake --help | grep "Visual Studio" | head -n1 | sed 's/.*= //' | sed 's/ .*//')
-                echo "$vs_gen"
-                return 0
-            fi
+            # On Windows, prefer Ninja Multi-Config for C++ modules support over Visual Studio
+            # Visual Studio generator doesn't support BMI compilation for C++ modules
+            print_warning "Windows: Visual Studio generator doesn't support C++ modules BMI"
+            print_status "Skipping Visual Studio generators for C++ modules compatibility"
+            # Fall back to error - only Ninja Multi-Config should be used
             ;;
     esac
     
@@ -105,18 +97,33 @@ build_example() {
     
     # Create build directory
     if [ -d "build" ]; then
-        print_warning "Build directory exists, cleaning..."
+        print_status "Build directory exists, cleaning..."
         rm -rf build
     fi
     mkdir build
     cd build
     
-    # Configure
-    print_status "Configuring $example_name..."
-    if ! cmake .. -G Ninja \
-        -DCMAKE_INSTALL_PREFIX=./install \
-        -DPROJECT_LOG_COLORS=ON \
-        --log-level=TRACE; then
+    # Configure with consistent build type and MSVC runtime library
+    local build_type="${CMAKE_BUILD_TYPE:-Release}"
+    local cmake_args=(
+        ".." "-G" "Ninja"
+        "-DCMAKE_BUILD_TYPE=$build_type"
+        "-DCMAKE_INSTALL_PREFIX=./install"
+        "-DPROJECT_LOG_COLORS=ON"
+        "--log-level=TRACE"
+    )
+    
+    # Ensure consistent MSVC runtime library on Windows
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+        if [[ "$build_type" == "Debug" ]]; then
+            cmake_args+=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL")
+        else
+            cmake_args+=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL")
+        fi
+    fi
+    
+    print_status "Configuring $example_name (BuildType: $build_type)..."
+    if ! cmake "${cmake_args[@]}"; then
         print_error "Configuration failed for $example_name"
         cd ../..
         return 1
@@ -272,6 +279,7 @@ EXAMPLES=(
     "cpack-signed"
     "custom-alias"
     "multi-cpack"
+    "rpath-example"
 )
 
 # Parse command line arguments

@@ -45,17 +45,15 @@ endif()
 add_executable(asset_converter2)
 target_sources(asset_converter2 PRIVATE src/asset_converter.cpp)
 
-# Install with custom components
+# Install with meaningful component names
 target_install_package(
   media_core2
   EXPORT_NAME
   "engine2"
   NAMESPACE
   Media::
-  RUNTIME_COMPONENT
-  "runtime1"
-  DEVELOPMENT_COMPONENT
-  "devel1")
+  COMPONENT
+  "Core") # Creates Core + Core_Development
 
 target_install_package(
   media_dev_tools2
@@ -63,9 +61,8 @@ target_install_package(
   "engine2"
   NAMESPACE
   Media::
-  DEVELOPMENT_COMPONENT
-  "devel2" # Static lib goes to devel
-)
+  COMPONENT
+  "DevTools") # Creates DevTools + DevTools_Development
 
 target_install_package(
   storage
@@ -73,9 +70,8 @@ target_install_package(
   "engine2"
   NAMESPACE
   Media::
-  DEVELOPMENT_COMPONENT
-  "devel3" # Static lib goes to devel
-)
+  COMPONENT
+  "Storage") # Creates Storage + Storage_Development
 
 target_install_package(
   asset_converter2
@@ -84,6 +80,4 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  "tools" # Tools get their own component
-  RUNTIME_COMPONENT
-  "tools")
+  "Tools") # Creates Tools + Tools_Development

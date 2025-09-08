@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 5.6.2)
+  list_file_include_guard(VERSION 6.0.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -56,8 +56,9 @@ endif()
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
-#     PUBLIC_CMAKE_FILES <files...>
-#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
+#     INCLUDE_ON_FIND_PACKAGE <files...>
+#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...
+#     DISABLE_RPATH)
 #
 # Parameters:
 #   TARGET_NAME                  - Name of the target to install.
@@ -78,8 +79,9 @@ endif()
 #   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "${CMAKE_INSTALL_PREFIX}").
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
-#   PUBLIC_CMAKE_FILES           - Additional CMake files to install as public.
+#   INCLUDE_ON_FIND_PACKAGE     - Additional CMake files to include when package is found.
 #   COMPONENT_DEPENDENCIES       - Component-specific dependencies (pairs: component name, dependencies).
+#   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.
@@ -88,6 +90,7 @@ endif()
 #   - Generates CMake config files with version and dependency handling.
 #   - Supports multi-config builds with automatic debug postfix handling.
 #   - Allows custom installation destinations and component separation.
+#   - Automatically configures RPATH on Unix/Linux/macOS for relocatable installations (skipped for system directories like /usr).
 #
 # Examples:
 #   # Basic installation
@@ -116,6 +119,10 @@ endif()
 #   target_install_package(cbor_tags
 #     NAMESPACE cbor::
 #     ALIAS_NAME tags)
+#
+#   # Disable automatic RPATH for system-wide installation
+#   target_install_package(system_library
+#     DISABLE_RPATH)
 # ~~~
 function(target_install_package TARGET_NAME)
   # Parse arguments to extract EXPORT_NAME and new multi-config parameters

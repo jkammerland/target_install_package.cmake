@@ -1,6 +1,6 @@
 # CPack Integration Tutorial
 
-This tutorial demonstrates how `export_cpack()` attempts simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
+This tutorial demonstrates how `export_cpack()` attempts to simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
 
 ## How CPack Works
 
@@ -47,7 +47,7 @@ Package Generation: CPack can then create packages from the staging directory co
 
 ## Manual CPack: The Traditional Approach
 
-CPack configuration requires alot of effort for me, because I have to research how and why everytime I do it. Here's what you typically need to write:
+CPack configuration requires significant setup. Here's what you typically need to write:
 
 ### Step 1: Basic Project Setup (Manual)
 
@@ -184,7 +184,7 @@ set(CPACK_COMPONENTS_DEFAULT Runtime)
 include(CPack)
 ```
 
-**Total Lines of CMake Code: ~85 lines** just for packaging setup!
+**Total Lines of CMake Code: ~85 lines** for packaging setup.
 
 ---
 
@@ -229,10 +229,10 @@ export_cpack(
     # - Component relationships and descriptions
 )
 
-include(CPack)
+# No need to call include(CPack) - export_cpack() does it automatically
 ```
 
-**Total Lines of CMake Code: ~20 lines** - a **75% reduction**!
+**Total Lines of CMake Code: ~20 lines** - a 75% reduction.
 
 ---
 
@@ -300,7 +300,7 @@ export_cpack(
     COMPONENT_GROUPS  # Enables group-based UI
 )
 
-include(CPack)
+# CPack is automatically included by export_cpack()
 ```
 
 ### Example 2: Custom Generator Selection
@@ -332,7 +332,7 @@ export_cpack(
 
 ### Example 4: Package with Full Signing
 
-**In my opinion it should there should be a standard way to SECURELY consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID (or similar) integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities (like real name) can be protected until something bad goes down.
+**In my opinion it should there should be a standard way to SECURELY consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID (or similar) integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities (like real name) can be protected.
 
 ```cmake
 # package with signing
@@ -796,11 +796,11 @@ mylib-tools_1.0.0_amd64.deb
 
 ## Conclusion
 
-`export_cpack()` provides a **modern, declarative approach** to CPack configuration that:
+`export_cpack()` provides a declarative approach to CPack configuration that:
 
-- **Reduces boilerplate** while maintaining full functionality
-- **Prevents common errors** through smart defaults and auto-detection
-- **Supports advanced use cases** through comprehensive override mechanisms
-- **Works cross-platform** with appropriate generator selection
+- Reduces boilerplate while maintaining full functionality
+- Prevents common errors through defaults and auto-detection
+- Supports advanced use cases through comprehensive override mechanisms
+- Works cross-platform with appropriate generator selection
 
-For most projects, `export_cpack()` provides the perfect balance of **simplicity and flexability**, allowing you to focus on building software rather than wrestling with packaging configuration.
+For most projects, `export_cpack()` provides a balance of simplicity and flexibility, allowing you to focus on building software rather than wrestling with packaging configuration.

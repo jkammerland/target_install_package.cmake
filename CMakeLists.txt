@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 5.6.2)
+project(target_install_package VERSION 6.0.0)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -35,7 +35,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
       ADDITIONAL_FILES_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake # The reason for the extra cmake dir is because this is the normal override location for the target.
-      PUBLIC_CMAKE_FILES
+      INCLUDE_ON_FIND_PACKAGE
       ${CMAKE_CURRENT_LIST_DIR}/cmake/list_file_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_log.cmake
@@ -52,9 +52,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       # Override include destination to put modules in the cmake dir
       INCLUDE_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
-      RUNTIME_COMPONENT
-      "CMakeUtilities"
-      DEVELOPMENT_COMPONENT
+      COMPONENT
       "CMakeUtilities")
   endif()
 endif()
