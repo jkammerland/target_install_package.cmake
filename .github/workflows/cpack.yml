@@ -409,7 +409,8 @@ jobs:
             if "$tool_path" --version; then
               echo "✅ Tool executable runs successfully"
             else
-              echo "⚠ Tool executable found but failed to run (may need runtime libraries)"
+              echo "❌ Tool executable found but failed to run (may need runtime libraries)"
+              exit 1
             fi
           else
             echo "❌ Tool executable not found"
@@ -481,9 +482,10 @@ jobs:
           echo "=== TOOLS component group (Tools + Tools_Development) ==="
           tar -tzf MediaLibrary-*-TOOLS.tar.gz
         else
-          echo "⚠ Component packages not generated (may be expected based on configuration)"
+          echo "❌ Component packages not generated"
           echo "Checking what packages were actually generated:"
           ls -la MediaLibrary-*.tar.gz 2>/dev/null || echo "No MediaLibrary packages found"
+          exit 1
         fi
 
   cpack-cross-platform:

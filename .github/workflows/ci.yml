@@ -190,39 +190,14 @@ jobs:
         
         # Test running the consumer executable
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          ./build/consumer.exe || echo "✓ Consumer app executed"
+          ./build/consumer.exe
+          echo "✓ Consumer app executed"
         else
-          ./build/consumer || echo "✓ Consumer app executed"
+          ./build/consumer
+          echo "✓ Consumer app executed"
         fi
         
         echo "✓ Consumer project built and tested successfully"
-
-    - name: Test Consumer Without Pre-installed Dependencies
-      shell: bash
-      run: |
-        echo "=== Testing Consumer Project Error Handling ==="
-        
-        # Fix: Convert Windows paths for bash compatibility
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
-          WORKSPACE_PATH=$(echo "${{ github.workspace }}" | sed 's|\\|/|g')
-          INSTALL_PATH=$(echo "${{ steps.strings.outputs.install-output-dir }}" | sed 's|\\|/|g')
-        else
-          WORKSPACE_PATH="${{ github.workspace }}"
-          INSTALL_PATH="${{ steps.strings.outputs.install-output-dir }}"
-        fi
-        
-        cd "${WORKSPACE_PATH}/tests/consumer"
-        
-        # This should fail gracefully when fmt is not found
-        if cmake -B build-no-deps -G Ninja \
-          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
-          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_PREFIX_PATH="${INSTALL_PATH}" 2>&1 | grep -i "fmt.*not found\|Could not find"; then
-          echo "✓ Properly reports missing fmt dependency"
-        else
-          echo "⚠ Expected fmt dependency error not detected"
-        fi
 
     - name: Test Component Installation
       shell: bash
@@ -248,14 +223,13 @@ jobs:
       run: |
         echo "=== Testing Build Variants ==="
         
-        # Test custom variant
+        # Test alternative build configuration
         cmake -B ${{ steps.strings.outputs.build-output-dir }}-variant -G Ninja \
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_INSTALL_PREFIX=${{ steps.strings.outputs.install-output-dir }}-variant \
           -DCMAKE_PREFIX_PATH=${{ steps.strings.outputs.fmt-install-dir }} \
-          -DCUSTOM_VARIANT=ci-test \
           -Dtarget_install_package_BUILD_TESTS=ON \
           -S ${{ github.workspace }}
         
