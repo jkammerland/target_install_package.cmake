@@ -4,7 +4,7 @@ This example demonstrates the **Component Prefix Pattern** (v6.0) for logical co
 
 ## Features Demonstrated
 
-- **Component Prefix Pattern**: `COMPONENT="Core"` creates `Core_Runtime`, `Core_Development`
+- **Component Prefix Pattern**: `COMPONENT="Core"` creates `Core` (runtime), `Core_Development` (development)
 - **Logical Grouping**: Multiple targets share the same logical component group
 - **Shared Export**: All targets packaged under single `MediaLib` export
 - **Mixed Target Types**: Shared library, static library, and executable
@@ -14,14 +14,14 @@ This example demonstrates the **Component Prefix Pattern** (v6.0) for logical co
 
 ```
 MediaLib Package (shared export with Component Prefix Pattern):
-├── Core_Runtime     → libmedia_core.so (shared library) 
+├── Core             → libmedia_core.so (shared library runtime files) 
 ├── Core_Development → headers + libmedia_dev_tools.a (development files from both Core targets)
-├── Tools_Runtime    → asset_converter (executable)
+├── Tools            → asset_converter (executable runtime)
 ├── Tools_Development → (empty - executables typically have no dev files)
 └── Development      → MediaLib CMake config files (shared across all targets)
 ```
 
-The Component Prefix Pattern creates predictable component names using the format `{COMPONENT}_{TYPE}`.
+The Component Prefix Pattern creates predictable component names: `{COMPONENT}` for runtime, `{COMPONENT}_Development` for development.
 
 ## Building and Installing
 
@@ -51,13 +51,13 @@ cmake --install .
 
 ```bash
 # Install only Core runtime files (end-user deployment)
-cmake --install . --component Core_Runtime
+cmake --install . --component Core
 
 # Install only Core development files (headers + static libs)  
 cmake --install . --component Core_Development
 
 # Install both Core runtime and development
-cmake --install . --component Core_Runtime
+cmake --install . --component Core
 cmake --install . --component Core_Development
 ```
 
@@ -65,7 +65,7 @@ cmake --install . --component Core_Development
 
 ```bash
 # Install only Tools runtime (executable)
-cmake --install . --component Tools_Runtime
+cmake --install . --component Tools
 
 # Tools typically have no development component (Tools_Development would be empty)
 ```
@@ -81,13 +81,13 @@ cmake --install . --component Development
 
 ```bash
 # Minimal runtime deployment (libraries + tools)
-cmake --install . --component Core_Runtime
-cmake --install . --component Tools_Runtime
+cmake --install . --component Core
+cmake --install . --component Tools
 
 # Full development setup (runtime + development + cmake configs)  
-cmake --install . --component Core_Runtime
+cmake --install . --component Core
 cmake --install . --component Core_Development
-cmake --install . --component Tools_Runtime  
+cmake --install . --component Tools  
 cmake --install . --component Development
 ```
 
@@ -98,15 +98,15 @@ cmake --install . --component Development
 ```
 install/
 ├── bin/
-│   └── asset_converter                    # Tools_Runtime
+│   └── asset_converter                    # Tools
 ├── include/
 │   └── media/
 │       ├── core.h                        # Core_Development  
 │       └── dev_tools.h                   # Core_Development
 ├── lib64/
-│   ├── libmedia_core.so.5.6.2           # Core_Runtime
-│   ├── libmedia_core.so.5                # Core_Runtime  
-│   ├── libmedia_core.so                  # Core_Runtime (dev symlink)
+│   ├── libmedia_core.so.5.6.2           # Core
+│   ├── libmedia_core.so.5                # Core  
+│   ├── libmedia_core.so                  # Core (dev symlink)
 │   └── libmedia_dev_tools.a              # Core_Development
 └── share/
     └── cmake/
@@ -140,7 +140,7 @@ install/lib64/libmedia_dev_tools.a
 
 ### Core Logical Group
 
-**Core_Runtime**: Contains runtime files for the Core logical group
+**Core**: Contains runtime files for the Core logical group
 - Shared libraries: `libmedia_core.so.*`
 - No headers or development files  
 - Minimal footprint for deployment
@@ -153,7 +153,7 @@ install/lib64/libmedia_dev_tools.a
 
 ### Tools Logical Group
 
-**Tools_Runtime**: Contains runtime files for the Tools logical group
+**Tools**: Contains runtime files for the Tools logical group
 - Executables: `asset_converter`
 - Independent from Core logical group
 
@@ -246,7 +246,7 @@ The installed tool provides media conversion capabilities:
 
 ## Component Prefix Pattern Features
 
-- **Predictable Naming**: `COMPONENT="Core"` always creates `Core_Runtime`, `Core_Development`
+- **Predictable Naming**: `COMPONENT="Core"` always creates `Core` (runtime), `Core_Development` (development)
 - **Logical Grouping**: Multiple targets (`media_core`, `media_dev_tools`) share the same logical group (`Core`)
 - **Shared Export**: All targets packaged under unified `MediaLib` export  
 - **No Dual Install Complexity**: Each target installs to exactly one runtime and one development component

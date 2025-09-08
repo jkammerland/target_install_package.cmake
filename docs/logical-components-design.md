@@ -12,7 +12,7 @@ This document proposes a simplified logical component system using a **Component
 
 ### Key Benefits
 - **Eliminates Dual Install Complexity**: Removes complex routing logic entirely
-- **Predictable Component Naming**: `PREFIX_Runtime`, `PREFIX_Development` pattern
+- **Predictable Component Naming**: `PREFIX` (runtime), `PREFIX_Development` (development) pattern
 - **Simplified Mental Model**: COMPONENT becomes an optional prefix, that's it
 - **Clean CPack Integration**: Automatic logical component groups
 - **User Controls Complexity**: Through clear documentation and examples
@@ -30,8 +30,8 @@ This document proposes a simplified logical component system using a **Component
 ### User Requirements
 ```cmake
 # Users want simple, predictable logical grouping:
-target_install_package(core_lib COMPONENT Core)     # Creates: Core_Runtime, Core_Development
-target_install_package(gui_lib COMPONENT GUI)       # Creates: GUI_Runtime, GUI_Development
+target_install_package(core_lib COMPONENT Core)     # Creates: Core (runtime), Core_Development (development)
+target_install_package(gui_lib COMPONENT GUI)       # Creates: GUI (runtime), GUI_Development (development)
 
 # Result: Clean logical groups for CPack and find_package
 find_package(MyProject COMPONENTS Core GUI)         # Gets Core + GUI logical groups
@@ -47,7 +47,7 @@ Replace complex dual install logic with a simple prefix pattern where COMPONENT 
 
 ```mermaid
 graph TD
-    A[COMPONENT='Core'] --> B[Core_Runtime]
+    A[COMPONENT='Core'] --> B[Core]
     A --> C[Core_Development]
     D[No COMPONENT] --> E[Runtime] 
     D --> F[Development]
@@ -75,11 +75,11 @@ graph TD
 # NEW SIMPLE API:
 target_install_package(core_lib 
     EXPORT_NAME MyProject
-    COMPONENT Core)        # Creates: Core_Runtime, Core_Development
+    COMPONENT Core)        # Creates: Core (runtime), Core_Development (development)
 
 target_install_package(gui_lib 
     EXPORT_NAME MyProject
-    COMPONENT GUI)         # Creates: GUI_Runtime, GUI_Development
+    COMPONENT GUI)         # Creates: GUI (runtime), GUI_Development (development)
 
 # TRADITIONAL (unchanged behavior):
 target_install_package(legacy_lib 
@@ -90,7 +90,7 @@ target_install_package(legacy_lib
 
 | Parameter | Type | Description | Example | Result Components |
 |-----------|------|-------------|---------|-------------------|
-| `COMPONENT` | String | Optional prefix for components | `Core`, `GUI`, `Tools` | `Core_Runtime`, `Core_Development` |
+| `COMPONENT` | String | Optional prefix for components | `Core`, `GUI`, `Tools` | `Core` (runtime), `Core_Development` |
 | (no COMPONENT) | - | Traditional behavior | - | `Runtime`, `Development` |
 
 ### 2. Installation Pattern
@@ -99,8 +99,8 @@ target_install_package(legacy_lib
 ```cmake
 # With COMPONENT="Core":
 install(TARGETS core_lib
-    RUNTIME COMPONENT Core_Runtime           # Executables, shared libs
-    LIBRARY COMPONENT Core_Runtime
+    RUNTIME COMPONENT Core           # Executables, shared libs
+    LIBRARY COMPONENT Core
     ARCHIVE COMPONENT Core_Development       # Static libs
     FILE_SET HEADERS COMPONENT Core_Development)  # Headers
 
@@ -115,10 +115,10 @@ install(TARGETS legacy_lib
 #### Component Detection Logic
 ```cmake
 # Auto-detect logical groups from component names:
-# Components: Core_Runtime, Core_Development, GUI_Runtime, GUI_Development
+# Components: Core, Core_Development, GUI, GUI_Development
 # Detected Groups: Core, GUI
-# Group Core contains: Core_Runtime, Core_Development
-# Group GUI contains: GUI_Runtime, GUI_Development
+# Group Core contains: Core, Core_Development
+# Group GUI contains: GUI, GUI_Development
 ```
 
 ### 3. Consumer Interface Design
@@ -134,7 +134,7 @@ find_package(MyProject REQUIRED COMPONENTS Core GUI)
 # Result: Targets from Core and GUI logical groups
 
 # Fine-grained selection:  
-find_package(MyProject REQUIRED COMPONENTS Core_Runtime GUI_Development)
+find_package(MyProject REQUIRED COMPONENTS Core GUI_Development)
 # Result: Only runtime files from Core, only development files from GUI
 ```
 
@@ -152,7 +152,7 @@ target_link_libraries(myapp PRIVATE MyProject::core_lib MyProject::gui_lib)
 
 #### Automatic Component Group Detection
 ```cmake
-# From components: Core_Runtime, Core_Development, GUI_Runtime, GUI_Development
+# From components: Core, Core_Development, GUI, GUI_Development
 # Auto-generate CPack groups:
 
 cpack_add_component_group(Core
@@ -160,14 +160,14 @@ cpack_add_component_group(Core
     DESCRIPTION "Essential functionality"
     EXPANDED)
 
-cpack_add_component(Core_Runtime
+cpack_add_component(Core
     GROUP Core
     DISPLAY_NAME "Core Runtime"
     DESCRIPTION "Core libraries and executables")
 
 cpack_add_component(Core_Development  
     GROUP Core
-    DEPENDS Core_Runtime
+    DEPENDS Core
     DISPLAY_NAME "Core Development"
     DESCRIPTION "Core headers and development files")
 
@@ -188,7 +188,7 @@ cpack_add_component(Core_Development
 
 **Success Criteria**:
 - Single install() command per target
-- Predictable component naming: `PREFIX_Runtime`, `PREFIX_Development`
+- Predictable component naming: `PREFIX` (runtime), `PREFIX_Development` (development)
 - No complex routing logic
 
 ### Phase 2: Component Prefix Implementation ⭐
@@ -200,7 +200,7 @@ cpack_add_component(Core_Development
 - Test with simple examples
 
 **Success Criteria**:
-- `COMPONENT="Core"` creates `Core_Runtime`, `Core_Development`
+- `COMPONENT="Core"` creates `Core` (runtime), `Core_Development` (development)
 - No COMPONENT creates `Runtime`, `Development` (traditional)
 - All install commands work correctly
 
@@ -245,7 +245,7 @@ cpack_add_component(Core_Development
 ```cmake
 # Test component prefix pattern:
 target_install_package(core_lib EXPORT_NAME TestProject COMPONENT Core)
-# Expected: Core_Runtime, Core_Development components
+# Expected: Core (runtime), Core_Development components
 
 target_install_package(legacy_lib EXPORT_NAME TestProject)
 # Expected: Runtime, Development components (traditional)
@@ -254,7 +254,7 @@ target_install_package(legacy_lib EXPORT_NAME TestProject)
 #### Phase 3 Tests
 ```cmake
 # Test CPack group auto-detection:
-# Components: Core_Runtime, Core_Development, GUI_Runtime, GUI_Development  
+# Components: Core, Core_Development, GUI, GUI_Development  
 # Expected CPack Groups: Core (contains Core_*), GUI (contains GUI_*)
 ```
 
@@ -283,13 +283,13 @@ target_install_package(mylib
 ```cmake  
 target_install_package(mylib
     EXPORT_NAME MyProject
-    COMPONENT Tools)  # Creates: Tools_Runtime, Tools_Development
+    COMPONENT Tools)  # Creates: Tools (runtime), Tools_Development (development)
 ```
 
 ### Migration Steps
 1. **Update COMPONENT usage**: Review custom component names, ensure they work as prefixes
 2. **Remove dual install assumptions**: Code expecting targets in multiple components needs adjustment
-3. **Update find_package calls**: Component names now include suffixes (`Tools_Runtime` vs `tools`)
+3. **Update find_package calls**: Component names changed (`Tools` for runtime vs old `tools`)
 4. **Test CPack integration**: Component groups may change with new naming
 
 ---
@@ -351,7 +351,7 @@ target_install_package(mylib
 ### Functional Success
 - [ ] All updated examples work correctly with new prefix pattern
 - [ ] CPack automatically generates logical component groups
-- [ ] Component naming is predictable: `PREFIX_Runtime`, `PREFIX_Development`
+- [ ] Component naming is predictable: `PREFIX` (runtime), `PREFIX_Development` (development)
 - [ ] Single install() command per target (no dual install complexity)
 
 ### Performance Success  

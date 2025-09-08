@@ -107,10 +107,10 @@ endif()
 #   - Integrates with existing CMake project metadata
 #
 # Auto-detected components and their typical usage:
-#   - Runtime/PREFIX_Runtime: Shared libraries, executables needed at runtime
+#   - Runtime/PREFIX: Shared libraries, executables needed at runtime (when COMPONENT is PREFIX)
 #   - Development/PREFIX_Development: Headers, static libraries, CMake config files
-#   - Logical Groups: Auto-created from prefixes (e.g., Core_Runtime + Core_Development → Core group)
-#   - Component Dependencies: *_Development automatically depends on corresponding *_Runtime
+#   - Logical Groups: Auto-created from prefixes (e.g., Core + Core_Development → Core group)
+#   - Component Dependencies: *_Development automatically depends on corresponding runtime component
 #
 # Examples:
 #   # Basic usage with auto-detection (CPack is automatically included)
