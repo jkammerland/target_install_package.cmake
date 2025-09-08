@@ -337,6 +337,9 @@ jobs:
         
         echo "=== Testing package installation ==="
         
+        # Test 1: Individual component extraction
+        echo "=== Test 1: Verifying individual component contents ==="
+        
         # Extract Runtime package to test location
         mkdir -p test-runtime
         cd test-runtime
@@ -385,31 +388,90 @@ jobs:
         
         cd ..
         
-        # Extract Tools package
-        mkdir -p test-tools
-        cd test-tools
+        # Extract Tools package alone first
+        mkdir -p test-tools-alone
+        cd test-tools-alone
         tar -xzf ../MyLibrary-*-TOOLS.tar.gz
         
-        # Test the tool executable
+        # Verify tool executable is present
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          if find . -name "mytool.exe" | grep -q .; then
-            echo "✅ Tool executable found"
-            # Note: We don't try to run it due to potential DLL dependency issues
+          if find . -name "mytool.exe" -type f | grep -q .; then
+            echo "✅ Tool executable found in Tools package"
           else
             echo "❌ Tool executable not found"
             exit 1
           fi
         else
-          if find . -name "mytool" | grep -q .; then
-            tool_path=$(find . -name "mytool" | head -n 1)
+          if find . -name "mytool" -type f | grep -q .; then
+            tool_path=$(find . -name "mytool" -type f | head -n 1)
             echo "✅ Tool executable found at: $tool_path"
+          else
+            echo "❌ Tool executable not found"
+            exit 1
+          fi
+        fi
+        
+        cd ..
+        
+        # Test 2: Component dependency chain (Tools depends on Runtime)
+        echo "=== Test 2: Verifying component dependency chain ==="
+        echo "Tools component should depend on Runtime component"
+        
+        # Extract Tools AND Runtime packages together (simulating dependency installation)
+        mkdir -p test-tools-with-deps
+        cd test-tools-with-deps
+        tar -xzf ../MyLibrary-*-TOOLS.tar.gz
+        tar -xzf ../MyLibrary-*-Runtime.tar.gz
+        
+        # Now verify the tool can run with its dependencies
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if find . -name "mytool.exe" -type f | grep -q .; then
+            echo "✅ Tool executable found"
+            # Windows DLL loading is complex in CI, skip execution test
+          else
+            echo "❌ Tool executable not found"
+            exit 1
+          fi
+        else
+          # Find executable files named mytool (not directories)
+          if find . -name "mytool" -type f | grep -q .; then
+            tool_path=$(find . -name "mytool" -type f | head -n 1)
+            echo "Found tool at: $tool_path"
             
-            # Make executable and test basic functionality
+            # Check RPATH is set correctly
+            if [[ "${{ runner.os }}" == "Linux" ]]; then
+              echo "=== Checking RPATH configuration ==="
+              readelf -d "$tool_path" | grep -E "RPATH|RUNPATH" || true
+            elif [[ "${{ runner.os }}" == "macOS" ]]; then
+              echo "=== Checking install name configuration ==="
+              otool -L "$tool_path" || true
+            fi
+            
+            # Make executable and test
             chmod +x "$tool_path"
+            
+            # The tool should run successfully with proper RPATH when Runtime is co-installed
             if "$tool_path" --version; then
-              echo "✅ Tool executable runs successfully"
+              echo "✅ Tool executable runs successfully with Runtime component"
+              echo "✅ Component dependency chain is working correctly"
             else
-              echo "❌ Tool executable found but failed to run (may need runtime libraries)"
+              echo "❌ Tool executable failed to run even with Runtime component installed"
+              echo "This indicates RPATH or component dependency issue"
+              
+              # Debug: Show library search paths
+              if [[ "${{ runner.os }}" == "Linux" ]]; then
+                echo "Library files present:"
+                find . -name "*.so*" -type f
+                echo "Tool location: $tool_path"
+                echo "Tool directory: $(dirname $tool_path)"
+                ldd "$tool_path" || true
+              elif [[ "${{ runner.os }}" == "macOS" ]]; then
+                echo "Library files present:"
+                find . -name "*.dylib" -type f
+                echo "Tool location: $tool_path"
+                echo "Tool directory: $(dirname $tool_path)"
+              fi
+              
               exit 1
             fi
           else
