@@ -12,11 +12,11 @@ target_install_package(my_library)
 find_package(my_library CONFIG REQUIRED)
 ```
 
-Most use cases require minimal configuration. The goal is to simplify this process in a intuitive way, while still allowing interleaving CMake installs and configuration.
+Most use cases require minimal configuration. The goal is to simplify this process while still allowing interleaving CMake installs and configuration.
 
-This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), but for ease of use, they have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
+This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), which have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
 
-## Shipped Functions & Files 📚
+## Shipped Functions & Files
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
@@ -30,7 +30,21 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 | [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 | [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 
->[!NOTE] 
+### Related CMake Documentation
+
+For deeper understanding of the CMake functions used in this project:
+- [`install()`](https://cmake.org/cmake/help/latest/command/install.html) - Specify installation rules
+- [`find_package()`](https://cmake.org/cmake/help/latest/command/find_package.html) - Find and load settings from an external project
+- [`target_sources()`](https://cmake.org/cmake/help/latest/command/target_sources.html) - Add sources to a target (including FILE_SET support)
+- [`add_library()`](https://cmake.org/cmake/help/latest/command/add_library.html) - Add a library to the project
+- [`add_executable()`](https://cmake.org/cmake/help/latest/command/add_executable.html) - Add an executable to the project
+- [`target_link_libraries()`](https://cmake.org/cmake/help/latest/command/target_link_libraries.html) - Specify libraries or flags for linking
+- [`configure_file()`](https://cmake.org/cmake/help/latest/command/configure_file.html) - Copy a file to another location and modify its contents
+- [`cmake_parse_arguments()`](https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html) - Parse function arguments
+- [`include()`](https://cmake.org/cmake/help/latest/command/include.html) - Load and run CMake code from a file or module
+- [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html) - Module for populating content at configure time
+
+>[!NOTE]
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
@@ -46,7 +60,7 @@ The `target_install_package()` function searches for the targets config template
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
 >[!NOTE]
-> `target_install_package()` uses standard CMake installation directories: executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
+> `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
 ## Table of Contents
 
@@ -73,7 +87,7 @@ The `target_install_package()` function searches for the targets config template
 7. [FILE_SET Features](#file_set-approach-features)
 8. [Similar projects](#similar-projects)
 
-## Features ✨
+## Features
 
 - Templated source file configuration with proper include paths
 - Package installation with CMake config file generation
@@ -84,7 +98,7 @@ The `target_install_package()` function searches for the targets config template
 - Build variant support for debug/release/custom configurations
 - Destination paths for headers and configured files
 
-### Tips 💡
+### Tips
 > [!TIP]
 > Use colors and higher log level for more information about what's going on.
 ```bash
@@ -94,7 +108,7 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 > [!TIP]
 > **Prefer FILE_SET for Modern CMake**
 >
-> FILE_SET solves key limitations of `PUBLIC_HEADER`:
+> [`FILE_SET`](https://cmake.org/cmake/help/latest/command/target_sources.html#file-sets) solves key limitations of [`PUBLIC_HEADER`](https://cmake.org/cmake/help/latest/prop_tgt/PUBLIC_HEADER.html):
 > 1. preserves directory structure
 > 2. [provides integration with IDEs](https://cmake.org/cmake/help/latest/prop_tgt/HEADER_SETS.html)
 > 3. allows per-target/file-set header installation instead of installing entire directories/files
@@ -119,6 +133,7 @@ cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
 ```cmake
 set_target_properties(yourTarget PROPERTIES POSITION_INDEPENDENT_CODE ON)
 ```
+> See [`POSITION_INDEPENDENT_CODE`](https://cmake.org/cmake/help/latest/prop_tgt/POSITION_INDEPENDENT_CODE.html) property documentation.
 
 > [!TIP]
 > Windows-specific: ensure import library is generated (if you don't have explicit dllimport/export definitions in your code)
@@ -127,12 +142,13 @@ if(WIN32)
   set_target_properties(yourTarget PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 ```
+> See [`WINDOWS_EXPORT_ALL_SYMBOLS`](https://cmake.org/cmake/help/latest/prop_tgt/WINDOWS_EXPORT_ALL_SYMBOLS.html) property documentation.
 
-## Installation 🚀
+## Installation
 
-### FetchContent ⭐
+### FetchContent
 
-For most projects, use FetchContent to automatically download and configure the utilities:
+For most projects, use [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html) to automatically download and configure the utilities:
 
 ```cmake
 include(FetchContent)
@@ -171,7 +187,7 @@ endif()
 ```
 To prevent your project from **unintentionally** being installed when used in another project!
 
-### Manual Installation 🔨
+### Manual Installation
 
 For system-wide installation or package manager integration, install the utilities manually:
 
@@ -233,7 +249,7 @@ find_package(target_install_package REQUIRED)
 # cmake -DCMAKE_PREFIX_PATH="/opt/cmake-utils" ..
 ```
 
-## Usage 🛠️
+## Usage
 
 ### Basic Library Installation
 
@@ -266,7 +282,7 @@ This works with INTERFACE or SHARED library targets. Check the defaults in [targ
 - Creates `math_utils-config.cmake` and `math_utils-config-version.cmake`
 - Consumers can use: `find_package(math_utils REQUIRED)`
 
-### Configuring Template Headers 📝
+### Configuring Template Headers
 
 For libraries that need version information or build-time configuration:
 
@@ -303,7 +319,7 @@ target_install_package(my_library NAMESPACE MyLib::)
 #define MY_LIBRARY_VERSION "@PROJECT_VERSION@"
 ```
 
-### Libraries with Dependencies 🔗
+### Libraries with Dependencies
 
 For libraries that depend on other packages:
 
@@ -338,7 +354,7 @@ target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 # OpenGL and glfw3 are automatically found and linked
 ```
 
-### CPack Package Generation 📦
+### CPack Package Generation
 
 Generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation:
 
@@ -351,11 +367,9 @@ target_sources(my_library PUBLIC
   FILES "include/my_library/api.h"
 )
 
-# Install with components
+# Install with default components (Runtime and Development)
 target_install_package(my_library
   NAMESPACE MyLib::
-  RUNTIME_COMPONENT "Runtime"
-  DEVELOPMENT_COMPONENT "Development"
 )
 
 # Auto-configure CPack
@@ -380,7 +394,7 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 
 **📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
 
-### Mixing with Standard Install Commands 🔄
+### Mixing with Standard Install Commands
 
 You can mix these utilities with standard CMake install commands for additional files:
 
@@ -393,11 +407,9 @@ target_sources(game_engine PUBLIC
   FILES "include/engine/engine.h"
 )
 
-# Install the main package
-target_install_package(game_engine 
+# Install the main package with default components
+target_install_package(game_engine
   NAMESPACE Engine::
-  RUNTIME_COMPONENT "Runtime"
-  DEVELOPMENT_COMPONENT "Development"
 )
 
 # Install additional documentation with standard install()
@@ -434,11 +446,11 @@ cmake --install . --component Runtime --component Development --component Tools
 cmake --install . --component Documentation
 ```
 
-## Component-Based Installation 🧩
+## Component-Based Installation
 
 `target_install_package` supports logical component grouping using the **Component Prefix Pattern** (v6.0+), providing predictable component naming and clean installation control.
 
-### Component Prefix Pattern 📋
+### Component Prefix Pattern
 
 The Component Prefix Pattern creates logical component groups with predictable naming:
 - **Without COMPONENT**: Creates `Runtime` and `Development` components (traditional)
@@ -460,7 +472,7 @@ target_install_package(my_library)
 target_install_package(my_library COMPONENT Core)
 ```
 
-### Logical Component Grouping 🏷️
+### Logical Component Grouping
 
 Multiple targets can share the same logical component group by using the same COMPONENT name:
 
@@ -497,7 +509,7 @@ target_install_package(level_editor
 - **Tools**: `level_editor` executable (runtime)
 - **Development**: Shared CMake config files
 
-### Installing Specific Components 📥
+### Installing Specific Components
 
 ```bash
 # Install Core logical group - runtime only (deployment)
@@ -520,7 +532,7 @@ cmake --install . --component Tools --component Development
 cmake --install .
 ```
 
-### Migration from v5.x to v6.0 ⬆️
+### Migration from v5.x to v6.0
 
 **Breaking Change**: The Component Prefix Pattern (v6.0) eliminates dual install complexity but changes component naming.
 
@@ -553,7 +565,7 @@ cmake --install . --component Tools_Development  # Development component
 - Eliminates complex dual install routing logic
 - Multiple targets can share the same logical component group
 
-## Multi-Target Exports 🔗
+## Multi-Target Exports
 
 For projects with multiple related targets that should be packaged together, call `target_install_package()` multiple times with the same `EXPORT_NAME`:
 
@@ -566,7 +578,7 @@ For projects with multiple related targets that should be packaged together, cal
 > [!NOTE] 
 > Single target packages have less complexity. Multi-target exports are useful when packaging a set of static libraries where one static library forwards others via public linking.
 
-### Simple Multi-Target Package 📦
+### Simple Multi-Target Package
 
 ```cmake
 # Core library
@@ -631,7 +643,7 @@ target_link_libraries(my_app PRIVATE
 # fmt and spdlog are automatically found and linked
 ```
 
-### Component-Dependent Dependencies 🎯
+### Component-Dependent Dependencies
 
 For libraries with optional features that have different dependencies based on requested components:
 
@@ -704,11 +716,11 @@ target_link_libraries(my_game PRIVATE
 )
 ```
 
-## More Examples 📁
+## More Examples
 
-### Game Engine with Modular Components 🎮
+### Game Engine with Modular Components
 
-A realistic example showing a modular game engine with optional components:
+Example showing a modular game engine with optional components:
 
 ```cmake
 # Core engine (always required)
@@ -756,8 +768,7 @@ target_install_package(engine_core
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"
-  RUNTIME_COMPONENT "Runtime"
-  DEVELOPMENT_COMPONENT "SDK"
+  # Uses default Runtime and Development components
 )
 
 target_install_package(engine_graphics
@@ -765,8 +776,7 @@ target_install_package(engine_graphics
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
     "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"
-  RUNTIME_COMPONENT "Graphics" 
-  DEVELOPMENT_COMPONENT "SDK"
+  COMPONENT "Graphics"  # Creates Graphics and Graphics_Development
 )
 
 target_install_package(engine_physics
@@ -774,8 +784,7 @@ target_install_package(engine_physics
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
     "physics" "Bullet3 3.24 REQUIRED"
-  RUNTIME_COMPONENT "Physics"
-  DEVELOPMENT_COMPONENT "SDK" 
+  COMPONENT "Physics"  # Creates Physics and Physics_Development
 )
 
 target_install_package(level_editor
@@ -787,12 +796,12 @@ target_install_package(level_editor
 # Install additional assets using standard install()
 install(DIRECTORY "assets/shaders/"
   DESTINATION "${CMAKE_INSTALL_DATADIR}/game_engine/shaders"
-  COMPONENT "Graphics"
+  COMPONENT "Graphics"  # Matches the Graphics runtime component
 )
 
 install(FILES "configs/physics.json"
   DESTINATION "${CMAKE_INSTALL_SYSCONFDIR}/game_engine"
-  COMPONENT "Physics"
+  COMPONENT "Physics"  # Matches the Physics runtime component
 )
 ```
 
@@ -804,11 +813,14 @@ cmake --install . --component Runtime
 # Graphics-enabled runtime
 cmake --install . --component Runtime --component Graphics
 
-# Full game development environment
-cmake --install . --component Runtime --component Graphics --component Physics --component SDK --component Tools
+# Full game development environment with all runtime components
+cmake --install . --component Runtime --component Graphics --component Physics --component Tools
+
+# Development files for Graphics and Physics
+cmake --install . --component Development --component Graphics_Development --component Physics_Development
 ```
 
-### Build Variant Support 🎨
+### Build Variant Support
 
 For projects that need different build configurations:
 
@@ -885,7 +897,7 @@ find_package(my_library-debug-profiling REQUIRED)
 target_link_libraries(my_app PRIVATE MyLib::my_library)
 ```
 
-### Header-Only Libraries 🔌
+### Header-Only Libraries
 
 For modern header-only libraries with dependencies:
 
@@ -966,9 +978,9 @@ target_install_package(my_library NAMESPACE MyLib::)
 # That's it - include directories, installation, and config files are handled
 ```
 
-The FILE_SET approach combined with `target_install_package` provides a clean, modern, and maintainable solution with minimal boilerplate while still allowing you to mix in standard `install()` commands where needed.
+The FILE_SET approach combined with `target_install_package` reduces boilerplate while allowing standard `install()` commands where needed.
 
-## Similar projects 🔗
+## Similar projects
 
 - [CPM](https://github.com/cpm-cmake/cpm.cmake)
 - [ModernCppStarter](https://github.com/TheLartians/ModernCppStarter)
