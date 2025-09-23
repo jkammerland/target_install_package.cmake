@@ -50,32 +50,39 @@ Shell script that:
 - Configures entry point
 - Builds container with podman/docker
 
-### 3. Configuration Variables
+### 3. Usage with export_cpack
 
-Set in CMakeLists.txt or via -D flags:
-
-- `ENABLE_MINIMAL_CONTAINER` - Enable container generation (default: OFF)
-- `CONTAINER_NAME` - Image name (default: project name)
-- `CONTAINER_TAG` - Image tag (default: project version)
-- `CONTAINER_ENTRYPOINT` - Binary to run (default: auto-detect)
-
-### 4. Usage
-
-#### Basic Setup
+#### Integrated API
 ```cmake
-# In your CMakeLists.txt
-set(CPACK_GENERATOR "External;TGZ")
-set(CPACK_EXTERNAL_PACKAGE_SCRIPT
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/external_container_package.cmake")
-set(ENABLE_MINIMAL_CONTAINER ON)
+# Use export_cpack with CONTAINER generator
+export_cpack(
+  PACKAGE_NAME "MyApp"
+  GENERATORS "TGZ;CONTAINER"  # CONTAINER generates FROM-scratch image
+  CONTAINER_NAME "myapp"       # Defaults to lowercase package name
+  CONTAINER_TAG "1.0.0"        # Defaults to package version
+)
 ```
 
 #### Build Workflow
 ```bash
-cmake -B build -DENABLE_MINIMAL_CONTAINER=ON
+cmake -B build
 cmake --build build
-cd build && cpack -G External
-# Creates: myapp:1.0.0 container image
+cd build && cpack
+# Creates both .tar.gz packages and container image
+```
+
+### 4. Manual Setup (without export_cpack)
+
+For direct CPack configuration:
+```cmake
+set(CPACK_GENERATOR "External")
+set(CPACK_EXTERNAL_PACKAGE_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/external_container_package.cmake")
+set(CPACK_EXTERNAL_ENABLE_STAGING ON)
+set(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
+set(CPACK_EXTERNAL_USER_CONTAINER_NAME "myapp")
+set(CPACK_EXTERNAL_USER_CONTAINER_TAG "1.0.0")
+include(CPack)
 ```
 
 ### 5. Runtime Dependency Collection Strategy
