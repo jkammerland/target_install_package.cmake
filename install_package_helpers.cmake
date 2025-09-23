@@ -57,8 +57,6 @@ endif()
 #     MODULE_DESTINATION <module_dest>
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
-#     RUNTIME_COMPONENT <runtime_component>
-#     DEVELOPMENT_COMPONENT <dev_component>
 #     DEBUG_POSTFIX <postfix>
 #     ADDITIONAL_FILES <files...>
 #     ADDITIONAL_FILES_DESTINATION <dest>
@@ -70,6 +68,15 @@ endif()
 # See target_install_package() for parameter descriptions.
 # ~~~
 function(target_prepare_package TARGET_NAME)
+  # Check for deprecated parameters BEFORE parsing
+  if("RUNTIME_COMPONENT" IN_LIST ARGN OR "DEVELOPMENT_COMPONENT" IN_LIST ARGN)
+    message(
+      FATAL_ERROR
+        "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
+        "Use COMPONENT instead - it will automatically create '{COMPONENT}' for runtime files and '{COMPONENT}_Development' for development files. "
+        "This provides cleaner, more consistent component naming.")
+  endif()
+
   # Parse function arguments
   set(options DISABLE_RPATH)
   set(oneValueArgs
@@ -83,8 +90,6 @@ function(target_prepare_package TARGET_NAME)
       MODULE_DESTINATION
       CMAKE_CONFIG_DESTINATION
       COMPONENT
-      RUNTIME_COMPONENT
-      DEVELOPMENT_COMPONENT
       DEBUG_POSTFIX
       ADDITIONAL_FILES_DESTINATION)
   set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
@@ -167,33 +172,6 @@ function(target_prepare_package TARGET_NAME)
         "Use COMPONENT with a descriptive name (e.g., 'Core', 'Graphics', 'Network') to separate components logically. " "If you want default behavior, simply omit the COMPONENT parameter entirely.")
   endif()
 
-  # DEPRECATED: RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters These are still parsed for backwards compatibility but discouraged
-  if(ARG_RUNTIME_COMPONENT OR ARG_DEVELOPMENT_COMPONENT)
-    message(
-      FATAL_ERROR
-        "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
-        "Use COMPONENT instead - it will automatically create '${ARG_COMPONENT}' for runtime files and '${ARG_COMPONENT}_Development' for development files. "
-        "This provides cleaner, more consistent component naming.")
-  endif()
-
-  # Set default component values following CMake conventions
-  if(NOT ARG_RUNTIME_COMPONENT)
-    set(ARG_RUNTIME_COMPONENT "Runtime")
-    project_log(DEBUG "  Runtime component not provided, using default: ${ARG_RUNTIME_COMPONENT}")
-  endif()
-
-  # Track whether DEVELOPMENT_COMPONENT was explicitly specified (before applying defaults)
-  if(ARG_DEVELOPMENT_COMPONENT)
-    set(DEV_COMPONENT_WAS_EXPLICIT TRUE)
-  else()
-    set(DEV_COMPONENT_WAS_EXPLICIT FALSE)
-  endif()
-
-  if(NOT ARG_DEVELOPMENT_COMPONENT)
-    set(ARG_DEVELOPMENT_COMPONENT "Development")
-    project_log(DEBUG "  Development component not provided, using default: ${ARG_DEVELOPMENT_COMPONENT}")
-  endif()
-
   # Handle DEBUG_POSTFIX default value
   if(NOT ARG_DEBUG_POSTFIX)
     set(ARG_DEBUG_POSTFIX "d")
@@ -234,14 +212,24 @@ function(target_prepare_package TARGET_NAME)
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
   # Store per-target component configuration
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${ARG_RUNTIME_COMPONENT}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
+  # Component logic: if COMPONENT is set, use it; otherwise use default Runtime/Development
+  if(ARG_COMPONENT)
+    set(RUNTIME_COMPONENT_NAME "${ARG_COMPONENT}")
+    set(DEVELOPMENT_COMPONENT_NAME "${ARG_COMPONENT}_Development")
+  else()
+    set(RUNTIME_COMPONENT_NAME "Runtime")
+    set(DEVELOPMENT_COMPONENT_NAME "Development")
+  endif()
+
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${RUNTIME_COMPONENT_NAME}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
 
-  # Store whether DEVELOPMENT_COMPONENT was explicitly specified (using the flag set earlier)
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" ${DEV_COMPONENT_WAS_EXPLICIT})
-  project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': ${DEV_COMPONENT_WAS_EXPLICIT}")
+  # Store whether DEVELOPMENT_COMPONENT was explicitly specified
+  # (Always false now since we only use COMPONENT parameter)
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" FALSE)
+  project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': FALSE")
 
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
@@ -259,7 +247,7 @@ function(target_prepare_package TARGET_NAME)
   # For config files, use the first target's development component as default
   get_property(EXISTING_CONFIG_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   if(NOT EXISTING_CONFIG_COMPONENT)
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT" "${ARG_DEVELOPMENT_COMPONENT}")
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
   endif()
 
   # Store lists
@@ -573,8 +561,8 @@ function(finalize_package)
     list(REMOVE_DUPLICATES ALL_UNIQUE_COMPONENTS)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
 
-    # TODO: Component registration for CPack auto-detection The _tip_register_component function is defined in export_cpack.cmake but may not be available here if that file isn't included. For now,
-    # register components directly in the global property. Future improvement: Move this functionality to a shared location or ensure export_cpack is always available when needed.
+    # Component registration for CPack auto-detection
+    # Components are registered directly in the global property for export_cpack to consume
     get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
 
     # IMPORTANT: Always ensure global Runtime and Development components are registered This ensures that custom components can depend on them for proper installation
