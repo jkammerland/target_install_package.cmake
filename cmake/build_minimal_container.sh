@@ -17,9 +17,9 @@ fi
 
 echo "Building container: $CONTAINER_NAME:$CONTAINER_TAG"
 
-# Find the main executable (largest ELF file in bin or root)
+# Find the main executable (check both component and non-component layouts)
 ENTRYPOINT=""
-for dir in "$STAGING_DIR/bin" "$STAGING_DIR/usr/bin" "$STAGING_DIR"; do
+for dir in "$STAGING_DIR/Runtime/bin" "$STAGING_DIR/bin" "$STAGING_DIR/usr/bin" "$STAGING_DIR"; do
     if [ -d "$dir" ]; then
         CANDIDATE=$(find "$dir" -maxdepth 1 -type f -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | head -n1)
         if [ -n "$CANDIDATE" ]; then

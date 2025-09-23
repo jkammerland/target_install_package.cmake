@@ -77,6 +77,8 @@ endif()
 #     [SIGNING_METHOD <detached|embedded|both>]
 #     [GPG_KEYSERVER <keyserver_url>]
 #     [GENERATE_CHECKSUMS]
+#     [CONTAINER_NAME <name>]
+#     [CONTAINER_TAG <tag>]
 #     [ADDITIONAL_CPACK_VARS <var1> <value1> <var2> <value2> ...]
 #   )
 #
@@ -88,13 +90,15 @@ endif()
 #   PACKAGE_DESCRIPTION     - Package description (default: ${PROJECT_DESCRIPTION})
 #   PACKAGE_HOMEPAGE_URL    - Project homepage URL (default: ${PROJECT_HOMEPAGE_URL})
 #   LICENSE_FILE            - Path to license file (default: auto-detected)
-#   GENERATORS              - Explicit list of CPack generators to use
+#   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
 #   DEFAULT_COMPONENTS      - Components installed by default (default: Runtime)
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
+#   CONTAINER_NAME          - Name for container image when using CONTAINER generator (default: lowercase package name)
+#   CONTAINER_TAG           - Tag for container image when using CONTAINER generator (default: package version)
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
 #                             Can override any auto-detected settings including architecture
 #
@@ -138,6 +142,14 @@ endif()
 #     ADDITIONAL_CPACK_VARS
 #       CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all"  # Architecture-independent package
 #       CPACK_RPM_PACKAGE_ARCHITECTURE "noarch"
+#   )
+#
+#   # Generate container image alongside traditional packages
+#   export_cpack(
+#     PACKAGE_NAME "MyApp"
+#     GENERATORS "TGZ;CONTAINER"   # CONTAINER generates FROM-scratch container
+#     CONTAINER_NAME "myapp"        # Defaults to lowercase package name
+#     CONTAINER_TAG "latest"        # Defaults to package version
 #   )
 # ~~~
 function(export_cpack)
@@ -330,7 +342,9 @@ function(_execute_deferred_cpack_config)
       GPG_SIGNING_KEY
       GPG_PASSPHRASE_FILE
       SIGNING_METHOD
-      GPG_KEYSERVER)
+      GPG_KEYSERVER
+      CONTAINER_NAME
+      CONTAINER_TAG)
   set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
 
@@ -452,6 +466,41 @@ function(_execute_deferred_cpack_config)
   if(version_length GREATER_EQUAL 3)
     list(GET version_list 2 version_patch)
     _tip_store_cpack_var(CPACK_PACKAGE_VERSION_PATCH "${version_patch}")
+  endif()
+
+  # Handle CONTAINER pseudo-generator
+  if("CONTAINER" IN_LIST ARG_GENERATORS)
+    # Check platform compatibility (warning only - user might have Docker Desktop)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      project_log(WARNING "Container generation uses Linux-specific tools (ldd). May not work fully on ${CMAKE_SYSTEM_NAME}")
+    endif()
+
+    # Replace CONTAINER with External in the generators list
+    list(REMOVE_ITEM ARG_GENERATORS "CONTAINER")
+    list(APPEND ARG_GENERATORS "External")
+
+    # Configure External generator for container building
+    _tip_store_cpack_var(CPACK_EXTERNAL_PACKAGE_SCRIPT
+      "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/external_container_package.cmake")
+    _tip_store_cpack_var(CPACK_EXTERNAL_ENABLE_STAGING ON)
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
+
+    # Set container name (default to lowercase package name)
+    if(ARG_CONTAINER_NAME)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${ARG_CONTAINER_NAME}")
+    else()
+      string(TOLOWER "${ARG_PACKAGE_NAME}" container_name)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
+    endif()
+
+    # Set container tag (default to package version)
+    if(ARG_CONTAINER_TAG)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${ARG_CONTAINER_TAG}")
+    else()
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${ARG_PACKAGE_VERSION}")
+    endif()
+
+    project_log(VERBOSE "Container generation configured: ${container_name}:${ARG_PACKAGE_VERSION}")
   endif()
 
   # Set generators

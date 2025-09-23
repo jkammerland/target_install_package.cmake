@@ -21,25 +21,14 @@ target_install_package(hello_container
 
 install(TARGETS hello_loop DESTINATION bin)
 
-# Configure CPack for minimal container
-set(CPACK_GENERATOR "External" CACHE STRING "Package generator")
-set(CPACK_EXTERNAL_PACKAGE_SCRIPT
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/external_container_package.cmake")
-set(CPACK_EXTERNAL_ENABLE_STAGING ON)
+# Use the integrated container support in export_cpack
+include(../../export_cpack.cmake)
 
-# Enable minimal container generation
-set(ENABLE_MINIMAL_CONTAINER ON CACHE BOOL "Enable minimal container")
-set(CONTAINER_NAME "hello" CACHE STRING "Container name")
-set(CONTAINER_TAG "${PROJECT_VERSION}" CACHE STRING "Container tag")
-
-# Export variables for the external script
-set(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER "${ENABLE_MINIMAL_CONTAINER}")
-set(CPACK_EXTERNAL_USER_CONTAINER_NAME "${CONTAINER_NAME}")
-set(CPACK_EXTERNAL_USER_CONTAINER_TAG "${CONTAINER_TAG}")
-
-# Basic CPack configuration
-set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_VENDOR "Example")
-
-include(CPack)
+export_cpack(
+  PACKAGE_NAME "${PROJECT_NAME}"
+  PACKAGE_VERSION "${PROJECT_VERSION}"
+  PACKAGE_VENDOR "Example"
+  GENERATORS "TGZ;CONTAINER"  # Create both tarball and container
+  CONTAINER_NAME "hello"
+  CONTAINER_TAG "${PROJECT_VERSION}"
+)
