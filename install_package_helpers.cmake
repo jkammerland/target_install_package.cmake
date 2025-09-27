@@ -433,42 +433,6 @@ function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
 endfunction()
 
 # Helper to setup CPack component relationships
-function(_setup_cpack_components EXPORT_NAME ALL_RUNTIME_COMPONENTS ALL_DEVELOPMENT_COMPONENTS ALL_COMPONENTS)
-  # Define component groups
-  set(CPACK_COMPONENT_GROUP_RUNTIME_DISPLAY_NAME "Runtime Libraries")
-  set(CPACK_COMPONENT_GROUP_RUNTIME_DESCRIPTION "Runtime libraries and executables")
-  set(CPACK_COMPONENT_GROUP_DEVELOPMENT_DISPLAY_NAME "Development Files")
-  set(CPACK_COMPONENT_GROUP_DEVELOPMENT_DESCRIPTION "Headers, libraries, and CMake files for development")
-
-  # Set up base components
-  foreach(comp ${ALL_RUNTIME_COMPONENTS})
-    set(CPACK_COMPONENT_${comp}_GROUP "RUNTIME")
-    set(CPACK_COMPONENT_${comp}_DISPLAY_NAME "${comp} Runtime")
-  endforeach()
-
-  foreach(comp ${ALL_DEVELOPMENT_COMPONENTS})
-    set(CPACK_COMPONENT_${comp}_GROUP "DEVELOPMENT")
-    set(CPACK_COMPONENT_${comp}_DISPLAY_NAME "${comp} Development")
-  endforeach()
-
-  # Set up custom components with dependencies on base components
-  foreach(comp ${ALL_COMPONENTS})
-    # Custom components depend on their corresponding base components
-    set(CPACK_COMPONENT_${comp}_DEPENDS "Runtime;Development")
-    set(CPACK_COMPONENT_${comp}_DISPLAY_NAME "${comp}")
-  endforeach()
-
-  # Export all CPack variables to parent scope
-  get_cmake_property(all_vars VARIABLES)
-  foreach(var ${all_vars})
-    if(var MATCHES "^CPACK_")
-      set(${var}
-          "${${var}}"
-          PARENT_SCOPE)
-    endif()
-  endforeach()
-endfunction()
-
 # ~~~
 # Finalize and install a prepared package export.
 #
@@ -572,14 +536,6 @@ function(finalize_package)
     # Component registration for CPack auto-detection
     # Components are registered directly in the global property for export_cpack to consume
     get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
-
-    # IMPORTANT: Always ensure global Runtime and Development components are registered This ensures that custom components can depend on them for proper installation
-    set(global_components "Runtime" "Development")
-    foreach(global_comp ${global_components})
-      if(NOT global_comp IN_LIST detected_components)
-        list(APPEND detected_components "${global_comp}")
-      endif()
-    endforeach()
 
     # Add all unique components from this export
     foreach(component ${ALL_UNIQUE_COMPONENTS})
@@ -821,15 +777,6 @@ function(finalize_package)
         endif()
       endif()
 
-      set(TARGET_ADDITIONAL_FILES_DEST_PATH "${CMAKE_INSTALL_PREFIX}")
-      if(TARGET_ADDITIONAL_FILES_DESTINATION)
-        cmake_path(
-          APPEND
-          CMAKE_INSTALL_PREFIX
-          "${TARGET_ADDITIONAL_FILES_DESTINATION}"
-          OUTPUT_VARIABLE TARGET_ADDITIONAL_FILES_DEST_PATH)
-      endif()
-
       foreach(FILE_PATH ${TARGET_ADDITIONAL_FILES})
         cmake_path(
           ABSOLUTE_PATH
@@ -843,6 +790,8 @@ function(finalize_package)
           continue()
         endif()
 
+        set(TARGET_ADDITIONAL_FILES_DEST_PATH "${TARGET_ADDITIONAL_FILES_DESTINATION}")
+
         install(
           FILES "${SRC_FILE_PATH}"
           DESTINATION "${TARGET_ADDITIONAL_FILES_DEST_PATH}"
@@ -852,11 +801,6 @@ function(finalize_package)
       endforeach()
     endif()
   endforeach()
-
-  # After all targets are installed, set up CPack components
-  if(FALSE)
-    _setup_cpack_components("${ARG_EXPORT_NAME}" "${ALL_RUNTIME_COMPONENTS}" "${ALL_DEVELOPMENT_COMPONENTS}" "${ALL_COMPONENTS}")
-  endif()
 
   # Set up component args for config files using the first development component
   if(ALL_DEVELOPMENT_COMPONENTS)
