@@ -439,8 +439,11 @@ install(TARGETS asset_converter
 # Install only runtime (engine + configs)
 cmake --install . --component Runtime
 
-# Install everything for developers
+# Install everything for developers (specify each logical component explicitly)
 cmake --install . --component Runtime --component Development --component Tools
+
+# Install full package without selecting components (installs every runtime + development file)
+cmake --install .
 
 # Install documentation separately
 cmake --install . --component Documentation
@@ -505,9 +508,9 @@ target_install_package(level_editor
 
 **Result**: Single `GameEngine` package with logical component groups:
 - **Core**: `libengine_core.so` (runtime)
-- **Core_Development**: Headers from both targets + `libengine_tools.a`
+- **Core_Development**: Headers from both targets + `libengine_tools.a` + shared CMake config files
 - **Tools**: `level_editor` executable (runtime)
-- **Development**: Shared CMake config files
+- **Tools_Development**: Headers for tools + development-only assets
 
 ### Installing Specific Components
 
@@ -521,12 +524,15 @@ cmake --install . --component Core_Development
 # Install Tools logical group - runtime only
 cmake --install . --component Tools
 
-# Install shared CMake config files (needed for find_package)
-cmake --install . --component Development
+# Shared CMake config files live with the first development component
+cmake --install . --component Core_Development
+
+# Install all runtime + development files (no component filtering)
+cmake --install .
 
 # Install everything for developers
 cmake --install . --component Core --component Core_Development
-cmake --install . --component Tools --component Development
+cmake --install . --component Tools --component Tools_Development
 
 # Install everything
 cmake --install .
@@ -818,6 +824,9 @@ cmake --install . --component Runtime --component Graphics --component Physics -
 
 # Development files for Graphics and Physics
 cmake --install . --component Development --component Graphics_Development --component Physics_Development
+
+# Install every component at once (no explicit selection)
+cmake --install .
 ```
 
 ### Build Variant Support
