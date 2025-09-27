@@ -266,7 +266,7 @@ Try to follow the style of the other examples.
 
 ## 📚 Further Reading
 
-- [install_package_helpers.cmake](../install_package_helpers.cmake) - **target_install_package(...)** main utility function
+- [target_install_package.cmake](../target_install_package.cmake) - **target_install_package(...)** main utility function
 - [target_install_package.cmake](../target_install_package.cmake) - Function implementation
 - [target_configure_sources.cmake](../target_configure_sources.cmake) - Configuration utilities
 - [export_cpack.cmake](../export_cpack.cmake) - Packaging utilities

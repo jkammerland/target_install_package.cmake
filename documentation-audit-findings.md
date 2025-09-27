@@ -12,7 +12,7 @@ This audit identified several critical documentation issues in the `target_insta
 
 **Issue**: `RUNTIME_COMPONENT` and `DEVELOPMENT_COMPONENT` parameters are deprecated and trigger FATAL_ERROR when used, but are still present in internal documentation.
 
-**Location**: `install_package_helpers.cmake` lines 60-61, 86-87
+**Location**: `target_install_package.cmake` lines 60-61, 86-87
 
 **Impact**: Confusion for developers reading the source code
 
@@ -63,7 +63,7 @@ This audit identified several critical documentation issues in the `target_insta
 
 **Issue**: Active TODO comment about component registration functionality that should be moved to a shared location.
 
-**Location**: `install_package_helpers.cmake` line 576
+**Location**: `target_install_package.cmake` line 576
 
 **Impact**: Indicates incomplete refactoring
 
@@ -84,7 +84,7 @@ This audit identified several critical documentation issues in the `target_insta
 ## Recommendations
 
 ### Immediate Actions
-1. **Remove deprecated parameter handling** from `install_package_helpers.cmake`
+1. **Remove deprecated parameter handling** from `target_install_package.cmake`
 2. **Update function signatures** to remove `RUNTIME_COMPONENT` and `DEVELOPMENT_COMPONENT`
 3. **Complete the TODO** for component registration refactoring
 
