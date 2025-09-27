@@ -21,7 +21,6 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 | File/Function | Type | Description |
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
-| [install_package_helpers](install_package_helpers.cmake) | Function | Implementation of target_install_package |
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and add them to target's FILE_SET |
 | [export_cpack](export_cpack.cmake) | Function | CPack configuration with component detection, platform-appropriate generators, and optional GPG signing (see [tutorial](CPack-Tutorial.md)) |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |

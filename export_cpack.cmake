@@ -722,7 +722,7 @@ function(_execute_deferred_cpack_config)
 
 endfunction(_execute_deferred_cpack_config)
 
-# Note: Component registration is now handled directly in install_package_helpers.cmake The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack()
+# Note: Component registration is now handled directly in target_install_package.cmake. The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack().
 # for auto-detection of components.
 
 # ~~~
