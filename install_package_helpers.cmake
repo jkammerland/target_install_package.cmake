@@ -250,8 +250,18 @@ function(target_prepare_package TARGET_NAME)
 
   # Store lists
   if(ARG_ADDITIONAL_FILES)
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES" "${ARG_ADDITIONAL_FILES}")
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES_DESTINATION" "${ARG_ADDITIONAL_FILES_DESTINATION}")
+    set_property(
+      GLOBAL
+      PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES" "${ARG_ADDITIONAL_FILES}")
+    set_property(
+      GLOBAL
+      PROPERTY
+        "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_DESTINATION"
+        "${ARG_ADDITIONAL_FILES_DESTINATION}")
+    set_property(
+      GLOBAL
+      PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_SOURCE_DIR"
+                "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
 
   # Append to existing dependencies and CMake files
@@ -585,8 +595,6 @@ function(finalize_package)
   get_property(CONFIG_DEV_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   get_property(CURRENT_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR")
   get_property(CURRENT_BINARY_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR")
-  get_property(ADDITIONAL_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES")
-  get_property(ADDITIONAL_FILES_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ADDITIONAL_FILES_DESTINATION")
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(INCLUDE_ON_FIND_PACKAGE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
   get_property(COMPONENT_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
@@ -951,6 +959,62 @@ endif()
 
     # Execute single install with prefix-based component names
     install(${INSTALL_ARGS})
+
+    # Install additional files associated with this target
+    get_property(
+      TARGET_ADDITIONAL_FILES
+      GLOBAL
+      PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES")
+    if(TARGET_ADDITIONAL_FILES)
+      get_property(
+        TARGET_ADDITIONAL_FILES_DESTINATION
+        GLOBAL
+        PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_DESTINATION")
+      get_property(
+        TARGET_ADDITIONAL_FILES_SOURCE_DIR
+        GLOBAL
+        PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_SOURCE_DIR")
+
+      if(NOT TARGET_ADDITIONAL_FILES_DESTINATION)
+        set(TARGET_ADDITIONAL_FILES_DESTINATION "files")
+      endif()
+      if(NOT TARGET_ADDITIONAL_FILES_SOURCE_DIR)
+        get_target_property(TARGET_ADDITIONAL_FILES_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)
+        if(NOT TARGET_ADDITIONAL_FILES_SOURCE_DIR)
+          set(TARGET_ADDITIONAL_FILES_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        endif()
+      endif()
+
+      set(TARGET_ADDITIONAL_FILES_DEST_PATH "${CMAKE_INSTALL_PREFIX}")
+      if(TARGET_ADDITIONAL_FILES_DESTINATION)
+        cmake_path(
+          APPEND
+          CMAKE_INSTALL_PREFIX
+          "${TARGET_ADDITIONAL_FILES_DESTINATION}"
+          OUTPUT_VARIABLE TARGET_ADDITIONAL_FILES_DEST_PATH)
+      endif()
+
+      foreach(FILE_PATH ${TARGET_ADDITIONAL_FILES})
+        cmake_path(
+          ABSOLUTE_PATH
+          FILE_PATH
+          BASE_DIRECTORY "${TARGET_ADDITIONAL_FILES_SOURCE_DIR}"
+          NORMALIZE
+          OUTPUT_VARIABLE SRC_FILE_PATH)
+
+        if(NOT EXISTS "${SRC_FILE_PATH}")
+          project_log(WARNING "  Additional file to install not found for '${TARGET_NAME}': ${SRC_FILE_PATH}")
+          continue()
+        endif()
+
+        install(
+          FILES "${SRC_FILE_PATH}"
+          DESTINATION "${TARGET_ADDITIONAL_FILES_DEST_PATH}"
+          ${TARGET_DEV_COMPONENT_ARGS})
+        project_log(DEBUG
+                     "  Installing additional file for '${TARGET_NAME}': ${SRC_FILE_PATH} -> ${TARGET_ADDITIONAL_FILES_DEST_PATH}")
+      endforeach()
+    endif()
   endforeach()
 
   # After all targets are installed, set up CPack components
@@ -965,37 +1029,6 @@ endif()
   else()
     # Fallback to generic Development component
     _build_component_args(CONFIG_COMPONENT "" "Development")
-  endif()
-
-  # Install additional files with config component
-  if(ADDITIONAL_FILES)
-    set(ADDITIONAL_FILES_DEST_PATH "${CMAKE_INSTALL_PREFIX}")
-    if(ADDITIONAL_FILES_DESTINATION)
-      cmake_path(APPEND CMAKE_INSTALL_PREFIX "${ADDITIONAL_FILES_DESTINATION}" OUTPUT_VARIABLE ADDITIONAL_FILES_DEST_PATH)
-    endif()
-
-    foreach(FILE_PATH ${ADDITIONAL_FILES})
-      # Modern path handling
-      cmake_path(
-        ABSOLUTE_PATH
-        FILE_PATH
-        BASE_DIRECTORY
-        "${CMAKE_CURRENT_SOURCE_DIR}"
-        NORMALIZE
-        OUTPUT_VARIABLE
-        SRC_FILE_PATH)
-
-      if(NOT EXISTS "${SRC_FILE_PATH}")
-        project_log(WARNING " Additional file to install not found: ${SRC_FILE_PATH}")
-        continue()
-      endif()
-
-      install(
-        FILES "${SRC_FILE_PATH}"
-        DESTINATION "${ADDITIONAL_FILES_DEST_PATH}"
-        ${CONFIG_COMPONENT_ARGS})
-      project_log(DEBUG " Installing additional file: ${SRC_FILE_PATH} to ${ADDITIONAL_FILES_DEST_PATH}")
-    endforeach()
   endif()
 
   # Install targets export file with config component CMake automatically handles configuration-specific exports
