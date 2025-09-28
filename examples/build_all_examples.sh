@@ -226,6 +226,18 @@ build_example_multiconfig() {
 
     if [[ -n "$MACOS_SDK_PATH" ]]; then
         cmake_args+=("-DCMAKE_OSX_SYSROOT=$MACOS_SDK_PATH")
+    elif [[ "$(uname)" == "Darwin" ]]; then
+        if command -v xcrun >/dev/null 2>&1; then
+            SDKROOT="$(xcrun --sdk macosx --show-sdk-path 2>/dev/null)"
+            if [[ -n "$SDKROOT" ]]; then
+                export SDKROOT
+                cmake_args+=("-DCMAKE_OSX_SYSROOT=${SDKROOT}")
+            else
+                print_warning "xcrun returned empty macOS SDK path during multi-config setup"
+            fi
+        else
+            print_warning "xcrun not found; unable to determine macOS SDK for multi-config build"
+        fi
     fi
 
     if ! cmake "${cmake_args[@]}"; then
@@ -246,9 +258,16 @@ build_example_multiconfig() {
             failed_configs+=("$config")
             continue
         fi
-        
+
         print_status "Installing $example_name [$config]..."
-        if ! cmake --install . --config "$config" --default-directory-per-config; then
+        local install_args=("--config" "$config")
+        if [ "$CMAKE_HAS_DEFAULT_DIR_PER_CONFIG" = true ]; then
+            install_args+=("--default-directory-per-config")
+        else
+            install_args+=("--prefix" "./install/$config")
+        fi
+
+        if ! cmake --install . "${install_args[@]}"; then
             print_error "Installation failed for $example_name [$config]"
             failed_configs+=("$config")
             continue
@@ -377,6 +396,14 @@ if [ "$MULTI_CONFIG_MODE" = true ]; then
     fi
     print_success "Detected generator: $GENERATOR"
     print_status "Will build all 4 configurations: Debug, Release, MinSizeRel, RelWithDebInfo"
+fi
+
+# Detect support for --default-directory-per-config once
+if cmake --help 2>&1 | grep -q "--default-directory-per-config"; then
+    CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=true
+else
+    CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=false
+    print_warning "cmake --install does not support --default-directory-per-config; installing configs under install/<config>"
 fi
 
 print_status "Starting build of all examples in $EXAMPLES_DIR"
