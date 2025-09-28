@@ -146,8 +146,13 @@ build_example() {
         "--log-level=TRACE"
     )
 
-    if [[ -n "$MACOS_SDK_PATH" ]]; then
-        cmake_args+=("-DCMAKE_OSX_SYSROOT=$MACOS_SDK_PATH")
+    # Ensure Homebrew clang picks up the macOS SDK when scanning C++ modules
+    if [[ "$(uname)" == "Darwin" ]]; then
+        if command -v xcrun >/dev/null 2>&1; then
+            SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+            export SDKROOT
+            cmake_args+=("-DCMAKE_OSX_SYSROOT=${SDKROOT}")
+        fi
     fi
     
     # Ensure consistent MSVC runtime library on Windows
