@@ -206,7 +206,7 @@ build_example_multiconfig() {
         fi
         
         print_status "Installing $example_name [$config]..."
-        if ! cmake --install . --config "$config"; then
+        if ! cmake --install . --config "$config" --default-directory-per-config; then
             print_error "Installation failed for $example_name [$config]"
             failed_configs+=("$config")
             continue
