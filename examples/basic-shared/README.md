@@ -1,121 +1,46 @@
-# Basic Shared Library Example
+# Basic Shared Library
 
-This example shows how you can split runtime from development files, for different kind of consumers.
+Shared library with runtime/development component separation.
 
-## Features Demonstrated
-
-- Shared library creation with versioning
-- Position Independent Code (PIC)
-- CMake Windows export symbols
-- Runtime and development component separation
-- Modern header installation with FILE_SET
-
-## Building and Installing
-
-### Step 1: Configure and Build
+## Build
 
 ```bash
-# Create build directory
-mkdir build && cd build
-
-# Configure with install prefix set to build directory
-cmake .. -DCMAKE_INSTALL_PREFIX=./install -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
-
-# Build the library
-cmake --build .
+cmake -B build -DCMAKE_INSTALL_PREFIX=build/install
+cmake --build build
+cmake --install build
 ```
 
-### Step 2: Install the Package
+## Components
+
+- **Runtime**: Shared library (`.so`/`.dll`)
+- **Development**: Headers, CMake configs, import libraries
 
 ```bash
-# Install everything
-cmake --install .
-
-# Or install specific components:
-# cmake --install . --component Runtime     # Only shared library
-# cmake --install . --component Development # Headers and CMake configs
+cmake --install build --component Runtime      # End users
+cmake --install build --component Development  # Developers
 ```
 
-### Step 3: Verify Installation
-
-After installation, you should see the following structure in `build/install/`:
+## Structure
 
 ```
 install/
-├── include/
-│   └── utils/
-│       └── string_utils.h
+├── include/utils/string_utils.h
 ├── lib/
-│   ├── libstring_utils.so.2.1.0    # Full version (Linux)
-│   ├── libstring_utils.so.2         # Major version symlink
-│   └── libstring_utils.so           # Development symlink
-└── share/
-    └── cmake/
-        └── string_utils/
-            ├── string_utils-config.cmake
-            ├── string_utils-config-version.cmake
-            └── string_utils-targets.cmake
+│   ├── libstring_utils.so.2.1.0
+│   ├── libstring_utils.so.2      # Major version symlink
+│   └── libstring_utils.so        # Development symlink
+└── share/cmake/string_utils/*.cmake
 ```
 
-On Windows, you'll see `.dll` and `.lib` files instead.
-
-## Component-Based Installation
-
-This example demonstrates CMake's component system:
-
-- **Runtime Component**: Contains the shared library (`.so`, `.dll`)
-- **Development Component**: Contains headers, CMake configs, and import libraries
-
-### Installing Only Runtime Files
-
-```bash
-cmake --install . --component Runtime
-```
-
-This installs only what end-users need to run applications.
-
-### Installing Only Development Files
-
-```bash
-cmake --install . --component Development
-```
-
-This installs headers and CMake configuration files needed by developers.
-
-## Using the Installed Package
-
-Create a consumer project:
+## Usage
 
 ```cmake
-# CMakeLists.txt
-cmake_minimum_required(VERSION 3.25)
-project(consumer)
-
-# Find the package
 find_package(string_utils 2.1 REQUIRED)
-
-# Create executable
-add_executable(test_app main.cpp)
-
-# Link with the installed library
-target_link_libraries(test_app PRIVATE Utils::string_utils)
+target_link_libraries(app PRIVATE Utils::string_utils)
 ```
 
 ```cpp
-// main.cpp
 #include "utils/string_utils.h"
-#include <iostream>
-
-int main() {
-    std::string text = "Hello, World!";
-    
-    std::cout << "Original: " << text << std::endl;
-    std::cout << "Upper: " << utils::StringUtils::toUpper(text) << std::endl;
-    std::cout << "Lower: " << utils::StringUtils::toLower(text) << std::endl;
-    
-    auto words = utils::StringUtils::split(text, ' ');
-    std::cout << "Split into " << words.size() << " words" << std::endl;
-    
-    return 0;
-}
+utils::StringUtils::toUpper("hello");  // "HELLO"
+utils::StringUtils::split("a,b", ','); // ["a", "b"]
 ```

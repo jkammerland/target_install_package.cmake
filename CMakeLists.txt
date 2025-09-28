@@ -14,7 +14,6 @@ project_include_guard() # Guard against multiple add_subdirectory (e.g git submo
 # ~~~
 # This projects cmake functions!
 # ~~~
-include(${CMAKE_CURRENT_LIST_DIR}/install_package_helpers.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/target_configure_sources.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/export_cpack.cmake)
@@ -39,7 +38,6 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_CURRENT_LIST_DIR}/cmake/list_file_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_log.cmake
-      ${CMAKE_CURRENT_LIST_DIR}/install_package_helpers.cmake
       ${CMAKE_CURRENT_LIST_DIR}/target_configure_sources.cmake
       ${CMAKE_CURRENT_LIST_DIR}/target_install_package.cmake
       ${CMAKE_CURRENT_LIST_DIR}/export_cpack.cmake

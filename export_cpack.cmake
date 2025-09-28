@@ -77,6 +77,8 @@ endif()
 #     [SIGNING_METHOD <detached|embedded|both>]
 #     [GPG_KEYSERVER <keyserver_url>]
 #     [GENERATE_CHECKSUMS]
+#     [CONTAINER_NAME <name>]
+#     [CONTAINER_TAG <tag>]
 #     [ADDITIONAL_CPACK_VARS <var1> <value1> <var2> <value2> ...]
 #   )
 #
@@ -88,13 +90,15 @@ endif()
 #   PACKAGE_DESCRIPTION     - Package description (default: ${PROJECT_DESCRIPTION})
 #   PACKAGE_HOMEPAGE_URL    - Project homepage URL (default: ${PROJECT_HOMEPAGE_URL})
 #   LICENSE_FILE            - Path to license file (default: auto-detected)
-#   GENERATORS              - Explicit list of CPack generators to use
+#   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
 #   DEFAULT_COMPONENTS      - Components installed by default (default: Runtime)
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
+#   CONTAINER_NAME          - Name for container image when using CONTAINER generator (default: lowercase package name)
+#   CONTAINER_TAG           - Tag for container image when using CONTAINER generator (default: package version)
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
 #                             Can override any auto-detected settings including architecture
 #
@@ -138,6 +142,14 @@ endif()
 #     ADDITIONAL_CPACK_VARS
 #       CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all"  # Architecture-independent package
 #       CPACK_RPM_PACKAGE_ARCHITECTURE "noarch"
+#   )
+#
+#   # Generate container image alongside traditional packages
+#   export_cpack(
+#     PACKAGE_NAME "MyApp"
+#     GENERATORS "TGZ;CONTAINER"   # CONTAINER generates FROM-scratch container
+#     CONTAINER_NAME "myapp"        # Defaults to lowercase package name
+#     CONTAINER_TAG "latest"        # Defaults to package version
 #   )
 # ~~~
 function(export_cpack)
@@ -194,14 +206,6 @@ function(_should_auto_enable_component_groups component_list)
           PARENT_SCOPE)
       return()
     endif()
-    # OLD SCHEME: Check if component follows prefix pattern (contains underscore and ends with Runtime/Development)
-    if(component MATCHES "^(.+)_(Runtime|Development)$")
-      # Found at least one old-style prefixed component - enable grouping
-      set(_ENABLE_GROUPS
-          TRUE
-          PARENT_SCOPE)
-      return()
-    endif()
   endforeach()
   set(_ENABLE_GROUPS
       FALSE
@@ -235,22 +239,6 @@ function(_configure_logical_component_groups component_list)
         if(NOT group_name IN_LIST logical_groups)
           list(APPEND logical_groups "${group_name}")
         endif()
-      endif()
-    elseif(component MATCHES "^(.+)_(Runtime|Development)$")
-      # OLD SCHEME: Component follows PREFIX_Runtime/PREFIX_Development pattern (deprecated)
-      set(group_name "${CMAKE_MATCH_1}")
-      set(component_type "${CMAKE_MATCH_2}")
-
-      # Collect unique group names
-      if(NOT group_name IN_LIST logical_groups)
-        list(APPEND logical_groups "${group_name}")
-      endif()
-
-      # Categorize components by type
-      if(component_type STREQUAL "Runtime")
-        list(APPEND runtime_components "${component}")
-      else() # Development
-        list(APPEND development_components "${component}")
       endif()
     elseif(component STREQUAL "Runtime")
       # Traditional standalone Runtime component
@@ -303,36 +291,6 @@ function(_configure_logical_component_groups component_list)
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
         project_log(DEBUG "Set dependency: ${component} depends on ${dependencies}")
       endif()
-    elseif(component MATCHES "^(.+)_(Runtime|Development)$")
-      # OLD SCHEME: Prefixed component - assign to logical group (deprecated)
-      set(group_name "${CMAKE_MATCH_1}")
-      set(component_type "${CMAKE_MATCH_2}")
-      string(TOUPPER "${group_name}" group_upper)
-
-      _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
-
-      # Set up dependencies: Development components depend on Runtime components within same group PLUS the global Runtime component if it exists
-      if(component_type STREQUAL "Development")
-        set(dependencies "")
-        set(runtime_counterpart "${group_name}_Runtime")
-        if(runtime_counterpart IN_LIST component_list)
-          list(APPEND dependencies "${runtime_counterpart}")
-        endif()
-        # Add dependency on global Runtime if it exists
-        if("Runtime" IN_LIST component_list)
-          list(APPEND dependencies "Runtime")
-        endif()
-        if(dependencies)
-          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
-          project_log(DEBUG "Set dependency: ${component} depends on ${dependencies}")
-        endif()
-      elseif(component_type STREQUAL "Runtime")
-        # Runtime components should depend on global Runtime if it exists and is different
-        if("Runtime" IN_LIST component_list AND NOT component STREQUAL "Runtime")
-          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "Runtime")
-          project_log(DEBUG "Set dependency: ${component} depends on Runtime")
-        endif()
-      endif()
     elseif("${component}_Development" IN_LIST component_list)
       # NEW SCHEME: Runtime component (has corresponding _Development component)
       string(TOUPPER "${component}" group_upper)
@@ -384,7 +342,9 @@ function(_execute_deferred_cpack_config)
       GPG_SIGNING_KEY
       GPG_PASSPHRASE_FILE
       SIGNING_METHOD
-      GPG_KEYSERVER)
+      GPG_KEYSERVER
+      CONTAINER_NAME
+      CONTAINER_TAG)
   set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
 
@@ -508,6 +468,41 @@ function(_execute_deferred_cpack_config)
     _tip_store_cpack_var(CPACK_PACKAGE_VERSION_PATCH "${version_patch}")
   endif()
 
+  # Handle CONTAINER pseudo-generator
+  if("CONTAINER" IN_LIST ARG_GENERATORS)
+    # Check platform compatibility (warning only - user might have Docker Desktop)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      project_log(WARNING "Container generation uses Linux-specific tools (ldd). May not work fully on ${CMAKE_SYSTEM_NAME}")
+    endif()
+
+    # Replace CONTAINER with External in the generators list
+    list(REMOVE_ITEM ARG_GENERATORS "CONTAINER")
+    list(APPEND ARG_GENERATORS "External")
+
+    # Configure External generator for container building
+    _tip_store_cpack_var(CPACK_EXTERNAL_PACKAGE_SCRIPT
+      "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/external_container_package.cmake")
+    _tip_store_cpack_var(CPACK_EXTERNAL_ENABLE_STAGING ON)
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
+
+    # Set container name (default to lowercase package name)
+    if(ARG_CONTAINER_NAME)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${ARG_CONTAINER_NAME}")
+    else()
+      string(TOLOWER "${ARG_PACKAGE_NAME}" container_name)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
+    endif()
+
+    # Set container tag (default to package version)
+    if(ARG_CONTAINER_TAG)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${ARG_CONTAINER_TAG}")
+    else()
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${ARG_PACKAGE_VERSION}")
+    endif()
+
+    project_log(VERBOSE "Container generation configured: ${container_name}:${ARG_PACKAGE_VERSION}")
+  endif()
+
   # Set generators
   if(ARG_GENERATORS)
     string(REPLACE ";" ";" generators_str "${ARG_GENERATORS}")
@@ -552,18 +547,6 @@ function(_execute_deferred_cpack_config)
         set(group_name "${CMAKE_MATCH_1}")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
-      elseif(component MATCHES "^(.+)_(Runtime|Development)$")
-        # OLD SCHEME: Prefixed component - use logical group name in descriptions (deprecated)
-        set(group_name "${CMAKE_MATCH_1}")
-        set(component_type "${CMAKE_MATCH_2}")
-
-        if(component_type STREQUAL "Runtime")
-          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} runtime libraries and executables")
-          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Runtime")
-        else() # Development
-          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
-          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
-        endif()
       elseif("${component}_Development" IN_LIST ARG_COMPONENTS)
         # NEW SCHEME: Runtime component (has corresponding _Development component)
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} runtime libraries and executables")
@@ -739,7 +722,7 @@ function(_execute_deferred_cpack_config)
 
 endfunction(_execute_deferred_cpack_config)
 
-# Note: Component registration is now handled directly in install_package_helpers.cmake The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack()
+# Note: Component registration is now handled directly in target_install_package.cmake. The _TIP_DETECTED_COMPONENTS global property is populated by finalize_package() and consumed by export_cpack().
 # for auto-detection of components.
 
 # ~~~

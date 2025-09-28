@@ -2,6 +2,17 @@
 
 This tutorial demonstrates how `export_cpack()` attempts to simplify CPack usage compared to manual configuration, while maintaining full flexibility and cross-platform compatibility.
 
+## CMake Function Documentation Links
+
+For reference, here are links to the official CMake documentation for functions used in this tutorial:
+- [`CPack`](https://cmake.org/cmake/help/latest/module/CPack.html) - CPack module documentation
+- [`install()`](https://cmake.org/cmake/help/latest/command/install.html) - Specify installation rules
+- [`include()`](https://cmake.org/cmake/help/latest/command/include.html) - Load and run CMake code
+- [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html) - Standard installation directories
+- [`CMakePackageConfigHelpers`](https://cmake.org/cmake/help/latest/module/CMakePackageConfigHelpers.html) - Helper functions for creating config files
+- [`configure_package_config_file()`](https://cmake.org/cmake/help/latest/module/CMakePackageConfigHelpers.html#command:configure_package_config_file) - Create package configuration file
+- [`write_basic_package_version_file()`](https://cmake.org/cmake/help/latest/module/CMakePackageConfigHelpers.html#command:write_basic_package_version_file) - Create version file for packages
+
 ## How CPack Works
 
 **Important:** CPack only packages files that have explicit `install()` rules - it doesn't automatically include everything in your project.

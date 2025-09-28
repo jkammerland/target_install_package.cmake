@@ -78,6 +78,14 @@ endforeach()
 foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
   message(VERBOSE "Adding example path: ${example_dir}/build/install")
   list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
+
+  foreach(config_name IN ITEMS Debug Release MinSizeRel RelWithDebInfo)
+    set(config_path "${example_dir}/build/install/${config_name}")
+    if(EXISTS "${config_path}")
+      message(VERBOSE "  Found config-specific install: ${config_path}")
+      list(APPEND CMAKE_PREFIX_PATH "${config_path}")
+    endif()
+  endforeach()
 endforeach()
 
 # Check C++ modules support using centralized function
