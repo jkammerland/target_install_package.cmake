@@ -30,6 +30,39 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Detect macOS SDK for Homebrew LLVM builds so system headers resolve correctly
+setup_macos_sdk() {
+    if [[ "$(uname)" != "Darwin" ]]; then
+        return
+    fi
+
+    if [[ -n "$MACOS_SDK_PATH" ]]; then
+        return
+    fi
+
+    if ! command -v xcrun >/dev/null 2>&1; then
+        print_warning "xcrun not found; macOS SDK path unavailable"
+        return
+    fi
+
+    local sdk_path
+    if ! sdk_path=$(xcrun --sdk macosx --show-sdk-path 2>/dev/null); then
+        print_warning "Unable to determine macOS SDK path via xcrun"
+        return
+    fi
+
+    if [[ -z "$sdk_path" ]]; then
+        print_warning "xcrun returned empty macOS SDK path"
+        return
+    fi
+
+    MACOS_SDK_PATH="$sdk_path"
+    export SDKROOT="$MACOS_SDK_PATH"
+    print_status "Using macOS SDK: $MACOS_SDK_PATH"
+}
+
+MACOS_SDK_PATH=""
+
 # Function to show help
 show_help() {
     echo "Build and install all CMake target_install_package examples"
@@ -112,6 +145,10 @@ build_example() {
         "-DPROJECT_LOG_COLORS=ON"
         "--log-level=TRACE"
     )
+
+    if [[ -n "$MACOS_SDK_PATH" ]]; then
+        cmake_args+=("-DCMAKE_OSX_SYSROOT=$MACOS_SDK_PATH")
+    fi
     
     # Ensure consistent MSVC runtime library on Windows
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
@@ -173,11 +210,20 @@ build_example_multiconfig() {
     
     # Configure once with multi-config generator
     print_status "Configuring $example_name with $generator..."
-    if ! cmake .. -G "$generator" \
-        -DCMAKE_INSTALL_PREFIX=./install \
-        -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
-        -DPROJECT_LOG_COLORS=ON \
-        --log-level=TRACE; then
+    local cmake_args=(
+        ".."
+        "-G" "$generator"
+        "-DCMAKE_INSTALL_PREFIX=./install"
+        "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo"
+        "-DPROJECT_LOG_COLORS=ON"
+        "--log-level=TRACE"
+    )
+
+    if [[ -n "$MACOS_SDK_PATH" ]]; then
+        cmake_args+=("-DCMAKE_OSX_SYSROOT=$MACOS_SDK_PATH")
+    fi
+
+    if ! cmake "${cmake_args[@]}"; then
         print_error "Configuration failed for $example_name"
         cd ../..
         return 1
@@ -314,6 +360,9 @@ case "$1" in
         exit 1
         ;;
 esac
+
+# Prepare macOS SDK when running on macOS
+setup_macos_sdk
 
 # Multi-config mode setup
 if [ "$MULTI_CONFIG_MODE" = true ]; then

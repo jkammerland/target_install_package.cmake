@@ -49,8 +49,6 @@ endif()
 #     MODULE_DESTINATION <module_dest>
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
-#     RUNTIME_COMPONENT <runtime_component>
-#     DEVELOPMENT_COMPONENT <dev_component>
 #     DEBUG_POSTFIX <postfix>
 #     ADDITIONAL_FILES <files...>
 #     ADDITIONAL_FILES_DESTINATION <dest>
@@ -71,9 +69,8 @@ endif()
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
-#   COMPONENT                    - Component name for installation (default: "").
-#   RUNTIME_COMPONENT            - Component for runtime files (default: "Runtime").
-#   DEVELOPMENT_COMPONENT        - Component for development files (default: "Development").
+#   COMPONENT                    - Component prefix for installation. Creates `${COMPONENT}` for runtime and `${COMPONENT}_Development` for development files.
+#                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "${CMAKE_INSTALL_PREFIX}").
@@ -96,12 +93,10 @@ endif()
 #   # Basic installation
 #   target_install_package(my_library)
 #
-#   # Custom version and component
+#   # Custom version and component prefix
 #   target_install_package(my_library
 #     VERSION 1.2.3
-#     COMPONENT Runtime
-#     RUNTIME_COMPONENT "Runtime"
-#     DEVELOPMENT_COMPONENT "Dev")
+#     COMPONENT "Core")  # Creates Core and Core_Development components
 #
 #   # Multi-config with default debug postfix "d", e.g if debug then -> my_libraryd.so
 #   target_install_package(my_library

@@ -40,6 +40,11 @@ target_sources(
 # Set module-specific properties
 set_target_properties(math_modules PROPERTIES CXX_SCAN_FOR_MODULES ON)
 
+if(APPLE AND CMAKE_OSX_SYSROOT)
+  # Forward the macOS SDK so consumers building BMIs with Homebrew Clang see system headers
+  target_compile_options(math_modules PUBLIC "-isysroot${CMAKE_OSX_SYSROOT}")
+endif()
+
 # Install the library with module support
 target_install_package(
   math_modules
