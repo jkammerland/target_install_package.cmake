@@ -182,11 +182,24 @@ build_example_multiconfig() {
     
     # Configure once with multi-config generator
     print_status "Configuring $example_name with $generator..."
-    if ! cmake .. -G "$generator" \
-        -DCMAKE_INSTALL_PREFIX=./install \
-        -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
-        -DPROJECT_LOG_COLORS=ON \
-        --log-level=TRACE; then
+    local multiconfig_cmake_args=(
+        ".."
+        "-G" "$generator"
+        "-DCMAKE_INSTALL_PREFIX=./install"
+        "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo"
+        "-DPROJECT_LOG_COLORS=ON"
+        "--log-level=TRACE"
+    )
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        if command -v xcrun >/dev/null 2>&1; then
+            SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+            export SDKROOT
+            multiconfig_cmake_args+=("-DCMAKE_OSX_SYSROOT=${SDKROOT}")
+        fi
+    fi
+
+    if ! cmake "${multiconfig_cmake_args[@]}"; then
         print_error "Configuration failed for $example_name"
         cd ../..
         return 1
@@ -204,9 +217,16 @@ build_example_multiconfig() {
             failed_configs+=("$config")
             continue
         fi
-        
+
         print_status "Installing $example_name [$config]..."
-        if ! cmake --install . --config "$config" --default-directory-per-config; then
+        local install_args=("--config" "$config")
+        if [ "$CMAKE_HAS_DEFAULT_DIR_PER_CONFIG" = true ]; then
+            install_args+=("--default-directory-per-config")
+        else
+            install_args+=("--prefix" "./install/$config")
+        fi
+
+        if ! cmake --install . "${install_args[@]}"; then
             print_error "Installation failed for $example_name [$config]"
             failed_configs+=("$config")
             continue
@@ -332,6 +352,14 @@ if [ "$MULTI_CONFIG_MODE" = true ]; then
     fi
     print_success "Detected generator: $GENERATOR"
     print_status "Will build all 4 configurations: Debug, Release, MinSizeRel, RelWithDebInfo"
+fi
+
+# Detect support for --default-directory-per-config once
+if cmake --help 2>&1 | grep -q "--default-directory-per-config"; then
+    CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=true
+else
+    CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=false
+    print_warning "cmake --install does not support --default-directory-per-config; installing configs under install/<config>"
 fi
 
 print_status "Starting build of all examples in $EXAMPLES_DIR"

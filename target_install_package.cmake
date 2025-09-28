@@ -422,7 +422,7 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS" ${REGISTERED_EXPORTS})
 
     # Schedule automatic finalization for this export at the end of configuration
-    project_log(DEBUG "Scheduling automatic finalization for export '${ARG_EXPORT_NAME}' at end of configuration")
+    project_log(DEBUG "  Scheduling automatic finalization for export '${ARG_EXPORT_NAME}' at end of configuration")
     cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _auto_finalize_single_export \"${ARG_EXPORT_NAME}\")")
   endif()
 
@@ -664,7 +664,7 @@ function(finalize_package)
       get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
       if(TARGET_TYPE MATCHES "LIBRARY")
         set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
-        project_log(DEBUG "Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for library '${TARGET_NAME}'")
+        project_log(DEBUG "  Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for library '${TARGET_NAME}'")
       endif()
     endforeach()
   endif()
