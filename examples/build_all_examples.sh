@@ -112,6 +112,15 @@ build_example() {
         "-DPROJECT_LOG_COLORS=ON"
         "--log-level=TRACE"
     )
+
+    # Ensure Homebrew clang picks up the macOS SDK when scanning C++ modules
+    if [[ "$(uname)" == "Darwin" ]]; then
+        if command -v xcrun >/dev/null 2>&1; then
+            SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+            export SDKROOT
+            cmake_args+=("-DCMAKE_OSX_SYSROOT=${SDKROOT}")
+        fi
+    fi
     
     # Ensure consistent MSVC runtime library on Windows
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
