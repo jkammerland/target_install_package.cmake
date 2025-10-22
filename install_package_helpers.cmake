@@ -893,11 +893,6 @@ function(finalize_package)
               list(APPEND DEFAULT_RPATH_LINK_OPTIONS "-Wl,-rpath,${RPATH_ENTRY}")
             endforeach()
 
-            if(APPLE)
-              list(APPEND DEFAULT_RPATH_LINK_OPTIONS
-                "$<BUILD_INTERFACE:-Wl,-rpath,$<TARGET_FILE_DIR:${TARGET_NAME}>>")
-            endif()
-
             if(DEFAULT_RPATH_LINK_OPTIONS)
               target_link_options(${TARGET_NAME} PRIVATE ${DEFAULT_RPATH_LINK_OPTIONS})
             endif()
