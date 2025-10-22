@@ -554,48 +554,80 @@ jobs:
         shell: bash
         run: |
           echo "=== Verifying Multi-Config Build Artifacts ==="
-          
-          # Check both lib and lib64 directories for Unix systems, and bin for Windows DLLs
-          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utilsd.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.dylib" ]] || \
-             [[ -f "examples/basic-shared/build/install/bin/string_utilsd.dll" ]]; then
+
+          base_install="examples/basic-shared/build/install"
+          config_dirs=("$base_install" "$base_install/Debug" "$base_install/Release" "$base_install/MinSizeRel" "$base_install/RelWithDebInfo")
+
+          has_debug_lib=false
+          for dir in "${config_dirs[@]}"; do
+            for candidate in \
+              "lib64/libstring_utilsd.so" \
+              "lib/libstring_utilsd.so" \
+              "lib/libstring_utilsd.dylib" \
+              "bin/string_utilsd.dll" \
+              "lib/libstring_utilsd.so.6" \
+              "lib/libstring_utilsd.so.6.0.2"; do
+              if [[ -f "${dir}/${candidate}" ]]; then
+                has_debug_lib=true
+                break 2
+              fi
+            done
+          done
+
+          if [[ "${has_debug_lib}" == "true" ]]; then
             echo "✓ Debug library with postfix found"
           else
             echo "✗ Debug library with postfix NOT found"
-            find examples/basic-shared/build/install -name "*string_utils*" || true
+            find "${base_install}" -name "*string_utils*" || true
             exit 1
           fi
-          
-          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utils.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.dylib" ]] || \
-             [[ -f "examples/basic-shared/build/install/bin/string_utils.dll" ]]; then
+
+          has_release_lib=false
+          for dir in "${config_dirs[@]}"; do
+            for candidate in \
+              "lib64/libstring_utils.so" \
+              "lib/libstring_utils.so" \
+              "lib/libstring_utils.dylib" \
+              "bin/string_utils.dll" \
+              "lib/libstring_utils.so.6" \
+              "lib/libstring_utils.so.6.0.2"; do
+              if [[ -f "${dir}/${candidate}" ]]; then
+                has_release_lib=true
+                break 2
+              fi
+            done
+          done
+
+          if [[ "${has_release_lib}" == "true" ]]; then
             echo "✓ Release library found"
           else
             echo "✗ Release library NOT found"
-            find examples/basic-shared/build/install -name "*string_utils*" || true
+            find "${base_install}" -name "*string_utils*" || true
             exit 1
           fi
-          
+
           # Check for configuration-specific CMake files
           echo "Checking for configuration-specific CMake files..."
           config_files_found=0
           for config in debug release minsizerel relwithdebinfo; do
-            if [[ -f "examples/basic-shared/build/install/share/cmake/string_utils/string_utils-${config}.cmake" ]]; then
-              echo "✓ Found string_utils-${config}.cmake"
-              config_files_found=$((config_files_found + 1))
-            fi
+            for dir in "${config_dirs[@]}"; do
+              cmake_path="${dir}/share/cmake/string_utils/string_utils-${config}.cmake"
+              if [[ -f "${cmake_path}" ]]; then
+                echo "✓ Found string_utils-${config}.cmake in ${dir#/}"
+                config_files_found=$((config_files_found + 1))
+                break
+              fi
+            done
           done
-          
+
           if [[ $config_files_found -ge 3 ]]; then
             echo "✓ Found $config_files_found configuration-specific CMake files"
           else
             echo "✗ Expected at least 3 configuration-specific CMake files, found $config_files_found"
-            find examples/basic-shared/build/install/share/cmake -name "*.cmake" || true
+            find "${base_install}" -path "*share/cmake*" -name "*.cmake" || true
             exit 1
           fi
-          
+
           echo "✓ Multi-config artifacts verification completed successfully"
 
       - name: Test Multi-Config Integration
