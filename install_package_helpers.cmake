@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.0.1)
+  list_file_include_guard(VERSION 6.0.2)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -38,7 +38,7 @@ endif()
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization. Since v6.0.1, finalization happens
+# the configuration for later finalization. Since v6.0.2, finalization happens
 # automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
@@ -211,8 +211,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
-  # Store per-target component configuration
-  # Component logic: if COMPONENT is set, use it; otherwise use default Runtime/Development
+  # Store per-target component configuration Component logic: if COMPONENT is set, use it; otherwise use default Runtime/Development
   if(ARG_COMPONENT)
     set(RUNTIME_COMPONENT_NAME "${ARG_COMPONENT}")
     set(DEVELOPMENT_COMPONENT_NAME "${ARG_COMPONENT}_Development")
@@ -226,8 +225,7 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
 
-  # Store whether DEVELOPMENT_COMPONENT was explicitly specified
-  # (Always false now since we only use COMPONENT parameter)
+  # Store whether DEVELOPMENT_COMPONENT was explicitly specified (Always false now since we only use COMPONENT parameter)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" FALSE)
   project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': FALSE")
 
@@ -422,6 +420,66 @@ function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
       PARENT_SCOPE)
 endfunction()
 
+# ~~~
+# Compute the path from one install destination to another using a dummy prefix so
+# results stay generator-agnostic. Returns an empty string if either destination
+# contains generator expressions that cannot be resolved at configure time.
+# ~~~
+function(_tip_compute_relative_install_path RESULT_VAR FROM_DESTINATION TO_DESTINATION)
+  set(${RESULT_VAR}
+      ""
+      PARENT_SCOPE)
+
+  if("${TO_DESTINATION}" STREQUAL "")
+    return()
+  endif()
+
+  if("${TO_DESTINATION}" MATCHES "\\$<" OR "${FROM_DESTINATION}" MATCHES "\\$<")
+    project_log(DEBUG "Skipping relative path computation for generator expression destinations: from='${FROM_DESTINATION}' to='${TO_DESTINATION}'")
+    return()
+  endif()
+
+  cmake_path(IS_ABSOLUTE TO_DESTINATION TO_IS_ABSOLUTE)
+  if(TO_IS_ABSOLUTE)
+    set(${RESULT_VAR}
+        "${TO_DESTINATION}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  set(_tip_dummy_prefix "/target_install_package_prefix")
+
+  if("${FROM_DESTINATION}" STREQUAL "")
+    set(_tip_from ".")
+  else()
+    set(_tip_from "${FROM_DESTINATION}")
+  endif()
+
+  cmake_path(IS_ABSOLUTE _tip_from FROM_IS_ABSOLUTE)
+  if(FROM_IS_ABSOLUTE)
+    set(_from_abs "${_tip_from}")
+  else()
+    set(_from_abs "${_tip_dummy_prefix}")
+    cmake_path(APPEND _from_abs "${_tip_from}")
+  endif()
+  cmake_path(NORMAL_PATH _from_abs)
+
+  set(_to_abs "${_tip_dummy_prefix}")
+  cmake_path(APPEND _to_abs "${TO_DESTINATION}")
+  cmake_path(NORMAL_PATH _to_abs)
+
+  file(RELATIVE_PATH _relative "${_from_abs}" "${_to_abs}")
+  if(_relative STREQUAL "")
+    set(_relative ".")
+  endif()
+
+  cmake_path(NORMAL_PATH _relative OUTPUT_VARIABLE _relative)
+
+  set(${RESULT_VAR}
+      "${_relative}"
+      PARENT_SCOPE)
+endfunction()
+
 # Helper to setup CPack component relationships
 function(_setup_cpack_components EXPORT_NAME ALL_RUNTIME_COMPONENTS ALL_DEVELOPMENT_COMPONENTS ALL_COMPONENTS)
   # Define component groups
@@ -465,7 +523,7 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
-# NOTE: Since v6.0.1, this function is OPTIONAL. All exports are automatically
+# NOTE: Since v6.0.2, this function is OPTIONAL. All exports are automatically
 # finalized at the end of configuration using cmake_language(DEFER CALL).
 # Use this function only when you need explicit control over finalization timing.
 #
@@ -561,8 +619,7 @@ function(finalize_package)
     list(REMOVE_DUPLICATES ALL_UNIQUE_COMPONENTS)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}] with components: [${ALL_UNIQUE_COMPONENTS}]")
 
-    # Component registration for CPack auto-detection
-    # Components are registered directly in the global property for export_cpack to consume
+    # Component registration for CPack auto-detection Components are registered directly in the global property for export_cpack to consume
     get_property(detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
 
     # IMPORTANT: Always ensure global Runtime and Development components are registered This ensures that custom components can depend on them for proper installation
@@ -761,20 +818,127 @@ function(finalize_package)
 
         # Only set defaults if NO RPATH is configured anywhere
         if(NOT TARGET_RPATH AND NOT CMAKE_INSTALL_RPATH)
-          set(DEFAULT_RPATH)
+          set(DEFAULT_RPATHS)
+
+          set(_tip_runtime_destination "${CMAKE_INSTALL_BINDIR}")
+          if(NOT _tip_runtime_destination)
+            set(_tip_runtime_destination "bin")
+          endif()
+
+          set(_tip_library_destination "${CMAKE_INSTALL_LIBDIR}")
+          if(NOT _tip_library_destination)
+            set(_tip_library_destination "lib")
+          endif()
 
           if(APPLE)
             if(TARGET_TYPE STREQUAL "EXECUTABLE")
-              list(APPEND DEFAULT_RPATH "@executable_path/../lib")
+              set(_tip_rel_path "")
+              _tip_compute_relative_install_path(_tip_rel_path "${_tip_runtime_destination}" "${_tip_library_destination}")
+
+              if(_tip_rel_path)
+                cmake_path(IS_ABSOLUTE _tip_rel_path _tip_rel_abs)
+                if(_tip_rel_abs)
+                  list(APPEND DEFAULT_RPATHS "${_tip_rel_path}")
+                elseif(_tip_rel_path STREQUAL "." OR _tip_rel_path STREQUAL "./")
+                  list(APPEND DEFAULT_RPATHS "@executable_path")
+                else()
+                  string(REGEX REPLACE "^\\./" "" _tip_rel_path_clean "${_tip_rel_path}")
+                  string(REPLACE "\\" "/" _tip_rel_path_clean "${_tip_rel_path_clean}")
+                  list(APPEND DEFAULT_RPATHS "@executable_path/${_tip_rel_path_clean}")
+                endif()
+              else()
+                list(APPEND DEFAULT_RPATHS "@executable_path/../lib" "@executable_path/../lib64")
+              endif()
+
+              # Always allow colocated runtime resolution for custom layouts
+              list(APPEND DEFAULT_RPATHS "@executable_path")
             else()
-              list(APPEND DEFAULT_RPATH "@loader_path/../lib")
+              list(APPEND DEFAULT_RPATHS "@loader_path")
             endif()
           else() # Linux/Unix
-            list(APPEND DEFAULT_RPATH "$ORIGIN/../lib" "$ORIGIN/../lib64")
+            if(TARGET_TYPE STREQUAL "EXECUTABLE")
+              set(_tip_rel_path "")
+              _tip_compute_relative_install_path(_tip_rel_path "${_tip_runtime_destination}" "${_tip_library_destination}")
+
+              if(_tip_rel_path)
+                cmake_path(IS_ABSOLUTE _tip_rel_path _tip_rel_abs)
+                if(_tip_rel_abs)
+                  list(APPEND DEFAULT_RPATHS "${_tip_rel_path}")
+                elseif(_tip_rel_path STREQUAL "." OR _tip_rel_path STREQUAL "./")
+                  list(APPEND DEFAULT_RPATHS "\$ORIGIN")
+                else()
+                  string(REGEX REPLACE "^\\./" "" _tip_rel_path_clean "${_tip_rel_path}")
+                  list(APPEND DEFAULT_RPATHS "\$ORIGIN/${_tip_rel_path_clean}")
+                endif()
+              else()
+                list(APPEND DEFAULT_RPATHS "\$ORIGIN/../lib" "\$ORIGIN/../lib64")
+              endif()
+
+              # Allow executables to resolve libraries placed alongside them (plugins, tests, etc.)
+              list(APPEND DEFAULT_RPATHS "\$ORIGIN")
+            else()
+              list(APPEND DEFAULT_RPATHS "\$ORIGIN")
+            endif()
           endif()
 
-          set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "${DEFAULT_RPATH}")
-          project_log(DEBUG "Set default INSTALL_RPATH for '${TARGET_NAME}': ${DEFAULT_RPATH}")
+          list(FILTER DEFAULT_RPATHS EXCLUDE REGEX "^$")
+          list(REMOVE_DUPLICATES DEFAULT_RPATHS)
+
+          if(DEFAULT_RPATHS)
+            set(DEFAULT_RPATH_LINK_OPTIONS)
+            foreach(RPATH_ENTRY ${DEFAULT_RPATHS})
+              list(APPEND DEFAULT_RPATH_LINK_OPTIONS "-Wl,-rpath,${RPATH_ENTRY}")
+            endforeach()
+
+            if(DEFAULT_RPATH_LINK_OPTIONS)
+              target_link_options(${TARGET_NAME} PRIVATE ${DEFAULT_RPATH_LINK_OPTIONS})
+            endif()
+
+            get_target_property(_tip_skip_install_rpath ${TARGET_NAME} SKIP_INSTALL_RPATH)
+            if(NOT _tip_skip_install_rpath)
+              set_target_properties(${TARGET_NAME} PROPERTIES SKIP_INSTALL_RPATH TRUE)
+            endif()
+
+            get_target_property(_tip_skip_install_rpath ${TARGET_NAME} SKIP_INSTALL_RPATH)
+            project_log(DEBUG "SKIP_INSTALL_RPATH for '${TARGET_NAME}': ${_tip_skip_install_rpath}")
+
+            set_property(TARGET ${TARGET_NAME} PROPERTY TARGET_INSTALL_PACKAGE_COMPUTED_RPATHS "${DEFAULT_RPATHS}")
+
+            project_log(DEBUG "Configured default RPATH for '${TARGET_NAME}': ${DEFAULT_RPATHS}")
+
+            if(APPLE)
+              set(_tip_rpath_cleanup_dest)
+              if(TARGET_TYPE STREQUAL "EXECUTABLE")
+                set(_tip_rpath_cleanup_dest "${CMAKE_INSTALL_BINDIR}")
+              elseif(TARGET_TYPE STREQUAL "SHARED_LIBRARY")
+                set(_tip_rpath_cleanup_dest "${CMAKE_INSTALL_LIBDIR}")
+              endif()
+
+              if(_tip_rpath_cleanup_dest)
+                set(_tip_cleanup_code_template
+                    [=[
+set(_tip_prefix "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+set(_tip_dest_dir "@TIP_DEST_DIR@")
+set(_tip_target_name "$<TARGET_FILE_NAME:@TIP_TARGET@>")
+if(_tip_dest_dir STREQUAL "")
+  cmake_path(APPEND _tip_prefix "${_tip_target_name}" OUTPUT_VARIABLE _tip_dest_path)
+else()
+  cmake_path(APPEND _tip_prefix "${_tip_dest_dir}" "${_tip_target_name}" OUTPUT_VARIABLE _tip_dest_path)
+endif()
+cmake_path(NORMAL_PATH _tip_dest_path)
+if(EXISTS "${_tip_dest_path}" AND NOT IS_SYMLINK "${_tip_dest_path}")
+  file(REMOVE "${_tip_dest_path}")
+endif()
+]=])
+                set(TIP_DEST_DIR "${_tip_rpath_cleanup_dest}")
+                set(TIP_TARGET "${TARGET_NAME}")
+                string(CONFIGURE "${_tip_cleanup_code_template}" _tip_cleanup_code @ONLY)
+                install(CODE "${_tip_cleanup_code}")
+                unset(_tip_cleanup_code)
+                unset(_tip_cleanup_code_template)
+              endif()
+            endif()
+          endif()
         else()
           if(TARGET_RPATH)
             project_log(DEBUG "Target '${TARGET_NAME}' already has INSTALL_RPATH: ${TARGET_RPATH}")
