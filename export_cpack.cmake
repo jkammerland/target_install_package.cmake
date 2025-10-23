@@ -708,6 +708,21 @@ function(_execute_deferred_cpack_config)
     set(${var_name} "${var_value}")
   endforeach()
 
+  # Ensure packaging never attempts to write to real system prefixes during CPack's
+  # internal install step. Use DESTDIR staging on UNIX-like systems so that
+  # install() destinations (e.g., lib, bin, include) are rooted inside CPack's
+  # staging directory instead of absolute paths like /lib.
+  if(UNIX)
+    if(NOT DEFINED CPACK_SET_DESTDIR)
+      set(CPACK_SET_DESTDIR ON)
+    endif()
+    # Keep a simple, portable layout inside the archive (lib/, bin/, include/ ...)
+    # rather than embedding /usr or other absolute prefixes.
+    if(NOT DEFINED CPACK_PACKAGING_INSTALL_PREFIX)
+      set(CPACK_PACKAGING_INSTALL_PREFIX "/")
+    endif()
+  endif()
+
   # Log configuration for debugging
   project_log(STATUS "CPack configured for package: ${ARG_PACKAGE_NAME} v${ARG_PACKAGE_VERSION}")
   if(ARG_GENERATORS)

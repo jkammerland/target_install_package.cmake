@@ -790,3 +790,121 @@ jobs:
           # Assert release lib paths are absent
           if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug.log; then
             echo "Found release libs in Debug link!" >&2; exit 1; fi
+
+  single-config-consume:
+    name: Single-config consume (math_lib, string_utils)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install ninja -y
+            echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew install ninja
+          fi
+          ninja --version
+
+      - name: Build + install example (single-config): basic-static (math_lib)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-static
+          # Release
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install
+          cmake --build build-rel
+          cmake --install build-rel
+          # Debug
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install
+          cmake --build build-dbg
+          cmake --install build-dbg
+
+      - name: Build + install example (single-config): basic-shared (string_utils)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-shared
+          # Release
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install
+          cmake --build build-rel
+          cmake --install build-rel
+          # Debug
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install
+          cmake --build build-dbg
+          cmake --install build-dbg
+
+      - name: Configure consumer (Release)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-consumer-rel && cd ci-consumer-rel
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(singleconfig_consumer_release LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok-release\n"; return 0; }
+          EOF
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/install;${{ github.workspace }}/examples/basic-shared/install"
+
+      - name: Build Release and assert link uses release libs (single-config)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer-rel/build -v | tee build_release_sc.log
+          grep -E "[\\/](release)[\\/](lib|lib64)" build_release_sc.log
+          if grep -E "[\\/](debug)[\\/](lib|lib64)" build_release_sc.log; then
+            echo "Found debug libs in Release link (single-config)!" >&2; exit 1; fi
+
+      - name: Configure consumer (Debug)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-consumer-dbg && cd ci-consumer-dbg
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(singleconfig_consumer_debug LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok-debug\n"; return 0; }
+          EOF
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/install;${{ github.workspace }}/examples/basic-shared/install"
+
+      - name: Build Debug and assert link uses debug libs (single-config)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer-dbg/build -v | tee build_debug_sc.log
+          grep -E "[\\/](debug)[\\/](lib|lib64)" build_debug_sc.log
+          if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug_sc.log; then
+            echo "Found release libs in Debug link (single-config)!" >&2; exit 1; fi

@@ -789,7 +789,11 @@ function(finalize_package)
     # ~~~
     # Place artifacts under per-configuration subdirectories to allow side-by-side installs
     # Example: install/release/lib, install/debug/lib, install/relwithdebinfo/lib, install/minsizerel/lib
-    set(_tip_cfgdir "$<LOWER_CASE:$<CONFIG>>/")
+    # Only prepend a config subdirectory when a configuration name is present.
+    # For single-config generators without an explicit CMAKE_BUILD_TYPE, $<CONFIG>
+    # evaluates to an empty string. Guard it to avoid producing an absolute path
+    # like "/lib" (which would attempt to install to the root filesystem).
+    set(_tip_cfgdir "$<$<BOOL:$<CONFIG>>:$<LOWER_CASE:$<CONFIG>>/>")
 
     list(
       APPEND
