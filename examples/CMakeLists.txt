@@ -74,18 +74,11 @@ foreach(item IN LISTS example_items)
   endif()
 endforeach()
 
-# Step 5: Foreach directory, add CMAKE_PREFIX_PATH
+# Step 5: For each example directory, add the single shared install prefix
 foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
-  message(VERBOSE "Adding example path: ${example_dir}/build/install")
-  list(APPEND CMAKE_PREFIX_PATH "${example_dir}/build/install/")
-
-  foreach(config_name IN ITEMS Debug Release MinSizeRel RelWithDebInfo)
-    set(config_path "${example_dir}/build/install/${config_name}")
-    if(EXISTS "${config_path}")
-      message(VERBOSE "  Found config-specific install: ${config_path}")
-      list(APPEND CMAKE_PREFIX_PATH "${config_path}")
-    endif()
-  endforeach()
+  set(shared_prefix "${example_dir}/build/install")
+  message(VERBOSE "Adding example path: ${shared_prefix}")
+  list(APPEND CMAKE_PREFIX_PATH "${shared_prefix}")
 endforeach()
 
 # Check C++ modules support using centralized function
@@ -175,7 +168,7 @@ find_program(
   RPATH_DEMO_EXECUTABLE
   NAMES rpath_demo
   PATHS ${CMAKE_PREFIX_PATH}
-  PATH_SUFFIXES bin
+  PATH_SUFFIXES bin release/bin relwithdebinfo/bin minsizerel/bin debug/bin
   NO_DEFAULT_PATH)
 
 if(RPATH_DEMO_EXECUTABLE)

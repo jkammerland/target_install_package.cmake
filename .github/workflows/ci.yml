@@ -695,3 +695,98 @@ jobs:
           done
           
           echo "✓ Multi-config binary linking verification completed"
+
+  multi-config-consume:
+    name: Multi-config consume (math_lib, string_utils)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install ninja -y
+            echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew install ninja
+          fi
+          ninja --version
+
+      - name: Build + install example: basic-static (math_lib)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-static
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install
+          for cfg in Debug Release; do
+            cmake --build build --config "$cfg"
+            cmake --install build --config "$cfg"
+          done
+
+      - name: Build + install example: basic-shared (string_utils)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-shared
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install
+          for cfg in Debug Release; do
+            cmake --build build --config "$cfg"
+            cmake --install build --config "$cfg"
+          done
+
+      - name: Configure consumer (Ninja Multi-Config)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # Create a minimal consumer that links both packages
+          mkdir -p ci-consumer && cd ci-consumer
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(multiconfig_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok\n"; return 0; }
+          EOF
+          cmake -S . -B build -G "Ninja Multi-Config" \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/build/install;${{ github.workspace }}/examples/basic-shared/build/install"
+
+      - name: Build Release and assert link uses release libs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer/build --config Release -v | tee build_release.log
+          # Assert release lib paths are present
+          grep -E "[\\/](release)[\\/](lib|lib64)" build_release.log
+          # Assert debug lib paths are absent
+          if grep -E "[\\/](debug)[\\/](lib|lib64)" build_release.log; then
+            echo "Found debug libs in Release link!" >&2; exit 1; fi
+
+      - name: Build Debug and assert link uses debug libs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer/build --config Debug -v | tee build_debug.log
+          # Assert debug lib paths are present
+          grep -E "[\\/](debug)[\\/](lib|lib64)" build_debug.log
+          # Assert release lib paths are absent
+          if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug.log; then
+            echo "Found release libs in Debug link!" >&2; exit 1; fi

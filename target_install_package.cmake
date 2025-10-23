@@ -787,20 +787,24 @@ function(finalize_package)
     # - ARCHIVE: Static libraries and Windows import libs → lib/
     #   (Import .lib files are development artifacts, not runtime)
     # ~~~
+    # Place artifacts under per-configuration subdirectories to allow side-by-side installs
+    # Example: install/release/lib, install/debug/lib, install/relwithdebinfo/lib, install/minsizerel/lib
+    set(_tip_cfgdir "$<LOWER_CASE:$<CONFIG>>/")
+
     list(
       APPEND
       INSTALL_ARGS
       LIBRARY
       DESTINATION
-      ${CMAKE_INSTALL_LIBDIR}
+      "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}"
       ${TARGET_RUNTIME_COMPONENT_ARGS}
       ARCHIVE
       DESTINATION
-      ${CMAKE_INSTALL_LIBDIR}
+      "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}"
       ${TARGET_DEV_COMPONENT_ARGS}
       RUNTIME
       DESTINATION
-      ${CMAKE_INSTALL_BINDIR}
+      "${_tip_cfgdir}${CMAKE_INSTALL_BINDIR}"
       ${TARGET_RUNTIME_COMPONENT_ARGS})
 
     # Handle header file sets

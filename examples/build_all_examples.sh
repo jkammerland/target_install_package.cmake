@@ -260,14 +260,9 @@ build_example_multiconfig() {
         fi
 
         print_status "Installing $example_name [$config]..."
-        local install_args=("--config" "$config")
-        if [ "$CMAKE_HAS_DEFAULT_DIR_PER_CONFIG" = true ]; then
-            install_args+=("--default-directory-per-config")
-        else
-            install_args+=("--prefix" "./install/$config")
-        fi
-
-        if ! cmake --install . "${install_args[@]}"; then
+        # Install each configuration into the single shared prefix; destinations
+        # are routed by generator expressions in install() commands.
+        if ! cmake --install . --config "$config"; then
             print_error "Installation failed for $example_name [$config]"
             failed_configs+=("$config")
             continue
