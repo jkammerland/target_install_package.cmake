@@ -143,6 +143,7 @@ build_example() {
         "-DCMAKE_BUILD_TYPE=$build_type"
         "-DCMAKE_INSTALL_PREFIX=./install"
         "-DPROJECT_LOG_COLORS=ON"
+        "-DTIP_INSTALL_LAYOUT=split_all"
         "--log-level=TRACE"
     )
 
@@ -221,6 +222,7 @@ build_example_multiconfig() {
         "-DCMAKE_INSTALL_PREFIX=./install"
         "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo"
         "-DPROJECT_LOG_COLORS=ON"
+        "-DTIP_INSTALL_LAYOUT=split_all"
         "--log-level=TRACE"
     )
 

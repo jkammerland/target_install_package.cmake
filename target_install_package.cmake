@@ -201,7 +201,8 @@ function(target_prepare_package TARGET_NAME)
       CMAKE_CONFIG_DESTINATION
       COMPONENT
       DEBUG_POSTFIX
-      ADDITIONAL_FILES_DESTINATION)
+      ADDITIONAL_FILES_DESTINATION
+      LAYOUT)
   set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -235,6 +236,20 @@ function(target_prepare_package TARGET_NAME)
   endif()
 
   project_log(DEBUG "Preparing installation for '${TARGET_NAME}'...")
+
+  # Resolve install layout for this target
+  # Priority: per-target LAYOUT > global TIP_INSTALL_LAYOUT (cache) > FHS
+  set(_tip_layout "")
+  if(ARG_LAYOUT)
+    set(_tip_layout "${ARG_LAYOUT}")
+  elseif(DEFINED TIP_INSTALL_LAYOUT)
+    set(_tip_layout "${TIP_INSTALL_LAYOUT}")
+  else()
+    set(_tip_layout "fhs")
+  endif()
+  string(TOLOWER "${_tip_layout}" _tip_layout)
+  set_target_properties(${TARGET_NAME} PROPERTIES TARGET_INSTALL_PACKAGE_LAYOUT "${_tip_layout}")
+  project_log(DEBUG "  Install layout for '${TARGET_NAME}': ${_tip_layout}")
 
   # Handle VERSION specially since it has PROJECT_VERSION fallback logic
   if(NOT ARG_VERSION)
@@ -787,13 +802,26 @@ function(finalize_package)
     # - ARCHIVE: Static libraries and Windows import libs → lib/
     #   (Import .lib files are development artifacts, not runtime)
     # ~~~
-    # Place artifacts under per-configuration subdirectories to allow side-by-side installs
-    # Example: install/release/lib, install/debug/lib, install/relwithdebinfo/lib, install/minsizerel/lib
-    # Only prepend a config subdirectory when a configuration name is present.
-    # For single-config generators without an explicit CMAKE_BUILD_TYPE, $<CONFIG>
-    # evaluates to an empty string. Guard it to avoid producing an absolute path
-    # like "/lib" (which would attempt to install to the root filesystem).
-    set(_tip_cfgdir "$<$<BOOL:$<CONFIG>>:$<LOWER_CASE:$<CONFIG>>/>")
+    # Determine configuration subdirectory policy based on layout.
+    # Layout options:
+    # - fhs:           no config subdir
+    # - split_debug:   Debug under debug/, others no subdir
+    # - split_all:     all configs under lower-cased $<CONFIG>/ (guarded for empty)
+    get_target_property(_tip_target_layout ${TARGET_NAME} TARGET_INSTALL_PACKAGE_LAYOUT)
+    if(NOT _tip_target_layout)
+      set(_tip_target_layout "fhs")
+    endif()
+    set(_tip_cfgdir "")
+
+    if(_tip_target_layout STREQUAL "fhs")
+      set(_tip_cfgdir "")
+    elseif(_tip_target_layout STREQUAL "split_debug")
+      set(_tip_cfgdir "$<$<CONFIG:Debug>:debug/>")
+    elseif(_tip_target_layout STREQUAL "split_all")
+      set(_tip_cfgdir "$<$<BOOL:$<CONFIG>>:$<LOWER_CASE:$<CONFIG>>/>")
+    else()
+      project_log(FATAL_ERROR "Invalid LAYOUT '${_tip_target_layout}'. Valid values: fhs, split_debug, split_all")
+    endif()
 
     list(
       APPEND

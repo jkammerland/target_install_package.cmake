@@ -729,7 +729,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd examples/basic-static
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
           for cfg in Debug Release; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
@@ -740,7 +740,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd examples/basic-shared
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
           for cfg in Debug Release; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
@@ -825,11 +825,11 @@ jobs:
           set -euxo pipefail
           cd examples/basic-static
           # Release
-          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
           cmake --build build-rel
           cmake --install build-rel
           # Debug
-          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
           cmake --build build-dbg
           cmake --install build-dbg
 
@@ -839,11 +839,11 @@ jobs:
           set -euxo pipefail
           cd examples/basic-shared
           # Release
-          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
           cmake --build build-rel
           cmake --install build-rel
           # Debug
-          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
           cmake --build build-dbg
           cmake --install build-dbg
 

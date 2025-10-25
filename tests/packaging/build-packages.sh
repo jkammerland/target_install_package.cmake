@@ -41,7 +41,8 @@ cmake "$PROJECT_ROOT/examples/cpack-basic" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPROJECT_LOG_COLORS=OFF \
     -DTARGET_INSTALL_PACKAGE_DISABLE_INSTALL=ON \
-    -DCMAKE_INSTALL_PREFIX=/usr || {
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DTIP_INSTALL_LAYOUT=fhs || {
     print_error "CMake configuration failed"
     exit 1
 }
