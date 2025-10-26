@@ -554,48 +554,80 @@ jobs:
         shell: bash
         run: |
           echo "=== Verifying Multi-Config Build Artifacts ==="
-          
-          # Check both lib and lib64 directories for Unix systems, and bin for Windows DLLs
-          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utilsd.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.dylib" ]] || \
-             [[ -f "examples/basic-shared/build/install/bin/string_utilsd.dll" ]]; then
+
+          base_install="examples/basic-shared/build/install"
+          config_dirs=("$base_install" "$base_install/Debug" "$base_install/Release" "$base_install/MinSizeRel" "$base_install/RelWithDebInfo")
+
+          has_debug_lib=false
+          for dir in "${config_dirs[@]}"; do
+            for candidate in \
+              "lib64/libstring_utilsd.so" \
+              "lib/libstring_utilsd.so" \
+              "lib/libstring_utilsd.dylib" \
+              "bin/string_utilsd.dll" \
+              "lib/libstring_utilsd.so.6" \
+              "lib/libstring_utilsd.so.6.1.0"; do
+              if [[ -f "${dir}/${candidate}" ]]; then
+                has_debug_lib=true
+                break 2
+              fi
+            done
+          done
+
+          if [[ "${has_debug_lib}" == "true" ]]; then
             echo "✓ Debug library with postfix found"
           else
             echo "✗ Debug library with postfix NOT found"
-            find examples/basic-shared/build/install -name "*string_utils*" || true
+            find "${base_install}" -name "*string_utils*" || true
             exit 1
           fi
-          
-          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utils.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.dylib" ]] || \
-             [[ -f "examples/basic-shared/build/install/bin/string_utils.dll" ]]; then
+
+          has_release_lib=false
+          for dir in "${config_dirs[@]}"; do
+            for candidate in \
+              "lib64/libstring_utils.so" \
+              "lib/libstring_utils.so" \
+              "lib/libstring_utils.dylib" \
+              "bin/string_utils.dll" \
+              "lib/libstring_utils.so.6" \
+              "lib/libstring_utils.so.6.1.0"; do
+              if [[ -f "${dir}/${candidate}" ]]; then
+                has_release_lib=true
+                break 2
+              fi
+            done
+          done
+
+          if [[ "${has_release_lib}" == "true" ]]; then
             echo "✓ Release library found"
           else
             echo "✗ Release library NOT found"
-            find examples/basic-shared/build/install -name "*string_utils*" || true
+            find "${base_install}" -name "*string_utils*" || true
             exit 1
           fi
-          
+
           # Check for configuration-specific CMake files
           echo "Checking for configuration-specific CMake files..."
           config_files_found=0
           for config in debug release minsizerel relwithdebinfo; do
-            if [[ -f "examples/basic-shared/build/install/share/cmake/string_utils/string_utils-${config}.cmake" ]]; then
-              echo "✓ Found string_utils-${config}.cmake"
-              config_files_found=$((config_files_found + 1))
-            fi
+            for dir in "${config_dirs[@]}"; do
+              cmake_path="${dir}/share/cmake/string_utils/string_utils-${config}.cmake"
+              if [[ -f "${cmake_path}" ]]; then
+                echo "✓ Found string_utils-${config}.cmake in ${dir#/}"
+                config_files_found=$((config_files_found + 1))
+                break
+              fi
+            done
           done
-          
+
           if [[ $config_files_found -ge 3 ]]; then
             echo "✓ Found $config_files_found configuration-specific CMake files"
           else
             echo "✗ Expected at least 3 configuration-specific CMake files, found $config_files_found"
-            find examples/basic-shared/build/install/share/cmake -name "*.cmake" || true
+            find "${base_install}" -path "*share/cmake*" -name "*.cmake" || true
             exit 1
           fi
-          
+
           echo "✓ Multi-config artifacts verification completed successfully"
 
       - name: Test Multi-Config Integration
@@ -663,3 +695,216 @@ jobs:
           done
           
           echo "✓ Multi-config binary linking verification completed"
+
+  multi-config-consume:
+    name: Multi-config consume (math_lib, string_utils)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install ninja -y
+            echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew install ninja
+          fi
+          ninja --version
+
+      - name: Build + install example: basic-static (math_lib)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-static
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
+          for cfg in Debug Release; do
+            cmake --build build --config "$cfg"
+            cmake --install build --config "$cfg"
+          done
+
+      - name: Build + install example: basic-shared (string_utils)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-shared
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
+          for cfg in Debug Release; do
+            cmake --build build --config "$cfg"
+            cmake --install build --config "$cfg"
+          done
+
+      - name: Configure consumer (Ninja Multi-Config)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          # Create a minimal consumer that links both packages
+          mkdir -p ci-consumer && cd ci-consumer
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(multiconfig_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok\n"; return 0; }
+          EOF
+          cmake -S . -B build -G "Ninja Multi-Config" \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/build/install;${{ github.workspace }}/examples/basic-shared/build/install"
+
+      - name: Build Release and assert link uses release libs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer/build --config Release -v | tee build_release.log
+          # Assert release lib paths are present
+          grep -E "[\\/](release)[\\/](lib|lib64)" build_release.log
+          # Assert debug lib paths are absent
+          if grep -E "[\\/](debug)[\\/](lib|lib64)" build_release.log; then
+            echo "Found debug libs in Release link!" >&2; exit 1; fi
+
+      - name: Build Debug and assert link uses debug libs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer/build --config Debug -v | tee build_debug.log
+          # Assert debug lib paths are present
+          grep -E "[\\/](debug)[\\/](lib|lib64)" build_debug.log
+          # Assert release lib paths are absent
+          if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug.log; then
+            echo "Found release libs in Debug link!" >&2; exit 1; fi
+
+  single-config-consume:
+    name: Single-config consume (math_lib, string_utils)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install ninja -y
+            echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew install ninja
+          fi
+          ninja --version
+
+      - name: Build + install example (single-config): basic-static (math_lib)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-static
+          # Release
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
+          cmake --build build-rel
+          cmake --install build-rel
+          # Debug
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
+          cmake --build build-dbg
+          cmake --install build-dbg
+
+      - name: Build + install example (single-config): basic-shared (string_utils)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-shared
+          # Release
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
+          cmake --build build-rel
+          cmake --install build-rel
+          # Debug
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
+          cmake --build build-dbg
+          cmake --install build-dbg
+
+      - name: Configure consumer (Release)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-consumer-rel && cd ci-consumer-rel
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(singleconfig_consumer_release LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok-release\n"; return 0; }
+          EOF
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/install;${{ github.workspace }}/examples/basic-shared/install"
+
+      - name: Build Release and assert link uses release libs (single-config)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer-rel/build -v | tee build_release_sc.log
+          grep -E "[\\/](release)[\\/](lib|lib64)" build_release_sc.log
+          if grep -E "[\\/](debug)[\\/](lib|lib64)" build_release_sc.log; then
+            echo "Found debug libs in Release link (single-config)!" >&2; exit 1; fi
+
+      - name: Configure consumer (Debug)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-consumer-dbg && cd ci-consumer-dbg
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(singleconfig_consumer_debug LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok-debug\n"; return 0; }
+          EOF
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/install;${{ github.workspace }}/examples/basic-shared/install"
+
+      - name: Build Debug and assert link uses debug libs (single-config)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer-dbg/build -v | tee build_debug_sc.log
+          grep -E "[\\/](debug)[\\/](lib|lib64)" build_debug_sc.log
+          if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug_sc.log; then
+            echo "Found release libs in Debug link (single-config)!" >&2; exit 1; fi

@@ -21,7 +21,6 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 | File/Function | Type | Description |
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
-| [install_package_helpers](install_package_helpers.cmake) | Function | Implementation of target_install_package |
 | [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and add them to target's FILE_SET |
 | [export_cpack](export_cpack.cmake) | Function | CPack configuration with component detection, platform-appropriate generators, and optional GPG signing (see [tutorial](CPack-Tutorial.md)) |
 | [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
@@ -155,7 +154,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v6.0.2
+  GIT_TAG v6.1.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -172,7 +171,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v6.0.2
+    GIT_TAG v6.1.0
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -439,8 +438,11 @@ install(TARGETS asset_converter
 # Install only runtime (engine + configs)
 cmake --install . --component Runtime
 
-# Install everything for developers
+# Install everything for developers (specify each logical component explicitly)
 cmake --install . --component Runtime --component Development --component Tools
+
+# Install full package without selecting components (installs every runtime + development file)
+cmake --install .
 
 # Install documentation separately
 cmake --install . --component Documentation
@@ -505,9 +507,9 @@ target_install_package(level_editor
 
 **Result**: Single `GameEngine` package with logical component groups:
 - **Core**: `libengine_core.so` (runtime)
-- **Core_Development**: Headers from both targets + `libengine_tools.a`
+- **Core_Development**: Headers from both targets + `libengine_tools.a` + shared CMake config files
 - **Tools**: `level_editor` executable (runtime)
-- **Development**: Shared CMake config files
+- **Tools_Development**: Headers for tools + development-only assets
 
 ### Installing Specific Components
 
@@ -521,12 +523,15 @@ cmake --install . --component Core_Development
 # Install Tools logical group - runtime only
 cmake --install . --component Tools
 
-# Install shared CMake config files (needed for find_package)
-cmake --install . --component Development
+# Shared CMake config files live with the first development component
+cmake --install . --component Core_Development
+
+# Install all runtime + development files (no component filtering)
+cmake --install .
 
 # Install everything for developers
 cmake --install . --component Core --component Core_Development
-cmake --install . --component Tools --component Development
+cmake --install . --component Tools --component Tools_Development
 
 # Install everything
 cmake --install .
@@ -818,6 +823,9 @@ cmake --install . --component Runtime --component Graphics --component Physics -
 
 # Development files for Graphics and Physics
 cmake --install . --component Development --component Graphics_Development --component Physics_Development
+
+# Install every component at once (no explicit selection)
+cmake --install .
 ```
 
 ### Build Variant Support

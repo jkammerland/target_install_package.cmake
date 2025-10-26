@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  # Single-run test
+  hello_single:
+    image: hello:6.0.1
+    container_name: hello_single
+    entrypoint: ["/bin/hello_container"]
+    command: ["single", "run", "test"]
+
+  # Continuous loop test
+  hello_continuous:
+    image: hello:6.0.1
+    container_name: hello_continuous
+    entrypoint: ["/bin/hello_loop"]
+    command: ["continuous", "service"]
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+
+  # Restart test
+  hello_restarter:
+    image: hello:6.0.1
+    container_name: hello_restarter
+    entrypoint: ["/bin/hello_container"]
+    command: ["restart", "test"]
+    restart: always
+    restart_policy:
+      condition: on-failure
+      max_attempts: 3
