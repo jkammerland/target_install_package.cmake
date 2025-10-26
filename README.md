@@ -61,6 +61,9 @@ The `target_install_package()` function searches for the targets config template
 >[!NOTE]
 > `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
+> [!TIP]
+> Ready to consume the installed artifacts from another project? Follow the step-by-step workflow in [Consuming Installed Packages](docs/consuming-installed-packages.md).
+
 ## Table of Contents
 
 1. [Features](#features-)

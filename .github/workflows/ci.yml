@@ -588,8 +588,27 @@ jobs:
         run: |
           echo "=== Verifying Multi-Config Build Artifacts ==="
 
-          base_install="examples/basic-shared/build/install"
-          config_dirs=("$base_install" "$base_install/Debug" "$base_install/Release" "$base_install/MinSizeRel" "$base_install/RelWithDebInfo")
+          base_install=""
+          for candidate in \
+            "examples/basic-shared/install" \
+            "examples/basic-shared/build/install"; do
+            if [[ -d "$candidate" ]]; then
+              base_install="$candidate"
+              break
+            fi
+          done
+
+          if [[ -z "$base_install" ]]; then
+            echo "✗ No install directory found under examples/basic-shared"
+            find examples/basic-shared -maxdepth 2 -type d -print
+            exit 1
+          fi
+
+          config_dirs=("$base_install")
+          for cfg in Debug Release MinSizeRel RelWithDebInfo; do
+            lower_cfg=$(echo "$cfg" | tr '[:upper:]' '[:lower:]')
+            config_dirs+=("$base_install/${cfg}" "$base_install/${lower_cfg}")
+          done
 
           has_debug_lib=false
           for dir in "${config_dirs[@]}"; do
@@ -800,7 +819,7 @@ jobs:
           int main(){ std::cout << "ok\n"; return 0; }
           EOF
           cmake -S . -B build -G "Ninja Multi-Config" \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/build/install;${{ github.workspace }}/examples/basic-shared/build/install"
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/install;${{ github.workspace }}/examples/basic-shared/install"
 
       - name: Build Release and assert link uses release libs
         shell: bash

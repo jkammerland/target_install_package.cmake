@@ -20,10 +20,10 @@
 Control how configuration variants (Debug, Release, etc.) are laid out on disk:
 
 - Global cache variable: `TIP_INSTALL_LAYOUT`
-  - `fhs` (packaging-friendly): no config subdirectories; installs into standard `lib/` and `bin/`.
+  - `fhs` (default, packaging-friendly): no config subdirectories; installs into standard `lib/` and `bin/` following the Filesystem Hierarchy Standard.
   - `split_debug`: only Debug artifacts go under `debug/` (vcpkg-style).
   - `split_all`: all configurations go under a lower-cased `$<CONFIG>/` subdirectory (e.g., `release/lib`, `debug/bin`).
-  - `auto` (default): dev-friendly for non-system prefixes (split_all), FHS for system prefixes (`/usr`, `/usr/local`, …).
+  - `auto`: dev-friendly for non-system prefixes (split_all), FHS for system prefixes (`/usr`, `/usr/local`, …).
 
 - Per-target override:
   - `target_install_package(<tgt> LAYOUT <fhs|split_debug|split_all|auto>)`

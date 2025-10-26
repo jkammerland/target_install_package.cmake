@@ -19,6 +19,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [cxx-modules-partitions](cxx-modules-partitions/) | C++20 Modules | C++20 modules with partition hierarchies |
 | [cpack-basic](cpack-basic/) | CPack Basics | Basic packaging with CPack |
 | [cpack-signed](cpack-signed/) | Signed Packages | Signed packages with GPG |
+| [basic-symbol-stripping](basic-symbol-stripping/) | Binaries + Symbols | Co-located Debug/RelWithDebInfo install, GNU debuglink sidecars |
 
 ## 🚀 Quick Start
 
