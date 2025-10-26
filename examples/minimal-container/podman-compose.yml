@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  hello:
+    image: hello:6.0.1
+    container_name: hello_minimal
+    restart: unless-stopped
+    command: ["test", "compose", "args"]
+    logging:
+      driver: journald
+      options:
+        tag: "hello-minimal"
+
+  # Test multiple instances
+  hello_instance1:
+    image: hello:6.0.1
+    container_name: hello_instance1
+    command: ["instance", "1"]
+    restart: on-failure
+
+  hello_instance2:
+    image: hello:6.0.1
+    container_name: hello_instance2
+    command: ["instance", "2"]
+    restart: on-failure
