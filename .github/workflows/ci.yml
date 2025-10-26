@@ -7,6 +7,39 @@ on:
     branches: [ "integration", "master" ]
 
 jobs:
+  workflow-lint:
+    name: Validate workflow YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install PyYAML
+        run: python -m pip install --upgrade pip pyyaml
+      - name: Parse workflow files
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          import yaml
+
+          failures = []
+          workflows_dir = Path(".github/workflows")
+          for path in sorted(workflows_dir.glob("*.yml")):
+            try:
+              yaml.safe_load(path.read_text())
+            except yaml.YAMLError as exc:
+              failures.append((path, exc))
+
+          if failures:
+            for path, exc in failures:
+              print(f"{path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+          print("✓ Workflow YAML parsed successfully")
+          PY
+
   build:
     runs-on: ${{ matrix.os }}
     
@@ -724,7 +757,7 @@ jobs:
           fi
           ninja --version
 
-      - name: Build + install example: basic-static (math_lib)
+      - name: "Build + install example: basic-static (math_lib)"
         shell: bash
         run: |
           set -euxo pipefail
@@ -735,7 +768,7 @@ jobs:
             cmake --install build --config "$cfg"
           done
 
-      - name: Build + install example: basic-shared (string_utils)
+      - name: "Build + install example: basic-shared (string_utils)"
         shell: bash
         run: |
           set -euxo pipefail
@@ -819,7 +852,7 @@ jobs:
           fi
           ninja --version
 
-      - name: Build + install example (single-config): basic-static (math_lib)
+      - name: "Build + install example (single-config): basic-static (math_lib)"
         shell: bash
         run: |
           set -euxo pipefail
@@ -833,7 +866,7 @@ jobs:
           cmake --build build-dbg
           cmake --install build-dbg
 
-      - name: Build + install example (single-config): basic-shared (string_utils)
+      - name: "Build + install example (single-config): basic-shared (string_utils)"
         shell: bash
         run: |
           set -euxo pipefail
