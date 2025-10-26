@@ -29,19 +29,6 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 | [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 | [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 
-### Related CMake Documentation
-
-For deeper understanding of the CMake functions used in this project:
-- [`install()`](https://cmake.org/cmake/help/latest/command/install.html) - Specify installation rules
-- [`find_package()`](https://cmake.org/cmake/help/latest/command/find_package.html) - Find and load settings from an external project
-- [`target_sources()`](https://cmake.org/cmake/help/latest/command/target_sources.html) - Add sources to a target (including FILE_SET support)
-- [`add_library()`](https://cmake.org/cmake/help/latest/command/add_library.html) - Add a library to the project
-- [`add_executable()`](https://cmake.org/cmake/help/latest/command/add_executable.html) - Add an executable to the project
-- [`target_link_libraries()`](https://cmake.org/cmake/help/latest/command/target_link_libraries.html) - Specify libraries or flags for linking
-- [`configure_file()`](https://cmake.org/cmake/help/latest/command/configure_file.html) - Copy a file to another location and modify its contents
-- [`cmake_parse_arguments()`](https://cmake.org/cmake/help/latest/command/cmake_parse_arguments.html) - Parse function arguments
-- [`include()`](https://cmake.org/cmake/help/latest/command/include.html) - Load and run CMake code from a file or module
-- [`FetchContent`](https://cmake.org/cmake/help/latest/module/FetchContent.html) - Module for populating content at configure time
 
 >[!NOTE]
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
