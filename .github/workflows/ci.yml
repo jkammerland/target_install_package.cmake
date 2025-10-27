@@ -138,6 +138,9 @@ jobs:
     - name: Install (Main Project)
       run: cmake --install ${{ steps.strings.outputs.build-output-dir }}
 
+    - name: Run Project Tests
+      run: ctest --test-dir ${{ steps.strings.outputs.build-output-dir }} --output-on-failure
+
     - name: Test Installation Structure
       shell: bash
       run: |
@@ -553,50 +556,171 @@ jobs:
         if: matrix.config_mode == 'multi'
         shell: bash
         run: |
+          set -euxo pipefail
           echo "=== Verifying Multi-Config Build Artifacts ==="
-          
-          # Check both lib and lib64 directories for Unix systems, and bin for Windows DLLs
-          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utilsd.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utilsd.dylib" ]] || \
-             [[ -f "examples/basic-shared/build/install/bin/string_utilsd.dll" ]]; then
+
+          base_install=""
+          for candidate in \
+            "examples/basic-shared/install" \
+            "examples/basic-shared/build/install"; do
+            if [[ -d "$candidate" ]]; then
+              base_install="$candidate"
+              break
+            fi
+          done
+
+          if [[ -z "$base_install" ]]; then
+            echo "✗ No install directory found under examples/basic-shared"
+            find examples/basic-shared -maxdepth 2 -type d -print
+            exit 1
+          fi
+
+          config_dirs=("$base_install")
+          for cfg in Debug Release MinSizeRel RelWithDebInfo; do
+            lower_cfg=$(echo "$cfg" | tr '[:upper:]' '[:lower:]')
+            config_dirs+=("$base_install/${cfg}" "$base_install/${lower_cfg}")
+          done
+
+          has_debug_lib=false
+          for dir in "${config_dirs[@]}"; do
+            for candidate in \
+              "lib64/libstring_utilsd.so" \
+              "lib/libstring_utilsd.so" \
+              "lib/libstring_utilsd.dylib" \
+              "bin/string_utilsd.dll" \
+              "lib/libstring_utilsd.so.6" \
+              "lib/libstring_utilsd.so.6.0.2"; do
+              if [[ -f "${dir}/${candidate}" ]]; then
+                has_debug_lib=true
+                break 2
+              fi
+            done
+          done
+
+          if [[ "${has_debug_lib}" == "true" ]]; then
             echo "✓ Debug library with postfix found"
           else
             echo "✗ Debug library with postfix NOT found"
-            find examples/basic-shared/build/install -name "*string_utils*" || true
+            find "$base_install" -name "*string_utils*" || true
             exit 1
           fi
-          
-          if [[ -f "examples/basic-shared/build/install/lib64/libstring_utils.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.so" ]] || \
-             [[ -f "examples/basic-shared/build/install/lib/libstring_utils.dylib" ]] || \
-             [[ -f "examples/basic-shared/build/install/bin/string_utils.dll" ]]; then
+
+          has_release_lib=false
+          for dir in "${config_dirs[@]}"; do
+            for candidate in \
+              "lib64/libstring_utils.so" \
+              "lib/libstring_utils.so" \
+              "lib/libstring_utils.dylib" \
+              "bin/string_utils.dll" \
+              "lib/libstring_utils.so.6" \
+              "lib/libstring_utils.so.6.0.2"; do
+              if [[ -f "${dir}/${candidate}" ]]; then
+                has_release_lib=true
+                break 2
+              fi
+            done
+          done
+
+          if [[ "${has_release_lib}" == "true" ]]; then
             echo "✓ Release library found"
           else
             echo "✗ Release library NOT found"
-            find examples/basic-shared/build/install -name "*string_utils*" || true
+            find "$base_install" -name "*string_utils*" || true
             exit 1
           fi
-          
-          # Check for configuration-specific CMake files
+
           echo "Checking for configuration-specific CMake files..."
           config_files_found=0
           for config in debug release minsizerel relwithdebinfo; do
-            if [[ -f "examples/basic-shared/build/install/share/cmake/string_utils/string_utils-${config}.cmake" ]]; then
-              echo "✓ Found string_utils-${config}.cmake"
-              config_files_found=$((config_files_found + 1))
-            fi
+            for dir in "${config_dirs[@]}"; do
+              cmake_path="${dir}/share/cmake/string_utils/string_utils-${config}.cmake"
+              if [[ -f "${cmake_path}" ]]; then
+                echo "✓ Found string_utils-${config}.cmake in ${dir}"
+                config_files_found=$((config_files_found + 1))
+                break
+              fi
+            done
           done
-          
+
           if [[ $config_files_found -ge 3 ]]; then
             echo "✓ Found $config_files_found configuration-specific CMake files"
           else
             echo "✗ Expected at least 3 configuration-specific CMake files, found $config_files_found"
-            find examples/basic-shared/build/install/share/cmake -name "*.cmake" || true
+            find "$base_install" -path "*share/cmake*" -name "*.cmake" || true
             exit 1
           fi
-          
+
           echo "✓ Multi-config artifacts verification completed successfully"
+
+      - name: Consume Installed Packages (Multi-Config)
+        if: matrix.config_mode == 'multi'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "=== Consuming Multi-Config Packages ==="
+
+          # Locate install prefixes produced by the examples build
+          find_prefix() {
+            local example_dir="$1"
+            for candidate in \
+              "${example_dir}/install" \
+              "${example_dir}/build/install"; do
+              if [[ -d "$candidate" ]]; then
+                echo "$candidate"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          static_prefix=$(find_prefix "examples/basic-static") || {
+            echo "Static example install prefix not found";
+            find examples/basic-static -maxdepth 2 -type d -print;
+            exit 1;
+          }
+          shared_prefix=$(find_prefix "examples/basic-shared") || {
+            echo "Shared example install prefix not found";
+            find examples/basic-shared -maxdepth 2 -type d -print;
+            exit 1;
+          }
+
+          rm -rf ci-consumer
+          mkdir -p ci-consumer && cd ci-consumer
+
+          cat > CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(multiconfig_consumer LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+
+          cat > main.cpp <<'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok\n"; return 0; }
+          EOF
+
+          cmake -S . -B build -G "Ninja Multi-Config" \
+            -DCMAKE_PREFIX_PATH="${static_prefix};${shared_prefix}"
+
+          cmake --build build --config Release -v | tee build_release.log
+          grep -E "[\\/](release)[\\/](lib|lib64)" build_release.log
+          if grep -E "[\\/](debug)[\\/](lib|lib64)" build_release.log; then
+            echo "Release link used debug libraries" >&2
+            exit 1
+          fi
+
+          cmake --build build --config Debug -v | tee build_debug.log
+          grep -E "[\\/](debug)[\\/](lib|lib64)" build_debug.log
+          if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug.log; then
+            echo "Debug link used release libraries" >&2
+            exit 1
+          fi
+
+          echo "✓ Multi-config consumption succeeded"
 
       - name: Test Multi-Config Integration
         if: matrix.config_mode == 'multi'
