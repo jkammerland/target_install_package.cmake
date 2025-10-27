@@ -125,3 +125,41 @@ target_configure_sources(
   include/component/configure_me.h)
 
 target_install_package(component-devel COMPONENT "Developer")
+
+if(BUILD_TESTING)
+  set(_tip_assert_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/assert_path_exists.cmake")
+
+  add_test(
+    NAME tip.runtime.tests_executable
+    COMMAND ${CMAKE_COMMAND} -E env CTEST_FULL_OUTPUT=1 $<TARGET_FILE:tests>)
+
+  add_test(
+    NAME tip.runtime.bin0_executable
+    COMMAND ${CMAKE_COMMAND} -E env CTEST_FULL_OUTPUT=1 $<TARGET_FILE:bin0>)
+
+  function(_tip_add_path_test test_name expected_path)
+    add_test(
+      NAME ${test_name}
+      COMMAND ${CMAKE_COMMAND} -P ${_tip_assert_script})
+    set_tests_properties(
+      ${test_name}
+      PROPERTIES
+        ENVIRONMENT "TIP_EXPECTED_PATH=${expected_path}")
+  endfunction()
+
+  _tip_add_path_test(
+    tip.artifacts.libstatic1_exists
+    $<SHELL_PATH:$<TARGET_FILE:static1>>)
+
+  _tip_add_path_test(
+    tip.artifacts.libshared1_exists
+    $<SHELL_PATH:$<TARGET_FILE:shared1>>)
+
+  _tip_add_path_test(
+    tip.headers.static2_version_generated
+    $<SHELL_PATH:${CMAKE_CURRENT_BINARY_DIR}/include/static2/version.h>)
+
+  _tip_add_path_test(
+    tip.headers.component_config_generated
+    $<SHELL_PATH:${CMAKE_CURRENT_BINARY_DIR}/include/component/configure_me.h>)
+endif()

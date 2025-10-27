@@ -139,7 +139,7 @@ jobs:
       run: cmake --install ${{ steps.strings.outputs.build-output-dir }}
 
     - name: Run Project Tests
-      run: ctest --test-dir ${{ steps.strings.outputs.build-output-dir }} --output-on-failure
+      run: ctest --test-dir ${{ steps.strings.outputs.build-output-dir }} --output-on-failure --no-tests=error
 
     - name: Test Installation Structure
       shell: bash
