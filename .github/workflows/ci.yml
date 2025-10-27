@@ -734,7 +734,7 @@ jobs:
           fi
           ninja --version
 
-      - name: Build + install example: basic-static (math_lib)
+      - name: Build + install example - basic-static (math_lib)
         shell: bash
         run: |
           set -euxo pipefail
@@ -745,7 +745,7 @@ jobs:
             cmake --install build --config "$cfg"
           done
 
-      - name: Build + install example: basic-shared (string_utils)
+      - name: Build + install example - basic-shared (string_utils)
         shell: bash
         run: |
           set -euxo pipefail
@@ -829,7 +829,7 @@ jobs:
           fi
           ninja --version
 
-      - name: Build + install example (single-config): basic-static (math_lib)
+      - name: Build + install example (single-config) - basic-static (math_lib)
         shell: bash
         run: |
           set -euxo pipefail
@@ -843,7 +843,7 @@ jobs:
           cmake --build build-dbg
           cmake --install build-dbg
 
-      - name: Build + install example (single-config): basic-shared (string_utils)
+      - name: Build + install example (single-config) - basic-shared (string_utils)
         shell: bash
         run: |
           set -euxo pipefail

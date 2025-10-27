@@ -1,0 +1,12 @@
+extends: default
+
+rules:
+  line-length:
+    max: 300
+    allow-non-breakable-words: true
+  document-start: disable
+  truthy: disable
+  brackets: disable
+  trailing-spaces: disable
+  indentation: disable
+  comments: disable
