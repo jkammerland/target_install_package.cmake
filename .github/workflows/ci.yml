@@ -558,24 +558,41 @@ jobs:
           base_install="examples/basic-shared/build/install"
           config_dirs=("$base_install" "$base_install/Debug" "$base_install/Release" "$base_install/MinSizeRel" "$base_install/RelWithDebInfo")
 
-          has_debug_lib=false
-          for dir in "${config_dirs[@]}"; do
-            for candidate in \
-              "lib64/libstring_utilsd.so" \
-              "lib/libstring_utilsd.so" \
-              "lib/libstring_utilsd.dylib" \
-              "bin/string_utilsd.dll" \
-              "lib/libstring_utilsd.so.6" \
-              "lib/libstring_utilsd.so.6.1.0"; do
-              if [[ -f "${dir}/${candidate}" ]]; then
-                has_debug_lib=true
-                break 2
+          find_first_library() {
+            local search_root="$1"
+            shift
+
+            if [[ ! -d "${search_root}" ]]; then
+              return 1
+            fi
+
+            local pattern
+            local result
+            for pattern in "$@"; do
+              result=$(find "${search_root}" -maxdepth 6 -type f -name "${pattern}" -print -quit 2>/dev/null || true)
+              if [[ -n "${result}" ]]; then
+                echo "${result}"
+                return 0
               fi
             done
+
+            return 1
+          }
+
+          debug_patterns=("libstring_utilsd.so" "libstring_utilsd.so.*" "libstring_utilsd.dylib" "string_utilsd.dll" "string_utilsd.lib")
+          release_patterns=("libstring_utils.so" "libstring_utils.so.*" "libstring_utils.dylib" "string_utils.dll" "string_utils.lib")
+
+          has_debug_lib=false
+          debug_location=""
+          for dir in "${config_dirs[@]}"; do
+            if debug_location=$(find_first_library "${dir}" "${debug_patterns[@]}"); then
+              has_debug_lib=true
+              break
+            fi
           done
 
           if [[ "${has_debug_lib}" == "true" ]]; then
-            echo "✓ Debug library with postfix found"
+            echo "✓ Debug library with postfix found at: ${debug_location}"
           else
             echo "✗ Debug library with postfix NOT found"
             find "${base_install}" -name "*string_utils*" || true
@@ -583,23 +600,16 @@ jobs:
           fi
 
           has_release_lib=false
+          release_location=""
           for dir in "${config_dirs[@]}"; do
-            for candidate in \
-              "lib64/libstring_utils.so" \
-              "lib/libstring_utils.so" \
-              "lib/libstring_utils.dylib" \
-              "bin/string_utils.dll" \
-              "lib/libstring_utils.so.6" \
-              "lib/libstring_utils.so.6.1.0"; do
-              if [[ -f "${dir}/${candidate}" ]]; then
-                has_release_lib=true
-                break 2
-              fi
-            done
+            if release_location=$(find_first_library "${dir}" "${release_patterns[@]}"); then
+              has_release_lib=true
+              break
+            fi
           done
 
           if [[ "${has_release_lib}" == "true" ]]; then
-            echo "✓ Release library found"
+            echo "✓ Release library found at: ${release_location}"
           else
             echo "✗ Release library NOT found"
             find "${base_install}" -name "*string_utils*" || true
