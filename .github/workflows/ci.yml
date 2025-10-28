@@ -786,7 +786,9 @@ jobs:
           #include <iostream>
           int main(){ std::cout << "ok\n"; return 0; }
           EOF
-          prefix_paths="../examples/basic-static/build/install;../examples/basic-shared/build/install"
+          prefix_math=$(cmake -E canonicalize_path "../examples/basic-static/build/install")
+          prefix_utils=$(cmake -E canonicalize_path "../examples/basic-shared/build/install")
+          prefix_paths="${prefix_math};${prefix_utils}"
           cmake -S . -B build -G "Ninja Multi-Config" \
             -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
             -DCMAKE_PREFIX_PATH="${prefix_paths}"
