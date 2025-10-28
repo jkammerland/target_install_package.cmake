@@ -556,7 +556,17 @@ jobs:
           echo "=== Verifying Multi-Config Build Artifacts ==="
 
           base_install="examples/basic-shared/build/install"
-          config_dirs=("$base_install" "$base_install/Debug" "$base_install/Release" "$base_install/MinSizeRel" "$base_install/RelWithDebInfo")
+          config_dirs=(
+            "$base_install"
+            "$base_install/Debug"
+            "$base_install/Release"
+            "$base_install/MinSizeRel"
+            "$base_install/RelWithDebInfo"
+            "$base_install/debug"
+            "$base_install/release"
+            "$base_install/minsizerel"
+            "$base_install/relwithdebinfo"
+          )
 
           find_first_library() {
             local search_root="$1"
@@ -569,7 +579,7 @@ jobs:
             local pattern
             local result
             for pattern in "$@"; do
-              result=$(find "${search_root}" -maxdepth 6 -type f -name "${pattern}" -print -quit 2>/dev/null || true)
+              result=$(find "${search_root}" \( -type f -o -type l \) -name "${pattern}" -print -quit 2>/dev/null || true)
               if [[ -n "${result}" ]]; then
                 echo "${result}"
                 return 0
@@ -579,8 +589,8 @@ jobs:
             return 1
           }
 
-          debug_patterns=("libstring_utilsd.so" "libstring_utilsd.so.*" "libstring_utilsd.dylib" "string_utilsd.dll" "string_utilsd.lib")
-          release_patterns=("libstring_utils.so" "libstring_utils.so.*" "libstring_utils.dylib" "string_utils.dll" "string_utils.lib")
+          debug_patterns=("libstring_utilsd.so" "libstring_utilsd.so.*" "libstring_utilsd.dylib" "libstring_utilsd.dylib.*" "string_utilsd.dll" "string_utilsd.lib")
+          release_patterns=("libstring_utils.so" "libstring_utils.so.*" "libstring_utils.dylib" "libstring_utils.dylib.*" "string_utils.dll" "string_utils.lib")
 
           has_debug_lib=false
           debug_location=""
@@ -739,8 +749,8 @@ jobs:
         run: |
           set -euxo pipefail
           cd examples/basic-static
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
-          for cfg in Debug Release; do
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          for cfg in Debug Release MinSizeRel RelWithDebInfo; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
           done
@@ -750,8 +760,8 @@ jobs:
         run: |
           set -euxo pipefail
           cd examples/basic-shared
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
-          for cfg in Debug Release; do
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          for cfg in Debug Release MinSizeRel RelWithDebInfo; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
           done
@@ -776,8 +786,10 @@ jobs:
           #include <iostream>
           int main(){ std::cout << "ok\n"; return 0; }
           EOF
+          prefix_paths="../examples/basic-static/build/install;../examples/basic-shared/build/install"
           cmake -S . -B build -G "Ninja Multi-Config" \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/build/install;${{ github.workspace }}/examples/basic-shared/build/install"
+            -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
+            -DCMAKE_PREFIX_PATH="${prefix_paths}"
 
       - name: Build Release and assert link uses release libs
         shell: bash
