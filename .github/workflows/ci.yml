@@ -749,7 +749,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd examples/basic-static
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
           for cfg in Debug Release MinSizeRel RelWithDebInfo; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
@@ -760,7 +760,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd examples/basic-shared
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
           for cfg in Debug Release MinSizeRel RelWithDebInfo; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
