@@ -788,7 +788,32 @@ jobs:
           EOF
           prefix_math=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-static", "build", "install")))' )
           prefix_utils=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-shared", "build", "install")))' )
-          prefix_paths="${prefix_math};${prefix_utils}"
+          export PREFIX_MATH="${prefix_math}"
+          export PREFIX_UTILS="${prefix_utils}"
+          python - <<'PY'
+          import os
+          for prefix, pkg in [
+              (os.environ.get("PREFIX_MATH"), ("math_lib", "math_libConfig.cmake")),
+              (os.environ.get("PREFIX_UTILS"), ("string_utils", "string_utilsConfig.cmake")),
+          ]:
+              if not prefix:
+                  continue
+              pkg_name, config_name = pkg
+              config_path = os.path.join(prefix, "share", "cmake", pkg_name, config_name)
+              if os.path.isfile(config_path):
+                  continue
+              print(f"{config_name} not found under {prefix}/share/cmake/{pkg_name}", flush=True)
+              for root, _, files in os.walk(prefix):
+                  for name in files:
+                      if name.startswith(pkg_name) and name.endswith(".cmake"):
+                          rel = os.path.relpath(os.path.join(root, name), prefix)
+                          print(f"  found candidate: {rel}", flush=True)
+              print("--- end listing ---", flush=True)
+          PY
+          # Escape Windows backslashes to keep semicolons intact for CMake lists
+          prefix_math_escaped="${prefix_math//\\/\\\\}"
+          prefix_utils_escaped="${prefix_utils//\\/\\\\}"
+          prefix_paths="${prefix_math_escaped};${prefix_utils_escaped};${prefix_math_escaped}/share/cmake;${prefix_utils_escaped}/share/cmake;${prefix_math_escaped}/lib/cmake;${prefix_utils_escaped}/lib/cmake;${prefix_math_escaped}/share/cmake/math_lib;${prefix_utils_escaped}/share/cmake/string_utils"
           cmake -S . -B build -G "Ninja Multi-Config" \
             -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
             -DCMAKE_PREFIX_PATH="${prefix_paths}"
