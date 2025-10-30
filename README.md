@@ -39,7 +39,7 @@ The `target_install_package()` function searches for the targets config template
 2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
 3. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
 4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
-5. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
+5 . `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
 6. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
 
 >[!NOTE]
@@ -524,38 +524,6 @@ cmake --install . --component Tools --component Tools_Development
 cmake --install .
 ```
 
-### Migration from v5.x to v6.0
-
-**Breaking Change**: The Component Prefix Pattern (v6.0) eliminates dual install complexity but changes component naming.
-
-**Before (v5.x - complex dual install)**:
-```cmake
-target_install_package(mylib 
-  COMPONENT "tools")  # Created dual installs to both "Runtime" + "tools"
-```
-
-**After (v6.0 - simple prefix pattern)**:
-```cmake  
-target_install_package(mylib
-  COMPONENT "Tools")  # Creates "Tools" (runtime) + "Tools_Development" (development)
-```
-
-**Installation command changes**:
-```bash
-# v5.x commands
-cmake --install . --component tools      # Custom component
-cmake --install . --component Runtime    # Standard component
-
-# v6.0 commands  
-cmake --install . --component Tools              # Runtime component
-cmake --install . --component Tools_Development  # Development component
-```
-
-**Changes in v6.0**:
-- `COMPONENT="X"` creates `X` (runtime), `X_Development` (development) components
-- Each target installs to exactly two components (no dual installs)
-- Eliminates complex dual install routing logic
-- Multiple targets can share the same logical component group
 
 ## Multi-Target Exports
 
