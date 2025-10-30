@@ -556,26 +556,53 @@ jobs:
           echo "=== Verifying Multi-Config Build Artifacts ==="
 
           base_install="examples/basic-shared/build/install"
-          config_dirs=("$base_install" "$base_install/Debug" "$base_install/Release" "$base_install/MinSizeRel" "$base_install/RelWithDebInfo")
+          config_dirs=(
+            "$base_install"
+            "$base_install/Debug"
+            "$base_install/Release"
+            "$base_install/MinSizeRel"
+            "$base_install/RelWithDebInfo"
+            "$base_install/debug"
+            "$base_install/release"
+            "$base_install/minsizerel"
+            "$base_install/relwithdebinfo"
+          )
 
-          has_debug_lib=false
-          for dir in "${config_dirs[@]}"; do
-            for candidate in \
-              "lib64/libstring_utilsd.so" \
-              "lib/libstring_utilsd.so" \
-              "lib/libstring_utilsd.dylib" \
-              "bin/string_utilsd.dll" \
-              "lib/libstring_utilsd.so.6" \
-              "lib/libstring_utilsd.so.6.1.0"; do
-              if [[ -f "${dir}/${candidate}" ]]; then
-                has_debug_lib=true
-                break 2
+          find_first_library() {
+            local search_root="$1"
+            shift
+
+            if [[ ! -d "${search_root}" ]]; then
+              return 1
+            fi
+
+            local pattern
+            local result
+            for pattern in "$@"; do
+              result=$(find "${search_root}" \( -type f -o -type l \) -name "${pattern}" -print -quit 2>/dev/null || true)
+              if [[ -n "${result}" ]]; then
+                echo "${result}"
+                return 0
               fi
             done
+
+            return 1
+          }
+
+          debug_patterns=("libstring_utilsd.so" "libstring_utilsd.so.*" "libstring_utilsd.dylib" "libstring_utilsd.dylib.*" "string_utilsd.dll" "string_utilsd.lib")
+          release_patterns=("libstring_utils.so" "libstring_utils.so.*" "libstring_utils.dylib" "libstring_utils.dylib.*" "string_utils.dll" "string_utils.lib")
+
+          has_debug_lib=false
+          debug_location=""
+          for dir in "${config_dirs[@]}"; do
+            if debug_location=$(find_first_library "${dir}" "${debug_patterns[@]}"); then
+              has_debug_lib=true
+              break
+            fi
           done
 
           if [[ "${has_debug_lib}" == "true" ]]; then
-            echo "✓ Debug library with postfix found"
+            echo "✓ Debug library with postfix found at: ${debug_location}"
           else
             echo "✗ Debug library with postfix NOT found"
             find "${base_install}" -name "*string_utils*" || true
@@ -583,23 +610,16 @@ jobs:
           fi
 
           has_release_lib=false
+          release_location=""
           for dir in "${config_dirs[@]}"; do
-            for candidate in \
-              "lib64/libstring_utils.so" \
-              "lib/libstring_utils.so" \
-              "lib/libstring_utils.dylib" \
-              "bin/string_utils.dll" \
-              "lib/libstring_utils.so.6" \
-              "lib/libstring_utils.so.6.1.0"; do
-              if [[ -f "${dir}/${candidate}" ]]; then
-                has_release_lib=true
-                break 2
-              fi
-            done
+            if release_location=$(find_first_library "${dir}" "${release_patterns[@]}"); then
+              has_release_lib=true
+              break
+            fi
           done
 
           if [[ "${has_release_lib}" == "true" ]]; then
-            echo "✓ Release library found"
+            echo "✓ Release library found at: ${release_location}"
           else
             echo "✗ Release library NOT found"
             find "${base_install}" -name "*string_utils*" || true
@@ -724,24 +744,24 @@ jobs:
           fi
           ninja --version
 
-      - name: Build + install example: basic-static (math_lib)
+      - name: Build + install example - basic-static (math_lib)
         shell: bash
         run: |
           set -euxo pipefail
           cd examples/basic-static
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
-          for cfg in Debug Release; do
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          for cfg in Debug Release MinSizeRel RelWithDebInfo; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
           done
 
-      - name: Build + install example: basic-shared (string_utils)
+      - name: Build + install example - basic-shared (string_utils)
         shell: bash
         run: |
           set -euxo pipefail
           cd examples/basic-shared
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all
-          for cfg in Debug Release; do
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+          for cfg in Debug Release MinSizeRel RelWithDebInfo; do
             cmake --build build --config "$cfg"
             cmake --install build --config "$cfg"
           done
@@ -766,8 +786,37 @@ jobs:
           #include <iostream>
           int main(){ std::cout << "ok\n"; return 0; }
           EOF
+          prefix_math=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-static", "build", "install")))' )
+          prefix_utils=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-shared", "build", "install")))' )
+          export PREFIX_MATH="${prefix_math}"
+          export PREFIX_UTILS="${prefix_utils}"
+          python - <<'PY'
+          import os
+          for prefix, pkg in [
+              (os.environ.get("PREFIX_MATH"), ("math_lib", "math_libConfig.cmake")),
+              (os.environ.get("PREFIX_UTILS"), ("string_utils", "string_utilsConfig.cmake")),
+          ]:
+              if not prefix:
+                  continue
+              pkg_name, config_name = pkg
+              config_path = os.path.join(prefix, "share", "cmake", pkg_name, config_name)
+              if os.path.isfile(config_path):
+                  continue
+              print(f"{config_name} not found under {prefix}/share/cmake/{pkg_name}", flush=True)
+              for root, _, files in os.walk(prefix):
+                  for name in files:
+                      if name.startswith(pkg_name) and name.endswith(".cmake"):
+                          rel = os.path.relpath(os.path.join(root, name), prefix)
+                          print(f"  found candidate: {rel}", flush=True)
+              print("--- end listing ---", flush=True)
+          PY
+          # Escape Windows backslashes to keep semicolons intact for CMake lists
+          prefix_math_escaped="${prefix_math//\\/\\\\}"
+          prefix_utils_escaped="${prefix_utils//\\/\\\\}"
+          prefix_paths="${prefix_math_escaped};${prefix_utils_escaped};${prefix_math_escaped}/share/cmake;${prefix_utils_escaped}/share/cmake;${prefix_math_escaped}/lib/cmake;${prefix_utils_escaped}/lib/cmake;${prefix_math_escaped}/share/cmake/math_lib;${prefix_utils_escaped}/share/cmake/string_utils"
           cmake -S . -B build -G "Ninja Multi-Config" \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/examples/basic-static/build/install;${{ github.workspace }}/examples/basic-shared/build/install"
+            -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
+            -DCMAKE_PREFIX_PATH="${prefix_paths}"
 
       - name: Build Release and assert link uses release libs
         shell: bash
@@ -819,7 +868,7 @@ jobs:
           fi
           ninja --version
 
-      - name: Build + install example (single-config): basic-static (math_lib)
+      - name: Build + install example (single-config) - basic-static (math_lib)
         shell: bash
         run: |
           set -euxo pipefail
@@ -833,7 +882,7 @@ jobs:
           cmake --build build-dbg
           cmake --install build-dbg
 
-      - name: Build + install example (single-config): basic-shared (string_utils)
+      - name: Build + install example (single-config) - basic-shared (string_utils)
         shell: bash
         run: |
           set -euxo pipefail
