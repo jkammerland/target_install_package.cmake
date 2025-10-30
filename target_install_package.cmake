@@ -404,22 +404,118 @@ function(target_prepare_package TARGET_NAME)
 
   # Handle component-dependent dependencies
   if(ARG_COMPONENT_DEPENDENCIES)
-    # Validate that COMPONENT_DEPENDENCIES has an even number of elements (component:dependencies pairs)
-    list(LENGTH ARG_COMPONENT_DEPENDENCIES comp_deps_length)
-    math(EXPR remainder "${comp_deps_length} % 2")
-    if(NOT remainder EQUAL 0)
-      project_log(FATAL_ERROR "COMPONENT_DEPENDENCIES must contain pairs of component names and their dependencies")
-    endif()
+    # Reconstruct component → dependency mappings while tolerating CMake's
+    # automatic list splitting (e.g. "OpenGL;glfw" turning into multiple
+    # entries). Dependencies are accumulated until we see the next component
+    # token, then merged with any previously recorded values.
+    set(_tip_raw_component_deps ${ARG_COMPONENT_DEPENDENCIES})
+    list(LENGTH _tip_raw_component_deps _tip_raw_count)
+    set(_tip_index 0)
+    set(_tip_normalized_component_deps "")
+
+    while(_tip_index LESS _tip_raw_count)
+      list(GET _tip_raw_component_deps ${_tip_index} _tip_component_name)
+      if(_tip_component_name STREQUAL "")
+        project_log(FATAL_ERROR "COMPONENT_DEPENDENCIES: Component name cannot be empty")
+      endif()
+
+      math(EXPR _tip_index "${_tip_index} + 1")
+      if(_tip_index GREATER_EQUAL _tip_raw_count)
+        project_log(FATAL_ERROR "COMPONENT_DEPENDENCIES entry for component '${_tip_component_name}' is missing dependency values")
+      endif()
+
+      set(_tip_component_dep_list "")
+      while(_tip_index LESS _tip_raw_count)
+        list(GET _tip_raw_component_deps ${_tip_index} _tip_candidate)
+
+        set(_tip_candidate_is_component FALSE)
+        # Treat tokens without whitespace as potential component keys unless
+        # they match common dependency keywords (REQUIRED, OPTIONAL, ...).
+        if(NOT _tip_candidate STREQUAL "")
+          if(_tip_candidate MATCHES "^[A-Za-z0-9_.+-]+$")
+            string(TOUPPER "${_tip_candidate}" _tip_candidate_upper)
+            set(_tip_component_stop_words "AND;OR;TRUE;FALSE;ON;OFF;YES;NO;REQUIRED;OPTIONAL;COMPONENTS;CONFIG;MODULE;TARGETS;QUIET;NO_DEFAULT_PATH;FOUND")
+            list(FIND _tip_component_stop_words "${_tip_candidate_upper}" _tip_stop_index)
+            if(_tip_stop_index EQUAL -1)
+              set(_tip_candidate_is_component TRUE)
+            endif()
+          endif()
+        endif()
+
+        if(_tip_candidate_is_component)
+          math(EXPR _tip_candidate_next "${_tip_index} + 1")
+          if(_tip_candidate_next GREATER_EQUAL _tip_raw_count)
+            set(_tip_candidate_is_component FALSE)
+          endif()
+
+          if(_tip_candidate_is_component AND _tip_component_dep_list STREQUAL "")
+            set(_tip_candidate_is_component FALSE)
+          endif()
+        endif()
+
+        if(_tip_candidate_is_component)
+          break()
+        endif()
+
+        if(_tip_component_dep_list STREQUAL "")
+          set(_tip_component_dep_list "${_tip_candidate}")
+        else()
+          set(_tip_component_dep_list "${_tip_component_dep_list};${_tip_candidate}")
+        endif()
+
+        math(EXPR _tip_index "${_tip_index} + 1")
+      endwhile()
+
+      if(_tip_component_dep_list STREQUAL "")
+        project_log(FATAL_ERROR "COMPONENT_DEPENDENCIES entry for '${_tip_component_name}' does not list any dependencies")
+      endif()
+
+      list(APPEND _tip_normalized_component_deps "${_tip_component_name}" "${_tip_component_dep_list}")
+    endwhile()
 
     get_property(EXISTING_COMP_DEPS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
     if(EXISTING_COMP_DEPS)
-      list(APPEND EXISTING_COMP_DEPS ${ARG_COMPONENT_DEPENDENCIES})
+      set(_tip_component_dep_pairs ${EXISTING_COMP_DEPS})
     else()
-      set(EXISTING_COMP_DEPS ${ARG_COMPONENT_DEPENDENCIES})
+      set(_tip_component_dep_pairs "")
     endif()
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES" "${EXISTING_COMP_DEPS}")
 
-    project_log(DEBUG "  Added component dependencies for export '${ARG_EXPORT_NAME}': ${ARG_COMPONENT_DEPENDENCIES}")
+    list(LENGTH _tip_normalized_component_deps _tip_norm_count)
+    set(_tip_norm_index 0)
+    while(_tip_norm_index LESS _tip_norm_count)
+      list(GET _tip_normalized_component_deps ${_tip_norm_index} _tip_component)
+      math(EXPR _tip_norm_index "${_tip_norm_index} + 1")
+      list(GET _tip_normalized_component_deps ${_tip_norm_index} _tip_dependencies)
+      math(EXPR _tip_norm_index "${_tip_norm_index} + 1")
+
+      set(_tip_existing_index -1)
+      list(LENGTH _tip_component_dep_pairs _tip_pair_len)
+      set(_tip_pair_pos 0)
+      while(_tip_pair_pos LESS _tip_pair_len)
+        list(GET _tip_component_dep_pairs ${_tip_pair_pos} _tip_existing_component)
+        if(_tip_existing_component STREQUAL _tip_component)
+          set(_tip_existing_index ${_tip_pair_pos})
+          break()
+        endif()
+        math(EXPR _tip_pair_pos "${_tip_pair_pos} + 2")
+      endwhile()
+
+      if(_tip_existing_index EQUAL -1)
+        list(APPEND _tip_component_dep_pairs "${_tip_component}" "${_tip_dependencies}")
+      else()
+        math(EXPR _tip_value_index "${_tip_existing_index} + 1")
+        list(GET _tip_component_dep_pairs ${_tip_value_index} _tip_existing_deps)
+        set(_tip_dep_list "${_tip_existing_deps};${_tip_dependencies}")
+        set(_tip_dep_list_LIST ${_tip_dep_list})
+        list(REMOVE_DUPLICATES _tip_dep_list_LIST)
+        list(JOIN _tip_dep_list_LIST ";" _tip_joined_deps)
+        list(REMOVE_AT _tip_component_dep_pairs ${_tip_value_index})
+        list(INSERT _tip_component_dep_pairs ${_tip_value_index} "${_tip_joined_deps}")
+      endif()
+    endwhile()
+
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES" "${_tip_component_dep_pairs}")
+    project_log(DEBUG "  Component dependencies for export '${ARG_EXPORT_NAME}': ${_tip_component_dep_pairs}")
   endif()
 
   # Track this export for auto-finalization
@@ -1311,7 +1407,7 @@ function(_set_default_args)
     math(EXPR index "${index} + 1")
 
     # Set default if variable is not set in parent scope
-    if(NOT ${var_name})
+    if(NOT DEFINED ${var_name} OR "${${var_name}}" STREQUAL "")
       set(${var_name}
           "${default_value}"
           PARENT_SCOPE)
