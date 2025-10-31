@@ -1,4 +1,0 @@
-#!/bin/bash
-# Clean build artifacts
-rm -rf result result-*
-echo "Build artifacts cleaned"

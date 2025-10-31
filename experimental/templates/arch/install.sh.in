@@ -1,8 +1,0 @@
-#!/bin/bash
-# Install the built package
-if [[ -f *.pkg.tar.xz ]]; then
-    sudo pacman -U *.pkg.tar.xz
-else
-    echo "No package file found. Run ./build.sh first."
-    exit 1
-fi
