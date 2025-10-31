@@ -957,3 +957,141 @@ jobs:
           grep -E "[\\/](debug)[\\/](lib|lib64)" build_debug_sc.log
           if grep -E "[\\/](release)[\\/](lib|lib64)" build_debug_sc.log; then
             echo "Found release libs in Debug link (single-config)!" >&2; exit 1; fi
+
+  fhs-combined-consume:
+    name: FHS combined consume (math_lib, string_utils)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install ninja -y
+            echo "C:/ProgramData/chocolatey/lib/ninja/tools" >> $GITHUB_PATH
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew install ninja
+          fi
+          ninja --version
+
+      - name: Build + install example (FHS, combined configs) - basic-static (math_lib)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-static
+          rm -rf build-rel build-dbg install
+          # Release
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=fhs
+          cmake --build build-rel
+          cmake --install build-rel
+          # Debug
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=fhs
+          cmake --build build-dbg
+          cmake --install build-dbg
+
+      - name: Build + install example (FHS, combined configs) - basic-shared (string_utils)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd examples/basic-shared
+          rm -rf build-rel build-dbg install
+          # Release
+          cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=fhs
+          cmake --build build-rel
+          cmake --install build-rel
+          # Debug
+          cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=fhs
+          cmake --build build-dbg
+          cmake --install build-dbg
+
+      - name: Configure consumer (Release, FHS)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-consumer-fhs-rel && cd ci-consumer-fhs-rel
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(fhs_consumer_release LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok-fhs-release\n"; return 0; }
+          EOF
+          prefix_math=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-static", "install")))' )
+          prefix_utils=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-shared", "install")))' )
+          prefix_math_escaped="${prefix_math//\\/\\\\}"
+          prefix_utils_escaped="${prefix_utils//\\/\\\\}"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${prefix_math_escaped};${prefix_utils_escaped}"
+
+      - name: Build + run Release (FHS)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer-fhs-rel/build -v | tee build_release_fhs.log
+          if grep -E "math_libd" build_release_fhs.log; then
+            echo "Found debug math_lib in Release link (FHS)!" >&2; exit 1; fi
+          if grep -E "string_utilsd" build_release_fhs.log; then
+            echo "Found debug string_utils in Release link (FHS)!" >&2; exit 1; fi
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ./ci-consumer-fhs-rel/build/consumer.exe
+          else
+            ./ci-consumer-fhs-rel/build/consumer
+          fi
+
+      - name: Configure consumer (Debug, FHS)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p ci-consumer-fhs-dbg && cd ci-consumer-fhs-dbg
+          cat > CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.23)
+          project(fhs_consumer_debug LANGUAGES CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(math_lib CONFIG REQUIRED)
+          find_package(string_utils CONFIG REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE Math::math_lib Utils::string_utils)
+          EOF
+          cat > main.cpp << 'EOF'
+          #include <iostream>
+          int main(){ std::cout << "ok-fhs-debug\n"; return 0; }
+          EOF
+          prefix_math=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-static", "install")))' )
+          prefix_utils=$(python -c 'import os; print(os.path.abspath(os.path.join("..", "examples", "basic-shared", "install")))' )
+          prefix_math_escaped="${prefix_math//\\/\\\\}"
+          prefix_utils_escaped="${prefix_utils//\\/\\\\}"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="${prefix_math_escaped};${prefix_utils_escaped}"
+
+      - name: Build + run Debug (FHS)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build ci-consumer-fhs-dbg/build -v | tee build_debug_fhs.log
+          grep -E "math_libd" build_debug_fhs.log
+          grep -E "string_utilsd" build_debug_fhs.log
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ./ci-consumer-fhs-dbg/build/consumer.exe
+          else
+            ./ci-consumer-fhs-dbg/build/consumer
+          fi
