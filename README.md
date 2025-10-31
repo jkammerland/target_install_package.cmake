@@ -34,13 +34,11 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
-The `target_install_package()` function searches for the targets config templates in this order:
-1. User-provided `CONFIG_TEMPLATE` parameter - Path to a CMake config template file
-2. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
-3. `${TARGET_SOURCE_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
-4. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}Config.cmake.in` (preferred CMake format)
-5 . `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${EXPORT_NAME}-config.cmake.in` (alternative format)
-6. `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in))
+The `target_install_package()` function now uses a simplified and predictable template selection:
+1. User-provided `CONFIG_TEMPLATE` parameter — absolute or relative path to a CMake config template file. If provided but not found, configuration fails.
+2. Fallback to the built-in generic template: `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in)).
+
+Auto-discovery of export-specific templates (e.g., searching the target or script `cmake/` directories for `<ExportName>Config.cmake.in`) has been removed. Declare `CONFIG_TEMPLATE` explicitly if you need a custom template; otherwise, the generic template is used.
 
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
@@ -675,6 +673,10 @@ target_link_libraries(my_game PRIVATE
   GameEngine::engine_audio
 )
 ```
+
+Note:
+- You can list multiple dependencies for a component using a semicolon-separated list inside quotes (as in the examples). CMake splits that list internally; the package generator reconstructs and preserves the full set.
+- You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
 
 ## More Examples
 
