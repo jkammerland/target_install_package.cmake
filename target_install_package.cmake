@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.1.1)
+  list_file_include_guard(VERSION 6.1.2)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -148,7 +148,7 @@ endfunction(target_install_package)
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization. Since v6.1.1, finalization happens
+# the configuration for later finalization. Since v6.1.2, finalization happens
 # automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
@@ -404,10 +404,8 @@ function(target_prepare_package TARGET_NAME)
 
   # Handle component-dependent dependencies
   if(ARG_COMPONENT_DEPENDENCIES)
-    # Reconstruct component → dependency mappings while tolerating CMake's
-    # automatic list splitting (e.g. "OpenGL;glfw" turning into multiple
-    # entries). Dependencies are accumulated until we see the next component
-    # token, then merged with any previously recorded values.
+    # Reconstruct component → dependency mappings while tolerating CMake's automatic list splitting (e.g. "OpenGL;glfw" turning into multiple entries). Dependencies are accumulated until we see the
+    # next component token, then merged with any previously recorded values.
     set(_tip_raw_component_deps ${ARG_COMPONENT_DEPENDENCIES})
     list(LENGTH _tip_raw_component_deps _tip_raw_count)
     set(_tip_index 0)
@@ -429,8 +427,7 @@ function(target_prepare_package TARGET_NAME)
         list(GET _tip_raw_component_deps ${_tip_index} _tip_candidate)
 
         set(_tip_candidate_is_component FALSE)
-        # Treat tokens without whitespace as potential component keys unless
-        # they match common dependency keywords (REQUIRED, OPTIONAL, ...).
+        # Treat tokens without whitespace as potential component keys unless they match common dependency keywords (REQUIRED, OPTIONAL, ...).
         if(NOT _tip_candidate STREQUAL "")
           if(_tip_candidate MATCHES "^[A-Za-z0-9_.+-]+$")
             string(TOUPPER "${_tip_candidate}" _tip_candidate_upper)
@@ -708,7 +705,7 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
-# NOTE: Since v6.1.1, this function is OPTIONAL. All exports are automatically
+# NOTE: Since v6.1.2, this function is OPTIONAL. All exports are automatically
 # finalized at the end of configuration using cmake_language(DEFER CALL).
 # Use this function only when you need explicit control over finalization timing.
 #
