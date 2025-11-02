@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 
 get_property(
   _LFG_INITIALIZED GLOBAL
@@ -82,7 +82,7 @@ endif()
 #                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
-#   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "${CMAKE_INSTALL_PREFIX}").
+#   ADDITIONAL_FILES_DESTINATION - Destination for additional files (default: install prefix root).
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
 #   INCLUDE_ON_FIND_PACKAGE     - Additional CMake files to include when package is found.
@@ -314,7 +314,7 @@ function(target_prepare_package TARGET_NAME)
     "${CMAKE_INSTALL_INCLUDEDIR}"
     "Module destination"
     ARG_ADDITIONAL_FILES_DESTINATION
-    "files"
+    "."
     "Additional files destination")
 
   # Validate compatibility parameter
@@ -1149,7 +1149,9 @@ endif()
       get_property(TARGET_ADDITIONAL_FILES_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_SOURCE_DIR")
 
       if(NOT TARGET_ADDITIONAL_FILES_DESTINATION)
-        set(TARGET_ADDITIONAL_FILES_DESTINATION "files")
+        # Install to the install prefix root by default
+        # Using '.' ensures DESTINATION resolves to ${CMAKE_INSTALL_PREFIX}
+        set(TARGET_ADDITIONAL_FILES_DESTINATION ".")
       endif()
       if(NOT TARGET_ADDITIONAL_FILES_SOURCE_DIR)
         get_target_property(TARGET_ADDITIONAL_FILES_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)

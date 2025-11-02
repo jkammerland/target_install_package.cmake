@@ -16,6 +16,11 @@ Most use cases require minimal configuration. The goal is to simplify this proce
 
 This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), which have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
 
+## Requirements
+
+- CMake 3.25+ for core utilities and examples
+- C++20 modules examples require CMake 3.28+
+
 ## Shipped Functions & Files
 
 | File/Function | Type | Description |
@@ -374,7 +379,9 @@ cmake --build .
 cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-Development.tar.gz, etc.
 ```
 
-**See [examples/cpack-basic](examples/cpack-basic/) for complete working example.**
+**See [examples/cpack-basic](examples/cpack-basic/) for a complete working example.**
+
+For container packaging using CPack’s External generator (scratch images via podman/docker), see docs/Container-Packaging.md.
 
 **📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
 

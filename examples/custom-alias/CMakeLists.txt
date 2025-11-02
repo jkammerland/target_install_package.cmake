@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 project(custom_alias_example VERSION 1.0.0)
 
 # Include target_install_package utilities

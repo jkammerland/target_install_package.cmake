@@ -1,7 +1,7 @@
 # Generated GPG package signing script
 # This script is executed by CPack after package generation
 
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 
 # Signing configuration (substituted by CMake configure_file)
 set(GPG_EXECUTABLE "@GPG_EXECUTABLE@")

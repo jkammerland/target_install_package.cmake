@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 
 if(NOT DEFINED ENV{TIP_EXPECTED_PATH})
   message(FATAL_ERROR "assert_path_exists: TIP_EXPECTED_PATH environment variable is not set")

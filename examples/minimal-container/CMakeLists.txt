@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 project(minimal_container_example VERSION 1.0.0)
 
 # Include utilities (disable install since parent does that)

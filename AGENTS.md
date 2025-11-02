@@ -19,4 +19,4 @@ Expand the coverage in `tests/` when adding new install behaviors. Mirror existi
 Write commit subjects in sentence case using present-tense verbs (e.g., `Add container packaging support`). Keep commits focused and call out touched modules (`cmake/`, `tests/`) in the body. Pull requests should summarize intent, list validation commands, link tracked issues, and include installer artifacts only when diagnosing packaging regressions.
 
 ## Documentation & Support
-Consult `docs/` and `CPack-Tutorial.md` for install destination defaults and packaging workflows. Reference `documentation-audit-findings.md` for open follow-ups, and raise questions alongside reproduction steps when opening discussions or PRs.
+Consult `docs/` and `CPack-Tutorial.md` for install destination defaults and packaging workflows. Raise questions alongside reproduction steps when opening discussions or PRs.

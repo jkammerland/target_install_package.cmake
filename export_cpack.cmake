@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 
 get_property(
   _LFG_INITIALIZED GLOBAL
@@ -486,7 +486,8 @@ function(_execute_deferred_cpack_config)
 
     # Set container name (default to lowercase package name)
     if(ARG_CONTAINER_NAME)
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${ARG_CONTAINER_NAME}")
+      set(container_name "${ARG_CONTAINER_NAME}")
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
     else()
       string(TOLOWER "${ARG_PACKAGE_NAME}" container_name)
       _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
@@ -494,12 +495,14 @@ function(_execute_deferred_cpack_config)
 
     # Set container tag (default to package version)
     if(ARG_CONTAINER_TAG)
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${ARG_CONTAINER_TAG}")
+      set(container_tag "${ARG_CONTAINER_TAG}")
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${container_tag}")
     else()
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${ARG_PACKAGE_VERSION}")
+      set(container_tag "${ARG_PACKAGE_VERSION}")
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${container_tag}")
     endif()
 
-    project_log(VERBOSE "Container generation configured: ${container_name}:${ARG_PACKAGE_VERSION}")
+    project_log(VERBOSE "Container generation configured: ${container_name}:${container_tag}")
   endif()
 
   # Set generators
@@ -716,6 +719,17 @@ function(_execute_deferred_cpack_config)
     # Keep a simple, portable layout inside the archive (lib/, bin/, include/ ...) rather than embedding /usr or other absolute prefixes.
     if(NOT DEFINED CPACK_PACKAGING_INSTALL_PREFIX)
       set(CPACK_PACKAGING_INSTALL_PREFIX "/")
+    endif()
+    # Avoid RPM "relocatable" warning when using DESTDIR staging. Relocatable RPMs and CPACK_SET_DESTDIR are incompatible.
+    # Users that need relocatable RPMs should explicitly set:
+    #   - CPACK_SET_DESTDIR=OFF
+    #   - CPACK_RPM_PACKAGE_RELOCATABLE=ON
+    #   - CPACK_RPM_RELOCATION_PATHS="/usr" (or desired prefix)
+    if(NOT DEFINED CPACK_RPM_PACKAGE_RELOCATABLE)
+      set(CPACK_RPM_PACKAGE_RELOCATABLE OFF)
+    endif()
+    if(NOT DEFINED CPACK_PACKAGE_RELOCATABLE)
+      set(CPACK_PACKAGE_RELOCATABLE OFF)
     endif()
   endif()
 
