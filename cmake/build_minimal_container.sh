@@ -17,9 +17,18 @@ fi
 
 echo "Building container: $CONTAINER_NAME:$CONTAINER_TAG"
 
-# Find the main executable (check both component and non-component layouts)
+# Find the main executable (check common staged layouts)
+# CPack with DESTDIR staging typically prefixes with /usr/local by default.
+# Search both component and non-component layouts and prefer "bin" locations.
 ENTRYPOINT=""
-for dir in "$STAGING_DIR/Runtime/bin" "$STAGING_DIR/bin" "$STAGING_DIR/usr/bin" "$STAGING_DIR"; do
+for dir in \
+    "$STAGING_DIR/Runtime/usr/local/bin" \
+    "$STAGING_DIR/Runtime/usr/bin" \
+    "$STAGING_DIR/Runtime/bin" \
+    "$STAGING_DIR/usr/local/bin" \
+    "$STAGING_DIR/usr/bin" \
+    "$STAGING_DIR/bin" \
+    "$STAGING_DIR"; do
     if [ -d "$dir" ]; then
         CANDIDATE=$(find "$dir" -maxdepth 1 -type f -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | head -n1)
         if [ -n "$CANDIDATE" ]; then
@@ -32,11 +41,24 @@ for dir in "$STAGING_DIR/Runtime/bin" "$STAGING_DIR/bin" "$STAGING_DIR/usr/bin" 
 done
 
 if [ -z "$ENTRYPOINT" ]; then
-    echo "ERROR: No executable found in staging directory" >&2
-    exit 1
+    # Fallback: search any bin directory under the staging tree for an ELF executable
+    CANDIDATE=$(find "$STAGING_DIR" -type f -path '*/bin/*' -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | head -n1)
+    if [ -n "$CANDIDATE" ]; then
+        ENTRYPOINT="${CANDIDATE#$STAGING_DIR}"
+        ENTRYPOINT="${ENTRYPOINT#/}"
+    else
+        echo "ERROR: No executable found in staging directory" >&2
+        exit 1
+    fi
 fi
 
 echo "Using entrypoint: /$ENTRYPOINT"
+
+# JSON-escape the entrypoint path for Dockerfile/Containerfile
+ENTRYPOINT_PATH="/$ENTRYPOINT"
+# Escape backslashes and double quotes for JSON string literal
+# This avoids breaking the ENTRYPOINT JSON array if unusual characters appear in the path
+ENTRYPOINT_JSON=$(printf '%s' "$ENTRYPOINT_PATH" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
 # Generate Dockerfile
 cat > "$STAGING_DIR/Dockerfile" << EOF
@@ -52,7 +74,7 @@ ENV LD_LIBRARY_PATH=/lib:/lib64:/usr/lib:/usr/lib64
 USER 1000
 
 # Set entrypoint to the application
-ENTRYPOINT ["/$ENTRYPOINT"]
+ENTRYPOINT ["$ENTRYPOINT_JSON"]
 EOF
 
 # Build the container
