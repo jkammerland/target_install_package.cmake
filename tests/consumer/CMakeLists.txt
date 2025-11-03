@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 project(consumer_test VERSION 1.0.0)
 
 # This is a consumer test that demonstrates how to use the installed target_install_package

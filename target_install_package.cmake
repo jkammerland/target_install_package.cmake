@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 
 get_property(
   _LFG_INITIALIZED GLOBAL
@@ -82,7 +82,7 @@ endif()
 #                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
-#   ADDITIONAL_FILES_DESTINATION - Subdirectory for additional files (default: "${CMAKE_INSTALL_PREFIX}").
+#   ADDITIONAL_FILES_DESTINATION - Destination for additional files (default: install prefix root).
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
 #   INCLUDE_ON_FIND_PACKAGE     - Additional CMake files to include when package is found.
@@ -314,7 +314,7 @@ function(target_prepare_package TARGET_NAME)
     "${CMAKE_INSTALL_INCLUDEDIR}"
     "Module destination"
     ARG_ADDITIONAL_FILES_DESTINATION
-    "files"
+    "."
     "Additional files destination")
 
   # Validate compatibility parameter
@@ -1149,7 +1149,9 @@ endif()
       get_property(TARGET_ADDITIONAL_FILES_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_SOURCE_DIR")
 
       if(NOT TARGET_ADDITIONAL_FILES_DESTINATION)
-        set(TARGET_ADDITIONAL_FILES_DESTINATION "files")
+        # Install to the install prefix root by default
+        # Using '.' ensures DESTINATION resolves to ${CMAKE_INSTALL_PREFIX}
+        set(TARGET_ADDITIONAL_FILES_DESTINATION ".")
       endif()
       if(NOT TARGET_ADDITIONAL_FILES_SOURCE_DIR)
         get_target_property(TARGET_ADDITIONAL_FILES_SOURCE_DIR ${TARGET_NAME} SOURCE_DIR)
@@ -1253,45 +1255,7 @@ endif()
       set(CONFIG_TEMPLATE_TO_USE "${CONFIG_TEMPLATE}")
       project_log(DEBUG "  Using user-provided config template: ${CONFIG_TEMPLATE_TO_USE}")
     else()
-      project_log(WARNING "  User-provided config template not found: ${CONFIG_TEMPLATE}. Will try to find others.")
-    endif()
-  endif()
-
-  # Try to find config template based on export name Get first target's source dir for template search TODO: Does not make sense to consider the first target only
-  list(GET TARGETS 0 FIRST_TARGET)
-  get_target_property(TARGET_SOURCE_DIR ${FIRST_TARGET} SOURCE_DIR)
-
-  # Search for export-specific template in target source dir (both variants)
-  if(NOT CONFIG_TEMPLATE_TO_USE)
-    # Try preferred CMake format first: <PackageName>Config.cmake.in
-    set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}Config.cmake.in")
-    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
-    else()
-      # Try alternative format: <packagename>-config.cmake.in
-      set(CANDIDATE_CONFIG_TEMPLATE "${TARGET_SOURCE_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-      if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-        set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-        project_log(DEBUG "  Using export-specific config template from target source dir: ${CONFIG_TEMPLATE_TO_USE}")
-      endif()
-    endif()
-  endif()
-
-  # Search for export-specific template in script's cmake dir (both variants)
-  if(NOT CONFIG_TEMPLATE_TO_USE)
-    # Try preferred CMake format first: <PackageName>Config.cmake.in
-    set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}Config.cmake.in")
-    if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-      set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-      project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-    else()
-      # Try alternative format: <packagename>-config.cmake.in
-      set(CANDIDATE_CONFIG_TEMPLATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${ARG_EXPORT_NAME}-config.cmake.in")
-      if(EXISTS "${CANDIDATE_CONFIG_TEMPLATE}")
-        set(CONFIG_TEMPLATE_TO_USE "${CANDIDATE_CONFIG_TEMPLATE}")
-        project_log(DEBUG "  Using export-specific config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-      endif()
+      project_log(FATAL_ERROR "  User-provided config template not found: ${CONFIG_TEMPLATE}")
     endif()
   endif()
 

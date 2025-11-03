@@ -68,47 +68,6 @@ cpack -G RPM || {
 # Copy CPack packages to output directory
 cp *.deb *.rpm "$OUTPUT_DIR/" 2>/dev/null || true
 
-# Generate universal packaging templates
-print_status "Generating universal packaging templates..."
-
-# Create a separate directory for universal packaging
-UNIVERSAL_BUILD_DIR="$BUILD_DIR/universal-packaging"
-rm -rf "$UNIVERSAL_BUILD_DIR"
-mkdir -p "$UNIVERSAL_BUILD_DIR"
-cd "$UNIVERSAL_BUILD_DIR"
-
-# Copy the universal packaging test template
-cp "$SCRIPT_DIR/templates/universal-packaging-test.cmake.in" CMakeLists.txt
-
-# Replace the PROJECT_ROOT placeholder with the actual path
-sed -i "s|@PROJECT_ROOT@|$PROJECT_ROOT|g" CMakeLists.txt
-
-# Configure to generate templates
-cmake . || {
-    print_error "Universal packaging configuration failed"
-    exit 1
-}
-
-# Copy templates to output directory
-if [ -d "$UNIVERSAL_BUILD_DIR/packaging-templates" ]; then
-    cp -r "$UNIVERSAL_BUILD_DIR/packaging-templates" "$OUTPUT_DIR/"
-    
-    
-    print_success "Universal packaging templates generated"
-else
-    print_error "Universal packaging templates not found"
-fi
-
-# Create source tarball for universal packaging
-print_status "Creating source tarball..."
-cd "$PROJECT_ROOT/examples/cpack-basic"
-tar czf "$OUTPUT_DIR/cpack_lib-1.2.0.tar.gz" \
-    --transform 's,^,cpack_lib-1.2.0/,' \
-    CMakeLists.txt src include || {
-    print_error "Source tarball creation failed"
-    exit 1
-}
-
 # Summary
 echo ""
 print_success "Package building completed!"
@@ -117,22 +76,6 @@ echo "Generated packages:"
 echo "=================="
 find "$OUTPUT_DIR" -type f -name "*.deb" -o -name "*.rpm" | while read -r pkg; do
     echo "  - $(basename "$pkg")"
-done
-
-echo ""
-echo "Universal packaging templates:"
-echo "============================="
-if [ -d "$OUTPUT_DIR/packaging-templates" ]; then
-    find "$OUTPUT_DIR/packaging-templates" -name "PKGBUILD*" -o -name "APKBUILD*" -o -name "*.nix" | while read -r template; do
-        echo "  - $(realpath --relative-to="$OUTPUT_DIR" "$template")"
-    done
-fi
-
-echo ""
-echo "Source tarball:"
-echo "=============="
-find "$OUTPUT_DIR" -name "*.tar.gz" | while read -r src; do
-    echo "  - $(basename "$src")"
 done
 
 echo ""
