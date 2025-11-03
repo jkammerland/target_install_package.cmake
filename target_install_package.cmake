@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.1.2)
+  list_file_include_guard(VERSION 6.1.3)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -148,7 +148,7 @@ endfunction(target_install_package)
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization. Since v6.1.2, finalization happens
+# the configuration for later finalization. Since v6.1.3, finalization happens
 # automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
@@ -705,7 +705,7 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
-# NOTE: Since v6.1.2, this function is OPTIONAL. All exports are automatically
+# NOTE: Since v6.1.3, this function is OPTIONAL. All exports are automatically
 # finalized at the end of configuration using cmake_language(DEFER CALL).
 # Use this function only when you need explicit control over finalization timing.
 #
@@ -1149,8 +1149,7 @@ endif()
       get_property(TARGET_ADDITIONAL_FILES_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_SOURCE_DIR")
 
       if(NOT TARGET_ADDITIONAL_FILES_DESTINATION)
-        # Install to the install prefix root by default
-        # Using '.' ensures DESTINATION resolves to ${CMAKE_INSTALL_PREFIX}
+        # Install to the install prefix root by default Using '.' ensures DESTINATION resolves to ${CMAKE_INSTALL_PREFIX}
         set(TARGET_ADDITIONAL_FILES_DESTINATION ".")
       endif()
       if(NOT TARGET_ADDITIONAL_FILES_SOURCE_DIR)

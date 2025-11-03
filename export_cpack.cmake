@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.1.2)
+  list_file_include_guard(VERSION 6.1.3)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -720,11 +720,8 @@ function(_execute_deferred_cpack_config)
     if(NOT DEFINED CPACK_PACKAGING_INSTALL_PREFIX)
       set(CPACK_PACKAGING_INSTALL_PREFIX "/")
     endif()
-    # Avoid RPM "relocatable" warning when using DESTDIR staging. Relocatable RPMs and CPACK_SET_DESTDIR are incompatible.
-    # Users that need relocatable RPMs should explicitly set:
-    #   - CPACK_SET_DESTDIR=OFF
-    #   - CPACK_RPM_PACKAGE_RELOCATABLE=ON
-    #   - CPACK_RPM_RELOCATION_PATHS="/usr" (or desired prefix)
+    # Avoid RPM "relocatable" warning when using DESTDIR staging. Relocatable RPMs and CPACK_SET_DESTDIR are incompatible. Users that need relocatable RPMs should explicitly set: -
+    # CPACK_SET_DESTDIR=OFF - CPACK_RPM_PACKAGE_RELOCATABLE=ON - CPACK_RPM_RELOCATION_PATHS="/usr" (or desired prefix)
     if(NOT DEFINED CPACK_RPM_PACKAGE_RELOCATABLE)
       set(CPACK_RPM_PACKAGE_RELOCATABLE OFF)
     endif()
