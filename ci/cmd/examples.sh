@@ -335,15 +335,15 @@ run_consume_single_config_suite() {
   ci_log "==> Build+install basic-* (single-config, split_all)"
   for ex in basic-static basic-shared; do
     (cd "${ci_root}/examples/${ex}" && \
-      cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all && \
+      cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all && \
       cmake --build build-rel && \
       cmake --install build-rel && \
-      cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=split_all && \
+      cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all && \
       cmake --build build-dbg && \
       cmake --install build-dbg)
   done
 
-  prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${ci_root}/examples/basic-static/install")" "$(ci_path_for_cmake "${ci_root}/examples/basic-shared/install")")"
+  prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${ci_root}/examples/basic-static/build/install")" "$(ci_path_for_cmake "${ci_root}/examples/basic-shared/build/install")")"
 
   for cfg in Release Debug; do
     cfg_lc="$(ci_lower "${cfg}")"
@@ -390,17 +390,17 @@ run_consume_fhs_combined_suite() {
   ci_log "==> Build+install basic-* (FHS, combined configs)"
   for ex in basic-static basic-shared; do
     (cd "${ci_root}/examples/${ex}" && \
-      rm -rf build-rel build-dbg install && \
-      cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=fhs && \
+      rm -rf build-rel build-dbg build/install && \
+      cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=fhs && \
       cmake --build build-rel && \
       cmake --install build-rel && \
-      cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./install -DTIP_INSTALL_LAYOUT=fhs && \
+      cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=fhs && \
       cmake --build build-dbg && \
       cmake --install build-dbg)
   done
 
-  prefix_math="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-static","install")))' )"
-  prefix_utils="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-shared","install")))' )"
+  prefix_math="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-static","build","install")))' )"
+  prefix_utils="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-shared","build","install")))' )"
   prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${prefix_math}")" "$(ci_path_for_cmake "${prefix_utils}")")"
 
   for cfg in Release Debug; do
