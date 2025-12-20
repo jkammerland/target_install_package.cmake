@@ -212,7 +212,7 @@ run_multi_suite() {
   ci_log "==> Verify multi-config artifacts"
   bash "${ci_dir}/lib/verify_examples_multiconfig.sh"
 
-  integration_dir="${ci_root}/examples-build-multiconfig"
+  integration_dir="${ci_root}/build/examples/multi-config-integration"
   rm -rf "${integration_dir}"
   mkdir -p "${integration_dir}"
 
