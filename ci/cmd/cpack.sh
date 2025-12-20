@@ -106,7 +106,7 @@ enable_gpg_signing_in_cpack_basic() {
   in_export && /^)$/ { in_export=0 }
   ' "${backup}" >"${cmakelists}"
 
-  trap 'mv -f "${backup}" "${cmakelists}"' RETURN
+  trap "mv -f \"${backup}\" \"${cmakelists}\"" EXIT
 }
 
 run_basic() {
@@ -126,14 +126,14 @@ run_basic() {
     ${cc:+-DCMAKE_C_COMPILER=${cc}} \
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${build_type}" \
-    -DCMAKE_INSTALL_PREFIX=./install \
+    -DCMAKE_INSTALL_PREFIX=/usr \
     -DPROJECT_LOG_COLORS=OFF
 
   ci_log "==> Build examples/cpack-basic"
   cmake --build "${build_dir}" --config "${build_type}"
 
   ci_log "==> Install all components"
-  cmake --install "${build_dir}" --config "${build_type}"
+  cmake --install "${build_dir}" --config "${build_type}" --prefix "${build_dir}/install"
 
   ci_log "==> Install component subsets"
   cmake --install "${build_dir}" --config "${build_type}" --component Runtime --prefix "${build_dir}/runtime-only"
@@ -149,9 +149,9 @@ run_basic() {
 
   ci_log "==> Verify component tgz contents"
   (cd "${build_dir}" && \
-    runtime_has_exe="$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c \"bin/mytool\" || true)" && \
-    dev_has_headers="$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c \"include/\" || true)" && \
-    tools_has_exe="$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c \"bin/mytool\" || true)" && \
+    runtime_has_exe="$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c 'bin/mytool' || true)" && \
+    dev_has_headers="$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c 'include/' || true)" && \
+    tools_has_exe="$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c 'bin/mytool' || true)" && \
     [[ "${runtime_has_exe}" == "0" ]] || exit 1 && \
     [[ "${dev_has_headers}" != "0" ]] || exit 1 && \
     [[ "${tools_has_exe}" != "0" ]] || exit 1)
@@ -192,21 +192,33 @@ run_basic() {
     find . -name "*Config.cmake" -o -name "*config.cmake" | grep -q . || ci_die "CMake config files not found")
 
   ci_log "==> Tool package dependency chain (Tools + Runtime)"
-  if ci_is_windows; then
-    ci_log "Skipping tool runtime execution test on Windows (DLL loading in CI)"
-  else
-    (cd "${build_dir}/test-tools-with-deps" && \
-      tool_path="$(find . -name mytool -type f | head -n 1)" && \
-      [[ -n "${tool_path}" ]] || ci_die "mytool not found" && \
-      chmod +x "${tool_path}" && \
-      if ci_is_linux; then
-        readelf -d "${tool_path}" | grep -E "RPATH|RUNPATH" || true
-      elif ci_is_macos; then
-        otool -L "${tool_path}" || true
-      fi && \
-      "${tool_path}" --version)
-  fi
-}
+	  if ci_is_windows; then
+	    ci_log "Skipping tool runtime execution test on Windows (DLL loading in CI)"
+	  else
+	    (cd "${build_dir}/test-tools-with-deps" && \
+	      tool_path="$(find . -name mytool -type f | head -n 1)" && \
+	      [[ -n "${tool_path}" ]] || ci_die "mytool not found" && \
+	      chmod +x "${tool_path}" && \
+	      if ci_is_linux; then
+	        readelf -d "${tool_path}" | grep -E "RPATH|RUNPATH" || true
+	        lib_path="$(find . -type f -name 'libcpack_lib.so*' | head -n 1 || true)"
+	        if [[ -n "${lib_path}" ]]; then
+	          lib_dir="$(dirname "${lib_path}")"
+	          LD_LIBRARY_PATH="${lib_dir}${LD_LIBRARY_PATH+:${LD_LIBRARY_PATH}}" "${tool_path}" --version
+	          exit 0
+	        fi
+	      elif ci_is_macos; then
+	        otool -L "${tool_path}" || true
+	        lib_path="$(find . -type f -name 'libcpack_lib*.dylib*' | head -n 1 || true)"
+	        if [[ -n "${lib_path}" ]]; then
+	          lib_dir="$(dirname "${lib_path}")"
+	          DYLD_LIBRARY_PATH="${lib_dir}${DYLD_LIBRARY_PATH+:${DYLD_LIBRARY_PATH}}" "${tool_path}" --version
+	          exit 0
+	        fi
+	      fi && \
+	      "${tool_path}" --version)
+	  fi
+	}
 
 run_components() {
   if ! ci_is_linux; then
@@ -218,11 +230,11 @@ run_components() {
   mkdir -p "${build_dir}"
 
   ci_log "==> Configure examples/components"
-  cmake -S "${ci_root}/examples/components" -B "${build_dir}" -DCMAKE_INSTALL_PREFIX=./install
+  cmake -S "${ci_root}/examples/components" -B "${build_dir}" -DCMAKE_INSTALL_PREFIX=/usr
 
   ci_log "==> Build + install examples/components"
   cmake --build "${build_dir}"
-  cmake --install "${build_dir}"
+  cmake --install "${build_dir}" --prefix "${build_dir}/install"
 
   ci_log "==> cpack (components)"
   (cd "${build_dir}" && cpack --verbose)
