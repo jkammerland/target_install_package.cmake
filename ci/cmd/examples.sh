@@ -288,7 +288,7 @@ run_consume_multi_config_suite() {
     done)
 
   ci_log "==> Configure consumer (multi-config)"
-  consumer_dir="${ci_root}/ci-consumer"
+  consumer_dir="${ci_root}/build/ci-consumer/multi-config"
   rm -rf "${consumer_dir}"
   mkdir -p "${consumer_dir}"
   cat >"${consumer_dir}/CMakeLists.txt" <<'CMAKE'
@@ -315,16 +315,18 @@ CPP
     -DCMAKE_PREFIX_PATH="${prefix_paths}"
 
   ci_log "==> Build Release and assert link uses release libs"
-  (cmake --build "${consumer_dir}/build" --config Release -v | tee "${ci_root}/build_release.log")
-  grep -E "[\\\\/](release)[\\\\/](lib|lib64)" "${ci_root}/build_release.log"
-  if grep -E "[\\\\/](debug)[\\\\/](lib|lib64)" "${ci_root}/build_release.log"; then
+  release_log="${consumer_dir}/build_release.log"
+  (cmake --build "${consumer_dir}/build" --config Release -v | tee "${release_log}")
+  grep -E "[\\\\/](release)[\\\\/](lib|lib64)" "${release_log}"
+  if grep -E "[\\\\/](debug)[\\\\/](lib|lib64)" "${release_log}"; then
     ci_die "Found debug libs in Release link!"
   fi
 
   ci_log "==> Build Debug and assert link uses debug libs"
-  (cmake --build "${consumer_dir}/build" --config Debug -v | tee "${ci_root}/build_debug.log")
-  grep -E "[\\\\/](debug)[\\\\/](lib|lib64)" "${ci_root}/build_debug.log"
-  if grep -E "[\\\\/](release)[\\\\/](lib|lib64)" "${ci_root}/build_debug.log"; then
+  debug_log="${consumer_dir}/build_debug.log"
+  (cmake --build "${consumer_dir}/build" --config Debug -v | tee "${debug_log}")
+  grep -E "[\\\\/](debug)[\\\\/](lib|lib64)" "${debug_log}"
+  if grep -E "[\\\\/](release)[\\\\/](lib|lib64)" "${debug_log}"; then
     ci_die "Found release libs in Debug link!"
   fi
 }
@@ -345,7 +347,7 @@ run_consume_single_config_suite() {
 
   for cfg in Release Debug; do
     cfg_lc="$(ci_lower "${cfg}")"
-    consumer_dir="${ci_root}/ci-consumer-${cfg_lc}"
+    consumer_dir="${ci_root}/build/ci-consumer/single-config/${cfg_lc}"
     rm -rf "${consumer_dir}"
     mkdir -p "${consumer_dir}"
     cat >"${consumer_dir}/CMakeLists.txt" <<'CMAKE'
@@ -366,7 +368,7 @@ CPP
     cmake -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
       -DCMAKE_PREFIX_PATH="${prefixes}"
 
-    log_file="${ci_root}/build_${cfg_lc}_sc.log"
+    log_file="${consumer_dir}/build.log"
     (cmake --build "${consumer_dir}/build" -v | tee "${log_file}")
 
     if [[ "${cfg}" == "Release" ]]; then
@@ -403,7 +405,7 @@ run_consume_fhs_combined_suite() {
 
   for cfg in Release Debug; do
     cfg_lc="$(ci_lower "${cfg}")"
-    consumer_dir="${ci_root}/ci-consumer-fhs-${cfg_lc}"
+    consumer_dir="${ci_root}/build/ci-consumer/fhs/${cfg_lc}"
     rm -rf "${consumer_dir}"
     mkdir -p "${consumer_dir}"
     cat >"${consumer_dir}/CMakeLists.txt" <<'CMAKE'
@@ -424,7 +426,7 @@ CPP
     cmake -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
       -DCMAKE_PREFIX_PATH="${prefixes}"
 
-    log_file="${ci_root}/build_${cfg_lc}_fhs.log"
+    log_file="${consumer_dir}/build.log"
     (cmake --build "${consumer_dir}/build" -v | tee "${log_file}")
 
     if [[ "${cfg}" == "Release" ]]; then
