@@ -1197,7 +1197,7 @@ endif()
   # Install targets export file with config component CMake automatically handles configuration-specific exports
   install(
     EXPORT ${ARG_EXPORT_NAME}
-    FILE ${ARG_EXPORT_NAME}.cmake
+    FILE ${ARG_EXPORT_NAME}Targets.cmake
     NAMESPACE ${NAMESPACE}
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
