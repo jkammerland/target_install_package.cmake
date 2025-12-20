@@ -6,30 +6,42 @@ message(NOTICE "Current CMAKE_VERSION: ${CMAKE_VERSION}")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Fetch dependencies needed for dependency-aggregation example
-include(FetchContent)
+# Dependencies needed for dependency-aggregation example.
+#
+# Default is FetchContent for CI parity, but allow opting out (e.g. offline local runs)
+# and using pre-installed packages instead.
+option(EXAMPLES_USE_FETCHCONTENT_DEPS "Fetch external deps via FetchContent (requires network)" ON)
 
-# Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages will automatically redirect to FetchContent, ensuring seamless integration
-FetchContent_Declare(
-  fmt
-  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-  GIT_TAG 53d006abfdc0653f7d3e4e180e694fcb720524b5
-  OVERRIDE_FIND_PACKAGE)
+if(EXAMPLES_USE_FETCHCONTENT_DEPS)
+  include(FetchContent)
 
-FetchContent_Declare(
-  spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.15.3
-  OVERRIDE_FIND_PACKAGE)
+  # Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages will
+  # automatically redirect to FetchContent, ensuring seamless integration.
+  FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 53d006abfdc0653f7d3e4e180e694fcb720524b5
+    OVERRIDE_FIND_PACKAGE)
 
-FetchContent_Declare(
-  cxxopts
-  GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
-  GIT_TAG v3.1.1
-  OVERRIDE_FIND_PACKAGE)
+  FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.15.3
+    OVERRIDE_FIND_PACKAGE)
 
-# Make dependencies available - find_package() calls will now use FetchContent automatically
-FetchContent_MakeAvailable(fmt spdlog cxxopts)
+  FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.1.1
+    OVERRIDE_FIND_PACKAGE)
+
+  # Make dependencies available - find_package() calls will now use FetchContent automatically.
+  FetchContent_MakeAvailable(fmt spdlog cxxopts)
+else()
+  find_package(fmt 11.1.4 CONFIG REQUIRED)
+  find_package(spdlog 1.15.3 CONFIG REQUIRED)
+  find_package(cxxopts 3.1.1 CONFIG REQUIRED)
+endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
 

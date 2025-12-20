@@ -1,0 +1,60 @@
+{
+  "version": 7,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "ci-debug",
+      "displayName": "CI (Debug)",
+      "description": "Single-config examples integration build (Debug)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../build/examples/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PROJECT_LOG_COLORS": "OFF",
+        "RUN_BUILD_ALL_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "ci-release",
+      "displayName": "CI (Release)",
+      "description": "Single-config examples integration build (Release)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../build/examples/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "PROJECT_LOG_COLORS": "OFF",
+        "RUN_BUILD_ALL_EXAMPLES": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "ci-debug",
+      "configurePreset": "ci-debug"
+    },
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "ci-debug",
+      "configurePreset": "ci-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
