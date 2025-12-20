@@ -134,7 +134,7 @@ if ci_has_cmd rpm; then
     for rpm_pkg in packages/*.rpm; do
       [[ -f "${rpm_pkg}" ]] || continue
       ci_log "Checking ${rpm_pkg}..."
-      arch="$(rpm -qp --qf \"%{ARCH}\\n\" \"${rpm_pkg}\")"
+      arch="$(rpm -qp --qf "%{ARCH}\n" "${rpm_pkg}")"
       ci_log "Architecture: ${arch}"
       if [[ -z "${arch}" || "${arch}" == " " ]]; then
         ci_die "Empty architecture field in ${rpm_pkg}"
