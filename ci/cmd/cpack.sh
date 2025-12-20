@@ -192,33 +192,33 @@ run_basic() {
     find . -name "*Config.cmake" -o -name "*config.cmake" | grep -q . || ci_die "CMake config files not found")
 
   ci_log "==> Tool package dependency chain (Tools + Runtime)"
-	  if ci_is_windows; then
-	    ci_log "Skipping tool runtime execution test on Windows (DLL loading in CI)"
-	  else
-	    (cd "${build_dir}/test-tools-with-deps" && \
-	      tool_path="$(find . -name mytool -type f | head -n 1)" && \
-	      [[ -n "${tool_path}" ]] || ci_die "mytool not found" && \
-	      chmod +x "${tool_path}" && \
-	      if ci_is_linux; then
-	        readelf -d "${tool_path}" | grep -E "RPATH|RUNPATH" || true
-	        lib_path="$(find . -type f -name 'libcpack_lib.so*' | head -n 1 || true)"
-	        if [[ -n "${lib_path}" ]]; then
-	          lib_dir="$(dirname "${lib_path}")"
-	          LD_LIBRARY_PATH="${lib_dir}${LD_LIBRARY_PATH+:${LD_LIBRARY_PATH}}" "${tool_path}" --version
-	          exit 0
-	        fi
-	      elif ci_is_macos; then
-	        otool -L "${tool_path}" || true
-	        lib_path="$(find . -type f -name 'libcpack_lib*.dylib*' | head -n 1 || true)"
-	        if [[ -n "${lib_path}" ]]; then
-	          lib_dir="$(dirname "${lib_path}")"
-	          DYLD_LIBRARY_PATH="${lib_dir}${DYLD_LIBRARY_PATH+:${DYLD_LIBRARY_PATH}}" "${tool_path}" --version
-	          exit 0
-	        fi
-	      fi && \
-	      "${tool_path}" --version)
-	  fi
-	}
+  if ci_is_windows; then
+    ci_log "Skipping tool runtime execution test on Windows (DLL loading in CI)"
+  else
+    (cd "${build_dir}/test-tools-with-deps" && \
+      tool_path="$(find . -name mytool -type f | head -n 1)" && \
+      [[ -n "${tool_path}" ]] || ci_die "mytool not found" && \
+      chmod +x "${tool_path}" && \
+      if ci_is_linux; then
+        readelf -d "${tool_path}" | grep -E "RPATH|RUNPATH" || true
+        lib_path="$(find . -type f -name 'libcpack_lib.so*' | head -n 1 || true)"
+        if [[ -n "${lib_path}" ]]; then
+          lib_dir="$(dirname "${lib_path}")"
+          LD_LIBRARY_PATH="${lib_dir}${LD_LIBRARY_PATH+:${LD_LIBRARY_PATH}}" "${tool_path}" --version
+          exit 0
+        fi
+      elif ci_is_macos; then
+        otool -L "${tool_path}" || true
+        lib_path="$(find . -type f -name 'libcpack_lib*.dylib*' | head -n 1 || true)"
+        if [[ -n "${lib_path}" ]]; then
+          lib_dir="$(dirname "${lib_path}")"
+          DYLD_LIBRARY_PATH="${lib_dir}${DYLD_LIBRARY_PATH+:${DYLD_LIBRARY_PATH}}" "${tool_path}" --version
+          exit 0
+        fi
+      fi && \
+      "${tool_path}" --version)
+  fi
+}
 
 run_components() {
   if ! ci_is_linux; then
