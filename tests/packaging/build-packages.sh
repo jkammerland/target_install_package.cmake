@@ -28,6 +28,10 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
 # Clean and create directories
 print_status "Preparing build directories..."
 rm -rf "$BUILD_DIR" "$OUTPUT_DIR"
@@ -52,18 +56,32 @@ cmake --build . || {
     exit 1
 }
 
-# Generate CPack packages (DEB and RPM)
-print_status "Generating DEB package..."
-cpack -G DEB || {
-    print_error "DEB package generation failed"
-    exit 1
-}
+# Generate CPack packages (DEB and RPM), skipping unavailable toolchains for local runs.
+if command -v dpkg-deb >/dev/null 2>&1; then
+    print_status "Generating DEB package..."
+    cpack -G DEB || {
+        print_error "DEB package generation failed"
+        exit 1
+    }
+else
+    print_warning "dpkg-deb not found; skipping DEB generation"
+fi
 
-print_status "Generating RPM package..."
-cpack -G RPM || {
-    print_error "RPM package generation failed"
-    exit 1
-}
+if command -v rpmbuild >/dev/null 2>&1 || command -v rpm >/dev/null 2>&1; then
+    tmp_write_test="/var/tmp/tip-rpm-tmp-test.$$"
+    if ! ( : > "$tmp_write_test" ) 2>/dev/null; then
+        print_warning "Unable to write to /var/tmp (sandboxed?); skipping RPM generation"
+    else
+        rm -f "$tmp_write_test" 2>/dev/null || true
+    print_status "Generating RPM package..."
+    cpack -G RPM || {
+        print_error "RPM package generation failed"
+        exit 1
+    }
+    fi
+else
+    print_warning "rpmbuild/rpm not found; skipping RPM generation"
+fi
 
 # Copy CPack packages to output directory
 cp *.deb *.rpm "$OUTPUT_DIR/" 2>/dev/null || true
