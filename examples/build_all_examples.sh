@@ -396,7 +396,7 @@ if [ "$MULTI_CONFIG_MODE" = true ]; then
 fi
 
 # Detect support for --default-directory-per-config once
-if cmake --help 2>&1 | grep -q "--default-directory-per-config"; then
+if cmake --help 2>&1 | grep -q -- "--default-directory-per-config"; then
     CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=true
 else
     CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=false

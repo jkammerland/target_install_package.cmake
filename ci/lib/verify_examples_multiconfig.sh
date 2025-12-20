@@ -86,9 +86,9 @@ ci_log "Checking for configuration-specific CMake files..."
 config_files_found=0
 for config in debug release minsizerel relwithdebinfo; do
   for dir in "${config_dirs[@]}"; do
-    cmake_path="${dir}/share/cmake/string_utils/string_utils-${config}.cmake"
+    cmake_path="${dir}/share/cmake/string_utils/string_utilsTargets-${config}.cmake"
     if [[ -f "${cmake_path}" ]]; then
-      ci_log "✓ Found string_utils-${config}.cmake in ${dir}"
+      ci_log "✓ Found string_utilsTargets-${config}.cmake in ${dir}"
       config_files_found=$((config_files_found + 1))
       break
     fi
@@ -104,4 +104,3 @@ else
 fi
 
 ci_log "✓ Multi-config artifacts verification completed successfully"
-
