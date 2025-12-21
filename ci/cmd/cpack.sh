@@ -104,6 +104,27 @@ enable_gpg_signing_in_cpack_basic() {
   mv -f "${tmp}" "${cmakelists}"
 }
 
+rewrite_example_root_include() {
+  local cmakelists="${1:?}"
+  local root_cmakelists="${2:?}"
+  local tmp="${cmakelists}.tmp"
+  root_cmakelists="$(ci_path_for_cmake "${root_cmakelists}")"
+
+  awk -v root_cmakelists="${root_cmakelists}" '
+    {
+      line=$0
+      gsub(/[[:space:]]+/, "", line)
+
+      if (line == "include(../../CMakeLists.txt)") {
+        print "include(\"" root_cmakelists "\")"
+      } else {
+        print $0
+      }
+    }
+  ' "${cmakelists}" >"${tmp}"
+  mv -f "${tmp}" "${cmakelists}"
+}
+
 run_basic() {
   ci_log "==> Generate test GPG key"
   mkdir -p "${ci_root}/build/ci-deps"
@@ -118,6 +139,7 @@ run_basic() {
 
   ci_log "==> Prepare cpack-basic workspace"
   cp -a "${ci_root}/examples/cpack-basic/." "${src_dir}"
+  rewrite_example_root_include "${src_dir}/CMakeLists.txt" "${ci_root}/CMakeLists.txt"
   enable_gpg_signing_in_cpack_basic "${src_dir}/CMakeLists.txt"
 
   ci_log "==> Configure cpack-basic"
