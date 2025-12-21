@@ -34,6 +34,7 @@ jobs:
           - os: macos-latest
             c_compiler: /opt/homebrew/opt/llvm/bin/clang
             cpp_compiler: /opt/homebrew/opt/llvm/bin/clang++
+            build_type: Release
             compiler_variant: homebrew
         exclude:
           - os: windows-latest
@@ -46,8 +47,6 @@ jobs:
             c_compiler: gcc
           - os: macos-latest
             c_compiler: cl
-          - os: macos-latest
-            c_compiler: clang
           # Skip MinSizeRel with GCC 14 due to C++ modules template instantiation issues with -Os
           - os: ubuntu-latest
             c_compiler: gcc

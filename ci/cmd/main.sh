@@ -113,6 +113,15 @@ fi
 if [[ -n "${fmt_prefix}" ]]; then
   configure_args+=("-DCMAKE_PREFIX_PATH=$(ci_path_for_cmake "${fmt_prefix}")")
 fi
+if ci_is_macos && (ci_is_homebrew_llvm_compiler "${cc}" || ci_is_homebrew_llvm_compiler "${cxx}"); then
+  if sdkroot="$(ci_macos_sdkroot)"; then
+    export SDKROOT="${sdkroot}"
+    configure_args+=("-DCMAKE_OSX_SYSROOT=$(ci_path_for_cmake "${sdkroot}")")
+    ci_log "macOS SDKROOT: ${sdkroot}"
+  else
+    ci_warn "xcrun not found; Homebrew LLVM may not find the macOS SDK"
+  fi
+fi
 configure_args+=("-DPROJECT_LOG_COLORS=ON")
 configure_args+=("${cmake_args[@]}")
 

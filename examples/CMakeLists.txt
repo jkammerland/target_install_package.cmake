@@ -51,19 +51,31 @@ if(RUN_BUILD_ALL_EXAMPLES)
   # Step 1: Run the build script
   #
   message(STATUS "Running build script, this may take some time...")
+  set(build_script "${CMAKE_CURRENT_SOURCE_DIR}/build_all_examples.sh")
   set(build_script_args)
   if(EXAMPLES_BUILD_ROOT)
     list(APPEND build_script_args --build-root "${EXAMPLES_BUILD_ROOT}")
   endif()
+  if(WIN32)
+    find_program(BASH_EXECUTABLE bash)
+    if(NOT BASH_EXECUTABLE)
+      message(FATAL_ERROR "RUN_BUILD_ALL_EXAMPLES requires bash on Windows to run ${build_script}")
+    endif()
+    set(build_command "${BASH_EXECUTABLE}" "${build_script}")
+  else()
+    set(build_command "${build_script}")
+  endif()
+  list(APPEND build_command ${build_script_args})
   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh ${build_script_args}
+    COMMAND ${build_command}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     RESULT_VARIABLE build_result
     OUTPUT_VARIABLE build_output
     ERROR_VARIABLE build_error)
 
   # Step 2: Handle build result
   if(NOT build_result EQUAL 0)
-    message(FATAL_ERROR "Failed to build examples:\n${build_error}")
+    message(FATAL_ERROR "Failed to build examples (exit ${build_result}):\n" "--- stderr ---\n${build_error}\n" "--- stdout ---\n${build_output}\n")
   else()
     message(STATUS "Examples built successfully:\n${build_output}")
   endif()

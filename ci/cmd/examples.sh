@@ -127,6 +127,17 @@ if [[ -n "${build_type}" ]]; then
   export CMAKE_BUILD_TYPE="${build_type}"
 fi
 
+osx_sysroot_args=()
+if ci_is_macos && (ci_is_homebrew_llvm_compiler "${cc}" || ci_is_homebrew_llvm_compiler "${cxx}"); then
+  if sdkroot="$(ci_macos_sdkroot)"; then
+    export SDKROOT="${sdkroot}"
+    osx_sysroot_args+=("-DCMAKE_OSX_SYSROOT=$(ci_path_for_cmake "${sdkroot}")")
+    ci_log "macOS SDKROOT: ${sdkroot}"
+  else
+    ci_warn "xcrun not found; Homebrew LLVM may not find the macOS SDK"
+  fi
+fi
+
 ensure_cxxopts_stub_prefix() {
   local prefix="${ci_root}/build/ci-deps/stub-prefix"
   local cmake_dir="${prefix}/share/cmake/cxxopts"
@@ -177,6 +188,7 @@ run_single_suite() {
   if [[ -n "${cxx}" ]]; then
     cfg_args+=("-DCMAKE_CXX_COMPILER=${cxx}")
   fi
+  cfg_args+=("${osx_sysroot_args[@]}")
   cfg_args+=("-DPROJECT_LOG_COLORS=ON")
   if [[ "${use_fetchcontent}" == "true" ]]; then
     cfg_args+=("-DEXAMPLES_USE_FETCHCONTENT_DEPS=ON")
@@ -235,6 +247,7 @@ run_multi_suite() {
   if [[ -n "${cxx}" ]]; then
     cfg_args+=("-DCMAKE_CXX_COMPILER=${cxx}")
   fi
+  cfg_args+=("${osx_sysroot_args[@]}")
   if [[ "${use_fetchcontent}" == "true" ]]; then
     cfg_args+=("-DEXAMPLES_USE_FETCHCONTENT_DEPS=ON")
   else

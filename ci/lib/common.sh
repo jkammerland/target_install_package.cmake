@@ -56,6 +56,24 @@ ci_is_linux() {
   [[ "$(ci_uname_s)" == "Linux" ]]
 }
 
+ci_macos_sdkroot() {
+  if ! ci_is_macos; then
+    return 1
+  fi
+  if ! ci_has_cmd xcrun; then
+    return 1
+  fi
+  xcrun --sdk macosx --show-sdk-path 2>/dev/null
+}
+
+ci_is_homebrew_llvm_compiler() {
+  local compiler="${1:-}"
+  case "${compiler}" in
+    */opt/homebrew/opt/llvm/*|*/usr/local/opt/llvm/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 ci_normalize_ws_path() {
   # Normalize a GitHub-provided workspace path for bash usage (Windows runners provide backslashes).
   local p="$1"
