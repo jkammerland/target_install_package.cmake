@@ -200,26 +200,36 @@ if [[ "${ensure_fmt}" == "true" ]]; then
     ci_die "fmt checkout failed"
   fi
 
-  osx_sysroot_args=()
+  osx_sysroot_arg=""
   if ci_is_macos && (ci_is_homebrew_llvm_compiler "${cc}" || ci_is_homebrew_llvm_compiler "${cxx}"); then
     if sdkroot="$(ci_macos_sdkroot)"; then
       export SDKROOT="${sdkroot}"
-      osx_sysroot_args+=("-DCMAKE_OSX_SYSROOT=$(ci_path_for_cmake "${sdkroot}")")
+      osx_sysroot_arg="-DCMAKE_OSX_SYSROOT=$(ci_path_for_cmake "${sdkroot}")"
       ci_log "macOS SDKROOT: ${sdkroot}"
     else
       ci_warn "xcrun not found; Homebrew LLVM may not find the macOS SDK"
     fi
   fi
 
-  cmake -S "${src_dir}" -B "${build_dir}" -G Ninja \
-    -DCMAKE_C_COMPILER="${cc}" \
-    -DCMAKE_CXX_COMPILER="${cxx}" \
-    "${osx_sysroot_args[@]}" \
-    -DCMAKE_BUILD_TYPE="${build_type}" \
-    -DCMAKE_INSTALL_PREFIX="${fmt_prefix}" \
-    -DFMT_DOC=OFF \
-    -DFMT_TEST=OFF \
+  cmake_args=(
+    -S "${src_dir}"
+    -B "${build_dir}"
+    -G Ninja
+    -DCMAKE_C_COMPILER="${cc}"
+    -DCMAKE_CXX_COMPILER="${cxx}"
+  )
+  if [[ -n "${osx_sysroot_arg}" ]]; then
+    cmake_args+=("${osx_sysroot_arg}")
+  fi
+  cmake_args+=(
+    -DCMAKE_BUILD_TYPE="${build_type}"
+    -DCMAKE_INSTALL_PREFIX="${fmt_prefix}"
+    -DFMT_DOC=OFF
+    -DFMT_TEST=OFF
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+  )
+
+  cmake "${cmake_args[@]}"
 
   cmake --build "${build_dir}"
   cmake --install "${build_dir}"

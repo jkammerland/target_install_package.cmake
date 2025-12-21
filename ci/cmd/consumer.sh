@@ -138,11 +138,11 @@ elif [[ -z "${fmt_prefix}" && -d "${ci_root}/fmt-install" ]]; then
   fmt_prefix="${ci_root}/fmt-install"
 fi
 
-osx_sysroot_args=()
+osx_sysroot_arg=""
 if ci_is_macos && (ci_is_homebrew_llvm_compiler "${cc}" || ci_is_homebrew_llvm_compiler "${cxx}"); then
   if sdkroot="$(ci_macos_sdkroot)"; then
     export SDKROOT="${sdkroot}"
-    osx_sysroot_args+=("-DCMAKE_OSX_SYSROOT=$(ci_path_for_cmake "${sdkroot}")")
+    osx_sysroot_arg="-DCMAKE_OSX_SYSROOT=$(ci_path_for_cmake "${sdkroot}")"
     ci_log "macOS SDKROOT: ${sdkroot}"
   else
     ci_warn "xcrun not found; Homebrew LLVM may not find the macOS SDK"
@@ -177,7 +177,7 @@ run_consumer_suite() {
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${bt}" \
     -DPROJECT_LOG_COLORS=ON \
-    "${osx_sysroot_args[@]}" \
+    ${osx_sysroot_arg:+${osx_sysroot_arg}} \
     -DCMAKE_PREFIX_PATH="${prefix_arg}"
 
   ci_log "==> Build consumer"
@@ -237,7 +237,9 @@ CMAKE
   if [[ -n "${cxx}" ]]; then
     cmake_args+=("-DCMAKE_CXX_COMPILER=${cxx}")
   fi
-  cmake_args+=("${osx_sysroot_args[@]}")
+  if [[ -n "${osx_sysroot_arg}" ]]; then
+    cmake_args+=("${osx_sysroot_arg}")
+  fi
   if [[ -n "${prefix_arg}" ]]; then
     cmake_args+=("-DCMAKE_PREFIX_PATH=${prefix_arg}")
   fi
@@ -285,7 +287,7 @@ CPP
   ci_log "==> Package-manager integration configure"
   cmake --log-level=DEBUG -S "${pm_dir}" -B "${pm_dir}/build" -G Ninja \
     -DPROJECT_LOG_COLORS=ON \
-    "${osx_sysroot_args[@]}" \
+    ${osx_sysroot_arg:+${osx_sysroot_arg}} \
     -DCMAKE_PREFIX_PATH="${prefix_arg}"
 
   ci_log "==> Package-manager integration build"

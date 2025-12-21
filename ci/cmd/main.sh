@@ -37,7 +37,6 @@ compiler_choice=""
 cc=""
 cxx=""
 fmt_prefix=""
-cmake_args=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -123,7 +122,9 @@ if ci_is_macos && (ci_is_homebrew_llvm_compiler "${cc}" || ci_is_homebrew_llvm_c
   fi
 fi
 configure_args+=("-DPROJECT_LOG_COLORS=ON")
-configure_args+=("${cmake_args[@]}")
+if [[ -n "${cmake_args+x}" ]]; then
+  configure_args+=("${cmake_args[@]}")
+fi
 
 ci_log "==> Configure (${preset})"
 cmake --log-level=DEBUG --preset "${preset}" "${configure_args[@]}"
