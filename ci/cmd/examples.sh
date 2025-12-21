@@ -512,13 +512,11 @@ CPP
 }
 
 case "${suite}" in
-  consumer) run_consumer_suite ;;
-  fetchcontent) run_fetchcontent_suite ;;
-  package-manager) run_package_manager_suite ;;
-  integration)
-    run_fetchcontent_suite
-    run_package_manager_suite
-    ;;
+  single) run_single_suite ;;
+  multi) run_multi_suite ;;
+  consume-multi-config) run_consume_multi_config_suite ;;
+  consume-single-config) run_consume_single_config_suite ;;
+  consume-fhs-combined) run_consume_fhs_combined_suite ;;
   *)
     usage >&2
     ci_die "Unknown suite: ${suite}"
