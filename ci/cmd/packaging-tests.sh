@@ -47,6 +47,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 packaging_dir="${ci_root}/tests/packaging"
+packaging_work_dir="${ci_root}/build/packaging"
+packaging_build_dir="${packaging_work_dir}/build"
+packaging_packages_dir="${packaging_work_dir}/packages"
 
 run_arch_detection() {
   mkdir -p "${ci_root}/build/ci-deps"
@@ -103,15 +106,15 @@ if [[ "${mode}" == "arch-detection" ]]; then
 fi
 
 ci_log "==> Build packages"
-(cd "${packaging_dir}" && chmod +x build-packages.sh && ./build-packages.sh)
+bash "${packaging_dir}/build-packages.sh" --build-dir "${packaging_build_dir}" --packages-dir "${packaging_packages_dir}"
 
 ci_log "==> List generated packages"
-(cd "${packaging_dir}" && ls -la packages/ && (ls -la packages/*.deb packages/*.rpm packages/*.tar.gz 2>/dev/null || true))
+ls -la "${packaging_packages_dir}" && (ls -la "${packaging_packages_dir}"/*.deb "${packaging_packages_dir}"/*.rpm "${packaging_packages_dir}"/*.tar.gz 2>/dev/null || true)
 
 ci_log "==> Verify DEB architecture field"
 if ci_has_cmd dpkg-deb; then
-  (cd "${packaging_dir}" && \
-    for deb in packages/*.deb; do
+  ( \
+    for deb in "${packaging_packages_dir}"/*.deb; do
       [[ -f "${deb}" ]] || continue
       ci_log "Checking ${deb}..."
       arch="$(dpkg-deb --field "${deb}" Architecture)"
@@ -130,8 +133,8 @@ fi
 
 ci_log "==> Verify RPM architecture field"
 if ci_has_cmd rpm; then
-  (cd "${packaging_dir}" && \
-    for rpm_pkg in packages/*.rpm; do
+  ( \
+    for rpm_pkg in "${packaging_packages_dir}"/*.rpm; do
       [[ -f "${rpm_pkg}" ]] || continue
       ci_log "Checking ${rpm_pkg}..."
       arch="$(rpm -qp --qf "%{ARCH}\n" "${rpm_pkg}")"
@@ -162,18 +165,17 @@ if ! ci_has_cmd docker && ! ci_has_cmd podman; then
 fi
 
 ci_log "==> Run package installation tests (containers)"
-(cd "${packaging_dir}" && \
-  chmod +x test-packages.sh && \
+( \
   has_deb=false && has_rpm=false && \
-  ls packages/*.deb >/dev/null 2>&1 && has_deb=true || true && \
-  ls packages/*.rpm >/dev/null 2>&1 && has_rpm=true || true && \
+  ls "${packaging_packages_dir}"/*.deb >/dev/null 2>&1 && has_deb=true || true && \
+  ls "${packaging_packages_dir}"/*.rpm >/dev/null 2>&1 && has_rpm=true || true && \
   if [[ "${has_deb}" == "true" ]]; then
-    ./test-packages.sh ubuntu
+    bash "${packaging_dir}/test-packages.sh" --packages-dir "${packaging_packages_dir}" ubuntu
   else
     ci_warn "No .deb packages found; skipping Ubuntu container test"
   fi && \
   if [[ "${has_rpm}" == "true" ]]; then
-    ./test-packages.sh fedora
+    bash "${packaging_dir}/test-packages.sh" --packages-dir "${packaging_packages_dir}" fedora
   else
     ci_warn "No .rpm packages found; skipping Fedora container test"
   fi)

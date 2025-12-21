@@ -6,8 +6,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BUILD_DIR="$SCRIPT_DIR/build"
-OUTPUT_DIR="$SCRIPT_DIR/packages"
+BUILD_DIR="$PROJECT_ROOT/build/packaging/build"
+OUTPUT_DIR="$PROJECT_ROOT/build/packaging/packages"
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,6 +31,37 @@ print_error() {
 print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
+
+usage() {
+    echo "Usage: $0 [--build-dir <dir>] [--packages-dir <dir>]"
+    echo ""
+    echo "Options:"
+    echo "  --build-dir <dir>     Build directory (default: $BUILD_DIR)"
+    echo "  --packages-dir <dir>  Output directory for packages (default: $OUTPUT_DIR)"
+    echo "  -h, --help            Show help"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --build-dir)
+            BUILD_DIR="${2:?}"
+            shift 2
+            ;;
+        --packages-dir|--output-dir)
+            OUTPUT_DIR="${2:?}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            print_error "Unknown argument: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
 
 # Clean and create directories
 print_status "Preparing build directories..."

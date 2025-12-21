@@ -15,6 +15,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "PROJECT_LOG_COLORS": "ON",
+        "EXAMPLES_BUILD_ROOT": "${sourceDir}/../build/examples/all-debug",
         "RUN_BUILD_ALL_EXAMPLES": "ON"
       }
     },
@@ -27,6 +28,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "PROJECT_LOG_COLORS": "ON",
+        "EXAMPLES_BUILD_ROOT": "${sourceDir}/../build/examples/all-release",
         "RUN_BUILD_ALL_EXAMPLES": "ON"
       }
     }

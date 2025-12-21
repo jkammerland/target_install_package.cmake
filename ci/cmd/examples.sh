@@ -168,6 +168,7 @@ run_single_suite() {
   fi
 
   build_dir="${ci_root}/build/examples/${preset_suffix}"
+  rm -rf "${build_dir}"
 
   cfg_args=()
   if [[ -n "${cc}" ]]; then
@@ -206,12 +207,14 @@ run_single_suite() {
 
 run_multi_suite() {
   local integration_dir configs cmake_config_types
+  local examples_build_root
+  examples_build_root="${ci_root}/build/examples/all-multiconfig"
 
   ci_log "==> Build all examples (multi-config)"
-  "${ci_root}/examples/build_all_examples.sh" --multi-config
+  "${ci_root}/examples/build_all_examples.sh" --multi-config --build-root "${examples_build_root}"
 
   ci_log "==> Verify multi-config artifacts"
-  bash "${ci_dir}/lib/verify_examples_multiconfig.sh"
+  bash "${ci_dir}/lib/verify_examples_multiconfig.sh" --build-root "${examples_build_root}"
 
   integration_dir="${ci_root}/build/examples/multi-config-integration"
   rm -rf "${integration_dir}"
@@ -243,6 +246,7 @@ run_multi_suite() {
   ci_log "==> Configure examples integration (Ninja Multi-Config)"
   cmake --log-level=DEBUG -S "${ci_root}/examples" -B "${integration_dir}" -G "Ninja Multi-Config" \
     -DCMAKE_CONFIGURATION_TYPES="${cmake_config_types}" \
+    -DEXAMPLES_BUILD_ROOT="$(ci_path_for_cmake "${examples_build_root}")" \
     -DPROJECT_LOG_COLORS=ON \
     -DRUN_BUILD_ALL_EXAMPLES=OFF \
     "${cfg_args[@]}"
@@ -265,28 +269,35 @@ run_multi_suite() {
 }
 
 run_consume_multi_config_suite() {
-  ci_python_bin="$(ci_python)" || ci_die "Missing required command: python (or python3)"
   ci_log "==> Build+install basic-static (multi-config)"
-  (cd "${ci_root}/examples/basic-static" && \
-    cmake -S . -B build -G "Ninja Multi-Config" \
-      -DCMAKE_INSTALL_PREFIX=./build/install \
-      -DTIP_INSTALL_LAYOUT=split_all \
-      -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" && \
-    for cfg in Debug Release MinSizeRel RelWithDebInfo; do
-      cmake --build build --config "${cfg}"
-      cmake --install build --config "${cfg}"
-    done)
+  static_build_dir="${ci_root}/build/examples/basic-static/consume-multi-config"
+  static_install_dir="${static_build_dir}/install"
+  rm -rf "${static_build_dir}"
+  mkdir -p "${static_build_dir}"
+  cmake --log-level=DEBUG -S "${ci_root}/examples/basic-static" -B "${static_build_dir}" -G "Ninja Multi-Config" \
+    -DCMAKE_INSTALL_PREFIX="${static_install_dir}" \
+    -DTIP_INSTALL_LAYOUT=split_all \
+    -DPROJECT_LOG_COLORS=ON \
+    -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+  for cfg in Debug Release MinSizeRel RelWithDebInfo; do
+    cmake --build "${static_build_dir}" --config "${cfg}"
+    cmake --install "${static_build_dir}" --config "${cfg}"
+  done
 
   ci_log "==> Build+install basic-shared (multi-config)"
-  (cd "${ci_root}/examples/basic-shared" && \
-    cmake -S . -B build -G "Ninja Multi-Config" \
-      -DCMAKE_INSTALL_PREFIX=./build/install \
-      -DTIP_INSTALL_LAYOUT=split_all \
-      -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" && \
-    for cfg in Debug Release MinSizeRel RelWithDebInfo; do
-      cmake --build build --config "${cfg}"
-      cmake --install build --config "${cfg}"
-    done)
+  shared_build_dir="${ci_root}/build/examples/basic-shared/consume-multi-config"
+  shared_install_dir="${shared_build_dir}/install"
+  rm -rf "${shared_build_dir}"
+  mkdir -p "${shared_build_dir}"
+  cmake --log-level=DEBUG -S "${ci_root}/examples/basic-shared" -B "${shared_build_dir}" -G "Ninja Multi-Config" \
+    -DCMAKE_INSTALL_PREFIX="${shared_install_dir}" \
+    -DTIP_INSTALL_LAYOUT=split_all \
+    -DPROJECT_LOG_COLORS=ON \
+    -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo"
+  for cfg in Debug Release MinSizeRel RelWithDebInfo; do
+    cmake --build "${shared_build_dir}" --config "${cfg}"
+    cmake --install "${shared_build_dir}" --config "${cfg}"
+  done
 
   ci_log "==> Configure consumer (multi-config)"
   consumer_dir="${ci_root}/build/ci-consumer/multi-config"
@@ -307,13 +318,12 @@ CMAKE
 int main(){ std::cout << "ok\n"; return 0; }
 CPP
 
-  prefix_math="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-static","build","install")))' )"
-  prefix_utils="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-shared","build","install")))' )"
-  prefix_paths="$(ci_join_by ';' "$(ci_path_for_cmake "${prefix_math}")" "$(ci_path_for_cmake "${prefix_utils}")")"
+  prefix_paths="$(ci_join_by ';' "$(ci_path_for_cmake "${static_install_dir}")" "$(ci_path_for_cmake "${shared_install_dir}")")"
 
-    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G "Ninja Multi-Config" \
-      -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
-      -DCMAKE_PREFIX_PATH="${prefix_paths}"
+  cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G "Ninja Multi-Config" \
+    -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
+    -DPROJECT_LOG_COLORS=ON \
+    -DCMAKE_PREFIX_PATH="${prefix_paths}"
 
   ci_log "==> Build Release and assert link uses release libs"
   release_log="${consumer_dir}/build_release.log"
@@ -335,16 +345,33 @@ CPP
 run_consume_single_config_suite() {
   ci_log "==> Build+install basic-* (single-config, split_all)"
   for ex in basic-static basic-shared; do
-    (cd "${ci_root}/examples/${ex}" && \
-      cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all && \
-      cmake --build build-rel && \
-      cmake --install build-rel && \
-      cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=split_all && \
-      cmake --build build-dbg && \
-      cmake --install build-dbg)
+    src_dir="${ci_root}/examples/${ex}"
+    work_dir="${ci_root}/build/examples/${ex}/consume-single-config"
+    build_rel="${work_dir}/build-rel"
+    build_dbg="${work_dir}/build-dbg"
+    install_dir="${work_dir}/install"
+
+    rm -rf "${work_dir}"
+    mkdir -p "${work_dir}"
+
+    cmake --log-level=DEBUG -S "${src_dir}" -B "${build_rel}" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="${install_dir}" \
+      -DTIP_INSTALL_LAYOUT=split_all \
+      -DPROJECT_LOG_COLORS=ON
+    cmake --build "${build_rel}"
+    cmake --install "${build_rel}"
+
+    cmake --log-level=DEBUG -S "${src_dir}" -B "${build_dbg}" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_INSTALL_PREFIX="${install_dir}" \
+      -DTIP_INSTALL_LAYOUT=split_all \
+      -DPROJECT_LOG_COLORS=ON
+    cmake --build "${build_dbg}"
+    cmake --install "${build_dbg}"
   done
 
-  prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${ci_root}/examples/basic-static/build/install")" "$(ci_path_for_cmake "${ci_root}/examples/basic-shared/build/install")")"
+  prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${ci_root}/build/examples/basic-static/consume-single-config/install")" "$(ci_path_for_cmake "${ci_root}/build/examples/basic-shared/consume-single-config/install")")"
 
   for cfg in Release Debug; do
     cfg_lc="$(ci_lower "${cfg}")"
@@ -366,7 +393,9 @@ CMAKE
 int main(){ std::cout << "ok-${cfg_lc}\\n"; return 0; }
 CPP
 
-    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
+    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja \
+      -DCMAKE_BUILD_TYPE="${cfg}" \
+      -DPROJECT_LOG_COLORS=ON \
       -DCMAKE_PREFIX_PATH="${prefixes}"
 
     log_file="${consumer_dir}/build.log"
@@ -387,22 +416,35 @@ CPP
 }
 
 run_consume_fhs_combined_suite() {
-  ci_python_bin="$(ci_python)" || ci_die "Missing required command: python (or python3)"
   ci_log "==> Build+install basic-* (FHS, combined configs)"
   for ex in basic-static basic-shared; do
-    (cd "${ci_root}/examples/${ex}" && \
-      rm -rf build-rel build-dbg build/install && \
-      cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=fhs && \
-      cmake --build build-rel && \
-      cmake --install build-rel && \
-      cmake -S . -B build-dbg -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=./build/install -DTIP_INSTALL_LAYOUT=fhs && \
-      cmake --build build-dbg && \
-      cmake --install build-dbg)
+    src_dir="${ci_root}/examples/${ex}"
+    work_dir="${ci_root}/build/examples/${ex}/consume-fhs-combined"
+    build_rel="${work_dir}/build-rel"
+    build_dbg="${work_dir}/build-dbg"
+    install_dir="${work_dir}/install"
+
+    rm -rf "${work_dir}"
+    mkdir -p "${work_dir}"
+
+    cmake --log-level=DEBUG -S "${src_dir}" -B "${build_rel}" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="${install_dir}" \
+      -DTIP_INSTALL_LAYOUT=fhs \
+      -DPROJECT_LOG_COLORS=ON
+    cmake --build "${build_rel}"
+    cmake --install "${build_rel}"
+
+    cmake --log-level=DEBUG -S "${src_dir}" -B "${build_dbg}" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_INSTALL_PREFIX="${install_dir}" \
+      -DTIP_INSTALL_LAYOUT=fhs \
+      -DPROJECT_LOG_COLORS=ON
+    cmake --build "${build_dbg}"
+    cmake --install "${build_dbg}"
   done
 
-  prefix_math="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-static","build","install")))' )"
-  prefix_utils="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-shared","build","install")))' )"
-  prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${prefix_math}")" "$(ci_path_for_cmake "${prefix_utils}")")"
+  prefixes="$(ci_join_by ';' "$(ci_path_for_cmake "${ci_root}/build/examples/basic-static/consume-fhs-combined/install")" "$(ci_path_for_cmake "${ci_root}/build/examples/basic-shared/consume-fhs-combined/install")")"
 
   for cfg in Release Debug; do
     cfg_lc="$(ci_lower "${cfg}")"
@@ -424,7 +466,9 @@ CMAKE
 int main(){ std::cout << "ok-fhs-${cfg_lc}\\n"; return 0; }
 CPP
 
-    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
+    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja \
+      -DCMAKE_BUILD_TYPE="${cfg}" \
+      -DPROJECT_LOG_COLORS=ON \
       -DCMAKE_PREFIX_PATH="${prefixes}"
 
     log_file="${consumer_dir}/build.log"

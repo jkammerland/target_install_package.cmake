@@ -21,7 +21,7 @@ Options:
   --compiler <name>       Compiler family (gcc/clang/cl), sets --cc/--cxx
   --cc <path>             C compiler for configure
   --cxx <path>            C++ compiler for configure
-  --fmt-prefix <dir>      Prefix that contains fmt (optional; default: ./fmt-install if it exists)
+  --fmt-prefix <dir>      Prefix that contains fmt (optional; default: ./build/ci-deps/fmt-install if present)
   --cmake-arg <arg>       Extra arg forwarded to `cmake --preset ...` (repeatable)
   -h, --help              Show help
 
@@ -96,7 +96,9 @@ if [[ -n "${compiler_choice}" && ( -z "${cc}" || -z "${cxx}" ) ]]; then
 fi
 
 if [[ -z "${fmt_prefix}" ]]; then
-  if [[ -d "${ci_root}/fmt-install" ]]; then
+  if [[ -d "${ci_root}/build/ci-deps/fmt-install" ]]; then
+    fmt_prefix="${ci_root}/build/ci-deps/fmt-install"
+  elif [[ -d "${ci_root}/fmt-install" ]]; then
     fmt_prefix="${ci_root}/fmt-install"
   fi
 fi

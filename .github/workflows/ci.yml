@@ -5,9 +5,11 @@ on:
     branches: [ "integration", "master" ]
   pull_request:
     branches: [ "integration", "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build (${{ matrix.os }} / ${{ matrix.c_compiler }} / ${{ matrix.build_type }}${{ matrix.compiler_variant && format(' / {0}', matrix.compiler_variant) || '' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -64,6 +66,21 @@ jobs:
           brew install llvm
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
+      - name: Derive build directory suffix
+        id: dirs
+        shell: bash
+        run: |
+          set -euo pipefail
+          bt="${{ matrix.build_type }}"
+          case "${bt}" in
+            Debug) dir=debug ;;
+            Release) dir=release ;;
+            MinSizeRel) dir=minsizerel ;;
+            RelWithDebInfo) dir=relwithdebinfo ;;
+            *) echo "Unsupported build type: ${bt}" >&2; exit 1 ;;
+          esac
+          echo "build-dir-suffix=${dir}" >> "${GITHUB_OUTPUT}"
+
       - name: Bootstrap (Ninja + fmt)
         shell: bash
         run: |
@@ -73,8 +90,7 @@ jobs:
             --fmt \
             --build-type "${{ matrix.build_type }}" \
             --cc "${{ matrix.c_compiler }}" \
-            --cxx "${{ matrix.cpp_compiler }}" \
-            --fmt-prefix fmt-install
+            --cxx "${{ matrix.cpp_compiler }}"
 
       - name: Main build/test/install
         shell: bash
@@ -83,8 +99,7 @@ jobs:
           bash ci/run.sh main \
             --build-type "${{ matrix.build_type }}" \
             --cc "${{ matrix.c_compiler }}" \
-            --cxx "${{ matrix.cpp_compiler }}" \
-            --fmt-prefix fmt-install
+            --cxx "${{ matrix.cpp_compiler }}"
 
       - name: Consumer build/run
         shell: bash
@@ -93,8 +108,7 @@ jobs:
           bash ci/run.sh consumer \
             --build-type "${{ matrix.build_type }}" \
             --cc "${{ matrix.c_compiler }}" \
-            --cxx "${{ matrix.cpp_compiler }}" \
-            --fmt-prefix fmt-install
+            --cxx "${{ matrix.cpp_compiler }}"
 
       - name: Upload Installation Artifacts
         uses: actions/upload-artifact@v4
@@ -102,13 +116,14 @@ jobs:
         with:
           name: target-install-package-${{ matrix.os }}-${{ matrix.build_type }}-${{ matrix.compiler_variant || 'gcc' }}
           path: |
-            build/ci/${{ toLower(matrix.build_type) }}/install
-            fmt-install
-            !build/ci/${{ toLower(matrix.build_type) }}/install/**/*.pdb
-            !fmt-install/**/*.pdb
+            build/ci/${{ steps.dirs.outputs.build-dir-suffix }}/install
+            build/ci-deps/fmt-install
+            !build/ci/${{ steps.dirs.outputs.build-dir-suffix }}/install/**/*.pdb
+            !build/ci-deps/fmt-install/**/*.pdb
           retention-days: 7
 
   test-integration:
+    name: Integration (ubuntu-latest)
     runs-on: ubuntu-latest
     needs: build
     steps:
@@ -118,7 +133,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --ninja --fmt --build-type Release --fmt-prefix fmt-install
+          bash ci/run.sh bootstrap --ninja --fmt --build-type Release
 
       - name: Download Installation Artifacts
         uses: actions/download-artifact@v4
@@ -132,11 +147,10 @@ jobs:
           set -euxo pipefail
           bash ci/run.sh consumer \
             --suite integration \
-            --install-prefix install-artifacts/install \
-            --fmt-prefix fmt-install
+            --install-prefix install-artifacts/install
 
   test-examples:
-    name: Test Example Installation and Discovery
+    name: Examples (${{ matrix.os }} / ${{ matrix.build_type }} / ${{ matrix.config_mode }}${{ matrix.compiler_variant && format(' / {0}', matrix.compiler_variant) || '' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -182,17 +196,11 @@ jobs:
           brew install llvm
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
-      - name: Bootstrap (Ninja + fmt)
+      - name: Bootstrap (Ninja)
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap \
-            --ninja \
-            --fmt \
-            --build-type "${{ matrix.build_type }}" \
-            --cc "${{ matrix.c_compiler }}" \
-            --cxx "${{ matrix.cpp_compiler }}" \
-            --fmt-prefix fmt-examples-install
+          bash ci/run.sh bootstrap --ninja
 
       - name: Examples (single-config)
         if: matrix.config_mode == 'single'
@@ -219,7 +227,7 @@ jobs:
             --use-fetchcontent
 
   multi-config-consume:
-    name: Multi-config consume (math_lib, string_utils)
+    name: Multi-config consume (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -245,7 +253,7 @@ jobs:
           bash ci/run.sh examples --suite consume-multi-config
 
   single-config-consume:
-    name: Single-config consume (math_lib, string_utils)
+    name: Single-config consume (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -271,7 +279,7 @@ jobs:
           bash ci/run.sh examples --suite consume-single-config
 
   fhs-combined-consume:
-    name: FHS combined consume (math_lib, string_utils)
+    name: FHS combined consume (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -295,4 +303,3 @@ jobs:
         run: |
           set -euxo pipefail
           bash ci/run.sh examples --suite consume-fhs-combined
-

@@ -29,7 +29,7 @@ Options:
   --cc <path>             C compiler for consumer configure
   --cxx <path>            C++ compiler for consumer configure
   --fmt-prefix <dir>      Optional fmt prefix to include in CMAKE_PREFIX_PATH
-  --build-dir <dir>       Consumer build directory (default: tests/consumer/build)
+  --build-dir <dir>       Consumer build directory (default: build/ci-consumer/<preset>)
   --install-prefix <dir>  Install prefix used by package-manager suite
   --work-dir <dir>        Working directory for integration suites (default: build/ci-integration)
   -h, --help              Show help
@@ -48,7 +48,7 @@ compiler_choice=""
 cc=""
 cxx=""
 fmt_prefix=""
-consumer_build_dir="${ci_root}/tests/consumer/build"
+consumer_build_dir=""
 install_prefix=""
 work_dir="${ci_root}/build/ci-integration"
 
@@ -124,7 +124,17 @@ if [[ -z "${bt}" ]]; then
   bt="${build_type:-Release}"
 fi
 
-if [[ -z "${fmt_prefix}" && -d "${ci_root}/fmt-install" ]]; then
+if [[ -z "${consumer_build_dir}" ]]; then
+  if [[ "${preset}" == ci-* ]]; then
+    consumer_build_dir="${ci_root}/build/ci-consumer/${preset#ci-}"
+  else
+    consumer_build_dir="${ci_root}/build/ci-consumer/${preset}"
+  fi
+fi
+
+if [[ -z "${fmt_prefix}" && -d "${ci_root}/build/ci-deps/fmt-install" ]]; then
+  fmt_prefix="${ci_root}/build/ci-deps/fmt-install"
+elif [[ -z "${fmt_prefix}" && -d "${ci_root}/fmt-install" ]]; then
   fmt_prefix="${ci_root}/fmt-install"
 fi
 

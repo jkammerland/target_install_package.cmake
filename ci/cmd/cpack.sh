@@ -24,7 +24,7 @@ Options:
   --build-type <type>    Build type (default: Release)
   --cc <path>            C compiler for configure
   --cxx <path>           C++ compiler for configure
-  --artifacts-dir <dir>  For cross-platform suite (default: ./artifacts)
+  --artifacts-dir <dir>  For cross-platform suite (default: ./build/cpack/artifacts)
   -h, --help             Show help
 EOF
 }
@@ -33,7 +33,7 @@ suite="basic"
 build_type="Release"
 cc=""
 cxx=""
-artifacts_dir="${ci_root}/artifacts"
+artifacts_dir="${ci_root}/build/cpack/artifacts"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -90,12 +90,8 @@ EOF
 }
 
 enable_gpg_signing_in_cpack_basic() {
-  local example_dir="${ci_root}/examples/cpack-basic"
-  local cmakelists="${example_dir}/CMakeLists.txt"
-  local backup="${example_dir}/CMakeLists.txt.backup.ci"
-
-  cp "${cmakelists}" "${backup}"
-
+  local cmakelists="${1:?}"
+  local tmp="${cmakelists}.tmp"
   awk '
   /^export_cpack\(/ { in_export=1 }
   in_export && /^)$/ {
@@ -104,9 +100,8 @@ enable_gpg_signing_in_cpack_basic() {
   }
   { print }
   in_export && /^)$/ { in_export=0 }
-  ' "${backup}" >"${cmakelists}"
-
-  trap "mv -f \"${backup}\" \"${cmakelists}\"" EXIT
+  ' "${cmakelists}" >"${tmp}"
+  mv -f "${tmp}" "${cmakelists}"
 }
 
 run_basic() {
@@ -114,22 +109,26 @@ run_basic() {
   mkdir -p "${ci_root}/build/ci-deps"
   generate_test_gpg_key
 
-  ci_log "==> Enable signing in examples/cpack-basic (temporary)"
-  enable_gpg_signing_in_cpack_basic
-
-  build_dir="${ci_root}/examples/cpack-basic/build"
+  work_dir="${ci_root}/build/cpack/basic"
+  src_dir="${work_dir}/src"
+  build_dir="${work_dir}/build"
   rm -rf "${build_dir}"
-  mkdir -p "${build_dir}"
+  rm -rf "${src_dir}"
+  mkdir -p "${src_dir}" "${build_dir}"
 
-  ci_log "==> Configure examples/cpack-basic"
-  cmake --log-level=DEBUG -S "${ci_root}/examples/cpack-basic" -B "${build_dir}" \
+  ci_log "==> Prepare cpack-basic workspace"
+  cp -a "${ci_root}/examples/cpack-basic/." "${src_dir}"
+  enable_gpg_signing_in_cpack_basic "${src_dir}/CMakeLists.txt"
+
+  ci_log "==> Configure cpack-basic"
+  cmake --log-level=DEBUG -S "${src_dir}" -B "${build_dir}" \
     ${cc:+-DCMAKE_C_COMPILER=${cc}} \
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${build_type}" \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DPROJECT_LOG_COLORS=ON
 
-  ci_log "==> Build examples/cpack-basic"
+  ci_log "==> Build cpack-basic"
   cmake --build "${build_dir}" --config "${build_type}"
 
   ci_log "==> Install all components"
@@ -225,7 +224,7 @@ run_components() {
     ci_die "components suite is Linux-only"
   fi
 
-  build_dir="${ci_root}/examples/components/build"
+  build_dir="${ci_root}/build/cpack/components"
   rm -rf "${build_dir}"
   mkdir -p "${build_dir}"
 
@@ -302,7 +301,7 @@ run_regression() {
     ci_die "regression suite is Linux-only"
   fi
   ci_log "==> CPack regression tests"
-  (cd "${ci_root}/tests/cpack-regression" && bash run-all-tests.sh)
+  bash "${ci_root}/tests/cpack-regression/run-all-tests.sh" --work-dir "${ci_root}/build/cpack/regression"
 }
 
 case "${suite}" in

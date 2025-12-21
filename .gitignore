@@ -22,3 +22,13 @@ scratch/
 TODO
 CLAUDE.md
 AGENTS.md
+
+# Local CI artifacts (kept out of the source tree on purpose)
+fmt-install/
+fmt-examples-install/
+install/
+tmp/
+examples/*/install/
+examples-build-multiconfig/
+ci-consumer*/
+build_*.log

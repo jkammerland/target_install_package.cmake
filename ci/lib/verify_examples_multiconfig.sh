@@ -7,7 +7,48 @@ ci_dir="${ci_root}/ci"
 # shellcheck disable=SC1091
 source "${ci_dir}/lib/common.sh"
 
-base_install="${ci_root}/examples/basic-shared/build/install"
+usage() {
+  cat <<'EOF'
+Usage: verify_examples_multiconfig.sh [options]
+
+Options:
+  --build-root <dir>    Root used by examples/build_all_examples.sh --build-root
+  --base-install <dir>  Install prefix to verify (defaults to <build-root>/basic-shared/install)
+  -h, --help            Show help
+EOF
+}
+
+build_root=""
+base_install=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --build-root)
+      build_root="$(ci_abs_path "${2:?}")"
+      shift 2
+      ;;
+    --base-install)
+      base_install="$(ci_abs_path "${2:?}")"
+      shift 2
+      ;;
+    *)
+      usage >&2
+      ci_die "Unknown option: $1"
+      ;;
+  esac
+done
+
+if [[ -z "${base_install}" ]]; then
+  if [[ -n "${build_root}" ]]; then
+    base_install="${build_root}/basic-shared/install"
+  else
+    base_install="${ci_root}/examples/basic-shared/build/install"
+  fi
+fi
 
 if [[ ! -d "${base_install}" ]]; then
   ci_die "Expected install dir not found: ${base_install}"

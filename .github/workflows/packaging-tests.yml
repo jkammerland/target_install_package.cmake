@@ -49,9 +49,9 @@ jobs:
         with:
           name: packages-${{ matrix.os }}
           path: |
-            tests/packaging/packages/*.deb
-            tests/packaging/packages/*.rpm
-            tests/packaging/packages/*.tar.gz
+            build/packaging/packages/*.deb
+            build/packaging/packages/*.rpm
+            build/packaging/packages/*.tar.gz
           retention-days: 7
 
   test-multi-arch:
@@ -87,4 +87,3 @@ jobs:
           else
             echo "❌ **Multi-Architecture Detection**: Failed" >> $GITHUB_STEP_SUMMARY
           fi
-

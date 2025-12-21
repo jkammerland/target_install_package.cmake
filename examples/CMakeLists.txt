@@ -8,15 +8,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Dependencies needed for dependency-aggregation example.
 #
-# Default is FetchContent for CI parity, but allow opting out (e.g. offline local runs)
-# and using pre-installed packages instead.
+# Default is FetchContent for CI parity, but allow opting out (e.g. offline local runs) and using pre-installed packages instead.
 option(EXAMPLES_USE_FETCHCONTENT_DEPS "Fetch external deps via FetchContent (requires network)" ON)
 
 if(EXAMPLES_USE_FETCHCONTENT_DEPS)
   include(FetchContent)
 
-  # Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages will
-  # automatically redirect to FetchContent, ensuring seamless integration.
+  # Use OVERRIDE_FIND_PACKAGE so any find_dependency() calls from installed packages will automatically redirect to FetchContent, ensuring seamless integration.
   FetchContent_Declare(
     fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt.git
@@ -44,14 +42,21 @@ else()
 endif()
 
 option(RUN_BUILD_ALL_EXAMPLES "Run build shell script automatically" ON)
+set(EXAMPLES_BUILD_ROOT
+    ""
+    CACHE PATH "Out-of-source build root for build_all_examples.sh (empty uses examples/*/build)")
 
 if(RUN_BUILD_ALL_EXAMPLES)
   # ~~~
   # Step 1: Run the build script
   #
   message(STATUS "Running build script, this may take some time...")
+  set(build_script_args)
+  if(EXAMPLES_BUILD_ROOT)
+    list(APPEND build_script_args --build-root "${EXAMPLES_BUILD_ROOT}")
+  endif()
   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR} ./build_all_examples.sh ${build_script_args}
     RESULT_VARIABLE build_result
     OUTPUT_VARIABLE build_output
     ERROR_VARIABLE build_error)
@@ -88,7 +93,12 @@ endforeach()
 
 # Step 5: For each example directory, add the single shared install prefix
 foreach(example_dir IN LISTS EXAMPLE_DIRECTORIES)
-  set(shared_prefix "${example_dir}/build/install")
+  get_filename_component(dir_name ${example_dir} NAME)
+  if(EXAMPLES_BUILD_ROOT)
+    set(shared_prefix "${EXAMPLES_BUILD_ROOT}/${dir_name}/install")
+  else()
+    set(shared_prefix "${example_dir}/build/install")
+  endif()
   message(VERBOSE "Adding example path: ${shared_prefix}")
   list(APPEND CMAKE_PREFIX_PATH "${shared_prefix}")
 endforeach()

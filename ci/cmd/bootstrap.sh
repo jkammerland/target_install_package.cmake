@@ -14,7 +14,7 @@ Usage: ci/run.sh bootstrap [options]
 Options:
   --ninja                 Ensure Ninja is installed
   --fmt                   Build+install fmt to a prefix
-  --fmt-prefix <dir>      fmt install prefix (default: ./fmt-install)
+  --fmt-prefix <dir>      fmt install prefix (default: ./build/ci-deps/fmt-install)
   --fmt-ref <git-ref>     fmt git ref/sha (default: pinned commit)
   --build-type <type>     Build type for fmt (default: Release)
   --compiler <name>       Compiler family (gcc/clang/cl), sets --cc/--cxx
@@ -31,7 +31,7 @@ ensure_fmt=false
 ensure_packaging_tools=false
 ensure_gpg=false
 
-fmt_prefix="${ci_root}/fmt-install"
+fmt_prefix="${ci_root}/build/ci-deps/fmt-install"
 fmt_ref="53d006abfdc0653f7d3e4e180e694fcb720524b5"
 build_type="Release"
 
@@ -144,7 +144,6 @@ if [[ "${ensure_gpg}" == "true" ]]; then
 fi
 
 if [[ "${ensure_fmt}" == "true" ]]; then
-  ci_require_cmd git
   if [[ -z "${cc}" || -z "${cxx}" ]]; then
     IFS=';' read -r cc cxx <<<"$(ci_compilers_from_choice "${CC:-gcc}")"
   fi
@@ -154,6 +153,35 @@ if [[ "${ensure_fmt}" == "true" ]]; then
     exit 0
   fi
 
+  cc_base="$(basename "${cc}")"
+  compiler_id_candidates=()
+  case "${cc_base}" in
+    clang*|*clang*)
+      compiler_id_candidates=(Clang GNU MSVC)
+      ;;
+    cl|cl.exe)
+      compiler_id_candidates=(MSVC GNU Clang)
+      ;;
+    *)
+      compiler_id_candidates=(GNU Clang MSVC)
+      ;;
+  esac
+
+  has_system_fmt=false
+  probe_dir="${ci_root}/build/ci-deps/find-package-probe"
+  mkdir -p "${probe_dir}"
+  for compiler_id in "${compiler_id_candidates[@]}"; do
+    if (cd "${probe_dir}" && cmake --find-package -DNAME=fmt -DLANGUAGE=CXX -DMODE=EXIST -DCOMPILER_ID="${compiler_id}" >/dev/null 2>&1); then
+      has_system_fmt=true
+      break
+    fi
+  done
+  if [[ "${has_system_fmt}" == "true" ]]; then
+    ci_log "fmt found via system CMake packages; skipping fmt build"
+    exit 0
+  fi
+
+  ci_require_cmd git
   ci_require_cmd ninja
 
   src_dir="${ci_root}/build/ci-deps/fmt-src"
@@ -163,8 +191,14 @@ if [[ "${ensure_fmt}" == "true" ]]; then
   rm -rf "${src_dir}" "${build_dir}"
   mkdir -p "${src_dir}" "${build_dir}" "${fmt_prefix}"
 
-  git clone https://github.com/fmtlib/fmt.git "${src_dir}"
-  git -C "${src_dir}" checkout "${fmt_ref}"
+  if ! git clone https://github.com/fmtlib/fmt.git "${src_dir}"; then
+    ci_warn "Unable to clone fmt (network unavailable?)."
+    ci_die "fmt not available via system packages and clone failed"
+  fi
+  if ! git -C "${src_dir}" checkout "${fmt_ref}"; then
+    ci_warn "Unable to checkout fmt ref: ${fmt_ref}"
+    ci_die "fmt checkout failed"
+  fi
 
   cmake -S "${src_dir}" -B "${build_dir}" -G Ninja \
     -DCMAKE_C_COMPILER="${cc}" \

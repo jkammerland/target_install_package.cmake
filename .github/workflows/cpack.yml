@@ -63,15 +63,15 @@ jobs:
         with:
           name: cpack-packages-signed-${{ matrix.os }}
           path: |
-            examples/cpack-basic/build/*.tar.gz
-            examples/cpack-basic/build/*.zip
-            examples/cpack-basic/build/*.deb
-            examples/cpack-basic/build/*.rpm
-            examples/cpack-basic/build/*.dmg
-            examples/cpack-basic/build/*.sig
-            examples/cpack-basic/build/*.sha256
-            examples/cpack-basic/build/*.sha512
-            examples/cpack-basic/build/verify.sh
+            build/cpack/basic/build/*.tar.gz
+            build/cpack/basic/build/*.zip
+            build/cpack/basic/build/*.deb
+            build/cpack/basic/build/*.rpm
+            build/cpack/basic/build/*.dmg
+            build/cpack/basic/build/*.sig
+            build/cpack/basic/build/*.sha256
+            build/cpack/basic/build/*.sha512
+            build/cpack/basic/build/verify.sh
           retention-days: 7
 
   cpack-components:
@@ -108,13 +108,13 @@ jobs:
       - name: Download All Platform Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          path: build/cpack/artifacts
 
       - name: Analyze Cross-Platform Package and Signature Consistency
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh cpack --suite cross-platform --artifacts-dir ./artifacts
+          bash ci/run.sh cpack --suite cross-platform --artifacts-dir build/cpack/artifacts
 
   cpack-regression:
     name: CPack Regression Tests
@@ -127,4 +127,3 @@ jobs:
         run: |
           set -euxo pipefail
           bash ci/run.sh cpack --suite regression
-

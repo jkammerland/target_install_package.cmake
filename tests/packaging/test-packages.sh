@@ -4,8 +4,9 @@ set -e
 # Script to test packages in Docker/Podman containers
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCKER_DIR="$SCRIPT_DIR/docker"
-PACKAGES_DIR="$SCRIPT_DIR/packages"
+PACKAGES_DIR="$PROJECT_ROOT/build/packaging/packages"
 
 # Colors for output
 RED='\033[0;31m'
@@ -29,6 +30,40 @@ print_error() {
 print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
+
+usage() {
+    echo "Usage: $0 [--packages-dir <dir>] [distro|all]"
+    echo ""
+    echo "Options:"
+    echo "  --packages-dir <dir>  Directory containing packages (default: $PACKAGES_DIR)"
+    echo "  -h, --help            Show help"
+    echo ""
+    echo "Available distros:"
+    echo "  ubuntu    - Test Ubuntu/Debian package (.deb)"
+    echo "  fedora    - Test Fedora/RHEL package (.rpm)"
+    echo "  alpine    - Test Alpine package (APKBUILD)"
+    echo "  arch      - Test Arch Linux package (PKGBUILD)"
+    echo "  nix       - Test Nix package (default.nix)"
+    echo "  all       - Test all distributions"
+    echo ""
+    echo "Note: Packages must be built first using ./build-packages.sh"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --packages-dir)
+            PACKAGES_DIR="${2:?}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 # Detect container runtime (prefer podman if available)
 if command -v podman &> /dev/null; then
@@ -150,31 +185,10 @@ test_nix() {
     return 0
 }
 
-# Function to display usage
-usage() {
-    echo "Usage: $0 [distro|all]"
-    echo ""
-    echo "Available distros:"
-    echo "  ubuntu    - Test Ubuntu/Debian package (.deb)"
-    echo "  fedora    - Test Fedora/RHEL package (.rpm)"
-    echo "  alpine    - Test Alpine package (APKBUILD)"
-    echo "  arch      - Test Arch Linux package (PKGBUILD)"
-    echo "  nix       - Test Nix package (default.nix)"
-    echo "  all       - Test all distributions"
-    echo ""
-    echo "Note: Packages must be built first using ./build-packages.sh"
-}
-
 # Check if packages directory exists
 if [ ! -d "$PACKAGES_DIR" ]; then
     print_error "Packages directory not found: $PACKAGES_DIR"
     echo "Please run ./build-packages.sh first to generate packages."
-    exit 1
-fi
-
-# Check Docker/Podman availability
-if ! command -v docker &> /dev/null; then
-    print_error "Neither Docker nor Podman is installed or not in PATH"
     exit 1
 fi
 
