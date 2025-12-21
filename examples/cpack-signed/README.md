@@ -76,15 +76,15 @@ cpack --preset signed-packages
 After successful signing, you'll have:
 
 **📦 Packages**
-- `MySignedLibrary-6.1.3-Linux-Development.tar.gz`
-- `MySignedLibrary-6.1.3-Linux-Runtime.tar.gz` 
-- `MySignedLibrary-6.1.3-Linux-Tools.tar.gz`
-- `mysignedlibrary-development_6.1.3_amd64.deb`
-- `mysignedlibrary-runtime_6.1.3_amd64.deb`
-- `mysignedlibrary-tools_6.1.3_amd64.deb`
-- `mysignedlibrary-Development-6.1.3-1.x86_64.rpm`
-- `mysignedlibrary-Runtime-6.1.3-1.x86_64.rpm` 
-- `mysignedlibrary-Tools-6.1.3-1.x86_64.rpm`
+- `MySignedLibrary-6.1.4-Linux-Development.tar.gz`
+- `MySignedLibrary-6.1.4-Linux-Runtime.tar.gz` 
+- `MySignedLibrary-6.1.4-Linux-Tools.tar.gz`
+- `mysignedlibrary-development_6.1.4_amd64.deb`
+- `mysignedlibrary-runtime_6.1.4_amd64.deb`
+- `mysignedlibrary-tools_6.1.4_amd64.deb`
+- `mysignedlibrary-Development-6.1.4-1.x86_64.rpm`
+- `mysignedlibrary-Runtime-6.1.4-1.x86_64.rpm` 
+- `mysignedlibrary-Tools-6.1.4-1.x86_64.rpm`
 
 **🔐 Signatures**  
 - `*.sig` - GPG detached signatures for each package
@@ -177,15 +177,15 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 # 🔐 Example Package Verification Script
 # ⚠️  NOTICE: This is a demonstration template - customize for production use!
 #
-# ✓ MySignedLibrary-6.1.3-Linux-Development.tar.gz verified successfully
-# ✓ MySignedLibrary-6.1.3-Linux-Runtime.tar.gz verified successfully
-# ✓ MySignedLibrary-6.1.3-Linux-Tools.tar.gz verified successfully
-# ✓ mysignedlibrary-development_6.1.3_amd64.deb verified successfully
-# ✓ mysignedlibrary-runtime_6.1.3_amd64.deb verified successfully
-# ✓ mysignedlibrary-tools_6.1.3_amd64.deb verified successfully
-# ✓ mysignedlibrary-Development-6.1.3-1.x86_64.rpm verified successfully
-# ✓ mysignedlibrary-Runtime-6.1.3-1.x86_64.rpm verified successfully
-# ✓ mysignedlibrary-Tools-6.1.3-1.x86_64.rpm verified successfully
+# ✓ MySignedLibrary-6.1.4-Linux-Development.tar.gz verified successfully
+# ✓ MySignedLibrary-6.1.4-Linux-Runtime.tar.gz verified successfully
+# ✓ MySignedLibrary-6.1.4-Linux-Tools.tar.gz verified successfully
+# ✓ mysignedlibrary-development_6.1.4_amd64.deb verified successfully
+# ✓ mysignedlibrary-runtime_6.1.4_amd64.deb verified successfully
+# ✓ mysignedlibrary-tools_6.1.4_amd64.deb verified successfully
+# ✓ mysignedlibrary-Development-6.1.4-1.x86_64.rpm verified successfully
+# ✓ mysignedlibrary-Runtime-6.1.4-1.x86_64.rpm verified successfully
+# ✓ mysignedlibrary-Tools-6.1.4-1.x86_64.rpm verified successfully
 #
 # Verification Results:
 #   Total packages: 9

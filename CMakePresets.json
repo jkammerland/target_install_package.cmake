@@ -1,0 +1,149 @@
+{
+  "version": 7,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Dev (RelWithDebInfo)",
+      "description": "Local development: build + tests + install enabled",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/dev/install",
+        "PROJECT_LOG_COLORS": "ON",
+        "TARGET_INSTALL_PACKAGE_ENABLE_INSTALL": "ON",
+        "target_install_package_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-debug",
+      "displayName": "CI (Debug)",
+      "description": "Single-config CI build (Debug)",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/ci/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/debug/install",
+        "PROJECT_LOG_COLORS": "ON"
+      }
+    },
+    {
+      "name": "ci-release",
+      "displayName": "CI (Release)",
+      "description": "Single-config CI build (Release)",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/ci/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/release/install",
+        "PROJECT_LOG_COLORS": "ON"
+      }
+    },
+    {
+      "name": "ci-minsizerel",
+      "displayName": "CI (MinSizeRel)",
+      "description": "Single-config CI build (MinSizeRel)",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/ci/minsizerel",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/minsizerel/install",
+        "PROJECT_LOG_COLORS": "ON"
+      }
+    },
+    {
+      "name": "ci-relwithdebinfo",
+      "displayName": "CI (RelWithDebInfo)",
+      "description": "Single-config CI build (RelWithDebInfo)",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/ci/relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/relwithdebinfo/install",
+        "PROJECT_LOG_COLORS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev"
+    },
+    {
+      "name": "ci-debug",
+      "configurePreset": "ci-debug"
+    },
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release"
+    },
+    {
+      "name": "ci-minsizerel",
+      "configurePreset": "ci-minsizerel"
+    },
+    {
+      "name": "ci-relwithdebinfo",
+      "configurePreset": "ci-relwithdebinfo"
+    },
+    {
+      "name": "dev-install",
+      "displayName": "Dev install target",
+      "description": "Builds and runs the CMake 'install' target",
+      "configurePreset": "dev",
+      "targets": [
+        "install"
+      ]
+    },
+    {
+      "name": "ci-release-install",
+      "displayName": "CI Release install target",
+      "description": "Builds and runs the CMake 'install' target",
+      "configurePreset": "ci-release",
+      "targets": [
+        "install"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-debug",
+      "configurePreset": "ci-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-minsizerel",
+      "configurePreset": "ci-minsizerel",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-relwithdebinfo",
+      "configurePreset": "ci-relwithdebinfo",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

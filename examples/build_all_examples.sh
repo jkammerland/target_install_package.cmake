@@ -2,7 +2,7 @@
 
 # Build and install all CMake target_install_package examples
 # This script builds each example independently and installs them to their respective build/install directories
-# Usage: ./build_all_examples.sh [clean|--multi-config|--help]
+# Usage: ./build_all_examples.sh [clean] [--multi-config] [--build-root <dir>] [--help]
 
 set -e  # Exit on any error
 
@@ -73,6 +73,8 @@ show_help() {
     echo "  clean          Clean all build directories"
     echo "  --multi-config Build all examples with multi-config generators"
     echo "                 (Debug, Release, MinSizeRel, RelWithDebInfo)"
+    echo "  --build-root   Place all build/install outputs under a single directory"
+    echo "                 (out-of-source builds, keeps examples/ clean)"
     echo "  --help         Show this help message"
     echo ""
     echo "Multi-config mode automatically detects the best available generator:"
@@ -83,6 +85,7 @@ show_help() {
     echo "Examples:"
     echo "  ./build_all_examples.sh                # Single-config builds"
     echo "  ./build_all_examples.sh --multi-config # Multi-config builds (all 4 configs)"
+    echo "  ./build_all_examples.sh --build-root ../build/examples/all"
     echo "  ./build_all_examples.sh clean          # Clean all builds"
 }
 
@@ -125,6 +128,64 @@ build_example() {
     local example_name=$(basename "$example_dir")
     
     print_status "Building example: $example_name"
+
+    if [[ -n "${BUILD_ROOT:-}" ]]; then
+        local source_dir="${EXAMPLES_DIR}/${example_dir}"
+        local build_dir="${BUILD_ROOT}/${example_name}"
+
+        rm -rf "${build_dir}"
+        mkdir -p "${build_dir}"
+        
+        # Configure with consistent build type and MSVC runtime library
+        local build_type="${CMAKE_BUILD_TYPE:-Release}"
+        local cmake_args=(
+            "-S" "${source_dir}" "-B" "${build_dir}" "-G" "Ninja"
+            "-DCMAKE_BUILD_TYPE=$build_type"
+            "-DCMAKE_INSTALL_PREFIX=${build_dir}/install"
+            "-DPROJECT_LOG_COLORS=ON"
+            "-DTIP_INSTALL_LAYOUT=split_all"
+            "--log-level=TRACE"
+        )
+
+        # Ensure Homebrew clang picks up the macOS SDK when scanning C++ modules
+        if [[ "$(uname)" == "Darwin" ]]; then
+            if command -v xcrun >/dev/null 2>&1; then
+                SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+                export SDKROOT
+                cmake_args+=("-DCMAKE_OSX_SYSROOT=${SDKROOT}")
+            fi
+        fi
+
+        # Ensure consistent MSVC runtime library on Windows
+        if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+            if [[ "$build_type" == "Debug" ]]; then
+                cmake_args+=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL")
+            else
+                cmake_args+=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL")
+            fi
+        fi
+
+        print_status "Configuring $example_name (BuildType: $build_type)..."
+        if ! cmake "${cmake_args[@]}"; then
+            print_error "Configuration failed for $example_name"
+            return 1
+        fi
+
+        print_status "Building $example_name..."
+        if ! cmake --build "${build_dir}"; then
+            print_error "Build failed for $example_name"
+            return 1
+        fi
+
+        print_status "Installing $example_name..."
+        if ! cmake --install "${build_dir}"; then
+            print_error "Installation failed for $example_name"
+            return 1
+        fi
+
+        print_success "Completed $example_name"
+        return 0
+    fi
     
     cd "$example_dir"
     
@@ -203,6 +264,81 @@ build_example_multiconfig() {
     
     print_status "Building example: $example_name [MULTI-CONFIG]"
     print_status "Using generator: $generator"
+
+    if [[ -n "${BUILD_ROOT:-}" ]]; then
+        local source_dir="${EXAMPLES_DIR}/${example_dir}"
+        local build_dir="${BUILD_ROOT}/${example_name}"
+
+        rm -rf "${build_dir}"
+        mkdir -p "${build_dir}"
+
+        print_status "Configuring $example_name with $generator..."
+        local cmake_args=(
+            "-S" "${source_dir}" "-B" "${build_dir}"
+            "-G" "$generator"
+            "-DCMAKE_INSTALL_PREFIX=${build_dir}/install"
+            "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo"
+            "-DPROJECT_LOG_COLORS=ON"
+            "-DTIP_INSTALL_LAYOUT=split_all"
+            "--log-level=TRACE"
+        )
+
+        if [[ -n "$MACOS_SDK_PATH" ]]; then
+            cmake_args+=("-DCMAKE_OSX_SYSROOT=$MACOS_SDK_PATH")
+        elif [[ "$(uname)" == "Darwin" ]]; then
+            if command -v xcrun >/dev/null 2>&1; then
+                SDKROOT="$(xcrun --sdk macosx --show-sdk-path 2>/dev/null)"
+                if [[ -n "$SDKROOT" ]]; then
+                    export SDKROOT
+                    cmake_args+=("-DCMAKE_OSX_SYSROOT=${SDKROOT}")
+                else
+                    print_warning "xcrun returned empty macOS SDK path during multi-config setup"
+                fi
+            else
+                print_warning "xcrun not found; unable to determine macOS SDK for multi-config build"
+            fi
+        fi
+
+        if ! cmake "${cmake_args[@]}"; then
+            print_error "Configuration failed for $example_name"
+            return 1
+        fi
+
+        local configs=("Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+        local failed_configs=()
+        local successful_configs=()
+
+        for config in "${configs[@]}"; do
+            print_status "Building $example_name [$config]..."
+            if ! cmake --build "${build_dir}" --config "$config"; then
+                print_error "Build failed for $example_name [$config]"
+                failed_configs+=("$config")
+                continue
+            fi
+
+            print_status "Installing $example_name [$config]..."
+            if ! cmake --install "${build_dir}" --config "$config"; then
+                print_error "Installation failed for $example_name [$config]"
+                failed_configs+=("$config")
+                continue
+            fi
+
+            successful_configs+=("$config")
+            print_success "Completed $example_name [$config]"
+        done
+
+        if [ ${#successful_configs[@]} -gt 0 ]; then
+            print_success "Successfully built $example_name: ${successful_configs[*]}"
+        fi
+
+        if [ ${#failed_configs[@]} -gt 0 ]; then
+            print_error "Failed configurations for $example_name: ${failed_configs[*]}"
+            return 1
+        fi
+
+        print_success "Completed $example_name [ALL CONFIGS]"
+        return 0
+    fi
     
     cd "$example_dir"
     
@@ -298,6 +434,17 @@ clean_example() {
     local example_name=$(basename "$example_dir")
     
     print_status "Cleaning example: $example_name"
+
+    if [[ -n "${BUILD_ROOT:-}" ]]; then
+        if [ -d "${BUILD_ROOT}/${example_name}" ]; then
+            print_status "Removing build directory for $example_name..."
+            rm -rf "${BUILD_ROOT}/${example_name}"
+            print_success "Cleaned $example_name"
+        else
+            print_warning "No build directory found for $example_name"
+        fi
+        return 0
+    fi
     
     cd "$example_dir"
     
@@ -351,36 +498,55 @@ EXAMPLES=(
 
 # Parse command line arguments
 MULTI_CONFIG_MODE=false
+CLEAN_MODE=false
+BUILD_ROOT=""
 
-case "$1" in
-    "clean")
-        # Check if examples directory exists
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        "clean")
+            CLEAN_MODE=true
+            shift
+            ;;
+        "--multi-config")
+            MULTI_CONFIG_MODE=true
+            print_status "Multi-config mode enabled"
+            shift
+            ;;
+        "--build-root")
+            BUILD_ROOT="${2:?}"
+            shift 2
+            ;;
+        "--help"|"-h")
+            show_help
+            exit 0
+            ;;
+        *)
+            print_error "Unknown argument: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -n "${BUILD_ROOT}" ]]; then
+    mkdir -p "${BUILD_ROOT}"
+fi
+
+if [[ "${CLEAN_MODE}" == "true" ]]; then
+    if [[ -n "${BUILD_ROOT}" ]]; then
+        print_status "Cleaning build root: ${BUILD_ROOT}"
+        rm -rf "${BUILD_ROOT}"
+        print_success "Build root cleaned"
+    else
         if [ ! -d "$EXAMPLES_DIR" ]; then
             print_error "Examples directory not found: $EXAMPLES_DIR"
             exit 1
         fi
-        
         cd "$EXAMPLES_DIR"
         clean_all_examples
-        exit 0
-        ;;
-    "--multi-config")
-        MULTI_CONFIG_MODE=true
-        print_status "Multi-config mode enabled"
-        ;;
-    "--help"|"-h")
-        show_help
-        exit 0
-        ;;
-    "")
-        # No arguments - use default single-config mode
-        ;;
-    *)
-        print_error "Unknown argument: $1"
-        show_help
-        exit 1
-        ;;
-esac
+    fi
+    exit 0
+fi
 
 # Prepare macOS SDK when running on macOS
 setup_macos_sdk
@@ -396,7 +562,7 @@ if [ "$MULTI_CONFIG_MODE" = true ]; then
 fi
 
 # Detect support for --default-directory-per-config once
-if cmake --help 2>&1 | grep -q "--default-directory-per-config"; then
+if cmake --help 2>&1 | grep -q -- "--default-directory-per-config"; then
     CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=true
 else
     CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=false
@@ -466,11 +632,19 @@ fi
 if [ "$MULTI_CONFIG_MODE" = true ]; then
     print_success "All examples built and installed successfully with multi-config!"
     print_status "Each example built 4 configurations: Debug, Release, MinSizeRel, RelWithDebInfo"
-    print_status "Installation directories are located at examples/*/build/install/"
+    if [[ -n "${BUILD_ROOT}" ]]; then
+        print_status "Installation directories are located at ${BUILD_ROOT}/*/install/"
+    else
+        print_status "Installation directories are located at examples/*/build/install/"
+    fi
     print_status "Libraries with DEBUG_POSTFIX: libname.so (Release), libnamed.so (Debug), etc."
 else
     print_success "All examples built and installed successfully!"
-    print_status "Installation directories are located at examples/*/build/install/"
+    if [[ -n "${BUILD_ROOT}" ]]; then
+        print_status "Installation directories are located at ${BUILD_ROOT}/*/install/"
+    else
+        print_status "Installation directories are located at examples/*/build/install/"
+    fi
 fi
 print_status "To clean all build directories, run: ./build_all_examples.sh clean"
 print_status "To see all options, run: ./build_all_examples.sh --help"

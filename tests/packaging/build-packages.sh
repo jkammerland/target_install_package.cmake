@@ -6,8 +6,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BUILD_DIR="$SCRIPT_DIR/build"
-OUTPUT_DIR="$SCRIPT_DIR/packages"
+BUILD_DIR="$PROJECT_ROOT/build/packaging/build"
+OUTPUT_DIR="$PROJECT_ROOT/build/packaging/packages"
 
 # Colors for output
 RED='\033[0;31m'
@@ -28,6 +28,41 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+usage() {
+    echo "Usage: $0 [--build-dir <dir>] [--packages-dir <dir>]"
+    echo ""
+    echo "Options:"
+    echo "  --build-dir <dir>     Build directory (default: $BUILD_DIR)"
+    echo "  --packages-dir <dir>  Output directory for packages (default: $OUTPUT_DIR)"
+    echo "  -h, --help            Show help"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --build-dir)
+            BUILD_DIR="${2:?}"
+            shift 2
+            ;;
+        --packages-dir|--output-dir)
+            OUTPUT_DIR="${2:?}"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            print_error "Unknown argument: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
 # Clean and create directories
 print_status "Preparing build directories..."
 rm -rf "$BUILD_DIR" "$OUTPUT_DIR"
@@ -39,10 +74,11 @@ cd "$BUILD_DIR"
 
 cmake "$PROJECT_ROOT/examples/cpack-basic" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DPROJECT_LOG_COLORS=OFF \
+    -DPROJECT_LOG_COLORS=ON \
     -DTARGET_INSTALL_PACKAGE_DISABLE_INSTALL=ON \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DTIP_INSTALL_LAYOUT=fhs || {
+    -DTIP_INSTALL_LAYOUT=fhs \
+    --log-level=DEBUG || {
     print_error "CMake configuration failed"
     exit 1
 }
@@ -52,18 +88,32 @@ cmake --build . || {
     exit 1
 }
 
-# Generate CPack packages (DEB and RPM)
-print_status "Generating DEB package..."
-cpack -G DEB || {
-    print_error "DEB package generation failed"
-    exit 1
-}
+# Generate CPack packages (DEB and RPM), skipping unavailable toolchains for local runs.
+if command -v dpkg-deb >/dev/null 2>&1; then
+    print_status "Generating DEB package..."
+    cpack -G DEB || {
+        print_error "DEB package generation failed"
+        exit 1
+    }
+else
+    print_warning "dpkg-deb not found; skipping DEB generation"
+fi
 
-print_status "Generating RPM package..."
-cpack -G RPM || {
-    print_error "RPM package generation failed"
-    exit 1
-}
+if command -v rpmbuild >/dev/null 2>&1 || command -v rpm >/dev/null 2>&1; then
+    tmp_write_test="/var/tmp/tip-rpm-tmp-test.$$"
+    if ! ( : > "$tmp_write_test" ) 2>/dev/null; then
+        print_warning "Unable to write to /var/tmp (sandboxed?); skipping RPM generation"
+    else
+        rm -f "$tmp_write_test" 2>/dev/null || true
+    print_status "Generating RPM package..."
+    cpack -G RPM || {
+        print_error "RPM package generation failed"
+        exit 1
+    }
+    fi
+else
+    print_warning "rpmbuild/rpm not found; skipping RPM generation"
+fi
 
 # Copy CPack packages to output directory
 cp *.deb *.rpm "$OUTPUT_DIR/" 2>/dev/null || true

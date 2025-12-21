@@ -46,6 +46,6 @@ if(NOT DEFINED CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
 endif()
 
 # CMake's generated export file automatically handles configuration-specific includes
-include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@Targets.cmake")
 
 check_required_components(@ARG_EXPORT_NAME@)

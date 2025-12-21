@@ -2,11 +2,34 @@
 
 project(tests VERSION 1.0.0)
 
-include(get_cpm.cmake)
-set(FMT_INSTALL ON)
-cpmaddpackage("gh:fmtlib/fmt#53d006abfdc0653f7d3e4e180e694fcb720524b5")
+# Prefer a pre-installed fmt (CI/system) and fall back to CPM if unavailable.
+find_package(fmt CONFIG QUIET)
+if(fmt_FOUND)
+  if(TARGET fmt::fmt AND NOT TARGET fmt)
+    add_library(fmt ALIAS fmt::fmt)
+  endif()
+endif()
+
+if(NOT TARGET fmt)
+  include(get_cpm.cmake)
+  set(FMT_INSTALL ON)
+  cpmaddpackage("gh:fmtlib/fmt#53d006abfdc0653f7d3e4e180e694fcb720524b5")
+endif()
+
 # Use CMake's built-in property for position independent code instead of -fPIC.
-set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(TARGET fmt)
+  get_target_property(_fmt_aliased fmt ALIASED_TARGET)
+  if(_fmt_aliased)
+    set(_fmt_target "${_fmt_aliased}")
+  else()
+    set(_fmt_target fmt)
+  endif()
+
+  get_target_property(_fmt_imported "${_fmt_target}" IMPORTED)
+  if(NOT _fmt_imported)
+    set_target_properties("${_fmt_target}" PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  endif()
+endif()
 
 add_library(static2 STATIC)
 target_sources(
@@ -125,3 +148,6 @@ target_configure_sources(
   include/component/configure_me.h)
 
 target_install_package(component-devel COMPONENT "Developer")
+
+enable_testing()
+add_test(NAME tests_main COMMAND tests)

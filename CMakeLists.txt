@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 6.1.3)
+project(target_install_package VERSION 6.1.4)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -58,5 +58,6 @@ endif()
 option(${PROJECT_NAME}_BUILD_TESTS "Run the tests" OFF)
 if(${PROJECT_NAME}_BUILD_TESTS)
   project_log(VERBOSE "Running standalone, including tests...")
+  enable_testing()
   add_subdirectory(tests)
 endif()
