@@ -176,6 +176,7 @@ run_single_suite() {
   if [[ -n "${cxx}" ]]; then
     cfg_args+=("-DCMAKE_CXX_COMPILER=${cxx}")
   fi
+  cfg_args+=("-DPROJECT_LOG_COLORS=ON")
   if [[ "${use_fetchcontent}" == "true" ]]; then
     cfg_args+=("-DEXAMPLES_USE_FETCHCONTENT_DEPS=ON")
   else
@@ -185,7 +186,7 @@ run_single_suite() {
   fi
 
   ci_log "==> Configure examples (${preset})"
-  cmake -S "${ci_root}/examples" --preset "${preset}" "${cfg_args[@]}"
+  cmake --log-level=DEBUG -S "${ci_root}/examples" --preset "${preset}" "${cfg_args[@]}"
 
   ci_log "==> Build examples (${build_dir})"
   cmake --build "${build_dir}"
@@ -240,10 +241,10 @@ run_multi_suite() {
   fi
 
   ci_log "==> Configure examples integration (Ninja Multi-Config)"
-  cmake -S "${ci_root}/examples" -B "${integration_dir}" -G "Ninja Multi-Config" \
+  cmake --log-level=DEBUG -S "${ci_root}/examples" -B "${integration_dir}" -G "Ninja Multi-Config" \
     -DCMAKE_CONFIGURATION_TYPES="${cmake_config_types}" \
+    -DPROJECT_LOG_COLORS=ON \
     -DRUN_BUILD_ALL_EXAMPLES=OFF \
-    --log-level=VERBOSE \
     "${cfg_args[@]}"
 
   for cfg in "${configs[@]}"; do
@@ -310,9 +311,9 @@ CPP
   prefix_utils="$("${ci_python_bin}" -c 'import os; print(os.path.abspath(os.path.join("examples","basic-shared","build","install")))' )"
   prefix_paths="$(ci_join_by ';' "$(ci_path_for_cmake "${prefix_math}")" "$(ci_path_for_cmake "${prefix_utils}")")"
 
-  cmake -S "${consumer_dir}" -B "${consumer_dir}/build" -G "Ninja Multi-Config" \
-    -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
-    -DCMAKE_PREFIX_PATH="${prefix_paths}"
+    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G "Ninja Multi-Config" \
+      -DCMAKE_CONFIGURATION_TYPES="Debug;Release;MinSizeRel;RelWithDebInfo" \
+      -DCMAKE_PREFIX_PATH="${prefix_paths}"
 
   ci_log "==> Build Release and assert link uses release libs"
   release_log="${consumer_dir}/build_release.log"
@@ -365,7 +366,7 @@ CMAKE
 int main(){ std::cout << "ok-${cfg_lc}\\n"; return 0; }
 CPP
 
-    cmake -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
+    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
       -DCMAKE_PREFIX_PATH="${prefixes}"
 
     log_file="${consumer_dir}/build.log"
@@ -423,7 +424,7 @@ CMAKE
 int main(){ std::cout << "ok-fhs-${cfg_lc}\\n"; return 0; }
 CPP
 
-    cmake -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
+    cmake --log-level=DEBUG -S "${consumer_dir}" -B "${consumer_dir}/build" -G Ninja -DCMAKE_BUILD_TYPE="${cfg}" \
       -DCMAKE_PREFIX_PATH="${prefixes}"
 
     log_file="${consumer_dir}/build.log"

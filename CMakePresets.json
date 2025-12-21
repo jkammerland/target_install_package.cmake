@@ -29,7 +29,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/debug/install",
-        "PROJECT_LOG_COLORS": "OFF"
+        "PROJECT_LOG_COLORS": "ON"
       }
     },
     {
@@ -41,7 +41,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/release/install",
-        "PROJECT_LOG_COLORS": "OFF"
+        "PROJECT_LOG_COLORS": "ON"
       }
     },
     {
@@ -53,7 +53,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/minsizerel/install",
-        "PROJECT_LOG_COLORS": "OFF"
+        "PROJECT_LOG_COLORS": "ON"
       }
     },
     {
@@ -65,7 +65,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci/relwithdebinfo/install",
-        "PROJECT_LOG_COLORS": "OFF"
+        "PROJECT_LOG_COLORS": "ON"
       }
     }
   ],

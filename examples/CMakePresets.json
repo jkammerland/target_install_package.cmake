@@ -14,7 +14,7 @@
       "binaryDir": "${sourceDir}/../build/examples/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "PROJECT_LOG_COLORS": "OFF",
+        "PROJECT_LOG_COLORS": "ON",
         "RUN_BUILD_ALL_EXAMPLES": "ON"
       }
     },
@@ -26,7 +26,7 @@
       "binaryDir": "${sourceDir}/../build/examples/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "PROJECT_LOG_COLORS": "OFF",
+        "PROJECT_LOG_COLORS": "ON",
         "RUN_BUILD_ALL_EXAMPLES": "ON"
       }
     }

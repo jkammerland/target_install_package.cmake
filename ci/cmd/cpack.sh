@@ -122,12 +122,12 @@ run_basic() {
   mkdir -p "${build_dir}"
 
   ci_log "==> Configure examples/cpack-basic"
-  cmake -S "${ci_root}/examples/cpack-basic" -B "${build_dir}" \
+  cmake --log-level=DEBUG -S "${ci_root}/examples/cpack-basic" -B "${build_dir}" \
     ${cc:+-DCMAKE_C_COMPILER=${cc}} \
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${build_type}" \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DPROJECT_LOG_COLORS=OFF
+    -DPROJECT_LOG_COLORS=ON
 
   ci_log "==> Build examples/cpack-basic"
   cmake --build "${build_dir}" --config "${build_type}"
@@ -230,7 +230,9 @@ run_components() {
   mkdir -p "${build_dir}"
 
   ci_log "==> Configure examples/components"
-  cmake -S "${ci_root}/examples/components" -B "${build_dir}" -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --log-level=DEBUG -S "${ci_root}/examples/components" -B "${build_dir}" \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DPROJECT_LOG_COLORS=ON
 
   ci_log "==> Build + install examples/components"
   cmake --build "${build_dir}"

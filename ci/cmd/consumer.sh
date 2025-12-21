@@ -151,10 +151,11 @@ run_consumer_suite() {
   prefix_arg="$(prefix_arg_for "${prefixes[@]}")"
 
   ci_log "==> Configure consumer"
-  cmake -S "${ci_root}/tests/consumer" -B "${consumer_build_dir}" -G Ninja \
+  cmake --log-level=DEBUG -S "${ci_root}/tests/consumer" -B "${consumer_build_dir}" -G Ninja \
     ${cc:+-DCMAKE_C_COMPILER=${cc}} \
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${bt}" \
+    -DPROJECT_LOG_COLORS=ON \
     -DCMAKE_PREFIX_PATH="${prefix_arg}"
 
   ci_log "==> Build consumer"
@@ -203,6 +204,7 @@ CMAKE
 
   ci_log "==> FetchContent integration configure"
   cmake_args=(
+    --log-level=DEBUG
     -S "${fc_dir}"
     -B "${fc_dir}/build"
     -G Ninja
@@ -216,6 +218,7 @@ CMAKE
   if [[ -n "${prefix_arg}" ]]; then
     cmake_args+=("-DCMAKE_PREFIX_PATH=${prefix_arg}")
   fi
+  cmake_args+=("-DPROJECT_LOG_COLORS=ON")
 
   cmake "${cmake_args[@]}"
 
@@ -257,7 +260,8 @@ CPP
   prefix_arg="$(prefix_arg_for "${prefixes[@]}")"
 
   ci_log "==> Package-manager integration configure"
-  cmake -S "${pm_dir}" -B "${pm_dir}/build" -G Ninja \
+  cmake --log-level=DEBUG -S "${pm_dir}" -B "${pm_dir}/build" -G Ninja \
+    -DPROJECT_LOG_COLORS=ON \
     -DCMAKE_PREFIX_PATH="${prefix_arg}"
 
   ci_log "==> Package-manager integration build"

@@ -111,11 +111,11 @@ fi
 if [[ -n "${fmt_prefix}" ]]; then
   configure_args+=("-DCMAKE_PREFIX_PATH=$(ci_path_for_cmake "${fmt_prefix}")")
 fi
-configure_args+=("-DPROJECT_LOG_COLORS=OFF")
+configure_args+=("-DPROJECT_LOG_COLORS=ON")
 configure_args+=("${cmake_args[@]}")
 
 ci_log "==> Configure (${preset})"
-cmake --preset "${preset}" "${configure_args[@]}"
+cmake --log-level=DEBUG --preset "${preset}" "${configure_args[@]}"
 
 ci_log "==> Build (${preset})"
 cmake --build --preset "${preset}"
@@ -157,11 +157,12 @@ if ! ci_is_windows; then
   fi
 
   ci_log "==> Variant configure/build/install (Unix)"
-  cmake -S "${ci_root}" -B "${build_dir}-variant" -G Ninja \
+  cmake --log-level=DEBUG -S "${ci_root}" -B "${build_dir}-variant" -G Ninja \
     ${cc:+-DCMAKE_C_COMPILER=${cc}} \
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${bt}" \
     -DCMAKE_INSTALL_PREFIX="${install_dir}-variant" \
+    -DPROJECT_LOG_COLORS=ON \
     ${fmt_prefix:+-DCMAKE_PREFIX_PATH=$(ci_path_for_cmake "${fmt_prefix}")} \
     -Dtarget_install_package_BUILD_TESTS=ON
   cmake --build "${build_dir}-variant"
