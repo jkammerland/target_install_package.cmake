@@ -146,7 +146,7 @@ jobs:
           set -euxo pipefail
           bash ci/run.sh consumer \
             --suite integration \
-            --install-prefix install-artifacts/build/ci/release/install
+            --install-prefix install-artifacts/ci/release/install
 
   test-examples:
     name: Examples (${{ matrix.os }} / ${{ matrix.build_type }} / ${{ matrix.config_mode }}${{ matrix.compiler_variant && format(' / {0}', matrix.compiler_variant) || '' }})
