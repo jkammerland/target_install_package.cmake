@@ -10,15 +10,6 @@ Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 - Cross-platform package generation
 - Integration with target_install_package components
 
-## Architecture
-
-```
-MyLibrary Package Components:
-├── Runtime/      → mylib (shared library)
-├── Development/  → mylib headers + mylib_utils + CMake configs
-└── Tools/        → mytool (executable)
-```
-
 ## Building and Testing
 
 ### Step 1: Configure and Build

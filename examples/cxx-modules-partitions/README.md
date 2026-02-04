@@ -1,6 +1,6 @@
 # Module Partitions Example
 
-This example demonstrates C++20 modules with partitions using `target_install_package`. It showcases:
+This demonstrates that the module partitions integrate with the packaging system.
 
 - **Module partitions** with interface and implementation partitions
 - **Modern C++20 modules** as a feature
@@ -9,7 +9,8 @@ This example demonstrates C++20 modules with partitions using `target_install_pa
 
 ## Module Structure
 
-### Primary Module: `math`
+**Primary Module**: `math`
+
 - **Interface partitions**:
   - `:algebra` - Basic arithmetic, linear algebra, polynomials
   - `:geometry` - 2D/3D shapes, vectors, transformations
@@ -23,18 +24,6 @@ This example demonstrates C++20 modules with partitions using `target_install_pa
 - `modules/math-geometry.cppm` - Geometry partition
 - `modules/math-calculus.cppm` - Calculus partition
 - `modules/math-internal.cppm` - Internal utilities partition
-
-## Build Requirements
-
-**This example requires C++20 modules support:**
-- **CMake**: 3.28 or later
-- **Generator**: Ninja, Ninja Multi-Config, or Visual Studio 17.4+
-- **Compiler**:
-  - GCC 14.0+ 
-  - Clang 19.0+
-  - MSVC 19.29+ (Visual Studio 2019 16.10+)
-
-**Note**: The example will be skipped if compiler or generator requirements are not met.
 
 ## Usage Example
 
@@ -116,6 +105,3 @@ set_target_properties(my_app PROPERTIES CXX_SCAN_FOR_MODULES ON)
 - Geometry partition imports algebra for constants and operations
 - Calculus partition imports algebra for mathematical functions
 - Primary module demonstrates integration of all partitions
-
-
-This demonstrates that the module partitions integrate with the packaging system well.

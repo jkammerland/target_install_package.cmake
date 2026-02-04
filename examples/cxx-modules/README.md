@@ -2,32 +2,6 @@
 
 This example demonstrates creating and installing a library using C++20 modules with `target_install_package`.
 
-## ⚠️ Requirements
-
-### CMake Version
-- **CMake 3.28+** is required for C++20 modules support
-
-### Compiler Support
-- **MSVC 19.29+**
-- **Clang 19.0+** 
-- **GCC 14+**
-
-### Generator Support
-- **Ninja** (recommended, requires Ninja 1.11+)
-- **Visual Studio ...**
-
-### C++ Standard
-- **C++20** is required
-
-## Features Demonstrated
-
-- C++20 module interface units (`.cppm` files)
-- Module dependency resolution (`geometry` imports `math`)
-- CXX_MODULES file set usage
-- Module installation with `MODULE_DESTINATION`
-- Export of module functions, classes, and constants
-- Module scanning configuration
-
 ## Module Architecture
 
 ```
@@ -107,16 +81,3 @@ set_target_properties(test_app PROPERTIES
   CXX_SCAN_FOR_MODULES ON
 )
 ```
-
-## Limitations
-
-- No `import std` support  
-- Limited LSP support
-- Hard to mix modules with non-modules
-
-## Key Files
-
-- **CMakeLists.txt**: Module configuration with CXX_MODULES file set
-- **modules/math.cppm**: Math module interface unit
-- **modules/geometry.cppm**: Geometry module interface unit (imports math)
-- **src/math_impl.cpp**: Implementation support file

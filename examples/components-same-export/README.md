@@ -61,5 +61,3 @@ target_link_libraries(my_app PRIVATE
     Media::storage
 )
 ```
-
-This example shows how to organize multiple related targets under a single export while maintaining flexible component-based installation.

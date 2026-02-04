@@ -2,11 +2,6 @@
 
 Demonstrates automatic RPATH configuration for relocatable installations.
 
-## Structure
-
-- **mylib**: Shared library with simple functions
-- **rpath_demo**: Executable that uses the library
-
 ## Features Tested
 
 - Automatic RPATH configuration (`$ORIGIN/../lib:$ORIGIN/../lib64` on Linux)

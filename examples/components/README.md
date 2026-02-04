@@ -251,5 +251,3 @@ The installed tool provides media conversion capabilities:
 - **Shared Export**: All targets packaged under unified `MediaLib` export  
 - **No Dual Install Complexity**: Each target installs to exactly one runtime and one development component
 - **Mixed Target Types**: Handles shared libs, static libs, and executables uniformly
-
-This example demonstrates the Component Prefix Pattern for logical component organization with predictable naming and clean separation.

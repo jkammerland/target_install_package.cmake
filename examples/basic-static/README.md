@@ -10,7 +10,7 @@ cmake --build build
 cmake --install build
 ```
 
-## Structure
+## Install Structure
 
 ```
 install/
