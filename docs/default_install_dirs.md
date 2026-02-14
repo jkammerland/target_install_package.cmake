@@ -20,7 +20,7 @@
 Control how configuration variants (Debug, Release, etc.) are laid out on disk:
 
 - Global cache variable: `TIP_INSTALL_LAYOUT` (default: `fhs`)
-  - `fhs` (packaging-friendly): no config subdirectories; installs into standard `lib/` and `bin/`.
+  - `fhs` (Filesystem Hierarchy Standard, FHS): aligned with system package conventions (`DEB`/`RPM`), using no configuration-specific subdirectories and standard `bin/`, `lib*/`, and `share/` destinations.
   - `split_debug`: only Debug artifacts go under `debug/` (vcpkg-style).
   - `split_all`: all configurations go under a lower-cased `$<CONFIG>/` subdirectory (e.g., `release/lib`, `debug/bin`).
 
@@ -29,8 +29,8 @@ Control how configuration variants (Debug, Release, etc.) are laid out on disk:
 
 Notes:
 - Libraries keep a `DEBUG_POSTFIX` by default, so Debug/Release can co-exist when layouts are shared.
-- For system packages (DEB/RPM), prefer `TIP_INSTALL_LAYOUT=fhs` with `-DCMAKE_INSTALL_PREFIX=/usr`.
-- TGZ packaging is staged via DESTDIR to avoid writing to real system paths.
+- For system packages (Debian packages, `DEB`, or RPM packages, `RPM`), prefer `TIP_INSTALL_LAYOUT=fhs` with `-DCMAKE_INSTALL_PREFIX=/usr`.
+- `tar.gz` packages (`TGZ`) are staged via `DESTDIR` to avoid writing to real system paths.
 
 ## Platform-Specific Behavior
 
@@ -65,6 +65,10 @@ target_install_package(mylib
 |-------------|-------------|---------|
 | Default (empty) | `<prefix>/` | `<prefix>/LICENSE` |
 | Custom path | `<prefix>/<path>/` | `<prefix>/doc/readme.md` |
+
+For legal/compliance files, a common destination is `${CMAKE_INSTALL_DATADIR}/licenses/<package>`.
+
+`ADDITIONAL_FILES` is usually enough. Use a manifest only when you need stricter packaging traceability (for example, CI validation that all required legal files are included, or audit/release evidence that points to a single authoritative file list).
 
 ## Why These Defaults
 
