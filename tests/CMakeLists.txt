@@ -149,5 +149,34 @@ target_configure_sources(
 
 target_install_package(component-devel COMPONENT "Developer")
 
+set(_tip_layout_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_layout_matrix_test.cmake")
+set(_tip_layout_test_root "${CMAKE_CURRENT_BINARY_DIR}/layout-matrix")
+
+set(_tip_layout_test_common_args "-DTIP_REPO_ROOT=${CMAKE_SOURCE_DIR}" "-DTIP_LAYOUT_TEST_ROOT=${_tip_layout_test_root}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+
+if(CMAKE_MAKE_PROGRAM)
+  list(APPEND _tip_layout_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
+endif()
+if(CMAKE_C_COMPILER)
+  list(APPEND _tip_layout_test_common_args "-DTIP_C_COMPILER=${CMAKE_C_COMPILER}")
+endif()
+if(CMAKE_CXX_COMPILER)
+  list(APPEND _tip_layout_test_common_args "-DTIP_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+endif()
+if(CMAKE_TOOLCHAIN_FILE)
+  list(APPEND _tip_layout_test_common_args "-DTIP_CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+endif()
+if(CMAKE_GENERATOR_PLATFORM)
+  list(APPEND _tip_layout_test_common_args "-DTIP_CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(CMAKE_GENERATOR_TOOLSET)
+  list(APPEND _tip_layout_test_common_args "-DTIP_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
+endif()
+
 enable_testing()
 add_test(NAME tests_main COMMAND tests)
+
+foreach(_tip_layout IN ITEMS fhs split_debug split_all)
+  add_test(NAME "install_layout_${_tip_layout}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" ${_tip_layout_test_common_args} -P "${_tip_layout_test_script}")
+  set_tests_properties("install_layout_${_tip_layout}" PROPERTIES LABELS "install-layout")
+endforeach()
