@@ -151,8 +151,9 @@ target_install_package(component-devel COMPONENT "Developer")
 
 set(_tip_layout_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_layout_matrix_test.cmake")
 set(_tip_layout_test_root "${CMAKE_CURRENT_BINARY_DIR}/layout-matrix")
+get_filename_component(_tip_repo_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
-set(_tip_layout_test_common_args "-DTIP_REPO_ROOT=${CMAKE_SOURCE_DIR}" "-DTIP_LAYOUT_TEST_ROOT=${_tip_layout_test_root}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+set(_tip_layout_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_LAYOUT_TEST_ROOT=${_tip_layout_test_root}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
 
 if(CMAKE_MAKE_PROGRAM)
   list(APPEND _tip_layout_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")

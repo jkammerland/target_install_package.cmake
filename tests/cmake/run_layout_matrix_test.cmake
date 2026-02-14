@@ -226,12 +226,12 @@ set(_development_bindir "${_development_prefix}/${_layout_prefix}${_install_bind
 set(_development_libdir "${_development_prefix}/${_layout_prefix}${_install_libdir}")
 set(_development_cmake_dir "${_development_prefix}/${_install_datadir}/cmake/layout_matrix")
 
-set(_runtime_executable "${_runtime_bindir}/layout_runner${CMAKE_EXECUTABLE_SUFFIX}")
+set(_runtime_executable_pattern "layout_runner*")
 set(_shared_pattern "*layout_dynamic*")
 set(_static_pattern "*layout_archive*")
 
 # Runtime component destinations
-_tip_assert_exists("${_runtime_executable}")
+_tip_assert_glob_exists("${_runtime_bindir}" "${_runtime_executable_pattern}")
 if(WIN32)
   _tip_assert_glob_exists("${_runtime_bindir}" "${_shared_pattern}")
 else()
@@ -247,7 +247,7 @@ _tip_assert_exists("${_development_prefix}/${_install_includedir}/layout/layout.
 _tip_assert_exists("${_development_cmake_dir}/layout_matrixConfig.cmake")
 _tip_assert_exists("${_development_cmake_dir}/layout_matrixTargets.cmake")
 _tip_assert_exists("${_development_cmake_dir}/layout_matrix-config-version.cmake")
-_tip_assert_not_exists("${_development_bindir}/layout_runner${CMAKE_EXECUTABLE_SUFFIX}")
+_tip_assert_glob_absent("${_development_bindir}" "${_runtime_executable_pattern}")
 _tip_assert_glob_absent("${_development_bindir}" "${_shared_pattern}")
 
 # Generated package metadata paths in exported targets for this layout
