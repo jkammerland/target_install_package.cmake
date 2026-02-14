@@ -99,25 +99,44 @@ detect_vcpkg_exe() {
 }
 
 run_conan_suite() {
-  local conan_cmd=()
+  local conan_bin=""
   if ci_has_cmd conan; then
-    conan_cmd=(conan)
+    conan_bin="$(command -v conan)"
   else
-    local py_bin=""
-    if py_bin="$(ci_python 2>/dev/null)" && "${py_bin}" -m conan --version >/dev/null 2>&1; then
-      conan_cmd=("${py_bin}" -m conan)
-    else
-      ci_die "Conan not found. Install conan or make `python -m conan` available."
+    local py_bin="" scripts_dir=""
+    if py_bin="$(ci_python 2>/dev/null)"; then
+      scripts_dir="$(
+        "${py_bin}" - <<'PY'
+import pathlib
+import sysconfig
+
+scripts = sysconfig.get_path("scripts") or ""
+print(pathlib.Path(scripts).as_posix() if scripts else "")
+PY
+      )"
+
+      if [[ -n "${scripts_dir}" ]]; then
+        if [[ -x "${scripts_dir}/conan" ]]; then
+          conan_bin="${scripts_dir}/conan"
+        elif [[ -f "${scripts_dir}/conan.exe" ]]; then
+          conan_bin="${scripts_dir}/conan.exe"
+        fi
+      fi
     fi
   fi
 
+  if [[ -z "${conan_bin}" ]]; then
+    ci_die "Conan not found. Install Conan and ensure the `conan` executable is available."
+  fi
+
   ci_log "==> Conan profile detect"
-  "${conan_cmd[@]}" profile detect --force
+  "${conan_bin}" --version
+  "${conan_bin}" profile detect --force
 
   ci_log "==> Conan create (recipe + test_package)"
   (
     cd "${ci_root}"
-    "${conan_cmd[@]}" create . --build=missing --no-remote
+    "${conan_bin}" create . --build=missing --no-remote
   )
 }
 
