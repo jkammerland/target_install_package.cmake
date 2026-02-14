@@ -61,7 +61,7 @@ Progress to more sophisticated packaging strategies:
 4. **[multi-target](multi-target/)** - Package multiple related libraries together
 5. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
 5. **[components](components/)** - Implement flexible component-based installation
-6. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (recommended pattern)
+6. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (use this when multiple targets must be consumed through one export)
 7. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
 8. **[configure-files](configure-files/)** - Generate build-time configuration headers
 9. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)

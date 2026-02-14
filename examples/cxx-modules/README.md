@@ -18,7 +18,7 @@ math_modules library:
 # Create build directory
 mkdir build && cd build
 
-# Configure with Ninja generator (recommended for modules)
+# Configure with Ninja generator (use this for this module-focused example)
 cmake .. -G Ninja \
          -DCMAKE_INSTALL_PREFIX=./install \
          -DPROJECT_LOG_COLORS=ON \

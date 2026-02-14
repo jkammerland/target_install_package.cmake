@@ -106,7 +106,7 @@ detect_multiconfig_generator() {
             fi
             ;;
         "MINGW"*|"MSYS"*|"CYGWIN"*|"Windows"*)
-            # On Windows, prefer Ninja Multi-Config for C++ modules support over Visual Studio
+            # On Windows, use Ninja Multi-Config for C++ modules support instead of Visual Studio
             # Visual Studio generator doesn't support BMI compilation for C++ modules
             print_warning "Windows: Visual Studio generator doesn't support C++ modules BMI"
             print_status "Skipping Visual Studio generators for C++ modules compatibility"

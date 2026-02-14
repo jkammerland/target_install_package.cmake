@@ -14,7 +14,7 @@ usage() {
 Usage: ci/run.sh cpack [options]
 
 Suites:
-  basic          CPack basic example + signing setup (matrix-friendly)
+  basic          CPack basic example + signing setup (safe for per-job CI matrix execution)
   components     CPack components example integration (Linux)
   cross-platform Cross-platform artifact analysis (Linux, after download-artifact)
   regression     Run tests/cpack-regression/run-all-tests.sh (Linux)

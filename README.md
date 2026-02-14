@@ -12,9 +12,9 @@ target_install_package(my_library)
 find_package(my_library CONFIG REQUIRED)
 ```
 
-Most use cases require minimal configuration. The goal is to simplify this process while still allowing interleaving CMake installs and configuration.
+Most use cases require minimal configuration. The goal is to simplify this workflow while preserving the ability to interleave configuration and installation steps.
 
-This project requires some other cmake [projects](https://github.com/jkammerland/project_include_guard.cmake), which have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
+This project requires several CMake helper projects, inlined under the `cmake/` folder. You can use the same approach in your own project, but check [installation](#installation) first, or the [examples](examples/).
 
 ## Requirements
 
@@ -39,17 +39,43 @@ This project requires some other cmake [projects](https://github.com/jkammerland
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
-The `target_install_package()` function now uses a simplified and predictable template selection:
-1. User-provided `CONFIG_TEMPLATE` parameter — absolute or relative path to a CMake config template file. If provided but not found, configuration fails.
-2. Fallback to the built-in generic template: `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in)).
+The canonical template-resolution algorithm is documented in [Config Template Resolution - Source of truth](docs/template_resolution.md#source-of-truth).
 
-Auto-discovery of export-specific templates (e.g., searching the target or script `cmake/` directories for `<ExportName>Config.cmake.in`) has been removed. Declare `CONFIG_TEMPLATE` explicitly if you need a custom template; otherwise, the generic template is used.
+Summary:
+1. If `CONFIG_TEMPLATE` is provided, it must exist or configuration fails.
+2. Otherwise, `target_install_package()` uses `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in)).
+3. Auto-discovery of export-specific templates (for example `<ExportName>Config.cmake.in`) is not performed.
 
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
 >[!NOTE]
 > `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
+
+### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
+`target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
+
+- `fhs` = Filesystem Hierarchy Standard (FHS) layout aligned with system package conventions (`DEB`/`RPM`): no configuration-specific subdirectories and standard `bin/`, `lib*/`, and `share/` destinations.
+- `split_debug` = only Debug artifacts go under `debug/`.
+- `split_all` = all configurations are installed under `<config>/` subdirectories.
+
+See [Default Installation Directories](docs/default_install_dirs.md#install-layout-policy) for full behavior and packaging notes.
+
+### Packaging LICENSE and Notice Files
+For most projects, `ADDITIONAL_FILES` is enough to ship legal/compliance files:
+
+```cmake
+target_install_package(my_library
+  ADDITIONAL_FILES
+    "LICENSE"
+    "NOTICE"
+    "docs/THIRD_PARTY_NOTICES.md"
+  ADDITIONAL_FILES_DESTINATION
+    "${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME}"
+)
+```
+
+`target_install_package()` does not define a built-in manifest format. If you need stricter traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
 ## Table of Contents
 
@@ -78,14 +104,14 @@ Auto-discovery of export-specific templates (e.g., searching the target or scrip
 
 ## Features
 
-- Templated source file configuration with proper include paths
+- Modern feel target centric API with less boilerplate
 - Package installation with CMake config file generation
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
-- Support for modern CMake including file sets and C++20 modules (CMake 3.25+)
-- Component-based installation with runtime/development separation
+- Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
+- Component-based installation with runtime/development/custom separation
 - Build variant support for debug/release/custom configurations
-- Destination paths for headers and configured files
+- Templated source file configuration with proper include paths
 
 ### Tips
 > [!TIP]
@@ -266,7 +292,7 @@ target_install_package(math_utils NAMESPACE Math::)
 This works with INTERFACE or SHARED library targets. Check the defaults in [target_install_package](target_install_package.cmake), which are printed when you use --log-level=DEBUG. 
 
 **What this creates:**
-- Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by cross-platform friendly **GNUInstallDirs**)
+- Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by the cross-platform **GNUInstallDirs** module)
 - Installs library to `${CMAKE_INSTALL_LIBDIR}` (GNUInstallDirs)
 - Creates `math_utils-config.cmake` and `math_utils-config-version.cmake`
 - Consumers can use: `find_package(math_utils REQUIRED)`

@@ -46,7 +46,7 @@ cxx=""
 
 # Dependency mode:
 # - CI default: FetchContent (matches GitHub workflow)
-# - Local default: prefer system packages (no network required)
+# - Local default: use system packages (no network required)
 use_fetchcontent=""
 
 while [[ $# -gt 0 ]]; do

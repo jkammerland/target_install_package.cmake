@@ -74,7 +74,9 @@ endif()
 #   VERSION                      - Version of the package (default: `${PROJECT_VERSION}`).
 #   COMPATIBILITY                - Version compatibility mode (default: "SameMajorVersion").
 #   EXPORT_NAME                  - Name of the CMake export file (default: `${TARGET_NAME}`).
-#   CONFIG_TEMPLATE              - Path to a CMake config template (default: auto-detected).
+#   CONFIG_TEMPLATE              - Optional path to a CMake config template.
+#                                  Source of truth for resolution order:
+#                                  docs/template_resolution.md#source-of-truth
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
@@ -176,6 +178,8 @@ endfunction(target_install_package)
 #     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
 #
 # See target_install_package() for parameter descriptions.
+# CONFIG_TEMPLATE resolution source of truth:
+# docs/template_resolution.md#source-of-truth
 # ~~~
 function(target_prepare_package TARGET_NAME)
   # Check for deprecated parameters BEFORE parsing
@@ -237,7 +241,7 @@ function(target_prepare_package TARGET_NAME)
 
   project_log(DEBUG "Preparing installation for '${TARGET_NAME}'...")
 
-  # Resolve install layout for this target Priority: per-target LAYOUT > global TIP_INSTALL_LAYOUT (cache) > FHS
+  # Resolve install layout for this target Priority: per-target LAYOUT > global TIP_INSTALL_LAYOUT (cache) > Filesystem Hierarchy Standard (FHS, system package conventions)
   set(_tip_layout "")
   if(ARG_LAYOUT)
     set(_tip_layout "${ARG_LAYOUT}")
@@ -882,7 +886,8 @@ function(finalize_package)
     # - ARCHIVE: Static libraries and Windows import libs → lib/
     #   (Import .lib files are development artifacts, not runtime)
     # ~~~
-    # Determine configuration subdirectory policy based on layout. Layout options: - fhs:           no config subdir - split_debug:   Debug under debug/, others no subdir - split_all:     all configs
+    # Determine configuration subdirectory policy based on layout. Layout options: - fhs:           no config subdir (standard system layout) - split_debug:   Debug under debug/, others no subdir - split_all:
+    # all configs
     # under lower-cased $<CONFIG>/ (guarded for empty)
     get_target_property(_tip_target_layout ${TARGET_NAME} TARGET_INSTALL_PACKAGE_LAYOUT)
     if(NOT _tip_target_layout)
@@ -1247,7 +1252,7 @@ endif()
     endforeach()
   endif()
 
-  # Determine config template location using EXPORT_NAME
+  # Source of truth for CONFIG_TEMPLATE resolution: docs/template_resolution.md#source-of-truth
   set(CONFIG_TEMPLATE_TO_USE "")
   if(CONFIG_TEMPLATE)
     if(EXISTS "${CONFIG_TEMPLATE}")
