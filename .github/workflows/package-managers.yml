@@ -1,0 +1,80 @@
+name: Package Manager Integration
+
+on:
+  push:
+    branches: [ "integration", "master" ]
+    paths:
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'packaging/vcpkg/**'
+      - 'ci/run.sh'
+      - 'ci/cmd/package-managers.sh'
+      - '.github/workflows/package-managers.yml'
+  pull_request:
+    branches: [ "integration", "master" ]
+    paths:
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'packaging/vcpkg/**'
+      - 'ci/run.sh'
+      - 'ci/cmd/package-managers.sh'
+      - '.github/workflows/package-managers.yml'
+  workflow_dispatch:
+
+jobs:
+  package-managers:
+    name: Conan + vcpkg (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Conan
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install "conan>=2.0,<3"
+          python -m conan --version
+
+      - name: Setup vcpkg (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          vcpkg_root="${RUNNER_TEMP}/vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "${vcpkg_root}"
+          "${vcpkg_root}/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=${vcpkg_root}" >> "${GITHUB_ENV}"
+          echo "${vcpkg_root}" >> "${GITHUB_PATH}"
+
+      - name: Setup vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $winRoot = Join-Path $env:RUNNER_TEMP "vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git $winRoot
+          & "$winRoot\bootstrap-vcpkg.bat" -disableMetrics
+
+          $posixRoot = $winRoot.Replace('\', '/')
+          "VCPKG_ROOT=$posixRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $posixRoot | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run package-manager suites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh package-managers --suite all
