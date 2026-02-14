@@ -68,7 +68,7 @@ target_install_package(mylib
 
 For legal/compliance files, a common destination is `${CMAKE_INSTALL_DATADIR}/licenses/<package>`.
 
-`ADDITIONAL_FILES` is usually enough. Use a manifest only when you need stricter packaging traceability (for example, CI validation that all required legal files are included, or audit/release evidence that points to a single authoritative file list).
+`target_install_package()` does not define a built-in manifest format. `ADDITIONAL_FILES` is usually enough; for stricter packaging traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
 ## Why These Defaults
 

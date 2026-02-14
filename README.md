@@ -14,7 +14,7 @@ find_package(my_library CONFIG REQUIRED)
 
 Most use cases require minimal configuration. The goal is to simplify this process while still allowing interleaving CMake installs and configuration.
 
-This project optionally use some other cmake projects, which have been inlined under the `cmake/` folder. You can do the same in your project, but check [installation](#installation) first, or the [examples](examples/).
+This project requires several CMake helper projects, inlined under the `cmake/` folder. You can use the same approach in your own project, but check [installation](#installation) first, or the [examples](examples/).
 
 ## Requirements
 
@@ -75,7 +75,7 @@ target_install_package(my_library
 )
 ```
 
-Use a manifest only when you need stricter traceability (for example, many files from different modules, CI checks that packaging inputs are complete, or audit artifacts). A manifest is optional; it is not required for normal package installs.
+`target_install_package()` does not define a built-in manifest format. If you need stricter traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
 ## Table of Contents
 
@@ -108,7 +108,7 @@ Use a manifest only when you need stricter traceability (for example, many files
 - Package installation with CMake config file generation
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
-- Automatic install rules from file sets and C++20 modules (CMake 3.25+)
+- Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
 - Component-based installation with runtime/development/custom separation
 - Build variant support for debug/release/custom configurations
 - Templated source file configuration with proper include paths
@@ -292,7 +292,7 @@ target_install_package(math_utils NAMESPACE Math::)
 This works with INTERFACE or SHARED library targets. Check the defaults in [target_install_package](target_install_package.cmake), which are printed when you use --log-level=DEBUG. 
 
 **What this creates:**
-- Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by cross-platform friendly **GNUInstallDirs**)
+- Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by the cross-platform **GNUInstallDirs** module)
 - Installs library to `${CMAKE_INSTALL_LIBDIR}` (GNUInstallDirs)
 - Creates `math_utils-config.cmake` and `math_utils-config-version.cmake`
 - Consumers can use: `find_package(math_utils REQUIRED)`
