@@ -12,7 +12,7 @@ target_install_package(my_library)
 find_package(my_library CONFIG REQUIRED)
 ```
 
-Most use cases require minimal configuration. The goal is to simplify this process while still allowing interleaving CMake installs and configuration.
+Most use cases require minimal configuration. The goal is to simplify this workflow while preserving the ability to interleave configuration and installation steps.
 
 This project requires several CMake helper projects, inlined under the `cmake/` folder. You can use the same approach in your own project, but check [installation](#installation) first, or the [examples](examples/).
 
