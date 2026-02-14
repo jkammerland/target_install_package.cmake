@@ -98,6 +98,63 @@ detect_vcpkg_exe() {
   ci_die "Unable to find vcpkg executable. Use --vcpkg-exe <path> or set VCPKG_ROOT."
 }
 
+resolve_vcpkg_root() {
+  local vcpkg_bin="$1"
+
+  if [[ -n "${VCPKG_ROOT:-}" ]]; then
+    local env_root
+    env_root="$(ci_abs_path "${VCPKG_ROOT}")"
+    if [[ -f "${env_root}/scripts/buildsystems/vcpkg.cmake" ]]; then
+      printf '%s\n' "${env_root}"
+      return 0
+    fi
+    ci_warn "VCPKG_ROOT is set but toolchain file was not found at ${env_root}/scripts/buildsystems/vcpkg.cmake; falling back to executable path"
+  fi
+
+  local resolved_bin="${vcpkg_bin}"
+  if ci_has_cmd realpath; then
+    local realpath_out=""
+    realpath_out="$(realpath "${vcpkg_bin}" 2>/dev/null || true)"
+    if [[ -n "${realpath_out}" ]]; then
+      resolved_bin="${realpath_out}"
+    fi
+  else
+    local py_bin=""
+    if py_bin="$(ci_python 2>/dev/null)"; then
+      local py_resolved=""
+      py_resolved="$("${py_bin}" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${vcpkg_bin}" 2>/dev/null || true)"
+      if [[ -n "${py_resolved}" ]]; then
+        resolved_bin="${py_resolved}"
+      fi
+    elif ci_has_cmd readlink; then
+      local link_out=""
+      link_out="$(readlink "${vcpkg_bin}" 2>/dev/null || true)"
+      if [[ -n "${link_out}" ]]; then
+        if [[ "${link_out}" == /* ]]; then
+          resolved_bin="${link_out}"
+        else
+          resolved_bin="$(cd "$(dirname "${vcpkg_bin}")" && cd "$(dirname "${link_out}")" && pwd)/$(basename "${link_out}")"
+        fi
+      fi
+    fi
+  fi
+
+  local candidate_root=""
+  candidate_root="$(cd "$(dirname "${resolved_bin}")" && pwd)"
+  if [[ -f "${candidate_root}/scripts/buildsystems/vcpkg.cmake" ]]; then
+    printf '%s\n' "${candidate_root}"
+    return 0
+  fi
+
+  candidate_root="$(cd "${candidate_root}/.." && pwd)"
+  if [[ -f "${candidate_root}/scripts/buildsystems/vcpkg.cmake" ]]; then
+    printf '%s\n' "${candidate_root}"
+    return 0
+  fi
+
+  return 1
+}
+
 run_conan_suite() {
   local conan_bin=""
   if ci_has_cmd conan; then
@@ -143,7 +200,9 @@ PY
 run_vcpkg_suite() {
   local vcpkg_bin vcpkg_root toolchain_file smoke_dir
   vcpkg_bin="$(detect_vcpkg_exe)"
-  vcpkg_root="$(cd "$(dirname "${vcpkg_bin}")" && pwd)"
+  if ! vcpkg_root="$(resolve_vcpkg_root "${vcpkg_bin}")"; then
+    ci_die "Unable to determine vcpkg root from '${vcpkg_bin}'. Set VCPKG_ROOT to your vcpkg installation root."
+  fi
   toolchain_file="${vcpkg_root}/scripts/buildsystems/vcpkg.cmake"
 
   if [[ ! -f "${toolchain_file}" ]]; then
