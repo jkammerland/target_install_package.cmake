@@ -29,7 +29,7 @@ Control how configuration variants (Debug, Release, etc.) are laid out on disk:
 
 Notes:
 - Libraries keep a `DEBUG_POSTFIX` by default, so Debug/Release can co-exist when layouts are shared.
-- For system packages (Debian packages, `DEB`, or RPM packages, `RPM`), prefer `TIP_INSTALL_LAYOUT=fhs` with `-DCMAKE_INSTALL_PREFIX=/usr`.
+- For system packages (Debian packages, `DEB`, or RPM packages, `RPM`), set `TIP_INSTALL_LAYOUT=fhs` and `-DCMAKE_INSTALL_PREFIX=/usr`.
 - `tar.gz` packages (`TGZ`) are staged via `DESTDIR` to avoid writing to real system paths.
 
 ## Platform-Specific Behavior

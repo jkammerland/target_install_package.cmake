@@ -460,7 +460,7 @@ MySecureLib-1.0.0-Linux.tar.gz.sha512
 **Purpose**: Identifies which GPG key to use for signing packages.
 
 ```cmake
-# Email address (recommended - match the key UID shown by `gpg --list-keys`)
+# Email address (use this when your key UID is an email address; match `gpg --list-keys`)
 GPG_SIGNING_KEY "maintainer@example.com"
 
 # Or key ID (8-character hex)

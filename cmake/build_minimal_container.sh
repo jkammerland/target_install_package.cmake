@@ -19,7 +19,7 @@ echo "Building container: $CONTAINER_NAME:$CONTAINER_TAG"
 
 # Find the main executable (check common staged layouts)
 # CPack with DESTDIR staging typically prefixes with /usr/local by default.
-# Search both component and non-component layouts and prefer "bin" locations.
+# Search both component and non-component layouts; check "bin" locations first.
 ENTRYPOINT=""
 for dir in \
     "$STAGING_DIR/Runtime/usr/local/bin" \

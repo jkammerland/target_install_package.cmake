@@ -121,7 +121,7 @@ int main() {
 ## Package "Benefits"
 
 > [!IMPORTANT]
-> Always prefer individual packages for each library when possible. Just less complex overall, unless there is a billion subprojects in, say a sdk.
+> Use individual packages per library by default. Use a shared multi-target export only when consumers need one coordinated SDK-style package with aligned versions and dependencies.
 
 ### Single Find Operation
 - One `find_package()` call gets all libraries

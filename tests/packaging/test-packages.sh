@@ -65,7 +65,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Detect container runtime (prefer podman if available)
+# Detect container runtime (use podman if available, otherwise docker)
 if command -v podman &> /dev/null; then
     CONTAINER_RUNTIME="podman"
     print_status "Using Podman as container runtime"
