@@ -21,6 +21,9 @@ include(../../CMakeLists.txt)
 # Create a library with C++20 modules
 add_library(math_modules STATIC)
 
+# Export C++20 requirement so module consumers get correct compile features.
+target_compile_features(math_modules PUBLIC cxx_std_20)
+
 # Add implementation sources
 target_sources(math_modules PRIVATE src/math_impl.cpp)
 

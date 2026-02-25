@@ -197,6 +197,15 @@ add_test(NAME examples_integration_test COMMAND test_examples_main)
 set_tests_properties(examples_integration_test PROPERTIES TIMEOUT 300 # 5 minute timeout
                                                           LABELS "integration")
 
+if(SHOULD_TEST_CXX_MODULES)
+  add_executable(test_math_modules_consumer test_math_modules_consumer.cpp)
+  target_link_libraries(test_math_modules_consumer PRIVATE MathModules::math_modules)
+  set_target_properties(test_math_modules_consumer PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES ON)
+  add_test(NAME examples_math_modules_consume_test COMMAND test_math_modules_consumer)
+  set_tests_properties(examples_math_modules_consume_test PROPERTIES TIMEOUT 120 LABELS "integration;modules")
+  message(STATUS "--- Module consumption test enabled for MathModules::math_modules ---")
+endif()
+
 # Add RPATH test to verify installed binaries can find their shared library dependencies
 find_program(
   RPATH_DEMO_EXECUTABLE
