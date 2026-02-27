@@ -234,6 +234,8 @@ cmake --install build --prefix /opt/cmake-utils
 
 This project installs itself via the `INCLUDE_ON_FIND_PACKAGE` option. See the main [CMakeLists.txt](CMakeLists.txt). An example of a pure cmake package.
 
+For package-manager recipes in this repository, see [Conan and vcpkg Integration](docs/package_managers.md).
+
 **Using the manually installed utilities:**
 
 ```cmake

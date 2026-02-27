@@ -1,0 +1,9 @@
+The package provides CMake utilities and an interface target.
+
+In your CMakeLists.txt:
+
+  find_package(target_install_package CONFIG REQUIRED)
+  # Commands are now available:
+  # - target_install_package(...)
+  # - target_configure_sources(...)
+  # - export_cpack(...)

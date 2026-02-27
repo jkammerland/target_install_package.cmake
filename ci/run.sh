@@ -16,6 +16,7 @@ Subcommands:
   main              Configure/build/test/install root project via presets
   consumer          Build/run consumer tests
   examples          Configure/build/test examples via examples/CMakePresets.json
+  package-managers  Run Conan + vcpkg packaging smoke workflows
   cpack             Run CPack integration/smoke workflows
   packaging-tests   Run packaging tests under tests/packaging
 
@@ -29,7 +30,7 @@ case "${subcommand}" in
     usage
     exit 0
     ;;
-  bootstrap|main|consumer|examples|cpack|packaging-tests)
+  bootstrap|main|consumer|examples|package-managers|cpack|packaging-tests)
     shift
     exec bash "${ci_dir}/cmd/${subcommand}.sh" "$@"
     ;;
