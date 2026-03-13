@@ -1,31 +1,11 @@
 @PACKAGE_INIT@
 
-function(find_component_dependencies package_name component_deps_string)
-    if(NOT ${package_name}_FIND_COMPONENTS OR NOT component_deps_string)
-        return()
-    endif()
-    
-    foreach(requested_comp IN LISTS ${package_name}_FIND_COMPONENTS)
-        # Use regex to find this component's dependencies
-        if(component_deps_string MATCHES "(^|;)${requested_comp}:([^;]*)")
-            string(REPLACE " " ";" deps_list "${CMAKE_MATCH_2}")
-            foreach(dep IN LISTS deps_list)
-                string(STRIP "${dep}" dep)
-                if(dep)
-                    find_dependency(${dep})
-                endif()
-            endforeach()
-        endif()
-    endforeach()
-endfunction()
-
-
 if(NOT COMMAND find_dependency)
   include(CMakeFindDependencyMacro)
 endif()
 
 # Component-dependent dependencies
-find_component_dependencies(@ARG_EXPORT_NAME@ "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@
 
 # Package global dependencies (always loaded regardless of components)
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@

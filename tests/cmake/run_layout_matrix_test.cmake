@@ -87,6 +87,19 @@ function(_tip_assert_any_file_contains needle)
   endif()
 endfunction()
 
+function(_tip_find_existing_path out_var)
+  foreach(path IN LISTS ARGN)
+    if(EXISTS "${path}")
+      set(${out_var}
+          "${path}"
+          PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  _tip_fail("Expected one of these paths to exist: ${ARGN}")
+endfunction()
+
 function(_tip_read_cache_entry cache_file key out_var)
   file(STRINGS "${cache_file}" _matching_lines REGEX "^${key}:")
   if(NOT _matching_lines)
@@ -120,11 +133,18 @@ if(NOT DEFINED TIP_LAYOUT_TEST_CONFIG OR TIP_LAYOUT_TEST_CONFIG STREQUAL "")
   set(TIP_LAYOUT_TEST_CONFIG "Debug")
 endif()
 
+if(WIN32)
+  set(_tip_executable_suffix ".exe")
+else()
+  set(_tip_executable_suffix "${CMAKE_EXECUTABLE_SUFFIX}")
+endif()
+
 set(_fixture_source_dir "${TIP_REPO_ROOT}/tests/layout-matrix")
 set(_case_root "${TIP_LAYOUT_TEST_ROOT}/${TIP_LAYOUT}")
 set(_build_dir "${_case_root}/build")
 set(_runtime_prefix "${_case_root}/runtime")
 set(_development_prefix "${_case_root}/development")
+set(_full_prefix "${_case_root}/full")
 
 file(REMOVE_RECURSE "${_case_root}")
 file(MAKE_DIRECTORY "${_case_root}")
@@ -189,6 +209,17 @@ _tip_run_step(
   "${_development_prefix}"
   --component
   "Layout_Development")
+_tip_run_step(
+  NAME
+  "install-full"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --install
+  "${_build_dir}"
+  --config
+  "${TIP_LAYOUT_TEST_CONFIG}"
+  --prefix
+  "${_full_prefix}")
 
 set(_cache_file "${_build_dir}/CMakeCache.txt")
 _tip_assert_exists("${_cache_file}")
@@ -225,6 +256,9 @@ set(_runtime_libdir "${_runtime_prefix}/${_layout_prefix}${_install_libdir}")
 set(_development_bindir "${_development_prefix}/${_layout_prefix}${_install_bindir}")
 set(_development_libdir "${_development_prefix}/${_layout_prefix}${_install_libdir}")
 set(_development_cmake_dir "${_development_prefix}/${_install_datadir}/cmake/layout_matrix")
+set(_full_bindir "${_full_prefix}/${_layout_prefix}${_install_bindir}")
+set(_full_libdir "${_full_prefix}/${_layout_prefix}${_install_libdir}")
+set(_full_cmake_dir "${_full_prefix}/${_install_datadir}/cmake/layout_matrix")
 
 set(_runtime_executable_pattern "layout_runner*")
 set(_shared_pattern "*layout_dynamic*")
@@ -266,5 +300,111 @@ _tip_assert_any_file_contains("${_import_prefix_literal}/${_layout_prefix}${_ins
 
 set(_current_list_dir_literal "\${CMAKE_CURRENT_LIST_DIR}")
 _tip_assert_file_contains("${_development_cmake_dir}/layout_matrixConfig.cmake" "include(\"${_current_list_dir_literal}/layout_matrixTargets.cmake\")")
+
+set(_installed_runner_candidates
+    "${_full_bindir}/layout_runner${_tip_executable_suffix}"
+    "${_full_bindir}/layout_runner")
+_tip_find_existing_path(_installed_runner ${_installed_runner_candidates})
+_tip_run_step(NAME "run-installed-layout-runner" COMMAND "${_installed_runner}")
+
+set(_consumer_dir "${_case_root}/consumer")
+set(_consumer_build_dir "${_consumer_dir}/build")
+file(MAKE_DIRECTORY "${_consumer_dir}")
+
+file(
+  WRITE
+  "${_consumer_dir}/CMakeLists.txt"
+  [=[
+cmake_minimum_required(VERSION 3.25)
+project(layout_matrix_consumer LANGUAGES CXX)
+
+find_package(layout_matrix CONFIG REQUIRED)
+
+add_executable(layout_matrix_consumer main.cpp)
+target_compile_features(layout_matrix_consumer PRIVATE cxx_std_17)
+target_link_libraries(layout_matrix_consumer PRIVATE layout_matrix::layout_archive layout_matrix::layout_dynamic)
+]=])
+
+file(
+  WRITE
+  "${_consumer_dir}/main.cpp"
+  [=[
+#include "layout/layout.hpp"
+
+int layout_archive_value();
+
+int main() {
+  return (layout_archive_value() == 11 && layout_dynamic_value() == 7) ? 0 : 1;
+}
+]=])
+
+set(_consumer_configure_command
+    "${CMAKE_COMMAND}"
+    -S
+    "${_consumer_dir}"
+    -B
+    "${_consumer_build_dir}"
+    "-DCMAKE_PREFIX_PATH=${_full_prefix}")
+if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
+  list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
+endif()
+if(DEFINED TIP_CMAKE_MAKE_PROGRAM AND NOT TIP_CMAKE_MAKE_PROGRAM STREQUAL "")
+  list(APPEND _consumer_configure_command "-DCMAKE_MAKE_PROGRAM=${TIP_CMAKE_MAKE_PROGRAM}")
+endif()
+if(DEFINED TIP_C_COMPILER AND NOT TIP_C_COMPILER STREQUAL "")
+  list(APPEND _consumer_configure_command "-DCMAKE_C_COMPILER=${TIP_C_COMPILER}")
+endif()
+if(DEFINED TIP_CXX_COMPILER AND NOT TIP_CXX_COMPILER STREQUAL "")
+  list(APPEND _consumer_configure_command "-DCMAKE_CXX_COMPILER=${TIP_CXX_COMPILER}")
+endif()
+if(DEFINED TIP_CMAKE_TOOLCHAIN_FILE AND NOT TIP_CMAKE_TOOLCHAIN_FILE STREQUAL "")
+  list(APPEND _consumer_configure_command "-DCMAKE_TOOLCHAIN_FILE=${TIP_CMAKE_TOOLCHAIN_FILE}")
+endif()
+if(DEFINED TIP_CMAKE_GENERATOR_PLATFORM AND NOT TIP_CMAKE_GENERATOR_PLATFORM STREQUAL "")
+  list(APPEND _consumer_configure_command "-A" "${TIP_CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(DEFINED TIP_CMAKE_GENERATOR_TOOLSET AND NOT TIP_CMAKE_GENERATOR_TOOLSET STREQUAL "")
+  list(APPEND _consumer_configure_command "-T" "${TIP_CMAKE_GENERATOR_TOOLSET}")
+endif()
+
+_tip_run_step(NAME "consumer-configure" COMMAND ${_consumer_configure_command})
+_tip_run_step(
+  NAME
+  "consumer-build"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${_consumer_build_dir}"
+  --config
+  "${TIP_LAYOUT_TEST_CONFIG}")
+
+set(_consumer_executable_candidates
+    "${_consumer_build_dir}/layout_matrix_consumer${_tip_executable_suffix}"
+    "${_consumer_build_dir}/${TIP_LAYOUT_TEST_CONFIG}/layout_matrix_consumer${_tip_executable_suffix}"
+    "${_consumer_build_dir}/layout_matrix_consumer"
+    "${_consumer_build_dir}/${TIP_LAYOUT_TEST_CONFIG}/layout_matrix_consumer")
+_tip_find_existing_path(_consumer_executable ${_consumer_executable_candidates})
+
+if(WIN32)
+  get_filename_component(_consumer_executable_dir "${_consumer_executable}" DIRECTORY)
+  file(GLOB _consumer_runtime_dlls "${_full_bindir}/${_shared_pattern}")
+  if(NOT _consumer_runtime_dlls)
+    _tip_fail("Expected at least one runtime DLL under '${_full_bindir}' matching '${_shared_pattern}'")
+  endif()
+  foreach(_consumer_runtime_dll IN LISTS _consumer_runtime_dlls)
+    _tip_run_step(
+      NAME
+      "consumer-copy-runtime-dll"
+      COMMAND
+      "${CMAKE_COMMAND}"
+      -E
+      copy_if_different
+      "${_consumer_runtime_dll}"
+      "${_consumer_executable_dir}")
+  endforeach()
+  _tip_run_step(NAME "consumer-run" COMMAND "${_consumer_executable}")
+else()
+  _tip_run_step(NAME "consumer-run" COMMAND "${_consumer_executable}")
+endif()
 
 message(STATUS "[layout-matrix] Layout '${TIP_LAYOUT}' assertions passed.")

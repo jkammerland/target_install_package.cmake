@@ -101,28 +101,21 @@ build_docker_image() {
 # Function to test Ubuntu package
 test_ubuntu() {
     print_status "Testing Ubuntu package..."
-    
-    # Find runtime package specifically
-    local deb_file=$(find "$PACKAGES_DIR" -name "*runtime*.deb" | head -1)
-    if [ -z "$deb_file" ]; then
-        # Fallback to any .deb file
-        deb_file=$(find "$PACKAGES_DIR" -name "*.deb" | head -1)
-    fi
-    
-    if [ -z "$deb_file" ]; then
+
+    if ! find "$PACKAGES_DIR" -name "*.deb" -print -quit | grep -q .; then
         print_error "No DEB package found in $PACKAGES_DIR"
         return 1
     fi
-    
-    print_status "Testing package: $(basename "$deb_file")"
+
+    print_status "Testing DEB packages from: $PACKAGES_DIR"
     
     build_docker_image "ubuntu" || return 1
     
     print_status "Running Ubuntu container test..."
     $CONTAINER_RUNTIME run --rm \
-    -v "$deb_file:/test/package.deb:Z" \
+    -v "$PACKAGES_DIR:/packages:Z" \
     "target-install-package-test:ubuntu" \
-    "/test/package.deb" || {
+    "/packages" || {
     print_error "Ubuntu test failed"
     return 1
     }
@@ -134,28 +127,21 @@ test_ubuntu() {
 # Function to test Fedora package
 test_fedora() {
     print_status "Testing Fedora package..."
-    
-    # Find runtime package specifically
-    local rpm_file=$(find "$PACKAGES_DIR" -name "*Runtime*.rpm" | head -1)
-    if [ -z "$rpm_file" ]; then
-        # Fallback to any .rpm file
-        rpm_file=$(find "$PACKAGES_DIR" -name "*.rpm" | head -1)
-    fi
-    
-    if [ -z "$rpm_file" ]; then
+
+    if ! find "$PACKAGES_DIR" -name "*.rpm" -print -quit | grep -q .; then
         print_error "No RPM package found in $PACKAGES_DIR"
         return 1
     fi
-    
-    print_status "Testing package: $(basename "$rpm_file")"
+
+    print_status "Testing RPM packages from: $PACKAGES_DIR"
     
     build_docker_image "fedora" || return 1
     
     print_status "Running Fedora container test..."
     $CONTAINER_RUNTIME run --rm \
-    -v "$rpm_file:/test/package.rpm:Z" \
+    -v "$PACKAGES_DIR:/packages:Z" \
     "target-install-package-test:fedora" \
-    "/test/package.rpm" || {
+    "/packages" || {
     print_error "Fedora test failed"
     return 1
     }
@@ -201,6 +187,7 @@ fi
 DISTRO=$1
 FAILED_TESTS=()
 PASSED_TESTS=()
+SKIPPED_TESTS=()
 
 # Run tests based on argument
 case $DISTRO in
@@ -211,13 +198,25 @@ case $DISTRO in
         test_fedora && PASSED_TESTS+=("fedora") || FAILED_TESTS+=("fedora")
         ;;
     alpine)
-        test_alpine && PASSED_TESTS+=("alpine") || FAILED_TESTS+=("alpine")
+        if test_alpine; then
+            SKIPPED_TESTS+=("alpine")
+        else
+            FAILED_TESTS+=("alpine")
+        fi
         ;;
     arch)
-        test_arch && PASSED_TESTS+=("arch") || FAILED_TESTS+=("arch")
+        if test_arch; then
+            SKIPPED_TESTS+=("arch")
+        else
+            FAILED_TESTS+=("arch")
+        fi
         ;;
     nix)
-        test_nix && PASSED_TESTS+=("nix") || FAILED_TESTS+=("nix")
+        if test_nix; then
+            SKIPPED_TESTS+=("nix")
+        else
+            FAILED_TESTS+=("nix")
+        fi
         ;;
     all)
         # Test all distributions
@@ -225,9 +224,9 @@ case $DISTRO in
             case $distro in
                 ubuntu) test_ubuntu && PASSED_TESTS+=("ubuntu") || FAILED_TESTS+=("ubuntu") ;;
                 fedora) test_fedora && PASSED_TESTS+=("fedora") || FAILED_TESTS+=("fedora") ;;
-                alpine) test_alpine && PASSED_TESTS+=("alpine") || FAILED_TESTS+=("alpine") ;;
-                arch) test_arch && PASSED_TESTS+=("arch") || FAILED_TESTS+=("arch") ;;
-                nix) test_nix && PASSED_TESTS+=("nix") || FAILED_TESTS+=("nix") ;;
+                alpine) if test_alpine; then SKIPPED_TESTS+=("alpine"); else FAILED_TESTS+=("alpine"); fi ;;
+                arch) if test_arch; then SKIPPED_TESTS+=("arch"); else FAILED_TESTS+=("arch"); fi ;;
+                nix) if test_nix; then SKIPPED_TESTS+=("nix"); else FAILED_TESTS+=("nix"); fi ;;
             esac
         done
         ;;
@@ -248,6 +247,14 @@ if [ ${#PASSED_TESTS[@]} -gt 0 ]; then
     print_success "Passed tests (${#PASSED_TESTS[@]}):"
     for test in "${PASSED_TESTS[@]}"; do
         echo "  ✓ $test"
+    done
+fi
+
+if [ ${#SKIPPED_TESTS[@]} -gt 0 ]; then
+    echo ""
+    print_warning "Skipped tests (${#SKIPPED_TESTS[@]}):"
+    for test in "${SKIPPED_TESTS[@]}"; do
+        echo "  - $test"
     done
 fi
 

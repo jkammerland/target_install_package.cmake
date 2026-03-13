@@ -292,6 +292,13 @@ CPP
 
   ci_log "==> Package-manager integration build"
   cmake --build "${pm_dir}/build"
+
+  ci_log "==> Package-manager integration run"
+  if ci_is_windows; then
+    "${pm_dir}/build/consumer.exe"
+  else
+    "${pm_dir}/build/consumer"
+  fi
 }
 
 case "${suite}" in
