@@ -39,12 +39,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
-The canonical template-resolution algorithm is documented in [Config Template Resolution - Source of truth](docs/template_resolution.md#source-of-truth).
-
-Summary:
-1. If `CONFIG_TEMPLATE` is provided, it must exist or configuration fails.
-2. Otherwise, `target_install_package()` uses `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in` ([Generic Config Template](cmake/generic-config.cmake.in)).
-3. Auto-discovery of export-specific templates (for example `<ExportName>Config.cmake.in`) is not performed.
+The template-resolution algorithm is documented in [Config Template Resolution - Source of truth](docs/template_resolution.md#source-of-truth).
 
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
@@ -170,7 +165,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v6.1.4
+  GIT_TAG v6.1.6
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -187,7 +182,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v6.1.4
+    GIT_TAG v6.1.6
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
