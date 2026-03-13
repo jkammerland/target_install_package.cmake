@@ -66,8 +66,21 @@ else
 fi
 
 # Verify no unexpected packages were created
-if (cd "${BUILD_DIR}" && ls SimpleLib-*.deb 1> /dev/null 2>&1); then
-  echo "⚠️  Unexpected DEB packages generated (this might be expected on some platforms)"
+shopt -s nullglob
+unexpected_packages=()
+for package_path in "${BUILD_DIR}"/SimpleLib-*; do
+  [[ -f "${package_path}" ]] || continue
+  case "$(basename "${package_path}")" in
+    *.tar.gz) ;;
+    *) unexpected_packages+=("$(basename "${package_path}")") ;;
+  esac
+done
+shopt -u nullglob
+
+if (( ${#unexpected_packages[@]} > 0 )); then
+  echo "❌ Unexpected packages generated:"
+  printf '  %s\n' "${unexpected_packages[@]}"
+  exit 1
 fi
 
 echo "✅ Single component test passed"

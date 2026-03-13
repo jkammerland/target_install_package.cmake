@@ -41,6 +41,6 @@ target_compile_features(layout_archive PUBLIC cxx_std_17)
 target_install_package(layout_archive EXPORT_NAME layout_matrix COMPONENT "Layout")
 
 add_executable(layout_runner src/layout_runner.cpp)
-target_link_libraries(layout_runner PRIVATE layout_archive)
+target_link_libraries(layout_runner PRIVATE layout_archive layout_dynamic)
 target_compile_features(layout_runner PRIVATE cxx_std_17)
 target_install_package(layout_runner EXPORT_NAME layout_matrix COMPONENT "Layout")

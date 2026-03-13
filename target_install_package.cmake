@@ -146,6 +146,50 @@ function(target_install_package TARGET_NAME)
   # The actual finalization happens at the end of the configuration (CMAKE_SOURCE_DIR)
   # ~~~
 endfunction(target_install_package)
+
+function(_tip_resolve_absolute_paths RESULT_VAR BASE_DIR)
+  set(_tip_resolved_paths "")
+  foreach(_tip_path IN LISTS ARGN)
+    if(IS_ABSOLUTE "${_tip_path}")
+      list(APPEND _tip_resolved_paths "${_tip_path}")
+    else()
+      cmake_path(
+        ABSOLUTE_PATH
+        _tip_path
+        BASE_DIRECTORY
+        "${BASE_DIR}"
+        NORMALIZE
+        OUTPUT_VARIABLE
+        _tip_absolute_path)
+      list(APPEND _tip_resolved_paths "${_tip_absolute_path}")
+    endif()
+  endforeach()
+
+  set(${RESULT_VAR}
+      "${_tip_resolved_paths}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_SUFFIX VALUE DESCRIPTION)
+  get_property(_tip_existing GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}")
+
+  if(NOT DEFINED _tip_existing OR "${_tip_existing}" STREQUAL "")
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}" "${VALUE}")
+    return()
+  endif()
+
+  if(NOT "${VALUE}" STREQUAL "" AND NOT "${_tip_existing}" STREQUAL "${VALUE}")
+    project_log(FATAL_ERROR "Conflicting ${DESCRIPTION} for export '${EXPORT_NAME}': '${_tip_existing}' vs '${VALUE}'")
+  endif()
+endfunction()
+
+function(_tip_component_dependency_property_name OUT_VAR EXPORT_PROPERTY_PREFIX COMPONENT_NAME)
+  string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
+  set(${OUT_VAR}
+      "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_${_tip_component_hash}"
+      PARENT_SCOPE)
+endfunction()
+
 # ~~~
 # Prepare a CMake installation target for packaging.
 #
@@ -330,6 +374,15 @@ function(target_prepare_package TARGET_NAME)
   # Store configuration in global properties for finalize_package
   set(EXPORT_PROPERTY_PREFIX "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}")
 
+  if(ARG_CONFIG_TEMPLATE)
+    _tip_resolve_absolute_paths(ARG_CONFIG_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ARG_CONFIG_TEMPLATE}")
+    list(GET ARG_CONFIG_TEMPLATE 0 ARG_CONFIG_TEMPLATE)
+  endif()
+
+  if(ARG_INCLUDE_ON_FIND_PACKAGE)
+    _tip_resolve_absolute_paths(ARG_INCLUDE_ON_FIND_PACKAGE "${CMAKE_CURRENT_SOURCE_DIR}" ${ARG_INCLUDE_ON_FIND_PACKAGE})
+  endif()
+
   # Get existing targets for this export (if any)
   get_property(EXISTING_TARGETS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS")
   if(EXISTING_TARGETS)
@@ -359,16 +412,29 @@ function(target_prepare_package TARGET_NAME)
 
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE" "${ARG_NAMESPACE}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION" "${ARG_VERSION}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPATIBILITY" "${ARG_COMPATIBILITY}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_TEMPLATE" "${ARG_CONFIG_TEMPLATE}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CMAKE_CONFIG_DESTINATION" "${ARG_CMAKE_CONFIG_DESTINATION}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
-  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "NAMESPACE" "${ARG_NAMESPACE}" "namespace")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "VERSION" "${ARG_VERSION}" "version")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "COMPATIBILITY" "${ARG_COMPATIBILITY}" "compatibility")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CONFIG_TEMPLATE" "${ARG_CONFIG_TEMPLATE}" "config template")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}" "include destination")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}" "module destination")
+  _tip_store_export_property(
+    "${EXPORT_PROPERTY_PREFIX}"
+    "${ARG_EXPORT_NAME}"
+    "CMAKE_CONFIG_DESTINATION"
+    "${ARG_CMAKE_CONFIG_DESTINATION}"
+    "CMake config destination")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}" "debug postfix")
+
+  get_property(_tip_current_source_dir_set GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" SET)
+  if(NOT _tip_current_source_dir_set)
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
+  endif()
+
+  get_property(_tip_current_binary_dir_set GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" SET)
+  if(NOT _tip_current_binary_dir_set)
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
+  endif()
 
   # For config files, use the first target's development component as default
   get_property(EXISTING_CONFIG_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
@@ -474,11 +540,9 @@ function(target_prepare_package TARGET_NAME)
       list(APPEND _tip_normalized_component_deps "${_tip_component_name}" "${_tip_component_dep_list}")
     endwhile()
 
-    get_property(EXISTING_COMP_DEPS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
-    if(EXISTING_COMP_DEPS)
-      set(_tip_component_dep_pairs ${EXISTING_COMP_DEPS})
-    else()
-      set(_tip_component_dep_pairs "")
+    get_property(_tip_component_names GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_COMPONENTS")
+    if(NOT _tip_component_names)
+      set(_tip_component_names "")
     endif()
 
     list(LENGTH _tip_normalized_component_deps _tip_norm_count)
@@ -489,33 +553,34 @@ function(target_prepare_package TARGET_NAME)
       list(GET _tip_normalized_component_deps ${_tip_norm_index} _tip_dependencies)
       math(EXPR _tip_norm_index "${_tip_norm_index} + 1")
 
-      set(_tip_existing_index -1)
-      list(LENGTH _tip_component_dep_pairs _tip_pair_len)
-      set(_tip_pair_pos 0)
-      while(_tip_pair_pos LESS _tip_pair_len)
-        list(GET _tip_component_dep_pairs ${_tip_pair_pos} _tip_existing_component)
-        if(_tip_existing_component STREQUAL _tip_component)
-          set(_tip_existing_index ${_tip_pair_pos})
-          break()
-        endif()
-        math(EXPR _tip_pair_pos "${_tip_pair_pos} + 2")
-      endwhile()
-
-      if(_tip_existing_index EQUAL -1)
-        list(APPEND _tip_component_dep_pairs "${_tip_component}" "${_tip_dependencies}")
-      else()
-        math(EXPR _tip_value_index "${_tip_existing_index} + 1")
-        list(GET _tip_component_dep_pairs ${_tip_value_index} _tip_existing_deps)
-        set(_tip_dep_list "${_tip_existing_deps};${_tip_dependencies}")
-        set(_tip_dep_list_LIST ${_tip_dep_list})
-        list(REMOVE_DUPLICATES _tip_dep_list_LIST)
-        list(JOIN _tip_dep_list_LIST ";" _tip_joined_deps)
-        list(REMOVE_AT _tip_component_dep_pairs ${_tip_value_index})
-        list(INSERT _tip_component_dep_pairs ${_tip_value_index} "${_tip_joined_deps}")
+      if(NOT _tip_component IN_LIST _tip_component_names)
+        list(APPEND _tip_component_names "${_tip_component}")
       endif()
+
+      _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${_tip_component}")
+      get_property(_tip_existing_deps GLOBAL PROPERTY "${_tip_component_property}")
+
+      if(_tip_existing_deps)
+        set(_tip_dep_list ${_tip_existing_deps} ${_tip_dependencies})
+      else()
+        set(_tip_dep_list ${_tip_dependencies})
+      endif()
+
+      list(REMOVE_DUPLICATES _tip_dep_list)
+      set_property(GLOBAL PROPERTY "${_tip_component_property}" "${_tip_dep_list}")
     endwhile()
 
-    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES" "${_tip_component_dep_pairs}")
+    if(_tip_component_names)
+      list(REMOVE_DUPLICATES _tip_component_names)
+      set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_COMPONENTS" "${_tip_component_names}")
+    endif()
+
+    set(_tip_component_dep_pairs "")
+    foreach(_tip_component ${_tip_component_names})
+      _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${_tip_component}")
+      get_property(_tip_component_deps GLOBAL PROPERTY "${_tip_component_property}")
+      list(APPEND _tip_component_dep_pairs "${_tip_component}" "${_tip_component_deps}")
+    endforeach()
     project_log(DEBUG "  Component dependencies for export '${ARG_EXPORT_NAME}': ${_tip_component_dep_pairs}")
   endif()
 
@@ -773,7 +838,7 @@ function(finalize_package)
   get_property(CURRENT_BINARY_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR")
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(INCLUDE_ON_FIND_PACKAGE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
-  get_property(COMPONENT_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCIES")
+  get_property(COMPONENT_DEPENDENCY_COMPONENTS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_COMPONENTS")
   get_property(DEBUG_POSTFIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX")
 
   # Collect component information for logging and debugging
@@ -959,37 +1024,8 @@ function(finalize_package)
       endif()
     endif()
 
-    # Helper function to detect system installation prefixes
-    function(is_system_install_prefix result)
-      set(SYSTEM_PREFIXES "/usr" "/usr/local" "/System" # macOS system paths
-                          "/Library" # macOS system paths
-      )
-
-      # Windows system paths
-      if(WIN32)
-        list(APPEND SYSTEM_PREFIXES "C:/Program Files" "C:/Program Files (x86)" "${SYSTEMROOT}/System32")
-      endif()
-
-      get_filename_component(NORMALIZED_PREFIX "${CMAKE_INSTALL_PREFIX}" REALPATH)
-
-      foreach(prefix ${SYSTEM_PREFIXES})
-        get_filename_component(NORMALIZED_SYSTEM_PREFIX "${prefix}" REALPATH)
-        if(NORMALIZED_PREFIX STREQUAL NORMALIZED_SYSTEM_PREFIX OR NORMALIZED_PREFIX MATCHES "^${NORMALIZED_SYSTEM_PREFIX}/")
-          set(${result}
-              TRUE
-              PARENT_SCOPE)
-          return()
-        endif()
-      endforeach()
-
-      set(${result}
-          FALSE
-          PARENT_SCOPE)
-    endfunction()
-
     # Configure RPATH for Unix/Linux/macOS if not disabled
     get_target_property(TARGET_DISABLE_RPATH ${TARGET_NAME} TARGET_INSTALL_PACKAGE_DISABLE_RPATH)
-    is_system_install_prefix(IS_SYSTEM_INSTALL)
 
     if(WIN32)
       project_log(DEBUG "Skipping RPATH configuration on Windows for '${TARGET_NAME}'")
@@ -997,14 +1033,9 @@ function(finalize_package)
       project_log(DEBUG "Skipping RPATH due to CMAKE_SKIP_INSTALL_RPATH for '${TARGET_NAME}'")
     elseif(TARGET_DISABLE_RPATH)
       project_log(DEBUG "Skipping RPATH due to DISABLE_RPATH parameter for '${TARGET_NAME}'")
-    elseif(IS_SYSTEM_INSTALL)
-      project_log(DEBUG "Skipping RPATH for system installation to '${CMAKE_INSTALL_PREFIX}' for '${TARGET_NAME}'")
     endif()
 
-    if(NOT WIN32
-       AND NOT CMAKE_SKIP_INSTALL_RPATH
-       AND NOT TARGET_DISABLE_RPATH
-       AND NOT IS_SYSTEM_INSTALL)
+    if(NOT WIN32 AND NOT CMAKE_SKIP_INSTALL_RPATH AND NOT TARGET_DISABLE_RPATH)
       get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
 
       if(TARGET_TYPE STREQUAL "EXECUTABLE" OR TARGET_TYPE STREQUAL "SHARED_LIBRARY")
@@ -1080,59 +1111,11 @@ function(finalize_package)
           list(REMOVE_DUPLICATES DEFAULT_RPATHS)
 
           if(DEFAULT_RPATHS)
-            set(DEFAULT_RPATH_LINK_OPTIONS)
-            foreach(RPATH_ENTRY ${DEFAULT_RPATHS})
-              list(APPEND DEFAULT_RPATH_LINK_OPTIONS "-Wl,-rpath,${RPATH_ENTRY}")
-            endforeach()
-
-            if(DEFAULT_RPATH_LINK_OPTIONS)
-              target_link_options(${TARGET_NAME} PRIVATE ${DEFAULT_RPATH_LINK_OPTIONS})
-            endif()
-
-            get_target_property(_tip_skip_install_rpath ${TARGET_NAME} SKIP_INSTALL_RPATH)
-            if(NOT _tip_skip_install_rpath)
-              set_target_properties(${TARGET_NAME} PROPERTIES SKIP_INSTALL_RPATH TRUE)
-            endif()
-
-            get_target_property(_tip_skip_install_rpath ${TARGET_NAME} SKIP_INSTALL_RPATH)
-            project_log(DEBUG "SKIP_INSTALL_RPATH for '${TARGET_NAME}': ${_tip_skip_install_rpath}")
+            set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "${DEFAULT_RPATHS}")
 
             set_property(TARGET ${TARGET_NAME} PROPERTY TARGET_INSTALL_PACKAGE_COMPUTED_RPATHS "${DEFAULT_RPATHS}")
 
-            project_log(DEBUG "Configured default RPATH for '${TARGET_NAME}': ${DEFAULT_RPATHS}")
-
-            if(APPLE)
-              set(_tip_rpath_cleanup_dest)
-              if(TARGET_TYPE STREQUAL "EXECUTABLE")
-                set(_tip_rpath_cleanup_dest "${CMAKE_INSTALL_BINDIR}")
-              elseif(TARGET_TYPE STREQUAL "SHARED_LIBRARY")
-                set(_tip_rpath_cleanup_dest "${CMAKE_INSTALL_LIBDIR}")
-              endif()
-
-              if(_tip_rpath_cleanup_dest)
-                set(_tip_cleanup_code_template
-                    [=[
-set(_tip_prefix "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
-set(_tip_dest_dir "@TIP_DEST_DIR@")
-set(_tip_target_name "$<TARGET_FILE_NAME:@TIP_TARGET@>")
-if(_tip_dest_dir STREQUAL "")
-  cmake_path(APPEND _tip_prefix "${_tip_target_name}" OUTPUT_VARIABLE _tip_dest_path)
-else()
-  cmake_path(APPEND _tip_prefix "${_tip_dest_dir}" "${_tip_target_name}" OUTPUT_VARIABLE _tip_dest_path)
-endif()
-cmake_path(NORMAL_PATH _tip_dest_path)
-if(EXISTS "${_tip_dest_path}" AND NOT IS_SYMLINK "${_tip_dest_path}")
-  file(REMOVE "${_tip_dest_path}")
-endif()
-]=])
-                set(TIP_DEST_DIR "${_tip_rpath_cleanup_dest}")
-                set(TIP_TARGET "${TARGET_NAME}")
-                string(CONFIGURE "${_tip_cleanup_code_template}" _tip_cleanup_code @ONLY)
-                install(CODE "${_tip_cleanup_code}")
-                unset(_tip_cleanup_code)
-                unset(_tip_cleanup_code_template)
-              endif()
-            endif()
+            project_log(DEBUG "Configured default INSTALL_RPATH for '${TARGET_NAME}': ${DEFAULT_RPATHS}")
           endif()
         else()
           if(TARGET_RPATH)
@@ -1224,23 +1207,27 @@ endif()
 
   # Prepare component dependencies content for template substitution
   set(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "")
-  if(COMPONENT_DEPENDENCIES)
-    # Process component:dependencies pairs and format for template
-    list(LENGTH COMPONENT_DEPENDENCIES comp_deps_count)
-    math(EXPR max_index "${comp_deps_count} - 1")
-    set(index 0)
-    while(index LESS_EQUAL max_index)
-      list(GET COMPONENT_DEPENDENCIES ${index} component_name)
-      math(EXPR index "${index} + 1")
-      list(GET COMPONENT_DEPENDENCIES ${index} component_deps)
-      math(EXPR index "${index} + 1")
+  if(COMPONENT_DEPENDENCY_COMPONENTS)
+    set(_tip_known_find_components "")
+    foreach(component_name ${COMPONENT_DEPENDENCY_COMPONENTS})
+      _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${component_name}")
+      get_property(component_deps GLOBAL PROPERTY "${_tip_component_property}")
+      list(APPEND _tip_known_find_components "${component_name}")
+      string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "if(\"${component_name}\" IN_LIST ${ARG_EXPORT_NAME}_FIND_COMPONENTS)\n")
+      string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  set(${ARG_EXPORT_NAME}_${component_name}_FOUND TRUE)\n")
 
-      if(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT)
-        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT ";")
-      endif()
-      string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "${component_name}:${component_deps}")
-    endwhile()
-    project_log(VERBOSE "Component dependencies for export '${ARG_EXPORT_NAME}': ${PACKAGE_COMPONENT_DEPENDENCIES_CONTENT}")
+      set(_tip_component_dep_list ${component_deps})
+      foreach(component_dep IN LISTS _tip_component_dep_list)
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  find_dependency(${component_dep})\n")
+      endforeach()
+
+      string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "endif()\n")
+    endforeach()
+
+    if(_tip_known_find_components)
+      list(REMOVE_DUPLICATES _tip_known_find_components)
+      project_log(VERBOSE "Component dependencies for export '${ARG_EXPORT_NAME}' apply to find_package components: ${_tip_known_find_components}")
+    endif()
   endif()
 
   # Store component information for config template
@@ -1301,7 +1288,12 @@ endif()
   endif()
 
   # Validate template contains required placeholders for provided parameters
-  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${PUBLIC_DEPENDENCIES}" "${COMPONENT_DEPENDENCIES}")
+  _validate_config_template_placeholders(
+    "${CONFIG_TEMPLATE_TO_USE}"
+    "${ARG_EXPORT_NAME}"
+    "${INCLUDE_ON_FIND_PACKAGE}"
+    "${PUBLIC_DEPENDENCIES}"
+    "${COMPONENT_DEPENDENCY_COMPONENTS}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")

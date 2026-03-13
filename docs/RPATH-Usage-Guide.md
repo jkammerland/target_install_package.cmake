@@ -71,38 +71,29 @@ target_install_package(myexe)
 
 ## Advanced Configuration
 
-### Automatic System Installation Detection
+### Prefix Overrides And System Packaging
 
-RPATH is automatically skipped when installing to system directories, as these are already in the system's default library search path:
-
-**System directories (RPATH automatically skipped):**
-- `/usr` and subdirectories (e.g., `/usr/local`, `/usr/local/myapp`)
-- `/System` and `/Library` (macOS)
-- `C:/Program Files` (Windows)
-
-**Non-system directories (RPATH automatically configured):**
-- `/opt/myapp`
-- `$HOME/.local`
-- Custom paths like `./install`
+Default install RPATH entries are always computed from the install layout, not from an absolute configured prefix. That keeps relocatable installs working even when you configure with the default `/usr/local` and later use `cmake --install --prefix <dir>`.
 
 ```bash
-# System installation - no RPATH needed
-cmake -DCMAKE_INSTALL_PREFIX=/usr/local
-# Debug output: "Skipping RPATH for system installation to '/usr/local'"
+# Configure with the default prefix
+cmake -B build
 
-# Custom installation - RPATH configured
-cmake -DCMAKE_INSTALL_PREFIX=/opt/myapp  
-# Debug output: "Set default INSTALL_RPATH for 'target': $ORIGIN/../lib:$ORIGIN/../lib64"
+# Install somewhere relocatable later
+cmake --install build --prefix /opt/myapp
+# Result: binaries still use relative INSTALL_RPATH entries such as $ORIGIN/../lib
 ```
+
+If you are producing a system package and want to rely only on the platform loader defaults, disable install RPATH explicitly with `DISABLE_RPATH` or `CMAKE_SKIP_INSTALL_RPATH`.
 
 ### Disable RPATH for System Libraries
 
-For libraries intended for system-wide installation:
+For libraries intended for system-wide installation without install RPATH:
 
 ```cmake
 target_install_package(system_library
   DISABLE_RPATH)
-# Result: No RPATH set, relies on system library paths
+# Result: No install RPATH is set; runtime lookup relies on system library paths
 ```
 
 ### Include Linked Library Directories

@@ -1,0 +1,91 @@
+{
+  "version": 7,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "gcc-dev",
+      "displayName": "GCC dev build",
+      "description": "Primary build with GCC",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-gcc",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/gcc",
+        "CMAKE_CXX_COMPILER": "/usr/bin/g++"
+      }
+    },
+    {
+      "name": "clangd-db",
+      "displayName": "Clang compile database",
+      "description": "Clang-compatible build tree used by clangd",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-clang",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "gcc-dev",
+      "configurePreset": "gcc-dev",
+      "jobs": 16
+    },
+    {
+      "name": "gcc-install",
+      "configurePreset": "gcc-dev",
+      "jobs": 16,
+      "targets": [
+        "install"
+      ]
+    },
+    {
+      "name": "clangd-db",
+      "configurePreset": "clangd-db",
+      "jobs": 16
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "gcc-dev",
+      "displayName": "Configure + build with GCC",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gcc-dev"
+        },
+        {
+          "type": "build",
+          "name": "gcc-dev"
+        }
+      ]
+    },
+    {
+      "name": "clangd-db",
+      "displayName": "Configure + build clangd database tree",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "clangd-db"
+        },
+        {
+          "type": "build",
+          "name": "clangd-db"
+        }
+      ]
+    }
+  ]
+}

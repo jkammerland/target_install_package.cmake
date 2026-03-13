@@ -195,6 +195,20 @@ function(_tip_store_cpack_var var_name var_value)
   endif()
 endfunction()
 
+function(_tip_append_cpack_list_var_unique var_name)
+  get_property(current_value GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}")
+  set(updated_value "${current_value}")
+  foreach(item ${ARGN})
+    if(NOT item)
+      continue()
+    endif()
+    if(NOT item IN_LIST updated_value)
+      list(APPEND updated_value "${item}")
+    endif()
+  endforeach()
+  _tip_store_cpack_var("${var_name}" "${updated_value}")
+endfunction()
+
 # Helper function to determine if component groups should be auto-enabled Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development or Core_Runtime/Core_Development)
 function(_should_auto_enable_component_groups component_list)
   foreach(component ${component_list})
@@ -682,6 +696,34 @@ function(_execute_deferred_cpack_config)
         _tip_store_cpack_var("${var_name}" "${var_value}")
       endforeach()
     endif()
+  endif()
+
+  if("RPM" IN_LIST ARG_GENERATORS)
+    set(_tip_rpm_excluded_dirs "")
+    foreach(relative_dir
+            ""
+            "${CMAKE_INSTALL_BINDIR}"
+            "${CMAKE_INSTALL_INCLUDEDIR}"
+            "${CMAKE_INSTALL_LIBDIR}"
+            "${CMAKE_INSTALL_DATADIR}")
+      if(relative_dir)
+        cmake_path(APPEND CMAKE_INSTALL_PREFIX "${relative_dir}" OUTPUT_VARIABLE absolute_dir)
+      else()
+        set(absolute_dir "${CMAKE_INSTALL_PREFIX}")
+      endif()
+      list(APPEND _tip_rpm_excluded_dirs "${absolute_dir}")
+    endforeach()
+
+    foreach(config_parent_relative_dir
+            "${CMAKE_INSTALL_DATADIR}/cmake"
+            "${CMAKE_INSTALL_LIBDIR}/cmake"
+            "lib/cmake"
+            "lib64/cmake")
+      cmake_path(APPEND CMAKE_INSTALL_PREFIX "${config_parent_relative_dir}" OUTPUT_VARIABLE absolute_dir)
+      list(APPEND _tip_rpm_excluded_dirs "${absolute_dir}")
+    endforeach()
+
+    _tip_append_cpack_list_var_unique(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION ${_tip_rpm_excluded_dirs})
   endif()
 
   # Configure GPG signing if requested (must be before variable application)

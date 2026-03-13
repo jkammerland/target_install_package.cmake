@@ -7,7 +7,7 @@ Demonstrates automatic RPATH configuration for relocatable installations.
 - Automatic RPATH configuration (`$ORIGIN/../lib:$ORIGIN/../lib64` on Linux)
 - Relocatable installations that work without `LD_LIBRARY_PATH`
 - `DISABLE_RPATH` parameter functionality
-- Automatic system installation detection (skips RPATH for `/usr`, `/usr/local`, etc.)
+- Prefix-agnostic relative `INSTALL_RPATH` entries that still work with `cmake --install --prefix`
 
 ## Build and Test
 
@@ -43,16 +43,15 @@ target_install_package(mylib DISABLE_RPATH)
 
 The library will be installed without RPATH, while the executable retains it.
 
-## System Installation Test
+## Prefix Override Test
 
-Test automatic system installation detection:
+Test that relocatable install RPATH survives a later `--prefix` override:
 
 ```bash
-# This will skip RPATH (system directory)
-cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local --log-level=DEBUG
-# Look for: "Skipping RPATH for system installation to '/usr/local'"
+cmake -B build --log-level=DEBUG
+cmake --build build
+cmake --install build --prefix /opt/myapp
 
-# This will set RPATH (custom directory)  
-cmake -B build -DCMAKE_INSTALL_PREFIX=/opt/myapp --log-level=DEBUG
-# Look for: "Set default INSTALL_RPATH for 'target': $ORIGIN/../lib:$ORIGIN/../lib64"
+# Look for relative install RPATH entries
+readelf -d /opt/myapp/bin/rpath_demo | grep RUNPATH
 ```
