@@ -104,7 +104,7 @@ install/
 │       ├── core.h                        # Core_Development  
 │       └── dev_tools.h                   # Core_Development
 ├── lib64/
-│   ├── libmedia_core.so.6.1.4           # Core
+│   ├── libmedia_core.so.6.1.5           # Core
 │   ├── libmedia_core.so.5                # Core  
 │   ├── libmedia_core.so                  # Core (dev symlink)
 │   └── libmedia_dev_tools.a              # Core_Development
@@ -121,7 +121,7 @@ install/
 
 **Core Runtime Only** (minimal deployment):
 ```
-install/lib64/libmedia_core.so.6.1.4
+install/lib64/libmedia_core.so.6.1.5
 ```
 
 **Tools Runtime Only**:
