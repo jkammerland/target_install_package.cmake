@@ -183,6 +183,13 @@ function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_
   endif()
 endfunction()
 
+function(_tip_component_dependency_property_name OUT_VAR EXPORT_PROPERTY_PREFIX COMPONENT_NAME)
+  string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
+  set(${OUT_VAR}
+      "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_${_tip_component_hash}"
+      PARENT_SCOPE)
+endfunction()
+
 # ~~~
 # Prepare a CMake installation target for packaging.
 #
@@ -550,8 +557,7 @@ function(target_prepare_package TARGET_NAME)
         list(APPEND _tip_component_names "${_tip_component}")
       endif()
 
-      string(MAKE_C_IDENTIFIER "${_tip_component}" _tip_component_key)
-      set(_tip_component_property "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_${_tip_component_key}")
+      _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${_tip_component}")
       get_property(_tip_existing_deps GLOBAL PROPERTY "${_tip_component_property}")
 
       if(_tip_existing_deps)
@@ -571,8 +577,8 @@ function(target_prepare_package TARGET_NAME)
 
     set(_tip_component_dep_pairs "")
     foreach(_tip_component ${_tip_component_names})
-      string(MAKE_C_IDENTIFIER "${_tip_component}" _tip_component_key)
-      get_property(_tip_component_deps GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_${_tip_component_key}")
+      _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${_tip_component}")
+      get_property(_tip_component_deps GLOBAL PROPERTY "${_tip_component_property}")
       list(APPEND _tip_component_dep_pairs "${_tip_component}" "${_tip_component_deps}")
     endforeach()
     project_log(DEBUG "  Component dependencies for export '${ARG_EXPORT_NAME}': ${_tip_component_dep_pairs}")
@@ -1204,8 +1210,8 @@ function(finalize_package)
   if(COMPONENT_DEPENDENCY_COMPONENTS)
     set(_tip_known_find_components "")
     foreach(component_name ${COMPONENT_DEPENDENCY_COMPONENTS})
-      string(MAKE_C_IDENTIFIER "${component_name}" _tip_component_key)
-      get_property(component_deps GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_${_tip_component_key}")
+      _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${component_name}")
+      get_property(component_deps GLOBAL PROPERTY "${_tip_component_property}")
       list(APPEND _tip_known_find_components "${component_name}")
       string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "if(\"${component_name}\" IN_LIST ${ARG_EXPORT_NAME}_FIND_COMPONENTS)\n")
       string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  set(${ARG_EXPORT_NAME}_${component_name}_FOUND TRUE)\n")

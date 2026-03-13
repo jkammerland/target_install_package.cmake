@@ -23,7 +23,9 @@ target_install_package(
   ComponentDeps::
   COMPONENT_DEPENDENCIES
   graphics
-  "DepA REQUIRED")
+  "DepA REQUIRED"
+  ui-core
+  "DepC REQUIRED")
 
 add_library(component_tools STATIC src/component_tools.cpp)
 target_compile_features(component_tools PUBLIC cxx_std_17)
@@ -35,4 +37,6 @@ target_install_package(
   ComponentDeps::
   COMPONENT_DEPENDENCIES
   graphics
-  "DepB REQUIRED")
+  "DepB REQUIRED"
+  ui_core
+  "DepD REQUIRED")
