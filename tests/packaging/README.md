@@ -1,27 +1,12 @@
 # Packaging Tests
 
-This directory contains Docker-based tests for verifying package installation across different Linux distributions.
+This directory contains container-based checks for the generated packaging artifacts.
 
 ## Overview
 
-The testing framework supports two packaging approaches:
-1. **CPack-based packages** (DEB for Ubuntu, RPM for Fedora) - Fully functional and tested
-2. **Universal packaging templates** (PKGBUILD for Arch, APKBUILD for Alpine, Nix expressions) - Templates only, require customization
-
-### Important Note on Universal Packaging
-
-The universal packaging templates are **template files** with placeholder values. They are not meant to be directly buildable without customization. Current limitations:
-
-- Source URLs use placeholder values (e.g., `https://github.com/example/cpack_lib`)
-- Templates require user customization before use
-- The test suite currently **skips these tests** as they're testing templates, not actual packages
-- Future improvements may include generating test-ready templates or more complete package generation
-
-For production use, users should:
-1. Replace placeholder URLs with actual source locations
-2. Update checksums with real values
-3. Customize metadata (maintainer, license, etc.)
-4. Test the customized templates in their target environments
+The current test coverage has two categories:
+1. **Generated CPack packages** (DEB for Ubuntu, RPM for Fedora), which are built and install-tested.
+2. **Placeholder distro entries** (Alpine, Arch, Nix), which exist to reserve future source-packaging coverage and are currently reported as skipped.
 
 ## Directory Structure
 
@@ -33,7 +18,7 @@ tests/packaging/
 │   ├── alpine/         # Alpine Linux test container
 │   ├── arch/           # Arch Linux test container
 │   └── nix/            # NixOS test container
-├── build-packages.sh   # Script to build all package types
+├── build-packages.sh   # Script to build the generated package artifacts
 ├── test-packages.sh    # Script to test packages in containers
 └── packages/           # Generated packages (created by build-packages.sh)
 ```
@@ -42,7 +27,7 @@ tests/packaging/
 
 ### 1. Build Packages
 
-First, generate all package types:
+First, generate the packages used by the tests:
 
 ```bash
 ./build-packages.sh
@@ -51,8 +36,7 @@ First, generate all package types:
 This will:
 - Build the `cpack-basic` example project
 - Generate DEB and RPM packages using CPack
-- Generate universal packaging templates for Arch, Alpine, and Nix
-- Create a source tarball for source-based packaging
+- Copy the generated package artifacts into `build/packaging/packages`
 
 ### 2. Test Packages
 
@@ -61,9 +45,9 @@ Test a specific distribution:
 ```bash
 ./test-packages.sh ubuntu   # Test DEB package on Ubuntu
 ./test-packages.sh fedora   # Test RPM package on Fedora
-./test-packages.sh alpine   # Test APKBUILD on Alpine
-./test-packages.sh arch     # Test PKGBUILD on Arch Linux
-./test-packages.sh nix      # Test Nix expression
+./test-packages.sh alpine   # Placeholder path, currently skipped
+./test-packages.sh arch     # Placeholder path, currently skipped
+./test-packages.sh nix      # Placeholder path, currently skipped
 ```
 
 Or test all distributions:
@@ -74,7 +58,7 @@ Or test all distributions:
 
 ## How It Works
 
-### CPack-based Testing (Ubuntu/Fedora)
+### Supported Install Tests (Ubuntu/Fedora)
 
 1. The container mounts the pre-built package (`.deb` or `.rpm`)
 2. Installs the package using the native package manager
@@ -84,16 +68,15 @@ Or test all distributions:
    - Executables
    - Package metadata
 
-### Universal Packaging Testing (Alpine/Arch/Nix)
+### Placeholder Distro Entries (Alpine/Arch/Nix)
 
-1. The container mounts the packaging template directory
-2. Builds the package from source using the template
-3. Installs the built package
-4. Performs the same verification steps
+1. The distro name remains available in the CLI and CI summary output
+2. The test run records the distro as skipped
+3. No package is built or installed for these distros yet
 
 ## Requirements
 
-- Docker
+- Docker or Podman for the Ubuntu/Fedora install tests
 - CMake 3.25+
 - A C++ compiler
 
@@ -105,7 +88,7 @@ To add support for a new distribution:
 2. Add a `Dockerfile` that sets up the build environment
 3. Add a `test.sh` script that handles package installation and verification
 4. Update `test-packages.sh` to include the new distribution
-5. If using universal packaging, add support in `target_configure_universal_packaging.cmake`
+5. Add a real package-generation and installation flow before enabling it in `test-packages.sh`
 
 ## Troubleshooting
 

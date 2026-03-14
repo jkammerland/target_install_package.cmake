@@ -4,7 +4,7 @@ project(basic_shared_example VERSION 2.1.0)
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(../../cmake/load_target_install_package.cmake)
 
 # Create a shared library
 add_library(string_utils SHARED)

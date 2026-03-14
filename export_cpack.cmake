@@ -64,6 +64,7 @@ endif()
 #     [PACKAGE_CONTACT <contact>]
 #     [PACKAGE_DESCRIPTION <description>]
 #     [PACKAGE_HOMEPAGE_URL <url>]
+#     [PACKAGE_LICENSE <license-id>]
 #     [LICENSE_FILE <path>]
 #     [GENERATORS <generator1> <generator2> ...]
 #     [COMPONENTS <component1> <component2> ...]
@@ -89,7 +90,8 @@ endif()
 #   PACKAGE_CONTACT         - Contact information (default: derived from maintainer info)
 #   PACKAGE_DESCRIPTION     - Package description (default: ${PROJECT_DESCRIPTION})
 #   PACKAGE_HOMEPAGE_URL    - Project homepage URL (default: ${PROJECT_HOMEPAGE_URL})
-#   LICENSE_FILE            - Path to license file (default: auto-detected)
+#   PACKAGE_LICENSE         - Package license identifier for package metadata such as RPM License: (default: Unknown)
+#   LICENSE_FILE            - Path to packaged license text/resource file (default: auto-detected)
 #   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
@@ -335,6 +337,51 @@ function(_configure_logical_component_groups component_list)
   endif()
 endfunction()
 
+# Helper function to map CMake system processor names to package manager architectures.
+function(_tip_detect_package_architecture system_processor out_canonical out_deb out_rpm out_known)
+  set(_TIP_ARCH_X64_PATTERNS "x86_64|AMD64|amd64")
+  set(_TIP_ARCH_X86_PATTERNS "i[3-6]86|x86")
+  set(_TIP_ARCH_ARM64_PATTERNS "aarch64|arm64|ARM64")
+  set(_TIP_ARCH_ARM32_PATTERNS "armv7.*|arm")
+
+  set(_TIP_ARCH_RECOGNIZED TRUE)
+  if("${system_processor}" MATCHES ${_TIP_ARCH_X64_PATTERNS})
+    set(_TIP_CANONICAL_ARCH "x64")
+    set(_TIP_DEBIAN_ARCH "amd64")
+    set(_TIP_RPM_ARCH "x86_64")
+  elseif("${system_processor}" MATCHES ${_TIP_ARCH_X86_PATTERNS})
+    set(_TIP_CANONICAL_ARCH "x86")
+    set(_TIP_DEBIAN_ARCH "i386")
+    set(_TIP_RPM_ARCH "i686")
+  elseif("${system_processor}" MATCHES ${_TIP_ARCH_ARM64_PATTERNS})
+    set(_TIP_CANONICAL_ARCH "arm64")
+    set(_TIP_DEBIAN_ARCH "arm64")
+    set(_TIP_RPM_ARCH "aarch64")
+  elseif("${system_processor}" MATCHES ${_TIP_ARCH_ARM32_PATTERNS})
+    set(_TIP_CANONICAL_ARCH "arm32")
+    set(_TIP_DEBIAN_ARCH "armhf")
+    set(_TIP_RPM_ARCH "armv7hl")
+  else()
+    set(_TIP_ARCH_RECOGNIZED FALSE)
+    set(_TIP_CANONICAL_ARCH "${system_processor}")
+    set(_TIP_DEBIAN_ARCH "${system_processor}")
+    set(_TIP_RPM_ARCH "${system_processor}")
+  endif()
+
+  set(${out_canonical}
+      "${_TIP_CANONICAL_ARCH}"
+      PARENT_SCOPE)
+  set(${out_deb}
+      "${_TIP_DEBIAN_ARCH}"
+      PARENT_SCOPE)
+  set(${out_rpm}
+      "${_TIP_RPM_ARCH}"
+      PARENT_SCOPE)
+  set(${out_known}
+      "${_TIP_ARCH_RECOGNIZED}"
+      PARENT_SCOPE)
+endfunction()
+
 # Internal function to execute the deferred CPack configuration
 function(_execute_deferred_cpack_config)
   get_property(args GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS")
@@ -351,6 +398,7 @@ function(_execute_deferred_cpack_config)
       PACKAGE_CONTACT
       PACKAGE_DESCRIPTION
       PACKAGE_HOMEPAGE_URL
+      PACKAGE_LICENSE
       LICENSE_FILE
       ARCHIVE_FORMAT
       GPG_SIGNING_KEY
@@ -603,38 +651,14 @@ function(_execute_deferred_cpack_config)
   endif()
 
   if(UNIX AND NOT APPLE)
-    # Unified architecture detection
-    set(_TIP_ARCH_X64_PATTERNS "x86_64|AMD64|amd64")
-    set(_TIP_ARCH_X86_PATTERNS "i[3-6]86|x86")
-    set(_TIP_ARCH_ARM64_PATTERNS "aarch64|arm64|ARM64")
-    set(_TIP_ARCH_ARM32_PATTERNS "armv7.*|arm")
-
-    # Detect canonical architecture
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X64_PATTERNS})
-      set(_TIP_CANONICAL_ARCH "x64")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X86_PATTERNS})
-      set(_TIP_CANONICAL_ARCH "x86")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM64_PATTERNS})
-      set(_TIP_CANONICAL_ARCH "arm64")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM32_PATTERNS})
-      set(_TIP_CANONICAL_ARCH "arm32")
-    else()
-      set(_TIP_CANONICAL_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
-    endif()
+    _tip_detect_package_architecture("${CMAKE_SYSTEM_PROCESSOR}" _TIP_CANONICAL_ARCH _TIP_DEBIAN_PACKAGE_ARCHITECTURE _TIP_RPM_PACKAGE_ARCHITECTURE _TIP_ARCH_RECOGNIZED)
 
     # Debian-specific settings
     _tip_store_cpack_var(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
     _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_PACKAGE_CONTACT}")
 
-    # Map canonical architecture to Debian architecture
-    if(_TIP_CANONICAL_ARCH STREQUAL "x64")
-      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
-    elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
-      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "i386")
-    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
-      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
-    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
-      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+    if(_TIP_ARCH_RECOGNIZED)
+      _tip_store_cpack_var(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${_TIP_DEBIAN_PACKAGE_ARCHITECTURE}")
     else()
       # Try dpkg if available for better detection
       find_program(DPKG_CMD dpkg)
@@ -656,22 +680,13 @@ function(_execute_deferred_cpack_config)
     # RPM-specific settings
     _tip_store_cpack_var(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_LICENSE "Unknown")
-    if(ARG_LICENSE_FILE)
-      _tip_store_cpack_var(CPACK_RPM_PACKAGE_LICENSE "${ARG_LICENSE_FILE}")
+    if(ARG_PACKAGE_LICENSE)
+      _tip_store_cpack_var(CPACK_RPM_PACKAGE_LICENSE "${ARG_PACKAGE_LICENSE}")
+    elseif(ARG_LICENSE_FILE)
+      project_log(VERBOSE "PACKAGE_LICENSE not set; RPM License metadata will remain 'Unknown' while LICENSE_FILE is used for packaged license text")
     endif()
 
-    # Map canonical architecture to RPM architecture
-    if(_TIP_CANONICAL_ARCH STREQUAL "x64")
-      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
-    elseif(_TIP_CANONICAL_ARCH STREQUAL "x86")
-      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "i686")
-    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm64")
-      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "aarch64")
-    elseif(_TIP_CANONICAL_ARCH STREQUAL "arm32")
-      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "armv7hl")
-    else()
-      _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
-    endif()
+    _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "${_TIP_RPM_PACKAGE_ARCHITECTURE}")
 
     # Set other RPM defaults
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
@@ -700,12 +715,7 @@ function(_execute_deferred_cpack_config)
 
   if("RPM" IN_LIST ARG_GENERATORS)
     set(_tip_rpm_excluded_dirs "")
-    foreach(relative_dir
-            ""
-            "${CMAKE_INSTALL_BINDIR}"
-            "${CMAKE_INSTALL_INCLUDEDIR}"
-            "${CMAKE_INSTALL_LIBDIR}"
-            "${CMAKE_INSTALL_DATADIR}")
+    foreach(relative_dir "" "${CMAKE_INSTALL_BINDIR}" "${CMAKE_INSTALL_INCLUDEDIR}" "${CMAKE_INSTALL_LIBDIR}" "${CMAKE_INSTALL_DATADIR}")
       if(relative_dir)
         cmake_path(APPEND CMAKE_INSTALL_PREFIX "${relative_dir}" OUTPUT_VARIABLE absolute_dir)
       else()
@@ -714,11 +724,7 @@ function(_execute_deferred_cpack_config)
       list(APPEND _tip_rpm_excluded_dirs "${absolute_dir}")
     endforeach()
 
-    foreach(config_parent_relative_dir
-            "${CMAKE_INSTALL_DATADIR}/cmake"
-            "${CMAKE_INSTALL_LIBDIR}/cmake"
-            "lib/cmake"
-            "lib64/cmake")
+    foreach(config_parent_relative_dir "${CMAKE_INSTALL_DATADIR}/cmake" "${CMAKE_INSTALL_LIBDIR}/cmake" "lib/cmake" "lib64/cmake")
       cmake_path(APPEND CMAKE_INSTALL_PREFIX "${config_parent_relative_dir}" OUTPUT_VARIABLE absolute_dir)
       list(APPEND _tip_rpm_excluded_dirs "${absolute_dir}")
     endforeach()

@@ -3,18 +3,8 @@ name: Packaging Tests
 on:
   push:
     branches: [ "master", "test-packaging" ]
-    paths:
-      - 'export_cpack.cmake'
-      - 'tests/packaging/**'
-      - 'examples/cpack-basic/**'
-      - '.github/workflows/packaging-tests.yml'
   pull_request:
     branches: [ "master" ]
-    paths:
-      - 'export_cpack.cmake'
-      - 'tests/packaging/**'
-      - 'examples/cpack-basic/**'
-      - '.github/workflows/packaging-tests.yml'
   workflow_dispatch:
 
 jobs:

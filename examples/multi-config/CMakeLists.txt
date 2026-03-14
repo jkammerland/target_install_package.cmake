@@ -4,7 +4,7 @@ project(multi_config_example VERSION 1.0.0)
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(../../cmake/load_target_install_package.cmake)
 
 # Create a shared library
 add_library(math_utils SHARED)
@@ -29,7 +29,11 @@ endif()
 target_compile_features(math_utils PUBLIC cxx_std_17)
 
 # Install the library as a package with multi-config support
-target_install_package(math_utils 
-  NAMESPACE Utils:: 
-  VERSION ${PROJECT_VERSION}
-  DEBUG_POSTFIX "d")
+target_install_package(
+  math_utils
+  NAMESPACE
+  Utils::
+  VERSION
+  ${PROJECT_VERSION}
+  DEBUG_POSTFIX
+  "d")

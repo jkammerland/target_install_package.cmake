@@ -41,12 +41,13 @@ usage() {
     echo "Available distros:"
     echo "  ubuntu    - Test Ubuntu/Debian package (.deb)"
     echo "  fedora    - Test Fedora/RHEL package (.rpm)"
-    echo "  alpine    - Test Alpine package (APKBUILD)"
-    echo "  arch      - Test Arch Linux package (PKGBUILD)"
-    echo "  nix       - Test Nix package (default.nix)"
-    echo "  all       - Test all distributions"
+    echo "  alpine    - Placeholder Alpine path (currently skipped)"
+    echo "  arch      - Placeholder Arch Linux path (currently skipped)"
+    echo "  nix       - Placeholder Nix path (currently skipped)"
+    echo "  all       - Run supported install tests and report placeholders as skipped"
     echo ""
     echo "Note: Packages must be built first using ./build-packages.sh"
+    echo "      Ubuntu/Fedora tests require Docker or Podman."
 }
 
 while [[ $# -gt 0 ]]; do
@@ -65,22 +66,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Detect container runtime (use podman if available, otherwise docker)
-if command -v podman &> /dev/null; then
-    CONTAINER_RUNTIME="podman"
-    print_status "Using Podman as container runtime"
-elif command -v docker &> /dev/null; then
-    CONTAINER_RUNTIME="docker"
-    print_status "Using Docker as container runtime"
-else
-    print_error "Neither Docker nor Podman is installed"
-    exit 1
-fi
+CONTAINER_RUNTIME=""
+
+ensure_container_runtime() {
+    if [ -n "$CONTAINER_RUNTIME" ]; then
+        return 0
+    fi
+
+    if command -v podman &> /dev/null; then
+        CONTAINER_RUNTIME="podman"
+        print_status "Using Podman as container runtime"
+    elif command -v docker &> /dev/null; then
+        CONTAINER_RUNTIME="docker"
+        print_status "Using Docker as container runtime"
+    else
+        print_error "Neither Docker nor Podman is installed"
+        return 1
+    fi
+}
 
 # Function to build Docker/Podman image
 build_docker_image() {
     local distro=$1
     local dockerfile="$DOCKER_DIR/$distro/Dockerfile"
+
+    ensure_container_runtime || return 1
     
     if [ ! -f "$dockerfile" ]; then
         print_error "Dockerfile not found: $dockerfile"
@@ -152,22 +162,19 @@ test_fedora() {
 
 # Function to test Alpine package
 test_alpine() {
-    print_warning "Skipping Alpine test - universal packaging templates are incomplete"
-    print_warning "The generated templates use placeholder URLs and need customization before use"
+    print_warning "Skipping Alpine test - no supported APK packaging flow exists yet"
     return 0
 }
 
 # Function to test Arch package
 test_arch() {
-    print_warning "Skipping Arch test - universal packaging templates are incomplete"
-    print_warning "The generated templates use placeholder URLs and need customization before use"
+    print_warning "Skipping Arch test - no supported PKGBUILD packaging flow exists yet"
     return 0
 }
 
 # Function to test Nix package
 test_nix() {
-    print_warning "Skipping Nix test - universal packaging templates are incomplete"
-    print_warning "The generated templates use placeholder URLs and need customization before use"
+    print_warning "Skipping Nix test - no supported Nix packaging flow exists yet"
     return 0
 }
 
@@ -267,7 +274,11 @@ if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
     exit 1
 else
     echo ""
-    print_success "All tests passed!"
+    if [ ${#SKIPPED_TESTS[@]} -gt 0 ]; then
+        print_success "All executed tests passed."
+    else
+        print_success "All tests passed!"
+    fi
 fi
 
 exit 0

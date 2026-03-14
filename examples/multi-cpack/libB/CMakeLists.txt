@@ -8,7 +8,7 @@ project(
 # Include target_install_package utilities if not already included
 if(NOT COMMAND target_install_package)
   set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-  include(../../../CMakeLists.txt)
+  include(../../../cmake/load_target_install_package.cmake)
 endif()
 
 # Find libA package (dependency) When building in the same project, libA targets are already available

@@ -65,19 +65,26 @@ The example uses `export_cpack()` with these settings:
 ```cmake
 export_cpack(
   PACKAGE_NAME "MyLibrary"
+  PACKAGE_VERSION "${PROJECT_VERSION}"
   PACKAGE_VENDOR "Example Corp"
   PACKAGE_CONTACT "support@example.com"
-  PACKAGE_HOMEPAGE_URL "https://example.com/mylib"
+  PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}"
+  PACKAGE_HOMEPAGE_URL "https://example.com/cpack_lib"
+  PACKAGE_LICENSE "MIT"
+  LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE"
   DEFAULT_COMPONENTS "Runtime"
   COMPONENT_GROUPS
 )
 ```
 
+`PACKAGE_LICENSE` supplies package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` installs the full license text into generated packages.
+`<libdir>` below resolves to the platform-appropriate library directory, typically `lib` or `lib64`.
+
 ### Auto-Detected Settings
 
 - **Components**: Automatically detected from target_install_package calls
-  - `Runtime` (from mylib shared library)
-  - `Development` (from mylib headers and mylib_utils)
+  - `Runtime` (from `cpack_lib`)
+  - `Development` (from `cpack_lib` headers and `cpack_lib_utils`)
   - `Tools` (from mytool executable)
 
 - **Generators**: Platform-specific defaults
@@ -118,10 +125,10 @@ cmake --install . --component Runtime
 
 # Result: Only shared libraries needed to run applications
 install/
-└── lib/
-    ├── libmylib.so.1.2.0
-    ├── libmylib.so.1
-    └── libmylib.so
+└── <libdir>/
+    ├── libcpack_lib.so.1.2.0
+    ├── libcpack_lib.so.1
+    └── libcpack_lib.so
 ```
 
 ### Development Package (Developers)
@@ -133,15 +140,15 @@ cmake --install . --component Development
 # Result: Headers, static libs, CMake configs
 install/
 ├── include/
-│   └── mylib/
+│   └── cpack_lib/
 │       ├── core.h
 │       └── utils.h
-├── lib/
-│   └── libmylib_utils.a
+├── <libdir>/
+│   └── libcpack_lib_utils.a
 └── share/
     └── cmake/
-        ├── mylib/
-        └── mylib_utils/
+        ├── cpack_lib/
+        └── cpack_lib_utils/
 ```
 
 ### Tools Package
@@ -195,17 +202,17 @@ project(consumer)
 # Point to package installation
 list(APPEND CMAKE_PREFIX_PATH "/path/to/test-install")
 
-find_package(mylib REQUIRED)
-find_package(mylib_utils REQUIRED)
+find_package(cpack_lib REQUIRED)
+find_package(cpack_lib_utils REQUIRED)
 
 add_executable(consumer main.cpp)
-target_link_libraries(consumer PRIVATE MyLib::mylib MyLib::mylib_utils)
+target_link_libraries(consumer PRIVATE cpack_lib::cpack_lib cpack_lib::cpack_lib_utils)
 ```
 
 ```cpp
 // consumer/main.cpp
-#include "mylib/core.h"
-#include "mylib/utils.h"
+#include "cpack_lib/core.h"
+#include "cpack_lib/utils.h"
 #include <iostream>
 
 int main() {

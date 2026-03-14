@@ -8,7 +8,7 @@ project(
 # Include target_install_package utilities if not already included
 if(NOT COMMAND target_install_package)
   set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-  include(../../../CMakeLists.txt)
+  include(../../../cmake/load_target_install_package.cmake)
 endif()
 
 # Core shared library
@@ -33,19 +33,9 @@ set_target_properties(libA_utils PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_features(libA_utils PUBLIC cxx_std_17)
 
 # Prepare packages for both targets with same export using default components
-target_install_package(
-  libA_core
-  EXPORT_NAME
-  "libA"
-  NAMESPACE
-  LibA::)
+target_install_package(libA_core EXPORT_NAME "libA" NAMESPACE LibA::)
 
-target_install_package(
-  libA_utils
-  EXPORT_NAME
-  "libA"
-  NAMESPACE
-  LibA::)
+target_install_package(libA_utils EXPORT_NAME "libA" NAMESPACE LibA::)
 
 # Create aliases for when building as part of parent project
 if(NOT TARGET LibA::libA_core)

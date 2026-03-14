@@ -19,7 +19,7 @@ endif()
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(../../cmake/load_target_install_package.cmake)
 
 # Create math library with C++20 modules and partitions
 add_library(math_partitions STATIC)
@@ -45,10 +45,7 @@ target_sources(
          "modules/math-internal.cppm")
 
 # Add module implementation unit (not part of the public interface)
-target_sources(
-  math_partitions
-  PRIVATE
-  "modules/math-impl.cpp")
+target_sources(math_partitions PRIVATE "modules/math-impl.cpp")
 
 # Set module-specific properties
 set_target_properties(math_partitions PROPERTIES CXX_SCAN_FOR_MODULES ON)

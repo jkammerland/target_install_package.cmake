@@ -4,7 +4,7 @@ project(basic_interface_example VERSION 1.5.0)
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(../../cmake/load_target_install_package.cmake)
 
 # Create an interface (header-only) library
 add_library(algorithms INTERFACE)

@@ -4,7 +4,7 @@ project(multi_target_example VERSION 1.0.0)
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(../../cmake/load_target_install_package.cmake)
 
 # Core utility library
 add_library(core_utils STATIC)

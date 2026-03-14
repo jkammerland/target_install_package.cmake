@@ -386,6 +386,8 @@ target_install_package(my_library
 export_cpack(
   PACKAGE_NAME "MyLibrary"
   PACKAGE_VENDOR "Acme Corp"
+  PACKAGE_LICENSE "MIT"
+  LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
   # AUTO-DETECTED: Components (Runtime, Development)
   # AUTO-DETECTED: Generators (TGZ, DEB, RPM on Linux; TGZ, ZIP, WIX on Windows)
   # AUTO-DETECTED: Architecture (amd64, i386, arm64, etc.)
@@ -393,6 +395,8 @@ export_cpack(
 
 # No need for include(CPack) - export_cpack() does it automatically
 ```
+
+`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` packages the full license text.
 
 **Generate packages:**
 ```bash
