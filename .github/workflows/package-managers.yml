@@ -1,0 +1,124 @@
+name: Package Manager Integration
+
+on:
+  push:
+    branches: [ "integration", "master" ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'target_install_package.cmake'
+      - 'target_configure_sources.cmake'
+      - 'export_cpack.cmake'
+      - 'cmake/**'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'packaging/vcpkg/**'
+      - 'ci/run.sh'
+      - 'ci/cmd/package-managers.sh'
+      - '.github/workflows/package-managers.yml'
+  pull_request:
+    branches: [ "integration", "master" ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'target_install_package.cmake'
+      - 'target_configure_sources.cmake'
+      - 'export_cpack.cmake'
+      - 'cmake/**'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'packaging/vcpkg/**'
+      - 'ci/run.sh'
+      - 'ci/cmd/package-managers.sh'
+      - '.github/workflows/package-managers.yml'
+  workflow_dispatch:
+
+jobs:
+  package-managers:
+    name: Conan + vcpkg (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Conan (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install "conan>=2.0,<3"
+          if command -v conan >/dev/null 2>&1; then
+            conan_bin="$(command -v conan)"
+          else
+            conan_scripts_dir="$(python -c 'import pathlib, sysconfig; scripts = sysconfig.get_path("scripts") or ""; print(pathlib.Path(scripts).as_posix() if scripts else "")')"
+            if [[ -z "${conan_scripts_dir}" || ! -x "${conan_scripts_dir}/conan" ]]; then
+              echo "Conan executable not found after installation" >&2
+              exit 1
+            fi
+            conan_bin="${conan_scripts_dir}/conan"
+          fi
+          echo "$(dirname "${conan_bin}")" >> "${GITHUB_PATH}"
+          "${conan_bin}" --version
+
+      - name: Install Conan (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "conan>=2.0,<3"
+          $conanCommand = Get-Command conan -ErrorAction SilentlyContinue
+          if ($conanCommand) {
+            $conanExe = $conanCommand.Source
+          } else {
+            $conanScripts = python -c "import sysconfig; print(sysconfig.get_path('scripts') or '')"
+            if ([string]::IsNullOrWhiteSpace($conanScripts)) {
+              throw "Unable to resolve Python scripts directory for Conan"
+            }
+            $conanExe = Join-Path $conanScripts "conan.exe"
+            if (-not (Test-Path $conanExe)) {
+              throw "Conan executable not found at $conanExe"
+            }
+          }
+          (Split-Path -Parent $conanExe) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $conanExe --version
+
+      - name: Setup vcpkg (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          vcpkg_root="${RUNNER_TEMP}/vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "${vcpkg_root}"
+          "${vcpkg_root}/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=${vcpkg_root}" >> "${GITHUB_ENV}"
+          echo "${vcpkg_root}" >> "${GITHUB_PATH}"
+
+      - name: Setup vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $winRoot = Join-Path $env:RUNNER_TEMP "vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git $winRoot
+          & "$winRoot\bootstrap-vcpkg.bat" -disableMetrics
+
+          $posixRoot = $winRoot.Replace('\', '/')
+          "VCPKG_ROOT=$posixRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $posixRoot | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run package-manager suites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh package-managers --suite all
