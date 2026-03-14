@@ -39,7 +39,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
 
 ### Template Override System 
-The template-resolution algorithm is documented in [Config Template Resolution - Source of truth](docs/template_resolution.md#source-of-truth).
+The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
 
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.

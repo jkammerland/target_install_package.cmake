@@ -1,7 +1,5 @@
 # Config Template Resolution
 
-## Source of truth
-
 `target_install_package()` resolves `CONFIG_TEMPLATE` during `finalize_package()` using exactly this order:
 
 1. If `CONFIG_TEMPLATE` is provided, use it.
