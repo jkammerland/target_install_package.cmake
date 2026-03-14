@@ -275,7 +275,7 @@ target_link_libraries(my_app PRIVATE <Namespace>::<target>)
 ### Enable Detailed Logging
 
 ```bash
-cmake .. -DPROJECT_LOG_COLORS=ON --log-level=DEBUG
+cmake .. -DPROJECT_LOG_COLORS=ON --log-level=VERBOSE
 ```
 
 ### Check Installation Results

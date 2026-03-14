@@ -418,19 +418,6 @@ export_cpack(
 
 `export_cpack()` includes comprehensive GPG signing capabilities to ensure package authenticity and integrity. This addresses CMake's lack of built-in package signing support.
 
-### Why Package Signing Matters
-
-**Security Benefits:**
-- **Authenticity**: Verifies packages come from trusted sources
-- **Integrity**: Detects tampering or corruption during transfer
-- **Trust Chain**: Establishes cryptographic proof of origin
-
-**Real-World Attack Prevention:**
-- Supply chain attacks (compromised package repositories)
-- Man-in-the-middle attacks during download
-- Malicious package injection
-- Accidental corruption
-
 ### Basic GPG Signing Example
 
 ```cmake
@@ -714,40 +701,6 @@ export_cpack(
     GENERATE_CHECKSUMS ON
 )
 ```
-
-### Troubleshooting
-
-#### Common Issues and Solutions
-
-**"GPG key not found"**
-```bash
-# List available keys
-gpg --list-secret-keys
-
-# Import key if missing
-gpg --import private-key.asc
-
-# Use key ID instead of email
-GPG_SIGNING_KEY "A1B2C3D4"
-```
-
-**"Permission denied on passphrase file"**
-```bash
-# Fix file permissions
-chmod 600 .gpg_passphrase
-chown $(whoami) .gpg_passphrase
-```
-
-**"Signature verification failed"**
-```bash
-# Check key trust
-gpg --list-keys --with-colons | grep -A1 "sec:"
-
-# Manually trust key for testing
-gpg --edit-key security@yourproject.com trust quit
-```
-
----
 
 ## Cross-Platform Package Generation
 

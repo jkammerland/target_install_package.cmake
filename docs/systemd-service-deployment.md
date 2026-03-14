@@ -147,43 +147,6 @@ podman auto-update --dry-run
 podman auto-update
 ```
 
-## Troubleshooting
-
-### Service Fails to Start
-
-Check logs:
-```bash
-journalctl --user -u myapp-service -n 50
-```
-
-Common issues:
-- Container exits immediately - check if application is designed to run continuously
-- Port conflicts - ensure ports aren't already in use
-- Volume permissions - verify user has access to mounted directories
-
-### Systemd User Session
-
-For user services, enable lingering to run without active session:
-```bash
-loginctl enable-linger $USER
-```
-
-### Container Not Found
-
-Ensure image exists locally:
-```bash
-podman images | grep myapp
-```
-
-## Features
-
-- Automatic restart on failure or system reboot
-- Integrated logging via journald
-- Resource limits via systemd cgroups
-- Dependency management with other services
-- Auto-updates from registry
-- Rootless operation
-
 ## Example: Complete Workflow
 
 ```bash

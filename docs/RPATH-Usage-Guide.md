@@ -69,8 +69,6 @@ target_install_package(myexe)
 # Result: Uses target-specific RPATH
 ```
 
-## Advanced Configuration
-
 ### Prefix Overrides And System Packaging
 
 Default install RPATH entries are always computed from the install layout, not from an absolute configured prefix. That keeps relocatable installs working even when you configure with the default `/usr/local` and later use `cmake --install --prefix <dir>`.
@@ -212,18 +210,6 @@ endif()
 target_install_package(myapp)
 ```
 
-## Troubleshooting
-
-### Verify RPATH is Set
-
-```bash
-# Linux: Check RPATH/RUNPATH
-readelf -d /path/to/binary | grep -E "(RPATH|RUNPATH)"
-
-# macOS: Check load commands
-otool -l /path/to/binary | grep -A2 LC_RPATH
-```
-
 ### Debug RPATH Configuration
 
 Enable debug logging to see RPATH decisions:
@@ -232,22 +218,6 @@ Enable debug logging to see RPATH decisions:
 cmake -B build --log-level=DEBUG
 # Look for: "Set default INSTALL_RPATH for 'target': ..."
 ```
-
-### Common Issues
-
-1. **Libraries not found at runtime:**
-   - Check RPATH with `readelf`/`otool`
-   - Verify installation layout matches RPATH expectations
-   - Consider setting `CMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE` for complex dependencies
-
-2. **RPATH not being set:**
-   - Ensure target is EXECUTABLE or SHARED_LIBRARY
-   - Check for existing INSTALL_RPATH property (not overridden)
-   - Verify not on Windows (RPATH not supported)
-
-3. **Custom RPATH ignored:**
-   - Check if `CMAKE_INSTALL_RPATH` is set before calling `target_install_package`
-   - Ensure target doesn't already have `INSTALL_RPATH` property
 
 ## Best Practices
 

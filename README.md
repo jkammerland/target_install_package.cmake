@@ -295,7 +295,7 @@ This works with INTERFACE or SHARED library targets. Check the defaults in [targ
 
 ### Configuring Template Headers
 
-For libraries that need version information or build-time configuration:
+Use `target_configure_sources()` when a target needs generated headers:
 
 ```cmake
 add_library(my_library STATIC)
@@ -308,27 +308,22 @@ target_sources(my_library PUBLIC
   FILES "include/my_library/api.h"
 )
 
-# Configure template files for version info (also uses FILE_SET automatically)
+# Generated public headers
 target_configure_sources(my_library
   PUBLIC
   OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/include/my_library
   FILE_SET HEADERS
   BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include
-  FILES include/my_library/version.h.in
+  FILES
+    include/my_library/version.h.in
+    include/my_library/build_info.h.in
 )
 
 target_install_package(my_library NAMESPACE MyLib::)
 ```
 
-**Template file example** (`include/my_library/version.h.in`):
-```cpp
-#pragma once
-
-#define MY_LIBRARY_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
-#define MY_LIBRARY_VERSION_MINOR @PROJECT_VERSION_MINOR@
-#define MY_LIBRARY_VERSION_PATCH @PROJECT_VERSION_PATCH@
-#define MY_LIBRARY_VERSION "@PROJECT_VERSION@"
-```
+Public configured headers are installed with the package. Private configured headers stay build-only. See [examples/configure-files](examples/configure-files/) for the complete example.
+Installed paths follow the `BASE_DIRS` you set for each file set.
 
 ### Libraries with Dependencies
 
