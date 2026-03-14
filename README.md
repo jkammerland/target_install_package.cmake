@@ -91,6 +91,7 @@ target_install_package(my_library
    - [Simple Multi-Target Package](#simple-multi-target-package-)
    - [Component-Dependent Dependencies](#component-dependent-dependencies-)
 6. [More Examples](#more-examples)
+   - [Example Directory](#example-directory)
    - [Game Engine with Modular Components](#game-engine-with-modular-components-)
    - [Build Variant Support](#build-variant-support-)
    - [Header-Only Libraries](#header-only-libraries-)
@@ -711,6 +712,29 @@ Note:
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
 
 ## More Examples
+
+### Example Directory
+
+These example projects live under [`examples/`](examples/) and can be built individually or via [`examples/build_all_examples.sh`](examples/build_all_examples.sh).
+
+| Example | Type | Focus |
+|---------|------|-------|
+| [basic-static](examples/basic-static/) | Static Library | Simple static library with FILE_SET headers |
+| [basic-shared](examples/basic-shared/) | Shared Library | Versioned shared library with runtime/development separation |
+| [basic-interface](examples/basic-interface/) | Interface Library | Header-only library packaging |
+| [multi-target](examples/multi-target/) | Multi-Library | Multiple related libraries in one package |
+| [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |
+| [components](examples/components/) | Component-Based | Component Prefix Pattern and selective installation |
+| [components-same-export](examples/components-same-export/) | Multi-Target Export | Shared export with per-target components |
+| [dependency-aggregation](examples/dependency-aggregation/) | Dependency Aggregation | Aggregating PUBLIC_DEPENDENCIES across one export |
+| [configure-files](examples/configure-files/) | Template Configuration | Build-time generated headers from templates |
+| [cxx-modules](examples/cxx-modules/) | C++20 Modules | Basic CXX_MODULES packaging |
+| [cxx-modules-partitions](examples/cxx-modules-partitions/) | C++20 Modules | Module partition hierarchies |
+| [cpack-basic](examples/cpack-basic/) | CPack Basics | Basic package generation with `export_cpack()` |
+| [cpack-signed](examples/cpack-signed/) | Signed Packages | GPG signing and checksum generation |
+| [custom-alias](examples/custom-alias/) | Custom Aliases | Custom exported alias names for consumers |
+| [multi-cpack](examples/multi-cpack/) | Multi-CPack | Separate CPack outputs from one source tree |
+| [rpath-example](examples/rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
 ### Game Engine with Modular Components
 

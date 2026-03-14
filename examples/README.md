@@ -19,6 +19,9 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [cxx-modules-partitions](cxx-modules-partitions/) | C++20 Modules | C++20 modules with partition hierarchies |
 | [cpack-basic](cpack-basic/) | CPack Basics | Basic packaging with CPack |
 | [cpack-signed](cpack-signed/) | Signed Packages | Signed packages with GPG |
+| [custom-alias](custom-alias/) | Custom Aliases | Custom exported target alias names |
+| [multi-cpack](multi-cpack/) | Multi-CPack | Multiple package configurations from one source tree |
+| [rpath-example](rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
 ## 🚀 Quick Start
 
@@ -60,11 +63,17 @@ Progress to more sophisticated packaging strategies:
 
 4. **[multi-target](multi-target/)** - Package multiple related libraries together
 5. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
-5. **[components](components/)** - Implement flexible component-based installation
-6. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (use this when multiple targets must be consumed through one export)
-7. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
-8. **[configure-files](configure-files/)** - Generate build-time configuration headers
-9. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
+6. **[components](components/)** - Implement flexible component-based installation with logical groups
+7. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (use this when multiple targets must be consumed through one export)
+8. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
+9. **[configure-files](configure-files/)** - Generate build-time configuration headers
+10. **[custom-alias](custom-alias/)** - Export cleaner consumer-facing alias names
+11. **[rpath-example](rpath-example/)** - Verify relocatable installs without `LD_LIBRARY_PATH`
+12. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
+13. **[cxx-modules-partitions](cxx-modules-partitions/)** - Explore module partition hierarchies
+14. **[cpack-basic](cpack-basic/)** - Generate component packages with `export_cpack()`
+15. **[cpack-signed](cpack-signed/)** - Add GPG signatures and checksums to generated packages
+16. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
 
 ## 🔧 Common Build Commands
 
@@ -109,14 +118,16 @@ cmake --install .
 ### Component-Based Installation
 
 ```bash
-# Install only runtime components
+# Install default runtime/development components
 cmake --install . --component Runtime
 
-# Install only development components  
+# Install only development components
 cmake --install . --component Development
 
-# Install custom components (see components example)
-cmake --install . --component runtime --component devel
+# Install logical component groups (see components example)
+cmake --install . --component Core
+cmake --install . --component Core_Development
+cmake --install . --component Tools
 ```
 
 ## 📁 Installation Structure
@@ -190,6 +201,26 @@ install/
 - Custom component names
 - Mixed target types (shared, static, executable)
 
+### Alias Naming ([custom-alias](custom-alias/))
+- Custom exported alias names for cleaner consumer APIs
+- Decouples installed target names from internal target names
+
+### RPATH ([rpath-example](rpath-example/))
+- Relocatable installs without manual `LD_LIBRARY_PATH` changes
+- `DISABLE_RPATH` behavior for package-manager style installs
+
+### CPack Basics ([cpack-basic](cpack-basic/))
+- Automatic component-aware package generation
+- Cross-platform archive and native package output
+
+### Signed Packages ([cpack-signed](cpack-signed/))
+- GPG signatures and checksum generation during `cpack`
+- Verification-template workflow for consumers
+
+### Multi-CPack ([multi-cpack](multi-cpack/))
+- Separate build directories for multiple package outputs
+- CPack's one-package-per-build-tree limitation in practice
+
 ### Multi-Target Export ([components-same-export](components-same-export/))
 - **Recommended pattern** for multiple targets with shared export
 - Dependency aggregation from multiple `PUBLIC_DEPENDENCIES`
@@ -212,6 +243,10 @@ install/
 - CXX_MODULES file set usage
 - Module dependency resolution
 - Cross-module imports and exports
+
+### Module Partitions ([cxx-modules-partitions](cxx-modules-partitions/))
+- Interface and implementation partition packaging
+- Consumer-side usage of partitioned modules
 
 ## 📝 Creating Consumer Projects
 
