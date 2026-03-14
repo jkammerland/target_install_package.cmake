@@ -7,7 +7,7 @@ project(
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../cmake/load_target_install_package.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
 # Core runtime library (shared)
 add_library(cpack_lib SHARED)

@@ -3,7 +3,7 @@ project(single_component_test VERSION 1.0.0)
 
 # Include target_install_package utilities (disable install to avoid conflicts)
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../../cmake/load_target_install_package.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../../../cmake/load_target_install_package.cmake)
 
 # Create a simple static library using sources from cpack-basic example
 add_library(simple_lib STATIC)
