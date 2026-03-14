@@ -14,18 +14,23 @@ cmake --install build
 
 ```
 install/
-├── include/logger/logger.h
-└── share/cmake/header_logger/*.cmake
+├── include/algorithms/searching.hpp
+├── include/algorithms/sorting.hpp
+└── share/cmake/algorithms/*.cmake
 ```
 
 ## Usage
 
 ```cmake
-find_package(header_logger REQUIRED)
-target_link_libraries(app PRIVATE Logger::header_logger)
+find_package(algorithms REQUIRED)
+target_link_libraries(app PRIVATE Algorithms::algorithms)
 ```
 
 ```cpp
-#include "logger/logger.h"
-logger::Logger::log(logger::LogLevel::INFO, "Ready");
+#include "algorithms/searching.hpp"
+#include "algorithms/sorting.hpp"
+
+std::vector<int> values{4, 1, 3, 2};
+algorithms::Sorting<int>::quickSort(values);
+auto index = algorithms::Searching<int>::binarySearch(values, 3);
 ```
