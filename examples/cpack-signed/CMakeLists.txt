@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(cpack_signed_example VERSION 1.2.0 DESCRIPTION "CPack GPG signing example with target_install_package")
+project(
+  cpack_signed_example
+  VERSION 1.2.0
+  DESCRIPTION "CPack GPG signing example with target_install_package")
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
 # Core runtime library (shared)
 add_library(cpack_lib SHARED)
@@ -33,45 +36,39 @@ target_sources(mytool PRIVATE src/tool.cpp)
 target_link_libraries(mytool PRIVATE cpack_lib)
 
 # Install with target_install_package using default components
-target_install_package(
-  cpack_lib
-  NAMESPACE cpack_lib::)
+target_install_package(cpack_lib NAMESPACE cpack_lib::)
 
-target_install_package(
-  cpack_lib_utils 
-  NAMESPACE cpack_lib::)
+target_install_package(cpack_lib_utils NAMESPACE cpack_lib::)
 
-target_install_package(
-  mytool
-  NAMESPACE cpack_lib::
-  COMPONENT "Tools")
+target_install_package(mytool NAMESPACE cpack_lib:: COMPONENT "Tools")
 
-# Configure CPack with GPG signing support
-# Note: CPack is automatically included by export_cpack
+# Configure CPack with GPG signing support Note: CPack is automatically included by export_cpack
 export_cpack(
-  PACKAGE_NAME "MySignedLibrary"
-  PACKAGE_VENDOR "Example Corp"
-  PACKAGE_CONTACT "support@example.com"
-  PACKAGE_HOMEPAGE_URL "https://example.com/cpack_lib"
+  PACKAGE_NAME
+  "MySignedLibrary"
+  PACKAGE_VENDOR
+  "Example Corp"
+  PACKAGE_CONTACT
+  "support@example.com"
+  PACKAGE_HOMEPAGE_URL
+  "https://example.com/cpack_lib"
   # GPG Signing configuration (uses environment variables or cache variables)
-  GPG_SIGNING_KEY "${GPG_SIGNING_KEY}"
-  GPG_PASSPHRASE_FILE "${GPG_PASSPHRASE_FILE}"
-  SIGNING_METHOD "detached"
-  GPG_KEYSERVER "keyserver.ubuntu.com" 
+  GPG_SIGNING_KEY
+  "${GPG_SIGNING_KEY}"
+  GPG_PASSPHRASE_FILE
+  "${GPG_PASSPHRASE_FILE}"
+  SIGNING_METHOD
+  "detached"
+  GPG_KEYSERVER
+  "keyserver.ubuntu.com"
   GENERATE_CHECKSUMS
-  # AUTO-DETECTED: Components (Runtime, Development, Tools)
-  # AUTO-DETECTED: Generators (platform-specific)  
-  DEFAULT_COMPONENTS "Runtime"
-  COMPONENT_GROUPS
-)
+  # AUTO-DETECTED: Components (Runtime, Development, Tools) AUTO-DETECTED: Generators (platform-specific)
+  DEFAULT_COMPONENTS
+  "Runtime"
+  COMPONENT_GROUPS)
 
-# Create example verification script template for consumers
-# This demonstrates how consumers could verify signed packages
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/verify_template.sh.in"
-  "${CMAKE_BINARY_DIR}/verify.sh"
-  @ONLY
-)
+# Create example verification script template for consumers This demonstrates how consumers could verify signed packages
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/verify_template.sh.in" "${CMAKE_BINARY_DIR}/verify.sh" @ONLY)
 
 # Make the script executable
 if(UNIX)

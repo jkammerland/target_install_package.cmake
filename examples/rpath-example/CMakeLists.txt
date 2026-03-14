@@ -4,7 +4,7 @@ project(rpath_example VERSION 1.0.0)
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
 # Create a shared library
 add_library(mylib SHARED)
@@ -38,7 +38,4 @@ target_compile_features(rpath_demo PRIVATE cxx_std_17)
 target_install_package(mylib NAMESPACE RpathExample:: VERSION ${PROJECT_VERSION})
 
 # Install the executable as a separate package component
-target_install_package(
-  rpath_demo
-  NAMESPACE RpathExample::
-  COMPONENT "Tools")
+target_install_package(rpath_demo NAMESPACE RpathExample:: COMPONENT "Tools")

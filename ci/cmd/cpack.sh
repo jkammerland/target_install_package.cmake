@@ -104,21 +104,30 @@ enable_gpg_signing_in_cpack_basic() {
   mv -f "${tmp}" "${cmakelists}"
 }
 
-rewrite_example_root_include() {
+rewrite_example_repo_paths() {
   local cmakelists="${1:?}"
-  local root_cmakelists="${2:?}"
+  local repo_root="${2:?}"
   local tmp="${cmakelists}.tmp"
-  root_cmakelists="$(ci_path_for_cmake "${root_cmakelists}")"
+  local loader_path
+  local license_file
+  local root_cmakelists
+  loader_path="$(ci_path_for_cmake "${repo_root}/cmake/load_target_install_package.cmake")"
+  license_file="$(ci_path_for_cmake "${repo_root}/LICENSE")"
+  root_cmakelists="$(ci_path_for_cmake "${repo_root}/CMakeLists.txt")"
 
-  awk -v root_cmakelists="${root_cmakelists}" '
+  awk -v loader_path="${loader_path}" -v license_file="${license_file}" -v root_cmakelists="${root_cmakelists}" '
     {
-      line=$0
-      gsub(/[[:space:]]+/, "", line)
+      compact=$0
+      rewritten=$0
+      gsub(/[[:space:]]+/, "", compact)
 
-      if (line == "include(../../CMakeLists.txt)") {
+      if (compact == "include(../../CMakeLists.txt)") {
         print "include(\"" root_cmakelists "\")"
+      } else if (compact == "include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)") {
+        print "include(\"" loader_path "\")"
       } else {
-        print $0
+        gsub(/\$\{CMAKE_CURRENT_SOURCE_DIR\}\/\.\.\/\.\.\/LICENSE/, license_file, rewritten)
+        print rewritten
       }
     }
   ' "${cmakelists}" >"${tmp}"
@@ -139,7 +148,7 @@ run_basic() {
 
   ci_log "==> Prepare cpack-basic workspace"
   cp -a "${ci_root}/examples/cpack-basic/." "${src_dir}"
-  rewrite_example_root_include "${src_dir}/CMakeLists.txt" "${ci_root}/CMakeLists.txt"
+  rewrite_example_repo_paths "${src_dir}/CMakeLists.txt" "${ci_root}"
   enable_gpg_signing_in_cpack_basic "${src_dir}/CMakeLists.txt"
 
   ci_log "==> Configure cpack-basic"

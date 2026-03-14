@@ -4,7 +4,7 @@ project(configure_files_example VERSION 2.3.1)
 
 # Include target_install_package utilities
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
 # Set some project variables for configuration
 set(LIBRARY_DESCRIPTION "Example library demonstrating configure file usage")

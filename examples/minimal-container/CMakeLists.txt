@@ -3,7 +3,7 @@ project(minimal_container_example VERSION 1.0.0)
 
 # Include utilities (disable install since parent does that)
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include(../../CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
 # Simple C++ executable
 add_executable(hello_container src/main.cpp)
@@ -14,10 +14,7 @@ add_executable(hello_loop src/loop_main.cpp)
 target_compile_features(hello_loop PRIVATE cxx_std_17)
 
 # Install the executables
-target_install_package(hello_container
-  EXPORT_NAME ${PROJECT_NAME}
-  NAMESPACE Example::
-)
+target_install_package(hello_container EXPORT_NAME ${PROJECT_NAME} NAMESPACE Example::)
 
 install(TARGETS hello_loop DESTINATION bin)
 
@@ -25,10 +22,15 @@ install(TARGETS hello_loop DESTINATION bin)
 include(../../export_cpack.cmake)
 
 export_cpack(
-  PACKAGE_NAME "${PROJECT_NAME}"
-  PACKAGE_VERSION "${PROJECT_VERSION}"
-  PACKAGE_VENDOR "Example"
-  GENERATORS "TGZ;CONTAINER"  # Create both tarball and container
-  CONTAINER_NAME "hello"
-  CONTAINER_TAG "${PROJECT_VERSION}"
-)
+  PACKAGE_NAME
+  "${PROJECT_NAME}"
+  PACKAGE_VERSION
+  "${PROJECT_VERSION}"
+  PACKAGE_VENDOR
+  "Example"
+  GENERATORS
+  "TGZ;CONTAINER" # Create both tarball and container
+  CONTAINER_NAME
+  "hello"
+  CONTAINER_TAG
+  "${PROJECT_VERSION}")

@@ -232,11 +232,12 @@ export_cpack(
     PACKAGE_NAME "MyProject"
     PACKAGE_VENDOR "Acme Corp"
     PACKAGE_CONTACT "support@acme.com"
+    PACKAGE_LICENSE "MIT"
     # Everything else is auto-detected:
     # - Components: Runtime, Development, Tools
     # - Generators: Platform-specific (TGZ/ZIP/DEB/RPM/WIX/DragNDrop)
     # - Version: From PROJECT_VERSION
-    # - License: Auto-detected (LICENSE, LICENSE.txt, etc.)
+    # - License file: Auto-detected (LICENSE, LICENSE.txt, etc.)
     # - Component relationships and descriptions
 )
 
@@ -256,7 +257,8 @@ export_cpack(
 | **CMake Config Files** | Manual generation | Automatic generation |
 | **Component Detection** | Manual listing | Auto-detected from install calls |
 | **Platform Detection** | Manual conditional logic | Automatic platform-appropriate generators |
-| **License Detection** | Manual file checking | Automatic discovery |
+| **License File Handling** | Manual file checking | Automatic discovery |
+| **RPM License Metadata** | Manual `CPACK_RPM_PACKAGE_LICENSE` wiring | Explicit `PACKAGE_LICENSE` argument |
 | **Component Descriptions** | Manual setup | Smart defaults with override capability |
 | **Version Handling** | Manual variable parsing | Automatic from PROJECT_VERSION |
 | **Error Prone** | High (easy to miss steps) | Low (smart defaults) |
@@ -334,6 +336,7 @@ export_cpack(
     PACKAGE_VERSION "2.0.0-beta"  # Override project version
     PACKAGE_VENDOR "Tech Corp"
     PACKAGE_HOMEPAGE_URL "https://techcorp.com/advancedlib"
+    PACKAGE_LICENSE "MIT"
     LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/custom-license.txt"
     ADDITIONAL_CPACK_VARS
         "CPACK_PACKAGE_EXECUTABLES" "mytool;MyTool"

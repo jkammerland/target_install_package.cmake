@@ -50,53 +50,55 @@ packaging_dir="${ci_root}/tests/packaging"
 packaging_work_dir="${ci_root}/build/packaging"
 packaging_build_dir="${packaging_work_dir}/build"
 packaging_packages_dir="${packaging_work_dir}/packages"
+expected_package_version="1.2.0"
+expected_package_summary="CPack integration example with target_install_package"
+expected_package_license="MIT"
 
 run_arch_detection() {
   mkdir -p "${ci_root}/build/ci-deps"
   script_path="${ci_root}/build/ci-deps/test-arch-detection.cmake"
-  cat >"${script_path}" <<'CMAKE'
-cmake_minimum_required(VERSION 3.16)
+  cat >"${script_path}" <<CMAKE
+cmake_minimum_required(VERSION 3.25)
 
-set(TEST_ARCHS "x86_64;i686;aarch64;armv7l")
+set(CMAKE_INSTALL_LIBDIR lib)
+include("${ci_root}/cmake/load_target_install_package.cmake")
 
-foreach(ARCH ${TEST_ARCHS})
-  message(STATUS "Testing architecture: ${ARCH}")
-  set(CMAKE_SYSTEM_PROCESSOR ${ARCH})
+set(TEST_CASES
+    "x86_64|x64|amd64|x86_64"
+    "i686|x86|i386|i686"
+    "aarch64|arm64|arm64|aarch64"
+    "armv7l|arm32|armhf|armv7hl")
 
-  set(_TIP_ARCH_X64_PATTERNS "x86_64|AMD64|amd64")
-  set(_TIP_ARCH_X86_PATTERNS "i[3-6]86|x86")
-  set(_TIP_ARCH_ARM64_PATTERNS "aarch64|arm64|ARM64")
-  set(_TIP_ARCH_ARM32_PATTERNS "armv7.*|arm")
+foreach(test_case \${TEST_CASES})
+  string(REPLACE "|" ";" fields "\${test_case}")
+  list(GET fields 0 ARCH)
+  list(GET fields 1 EXPECTED_CANONICAL)
+  list(GET fields 2 EXPECTED_DEB)
+  list(GET fields 3 EXPECTED_RPM)
 
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X64_PATTERNS})
-    set(_TIP_CANONICAL_ARCH "x64")
-    set(DEB_ARCH "amd64")
-    set(RPM_ARCH "x86_64")
-  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_X86_PATTERNS})
-    set(_TIP_CANONICAL_ARCH "x86")
-    set(DEB_ARCH "i386")
-    set(RPM_ARCH "i686")
-  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM64_PATTERNS})
-    set(_TIP_CANONICAL_ARCH "arm64")
-    set(DEB_ARCH "arm64")
-    set(RPM_ARCH "aarch64")
-  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES ${_TIP_ARCH_ARM32_PATTERNS})
-    set(_TIP_CANONICAL_ARCH "arm32")
-    set(DEB_ARCH "armhf")
-    set(RPM_ARCH "armv7hl")
-  else()
-    set(_TIP_CANONICAL_ARCH "unknown")
-    set(DEB_ARCH "unknown")
-    set(RPM_ARCH "unknown")
+  _tip_detect_package_architecture("\${ARCH}" ACTUAL_CANONICAL ACTUAL_DEB ACTUAL_RPM ACTUAL_KNOWN)
+
+  message(STATUS "Testing architecture: \${ARCH}")
+  message(STATUS "  Canonical: \${ACTUAL_CANONICAL}")
+  message(STATUS "  DEB arch: \${ACTUAL_DEB}")
+  message(STATUS "  RPM arch: \${ACTUAL_RPM}")
+
+  if(NOT ACTUAL_KNOWN)
+    message(FATAL_ERROR "Architecture should be recognized but was not: \${ARCH}")
   endif()
-
-  message(STATUS "  Canonical: ${_TIP_CANONICAL_ARCH}")
-  message(STATUS "  DEB arch: ${DEB_ARCH}")
-  message(STATUS "  RPM arch: ${RPM_ARCH}")
+  if(NOT ACTUAL_CANONICAL STREQUAL EXPECTED_CANONICAL)
+    message(FATAL_ERROR "Canonical architecture mismatch for \${ARCH}: expected \${EXPECTED_CANONICAL}, got \${ACTUAL_CANONICAL}")
+  endif()
+  if(NOT ACTUAL_DEB STREQUAL EXPECTED_DEB)
+    message(FATAL_ERROR "DEB architecture mismatch for \${ARCH}: expected \${EXPECTED_DEB}, got \${ACTUAL_DEB}")
+  endif()
+  if(NOT ACTUAL_RPM STREQUAL EXPECTED_RPM)
+    message(FATAL_ERROR "RPM architecture mismatch for \${ARCH}: expected \${EXPECTED_RPM}, got \${ACTUAL_RPM}")
+  endif()
   message(STATUS "")
 endforeach()
 CMAKE
-  cmake -P "${script_path}"
+  cmake -Wno-dev -P "${script_path}"
 }
 
 if [[ "${mode}" == "arch-detection" ]]; then
@@ -126,6 +128,12 @@ if ci_has_cmd dpkg-deb; then
         amd64|i386|arm64|armhf|all) ci_log "✓ Valid architecture: ${arch}" ;;
         *) ci_warn "Unexpected DEB architecture: ${arch}" ;;
       esac
+
+      version="$(dpkg-deb --field "${deb}" Version)"
+      ci_log "Version: ${version}"
+      if [[ "${version}" != "${expected_package_version}" ]]; then
+        ci_die "Unexpected DEB package version in ${deb}: ${version}"
+      fi
     done)
 else
   ci_warn "dpkg-deb not available; skipping DEB architecture checks"
@@ -146,9 +154,36 @@ if ci_has_cmd rpm; then
         x86_64|i686|aarch64|armv7hl|noarch) ci_log "✓ Valid architecture: ${arch}" ;;
         *) ci_warn "Unexpected RPM architecture: ${arch}" ;;
       esac
+
+      version="$(rpm -qp --qf "%{VERSION}\n" "${rpm_pkg}")"
+      summary="$(rpm -qp --qf "%{SUMMARY}\n" "${rpm_pkg}")"
+      ci_log "Version: ${version}"
+      ci_log "Summary: ${summary}"
+      if [[ "${version}" != "${expected_package_version}" ]]; then
+        ci_die "Unexpected RPM package version in ${rpm_pkg}: ${version}"
+      fi
+      if [[ "${summary}" != "${expected_package_summary}" ]]; then
+        ci_die "Unexpected RPM package summary in ${rpm_pkg}: ${summary}"
+      fi
     done)
 else
   ci_warn "rpm not available; skipping RPM architecture checks"
+fi
+
+ci_log "==> Verify RPM license metadata"
+if ci_has_cmd rpm; then
+  ( \
+    for rpm_pkg in "${packaging_packages_dir}"/*.rpm; do
+      [[ -f "${rpm_pkg}" ]] || continue
+      ci_log "Checking ${rpm_pkg}..."
+      license="$(rpm -qp --qf "%{LICENSE}\n" "${rpm_pkg}")"
+      ci_log "License: ${license}"
+      if [[ "${license}" != "${expected_package_license}" ]]; then
+        ci_die "Unexpected RPM license metadata in ${rpm_pkg}: ${license}"
+      fi
+    done)
+else
+  ci_warn "rpm not available; skipping RPM license checks"
 fi
 
 ci_log "==> Multi-arch detection smoke test"

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Script to build all package types for testing
-# This script uses the cpack-basic example to generate packages
+# Script to build package artifacts for testing
+# This script uses the cpack-basic example to generate DEB/RPM packages
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -129,4 +129,4 @@ find "$OUTPUT_DIR" -type f -name "*.deb" -o -name "*.rpm" | while read -r pkg; d
 done
 
 echo ""
-echo "To test packages, run: ./test-packages.sh [distro|all]"
+echo "To test packages, run: ./test-packages.sh [ubuntu|fedora|all]"
