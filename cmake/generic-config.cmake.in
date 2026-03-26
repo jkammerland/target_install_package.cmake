@@ -14,18 +14,43 @@ endif()
 @PACKAGE_INCLUDE_ON_FIND_PACKAGE@
 
 # Map consumer build configurations to installed ones before importing targets.
-# This prevents CMake from falling back to the first available config (often Debug)
-# when the consumer builds with RelWithDebInfo or MinSizeRel. Keep Debug mapped
-# to Debug and only map the "middle" configs to Release by default. Downstream
-# projects can override these if they have a different policy.
-if(NOT DEFINED CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
-  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
-endif()
-if(NOT DEFINED CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
-  set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL Release)
+# Prefer an exact imported config first and only fall back to Release when the
+# package was not installed with RelWithDebInfo or MinSizeRel artifacts.
+# CMake uses these variables only to initialize imported targets as they are
+# created, so restore the caller's state after loading this package.
+set(_tip_restore_relwithdebinfo_map FALSE)
+if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
+  set(_tip_restore_relwithdebinfo_map TRUE)
+  set(_tip_saved_relwithdebinfo_map "${CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO}")
+else()
+  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "RelWithDebInfo;Release")
 endif()
 
-# CMake's generated export file automatically handles configuration-specific includes
+set(_tip_restore_minsizerel_map FALSE)
+if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
+  set(_tip_restore_minsizerel_map TRUE)
+  set(_tip_saved_minsizerel_map "${CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL}")
+else()
+  set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL "MinSizeRel;Release")
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@Targets.cmake")
+
+if(_tip_restore_relwithdebinfo_map)
+  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "${_tip_saved_relwithdebinfo_map}")
+else()
+  unset(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
+endif()
+
+if(_tip_restore_minsizerel_map)
+  set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL "${_tip_saved_minsizerel_map}")
+else()
+  unset(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
+endif()
+
+unset(_tip_restore_relwithdebinfo_map)
+unset(_tip_saved_relwithdebinfo_map)
+unset(_tip_restore_minsizerel_map)
+unset(_tip_saved_minsizerel_map)
 
 check_required_components(@ARG_EXPORT_NAME@)
