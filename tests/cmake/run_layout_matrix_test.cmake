@@ -318,7 +318,21 @@ file(
 cmake_minimum_required(VERSION 3.25)
 project(layout_matrix_consumer LANGUAGES CXX)
 
+if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
+  message(FATAL_ERROR "CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO should be unset before find_package() in this test")
+endif()
+if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
+  message(FATAL_ERROR "CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL should be unset before find_package() in this test")
+endif()
+
 find_package(layout_matrix CONFIG REQUIRED)
+
+if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
+  message(FATAL_ERROR "find_package(layout_matrix) leaked CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO into the consumer scope")
+endif()
+if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
+  message(FATAL_ERROR "find_package(layout_matrix) leaked CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL into the consumer scope")
+endif()
 
 add_executable(layout_matrix_consumer main.cpp)
 target_compile_features(layout_matrix_consumer PRIVATE cxx_std_17)
@@ -344,7 +358,8 @@ set(_consumer_configure_command
     "${_consumer_dir}"
     -B
     "${_consumer_build_dir}"
-    "-DCMAKE_PREFIX_PATH=${_full_prefix}")
+    "-DCMAKE_PREFIX_PATH=${_full_prefix}"
+    "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_TEST_CONFIG}")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
 endif()

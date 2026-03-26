@@ -155,7 +155,7 @@ set(_tip_component_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_component_
 set(_tip_component_test_root "${CMAKE_CURRENT_BINARY_DIR}/component-dependencies")
 get_filename_component(_tip_repo_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
-set(_tip_layout_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_LAYOUT_TEST_ROOT=${_tip_layout_test_root}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+set(_tip_layout_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_LAYOUT_TEST_ROOT=${_tip_layout_test_root}" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
 
 if(CMAKE_MAKE_PROGRAM)
   list(APPEND _tip_layout_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
@@ -180,8 +180,24 @@ enable_testing()
 add_test(NAME tests_main COMMAND tests)
 
 foreach(_tip_layout IN ITEMS fhs split_debug split_all)
-  add_test(NAME "install_layout_${_tip_layout}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" ${_tip_layout_test_common_args} -P "${_tip_layout_test_script}")
+  add_test(
+    NAME "install_layout_${_tip_layout}"
+    COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" ${_tip_layout_test_common_args} -P "${_tip_layout_test_script}")
   set_tests_properties("install_layout_${_tip_layout}" PROPERTIES LABELS "install-layout")
+endforeach()
+
+foreach(_tip_middle_config IN ITEMS RelWithDebInfo MinSizeRel)
+  string(TOLOWER "${_tip_middle_config}" _tip_middle_config_lower)
+  add_test(
+    NAME "install_layout_fhs_${_tip_middle_config_lower}"
+    COMMAND
+      ${CMAKE_COMMAND}
+      "-DTIP_LAYOUT=fhs"
+      "-DTIP_LAYOUT_TEST_CONFIG=${_tip_middle_config}"
+      ${_tip_layout_test_common_args}
+      -P
+      "${_tip_layout_test_script}")
+  set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
 endforeach()
 
 set(_tip_component_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_COMPONENT_TEST_ROOT=${_tip_component_test_root}" "-DTIP_COMPONENT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
