@@ -979,8 +979,6 @@ target_install_package(math_sources
 
 `SOURCE_FILES` installs the listed sources under `${CMAKE_INSTALL_DATADIR}/<package>/` by default and publishes them through native `INTERFACE_SOURCES` on the installed imported target. Consumers compile those sources with their own toolchain, flags, and target properties after `find_package()`.
 
-This is the right model for small source packages and configuration-sensitive code. It is not a replacement for normal static/shared libraries: each consumer target that links the package may compile the shipped sources separately.
-
 For a module-based variant of the same pattern, see [`examples/source-package-modules/`](examples/source-package-modules/).
 
 ## FILE_SET Approach Features
