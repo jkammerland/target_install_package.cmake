@@ -720,6 +720,7 @@ These example projects live under [`examples/`](examples/) and can be built indi
 | [basic-shared](examples/basic-shared/) | Shared Library | Versioned shared library with runtime/development separation |
 | [basic-interface](examples/basic-interface/) | Interface Library | Header-only library packaging |
 | [basic-source-package](examples/basic-source-package/) | Interface Library | Consumer-built source-only package via `SOURCE_FILES` |
+| [sdk-hybrid](examples/sdk-hybrid/) | Mixed SDK | Prebuilt runtime plus source-only extension targets in one SDK package |
 | [source-package-modules](examples/source-package-modules/) | Interface Library | Consumer-built C++20 modules package |
 | [multi-target](examples/multi-target/) | Multi-Library | Multiple related libraries in one package |
 | [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |

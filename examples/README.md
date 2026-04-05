@@ -10,6 +10,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [basic-shared](basic-shared/) | Shared Library | Versioned shared library with component separation |
 | [basic-interface](basic-interface/) | Interface Library | Header-only template library |
 | [basic-source-package](basic-source-package/) | Interface Library | Consumer-built source-only package via `SOURCE_FILES` |
+| [sdk-hybrid](sdk-hybrid/) | Mixed SDK | Prebuilt runtime plus source-only extension targets in one SDK package |
 | [source-package-modules](source-package-modules/) | Interface Library | Consumer-built C++20 modules package |
 | [multi-target](multi-target/) | Multi-Library | Multiple libraries in one package |
 | [multi-config](multi-config/) | Multi-Config | Different configurations (Debug/Release) within a single package |
@@ -59,25 +60,26 @@ Begin with the basic examples to understand core concepts:
 2. **[basic-shared](basic-shared/)** - Understand shared library versioning and components
 3. **[basic-interface](basic-interface/)** - Explore header-only library distribution
 4. **[basic-source-package](basic-source-package/)** - Ship implementation sources for consumers to compile
+5. **[sdk-hybrid](sdk-hybrid/)** - Mix prebuilt and source-built targets in one SDK package
 
 ### 2. More Complex Scenarios
 
 Progress to more sophisticated packaging strategies:
 
-5. **[multi-target](multi-target/)** - Package multiple related libraries together
-6. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
-7. **[components](components/)** - Implement flexible component-based installation with logical groups
-8. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (use this when multiple targets must be consumed through one export)
-9. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
-10. **[configure-files](configure-files/)** - Generate build-time configuration headers
-11. **[custom-alias](custom-alias/)** - Export cleaner consumer-facing alias names
-12. **[rpath-example](rpath-example/)** - Verify relocatable installs without `LD_LIBRARY_PATH`
-13. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
-14. **[source-package-modules](source-package-modules/)** - Ship module interfaces plus implementation sources for consumers to build
-15. **[cxx-modules-partitions](cxx-modules-partitions/)** - Explore module partition hierarchies
-16. **[cpack-basic](cpack-basic/)** - Generate component packages with `export_cpack()`
-17. **[cpack-signed](cpack-signed/)** - Add GPG signatures and checksums to generated packages
-18. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
+6. **[multi-target](multi-target/)** - Package multiple related libraries together
+7. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
+8. **[components](components/)** - Implement flexible component-based installation with logical groups
+9. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (use this when multiple targets must be consumed through one export)
+10. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
+11. **[configure-files](configure-files/)** - Generate build-time configuration headers
+12. **[custom-alias](custom-alias/)** - Export cleaner consumer-facing alias names
+13. **[rpath-example](rpath-example/)** - Verify relocatable installs without `LD_LIBRARY_PATH`
+14. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
+15. **[source-package-modules](source-package-modules/)** - Ship module interfaces plus implementation sources for consumers to build
+16. **[cxx-modules-partitions](cxx-modules-partitions/)** - Explore module partition hierarchies
+17. **[cpack-basic](cpack-basic/)** - Generate component packages with `export_cpack()`
+18. **[cpack-signed](cpack-signed/)** - Add GPG signatures and checksums to generated packages
+19. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
 
 ## 🔧 Common Build Commands
 
@@ -197,6 +199,11 @@ install/
 - Consumer-built source-only package using `SOURCE_FILES`
 - Installed implementation sources under `share/<package>/`
 - Native `INTERFACE_SOURCES` consumption through `find_package()`
+
+### Hybrid SDK ([sdk-hybrid](sdk-hybrid/))
+- One SDK package exporting a prebuilt runtime, a source-only extension layer, and an umbrella target
+- Source-built target links against the prebuilt runtime through the installed package
+- Consumer links one imported SDK target from the install prefix
 
 ### Source Package Modules ([source-package-modules](source-package-modules/))
 - Consumer-built C++20 modules package
