@@ -213,6 +213,13 @@ set_tests_properties(examples_source_package_consume_test PROPERTIES TIMEOUT 120
 add_executable(test_sdk_hybrid_consumer test_sdk_hybrid_consumer.cpp)
 target_link_libraries(test_sdk_hybrid_consumer PRIVATE HybridSdk::sdk)
 target_compile_features(test_sdk_hybrid_consumer PRIVATE cxx_std_17)
+if(WIN32)
+  add_custom_command(
+    TARGET test_sdk_hybrid_consumer
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:test_sdk_hybrid_consumer> $<TARGET_RUNTIME_DLLS:test_sdk_hybrid_consumer>
+    COMMAND_EXPAND_LISTS)
+endif()
 add_test(NAME examples_sdk_hybrid_consume_test COMMAND test_sdk_hybrid_consumer)
 set_tests_properties(examples_sdk_hybrid_consume_test PROPERTIES TIMEOUT 120 LABELS "integration;sdk;source-package")
 

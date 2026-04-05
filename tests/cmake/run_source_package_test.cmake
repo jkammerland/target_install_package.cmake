@@ -193,6 +193,12 @@ project(source_package_consumer LANGUAGES CXX)
 
 find_package(source_package CONFIG REQUIRED)
 
+get_target_property(_source_package_interface_sources SourcePackage::source_package INTERFACE_SOURCES)
+if(NOT _source_package_interface_sources)
+  message(FATAL_ERROR "SourcePackage::source_package did not expose INTERFACE_SOURCES")
+endif()
+file(WRITE "${CMAKE_BINARY_DIR}/source_package_interface_sources.txt" "${_source_package_interface_sources}\n")
+
 add_executable(source_package_consumer main.cpp)
 target_compile_features(source_package_consumer PRIVATE cxx_std_17)
 target_link_libraries(source_package_consumer PRIVATE SourcePackage::source_package)
@@ -216,8 +222,7 @@ set(_consumer_configure_command
     -B
     "${_consumer_build_dir}"
     "-DCMAKE_PREFIX_PATH=${_install_prefix}"
-    "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_TEST_CONFIG}"
-    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
+    "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_TEST_CONFIG}")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
 endif()
@@ -251,9 +256,9 @@ _tip_run_step(
   --config
   "${TIP_SOURCE_PACKAGE_TEST_CONFIG}")
 
-set(_consumer_compile_commands "${_consumer_build_dir}/compile_commands.json")
-_tip_assert_file_contains("${_consumer_compile_commands}" "${_installed_source}")
-_tip_assert_file_not_contains("${_consumer_compile_commands}" "${_fixture_source_dir}/src/source_package.cpp")
+set(_consumer_interface_sources "${_consumer_build_dir}/source_package_interface_sources.txt")
+_tip_assert_file_contains("${_consumer_interface_sources}" "${_installed_source}")
+_tip_assert_file_not_contains("${_consumer_interface_sources}" "${_fixture_source_dir}/src/source_package.cpp")
 
 set(_consumer_executable_candidates
     "${_consumer_build_dir}/source_package_consumer${_tip_executable_suffix}"
