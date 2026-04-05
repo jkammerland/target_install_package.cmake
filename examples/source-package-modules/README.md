@@ -26,6 +26,7 @@ cmake_minimum_required(VERSION 3.28)
 project(consumer LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
+set(source_math_modules_LIBRARY_TYPE STATIC)
 find_package(source_math_modules REQUIRED)
 
 add_executable(app main.cpp)
@@ -41,6 +42,4 @@ int main() {
 }
 ```
 
-## Note
-
-CMake only allows `CXX_MODULES` file sets with `INTERFACE` scope on imported targets, not on producer-side `INTERFACE` libraries. This example installs the `.cppm` file and attaches it to the imported target from an `INCLUDE_ON_FIND_PACKAGE` helper so the downstream consumer still gets a native module file set.
+`find_package()` recreates `SourceMathModules::source_math_modules` from the installed `.cppm` and `.cpp` files because the package was installed with `INCLUDE_SOURCES EXCLUSIVE`.

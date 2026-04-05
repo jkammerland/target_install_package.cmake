@@ -10,7 +10,7 @@
 | LIBRARY | Unix shared libraries (.so, .dylib) | `lib/` or `lib64/` | `CMAKE_INSTALL_LIBDIR` |
 | ARCHIVE | Static libraries, Windows import libs | `lib/` or `lib64/` | `CMAKE_INSTALL_LIBDIR` |
 | HEADERS | Header files | `include/` | `CMAKE_INSTALL_INCLUDEDIR` |
-| SOURCE_FILES | Consumer-built package sources | `share/<package>/` by default | `SOURCE_DESTINATION` |
+| INCLUDED_SOURCES | Consumer-built package sources | `share/<package>/` by default | `SOURCE_DESTINATION` |
 | MODULES | C++20 module files | `include/` | `CMAKE_INSTALL_INCLUDEDIR` |
 | CONFIG | CMake config files | `share/cmake/<package>/` | `CMAKE_INSTALL_DATADIR` |
 | ADDITIONAL_FILES | User-specified files | `<prefix>` or custom | `ADDITIONAL_FILES_DESTINATION` |
@@ -51,15 +51,16 @@ Notes:
 | Runtime | Executables, DLLs, shared libraries | Required at runtime |
 | Development | Headers, source packages, import libs, static libs, CMake configs | Required for building |
 
-## Source Files
+## Included Sources
 
-`SOURCE_FILES` installs implementation sources for `INTERFACE` libraries so consumers compile them through the installed imported target:
+`INCLUDE_SOURCES EXCLUSIVE` installs implementation sources extracted from the target itself, then recreates a local target from the installed files during `find_package()`:
 
 ```cmake
+add_library(mylib STATIC)
+target_sources(mylib PRIVATE src/core.cpp src/math/add.cpp)
+
 target_install_package(mylib
-  SOURCE_FILES
-    src/core.cpp
-    src/math/add.cpp
+  INCLUDE_SOURCES EXCLUSIVE
 )
 ```
 

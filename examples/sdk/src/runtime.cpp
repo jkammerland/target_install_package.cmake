@@ -1,9 +1,9 @@
-#include "hybrid_sdk/runtime.hpp"
+#include "sdk/runtime.hpp"
 
-namespace hybrid_sdk::runtime {
+namespace sdk::runtime {
 
 std::string_view edition() {
-  return "hybrid-sdk";
+  return "sdk";
 }
 
 int calibration_bias() {
@@ -14,4 +14,4 @@ int normalize_reading(int reading) {
   return reading + calibration_bias();
 }
 
-} // namespace hybrid_sdk::runtime
+} // namespace sdk::runtime

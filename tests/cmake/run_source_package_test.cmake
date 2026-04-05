@@ -191,13 +191,24 @@ file(
 cmake_minimum_required(VERSION 3.25)
 project(source_package_consumer LANGUAGES CXX)
 
+set(source_package_LIBRARY_TYPE STATIC)
 find_package(source_package CONFIG REQUIRED)
 
-get_target_property(_source_package_interface_sources SourcePackage::source_package INTERFACE_SOURCES)
-if(NOT _source_package_interface_sources)
-  message(FATAL_ERROR "SourcePackage::source_package did not expose INTERFACE_SOURCES")
+get_target_property(_source_package_local_target SourcePackage::source_package ALIASED_TARGET)
+if(NOT _source_package_local_target)
+  message(FATAL_ERROR "SourcePackage::source_package is not an alias target")
 endif()
-file(WRITE "${CMAKE_BINARY_DIR}/source_package_interface_sources.txt" "${_source_package_interface_sources}\n")
+get_target_property(_source_package_imported "${_source_package_local_target}" IMPORTED)
+if(_source_package_imported)
+  message(FATAL_ERROR "SourcePackage::source_package resolved to an imported target")
+endif()
+get_target_property(_source_package_sources "${_source_package_local_target}" SOURCES)
+if(NOT _source_package_sources)
+  message(FATAL_ERROR "SourcePackage::source_package did not expose local SOURCES")
+endif()
+get_target_property(_source_package_type "${_source_package_local_target}" TYPE)
+file(WRITE "${CMAKE_BINARY_DIR}/source_package_sources.txt" "${_source_package_sources}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/source_package_type.txt" "${_source_package_type}\n")
 
 add_executable(source_package_consumer main.cpp)
 target_compile_features(source_package_consumer PRIVATE cxx_std_17)
@@ -256,9 +267,11 @@ _tip_run_step(
   --config
   "${TIP_SOURCE_PACKAGE_TEST_CONFIG}")
 
-set(_consumer_interface_sources "${_consumer_build_dir}/source_package_interface_sources.txt")
-_tip_assert_file_contains("${_consumer_interface_sources}" "${_installed_source}")
-_tip_assert_file_not_contains("${_consumer_interface_sources}" "${_fixture_source_dir}/src/source_package.cpp")
+set(_consumer_sources_file "${_consumer_build_dir}/source_package_sources.txt")
+set(_consumer_type_file "${_consumer_build_dir}/source_package_type.txt")
+_tip_assert_file_contains("${_consumer_sources_file}" "${_installed_source}")
+_tip_assert_file_not_contains("${_consumer_sources_file}" "${_fixture_source_dir}/src/source_package.cpp")
+_tip_assert_file_contains("${_consumer_type_file}" "STATIC_LIBRARY")
 
 set(_consumer_executable_candidates
     "${_consumer_build_dir}/source_package_consumer${_tip_executable_suffix}"
@@ -280,8 +293,8 @@ file(
   "include(\"${TIP_REPO_ROOT}/cmake/list_file_include_guard.cmake\")\n"
   "include(\"${TIP_REPO_ROOT}/cmake/project_log.cmake\")\n"
   "include(\"${TIP_REPO_ROOT}/target_install_package.cmake\")\n"
-  "add_library(invalid STATIC src/invalid.cpp)\n"
-  "target_install_package(invalid SOURCE_FILES src/invalid.cpp)\n")
+  "add_executable(invalid src/invalid.cpp)\n"
+  "target_install_package(invalid INCLUDE_SOURCES EXCLUSIVE)\n")
 file(WRITE "${_invalid_dir}/src/invalid.cpp" "int invalid() { return 0; }\n")
 
 set(_invalid_configure_command "${CMAKE_COMMAND}" -S "${_invalid_dir}" -B "${_invalid_build_dir}" "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_TEST_CONFIG}")
@@ -314,13 +327,13 @@ execute_process(
   ERROR_VARIABLE _invalid_stderr)
 
 if(_invalid_result EQUAL 0)
-  _tip_fail("Expected non-INTERFACE SOURCE_FILES configure to fail")
+  _tip_fail("Expected non-library INCLUDE_SOURCES EXCLUSIVE configure to fail")
 endif()
 
 set(_invalid_output "${_invalid_stdout}\n${_invalid_stderr}")
-string(FIND "${_invalid_output}" "SOURCE_FILES is supported only for" _invalid_match_index)
+string(FIND "${_invalid_output}" "supported only for library targets" _invalid_match_index)
 if(_invalid_match_index EQUAL -1)
-  _tip_fail("Expected validation error for non-INTERFACE SOURCE_FILES usage")
+  _tip_fail("Expected validation error for non-library INCLUDE_SOURCES EXCLUSIVE usage")
 endif()
 
 message(STATUS "[source-package] Source package assertions passed.")

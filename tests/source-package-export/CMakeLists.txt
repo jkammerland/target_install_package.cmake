@@ -32,17 +32,18 @@ if(WIN32)
   set_target_properties(export_runtime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-add_library(export_algorithms INTERFACE)
+add_library(export_algorithms STATIC)
 target_sources(
   export_algorithms
-  INTERFACE FILE_SET
-            HEADERS
-            BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/include"
-            FILES
-            "include/source_sdk/algorithms.hpp")
-target_link_libraries(export_algorithms INTERFACE export_runtime)
-target_compile_features(export_algorithms INTERFACE cxx_std_17)
+  PRIVATE src/algorithms.cpp
+  PUBLIC FILE_SET
+         HEADERS
+         BASE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/include"
+         FILES
+         "include/source_sdk/algorithms.hpp")
+target_link_libraries(export_algorithms PUBLIC export_runtime)
+target_compile_features(export_algorithms PUBLIC cxx_std_17)
 
 add_library(export_sdk INTERFACE)
 target_sources(
@@ -73,8 +74,19 @@ target_install_package(
   SourceSdk::
   VERSION
   ${PROJECT_VERSION}
-  SOURCE_FILES
-  src/algorithms.cpp)
+  ALIAS_NAME
+  export_algorithms_prebuilt)
+
+target_install_package(
+  export_algorithms
+  EXPORT_NAME
+  source_sdk
+  NAMESPACE
+  SourceSdk::
+  VERSION
+  ${PROJECT_VERSION}
+  INCLUDE_SOURCES
+  EXCLUSIVE)
 
 target_install_package(
   export_sdk
@@ -83,4 +95,6 @@ target_install_package(
   NAMESPACE
   SourceSdk::
   VERSION
-  ${PROJECT_VERSION})
+  ${PROJECT_VERSION}
+  INCLUDE_SOURCES
+  EXCLUSIVE)

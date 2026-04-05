@@ -10,47 +10,11 @@ endif()
 # Package global dependencies (always loaded regardless of components)
 @PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@
 
+@PACKAGE_IMPORTED_TARGETS_CONTENT@
+
+@PACKAGE_SOURCE_TARGETS_CONTENT@
+
 # Include additional CMake files on find_package
 @PACKAGE_INCLUDE_ON_FIND_PACKAGE@
-
-# Map consumer build configurations to installed ones before importing targets.
-# Prefer an exact imported config first and only fall back to Release when the
-# package was not installed with RelWithDebInfo or MinSizeRel artifacts.
-# CMake uses these variables only to initialize imported targets as they are
-# created, so restore the caller's state after loading this package.
-set(_tip_restore_relwithdebinfo_map FALSE)
-if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
-  set(_tip_restore_relwithdebinfo_map TRUE)
-  set(_tip_saved_relwithdebinfo_map "${CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO}")
-else()
-  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "RelWithDebInfo;Release")
-endif()
-
-set(_tip_restore_minsizerel_map FALSE)
-if(DEFINED CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
-  set(_tip_restore_minsizerel_map TRUE)
-  set(_tip_saved_minsizerel_map "${CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL}")
-else()
-  set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL "MinSizeRel;Release")
-endif()
-
-include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@Targets.cmake")
-
-if(_tip_restore_relwithdebinfo_map)
-  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "${_tip_saved_relwithdebinfo_map}")
-else()
-  unset(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO)
-endif()
-
-if(_tip_restore_minsizerel_map)
-  set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL "${_tip_saved_minsizerel_map}")
-else()
-  unset(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL)
-endif()
-
-unset(_tip_restore_relwithdebinfo_map)
-unset(_tip_saved_relwithdebinfo_map)
-unset(_tip_restore_minsizerel_map)
-unset(_tip_saved_minsizerel_map)
 
 check_required_components(@ARG_EXPORT_NAME@)

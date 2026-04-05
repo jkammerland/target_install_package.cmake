@@ -9,9 +9,9 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [basic-static](basic-static/) | Static Library | Simple static library with FILE_SET headers |
 | [basic-shared](basic-shared/) | Shared Library | Versioned shared library with component separation |
 | [basic-interface](basic-interface/) | Interface Library | Header-only template library |
-| [basic-source-package](basic-source-package/) | Interface Library | Consumer-built source-only package via `SOURCE_FILES` |
-| [sdk-hybrid](sdk-hybrid/) | Mixed SDK | Prebuilt runtime plus source-only extension targets in one SDK package |
-| [source-package-modules](source-package-modules/) | Interface Library | Consumer-built C++20 modules package |
+| [basic-source-package](basic-source-package/) | Source-Backed Library | Consumer-built package generated from installed sources |
+| [sdk](sdk/) | SDK | Prebuilt runtime plus source-built extension targets in one SDK package |
+| [source-package-modules](source-package-modules/) | Source-Backed Library | Consumer-built C++20 modules package |
 | [multi-target](multi-target/) | Multi-Library | Multiple libraries in one package |
 | [multi-config](multi-config/) | Multi-Config | Different configurations (Debug/Release) within a single package |
 | [components](components/) | Component-Based | Custom components and selective installation |
@@ -60,7 +60,7 @@ Begin with the basic examples to understand core concepts:
 2. **[basic-shared](basic-shared/)** - Understand shared library versioning and components
 3. **[basic-interface](basic-interface/)** - Explore header-only library distribution
 4. **[basic-source-package](basic-source-package/)** - Ship implementation sources for consumers to compile
-5. **[sdk-hybrid](sdk-hybrid/)** - Mix prebuilt and source-built targets in one SDK package
+5. **[sdk](sdk/)** - Combine prebuilt and source-built targets in one SDK package
 
 ### 2. More Complex Scenarios
 
@@ -196,17 +196,17 @@ install/
 - Template algorithm implementations
 
 ### Source Package ([basic-source-package](basic-source-package/))
-- Consumer-built source-only package using `SOURCE_FILES`
+- Consumer-built package using `INCLUDE_SOURCES EXCLUSIVE`
 - Installed implementation sources under `share/<package>/`
-- Native `INTERFACE_SOURCES` consumption through `find_package()`
+- `find_package()` creates a local target that compiles the installed sources
 
-### Hybrid SDK ([sdk-hybrid](sdk-hybrid/))
-- One SDK package exporting a prebuilt runtime, a source-only extension layer, and an umbrella target
-- Source-built target links against the prebuilt runtime through the installed package
-- Consumer links one imported SDK target from the install prefix
+### SDK Example ([sdk](sdk/))
+- One SDK package exporting a prebuilt runtime, a source-built extension layer, and an umbrella target
+- Source-built targets link against the prebuilt runtime through the installed package
+- Consumer links one SDK target from the install prefix
 
 ### Source Package Modules ([source-package-modules](source-package-modules/))
-- Consumer-built C++20 modules package
+- Consumer-built C++20 modules package using `INCLUDE_SOURCES EXCLUSIVE`
 - Installed module interfaces under `include/<package>/modules/`
 - Installed implementation sources under `share/<package>/`
 

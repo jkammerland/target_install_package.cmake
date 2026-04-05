@@ -15,13 +15,24 @@ endif()
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
-add_library(source_math_modules INTERFACE)
-target_compile_features(source_math_modules INTERFACE cxx_std_20)
+add_library(source_math_modules STATIC)
+target_sources(
+  source_math_modules
+  PRIVATE src/source_math.cpp
+  PUBLIC FILE_SET
+         CXX_MODULES
+         TYPE
+         CXX_MODULES
+         BASE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/modules"
+         FILES
+         "modules/source_math.cppm")
+target_compile_features(source_math_modules PUBLIC cxx_std_20)
 
 set_target_properties(source_math_modules PROPERTIES CXX_SCAN_FOR_MODULES ON)
 
 if(APPLE AND CMAKE_OSX_SYSROOT)
-  target_compile_options(source_math_modules INTERFACE "-isysroot${CMAKE_OSX_SYSROOT}")
+  target_compile_options(source_math_modules PUBLIC "-isysroot${CMAKE_OSX_SYSROOT}")
 endif()
 
 target_install_package(
@@ -30,11 +41,7 @@ target_install_package(
   SourceMathModules::
   VERSION
   ${PROJECT_VERSION}
-  INCLUDE_ON_FIND_PACKAGE
-  cmake/source_math_modules-modules.cmake
-  ADDITIONAL_FILES
-  modules/source_math.cppm
-  ADDITIONAL_FILES_DESTINATION
+  MODULE_DESTINATION
   "${CMAKE_INSTALL_INCLUDEDIR}/source_math_modules/modules"
-  SOURCE_FILES
-  src/source_math.cpp)
+  INCLUDE_SOURCES
+  EXCLUSIVE)

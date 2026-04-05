@@ -106,7 +106,7 @@ target_install_package(my_library
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
-- First-class source-only interface packages via `SOURCE_FILES`
+- First-class source-backed packages via `INCLUDE_SOURCES NO|EXCLUSIVE`
 - Component-based installation with runtime/development/custom separation
 - Build variant support for debug/release/custom configurations
 - Templated source file configuration with proper include paths
@@ -719,9 +719,9 @@ These example projects live under [`examples/`](examples/) and can be built indi
 | [basic-static](examples/basic-static/) | Static Library | Simple static library with FILE_SET headers |
 | [basic-shared](examples/basic-shared/) | Shared Library | Versioned shared library with runtime/development separation |
 | [basic-interface](examples/basic-interface/) | Interface Library | Header-only library packaging |
-| [basic-source-package](examples/basic-source-package/) | Interface Library | Consumer-built source-only package via `SOURCE_FILES` |
-| [sdk-hybrid](examples/sdk-hybrid/) | Mixed SDK | Prebuilt runtime plus source-only extension targets in one SDK package |
-| [source-package-modules](examples/source-package-modules/) | Interface Library | Consumer-built C++20 modules package |
+| [basic-source-package](examples/basic-source-package/) | Source-Backed Library | Consumer-built package generated from installed sources |
+| [sdk](examples/sdk/) | SDK | Prebuilt runtime plus source-built extension targets in one SDK package |
+| [source-package-modules](examples/source-package-modules/) | Source-Backed Library | Consumer-built C++20 modules package |
 | [multi-target](examples/multi-target/) | Multi-Library | Multiple related libraries in one package |
 | [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |
 | [components](examples/components/) | Component-Based | Component Prefix Pattern and selective installation |
@@ -961,9 +961,11 @@ target_install_package(math_header_lib
 For small implementation libraries that should always be built with the consumer toolchain:
 
 ```cmake
-add_library(math_sources INTERFACE)
+add_library(math_sources STATIC)
 
-target_sources(math_sources INTERFACE
+target_sources(math_sources
+  PRIVATE src/add.cpp
+  PUBLIC
   FILE_SET HEADERS
   BASE_DIRS include
   FILES include/math_sources/add.hpp
@@ -971,13 +973,15 @@ target_sources(math_sources INTERFACE
 
 target_install_package(math_sources
   NAMESPACE MathSources::
-  SOURCE_FILES
-    src/add.cpp
-    src/subtract.cpp
+  INCLUDE_SOURCES EXCLUSIVE
 )
 ```
 
-`SOURCE_FILES` installs the listed sources under `${CMAKE_INSTALL_DATADIR}/<package>/` by default and publishes them through native `INTERFACE_SOURCES` on the installed imported target. Consumers compile those sources with their own toolchain, flags, and target properties after `find_package()`.
+`INCLUDE_SOURCES EXCLUSIVE` extracts installable headers, module interface units, and implementation sources from the target itself. The installed package then creates a local target during `find_package()`, so the consumer compiles those shipped sources with its own toolchain, flags, and target properties.
+
+Use `SOURCE_DESTINATION` and `MODULE_DESTINATION` to control where the extracted files land in the install tree. The file lists themselves are not part of the public API.
+
+If you need both a normal imported target and a source-built variant, install the same producer target twice with different aliases: once with `INCLUDE_SOURCES NO`, once with `INCLUDE_SOURCES EXCLUSIVE`. See the [included sources user story](docs/included_sources_user_story.md).
 
 For a module-based variant of the same pattern, see [`examples/source-package-modules/`](examples/source-package-modules/).
 

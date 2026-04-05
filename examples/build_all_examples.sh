@@ -482,7 +482,7 @@ EXAMPLES=(
     "basic-shared" 
     "basic-interface"
     "basic-source-package"
-    "sdk-hybrid"
+    "sdk"
     "source-package-modules"
     "multi-target"
     "multi-config"

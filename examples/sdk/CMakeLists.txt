@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(sdk_hybrid_example VERSION 1.0.0 LANGUAGES CXX)
+project(sdk_example VERSION 1.0.0 LANGUAGES CXX)
 
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
@@ -14,7 +14,7 @@ target_sources(
          BASE_DIRS
          "${CMAKE_CURRENT_SOURCE_DIR}/include"
          FILES
-         "include/hybrid_sdk/runtime.hpp")
+         "include/sdk/runtime.hpp")
 target_compile_features(sdk_runtime PUBLIC cxx_std_17)
 set_target_properties(
   sdk_runtime
@@ -25,17 +25,18 @@ if(WIN32)
   set_target_properties(sdk_runtime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-add_library(sdk_open_algorithms INTERFACE)
+add_library(sdk_open_algorithms STATIC)
 target_sources(
   sdk_open_algorithms
-  INTERFACE FILE_SET
-            HEADERS
-            BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/include"
-            FILES
-            "include/hybrid_sdk/open_algorithms.hpp")
-target_link_libraries(sdk_open_algorithms INTERFACE sdk_runtime)
-target_compile_features(sdk_open_algorithms INTERFACE cxx_std_17)
+  PRIVATE src/open_algorithms.cpp
+  PUBLIC FILE_SET
+         HEADERS
+         BASE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/include"
+         FILES
+         "include/sdk/open_algorithms.hpp")
+target_link_libraries(sdk_open_algorithms PUBLIC sdk_runtime)
+target_compile_features(sdk_open_algorithms PUBLIC cxx_std_17)
 
 add_library(sdk INTERFACE)
 target_sources(
@@ -45,35 +46,37 @@ target_sources(
             BASE_DIRS
             "${CMAKE_CURRENT_SOURCE_DIR}/include"
             FILES
-            "include/hybrid_sdk/sdk.hpp")
+            "include/sdk/sdk.hpp")
 target_link_libraries(sdk INTERFACE sdk_runtime sdk_open_algorithms)
 target_compile_features(sdk INTERFACE cxx_std_17)
 
 target_install_package(
   sdk_runtime
   EXPORT_NAME
-  hybrid_sdk
+  sdk
   NAMESPACE
-  HybridSdk::
+  Sdk::
   VERSION
   ${PROJECT_VERSION})
 
 target_install_package(
   sdk_open_algorithms
   EXPORT_NAME
-  hybrid_sdk
+  sdk
   NAMESPACE
-  HybridSdk::
+  Sdk::
   VERSION
   ${PROJECT_VERSION}
-  SOURCE_FILES
-  src/open_algorithms.cpp)
+  INCLUDE_SOURCES
+  EXCLUSIVE)
 
 target_install_package(
   sdk
   EXPORT_NAME
-  hybrid_sdk
+  sdk
   NAMESPACE
-  HybridSdk::
+  Sdk::
   VERSION
-  ${PROJECT_VERSION})
+  ${PROJECT_VERSION}
+  INCLUDE_SOURCES
+  EXCLUSIVE)

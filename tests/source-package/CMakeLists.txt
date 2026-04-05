@@ -13,19 +13,19 @@ include("${TIP_REPO_ROOT}/cmake/list_file_include_guard.cmake")
 include("${TIP_REPO_ROOT}/cmake/project_log.cmake")
 include("${TIP_REPO_ROOT}/target_install_package.cmake")
 
-add_library(source_package INTERFACE)
+add_library(source_package STATIC)
 target_sources(
   source_package
-  INTERFACE FILE_SET
-            HEADERS
-            BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/include"
-            FILES
-            "include/source_package/source_package.hpp")
-target_compile_features(source_package INTERFACE cxx_std_17)
+  PRIVATE src/source_package.cpp
+  PUBLIC FILE_SET
+         HEADERS
+         BASE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/include"
+         FILES
+         "include/source_package/source_package.hpp")
+target_compile_features(source_package PUBLIC cxx_std_17)
 
 target_install_package(
   source_package
   NAMESPACE SourcePackage::
-  SOURCE_FILES
-  src/source_package.cpp)
+  INCLUDE_SOURCES EXCLUSIVE)
