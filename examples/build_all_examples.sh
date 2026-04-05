@@ -481,6 +481,8 @@ EXAMPLES=(
     "basic-static"
     "basic-shared" 
     "basic-interface"
+    "basic-source-package"
+    "source-package-modules"
     "multi-target"
     "multi-config"
     "components"

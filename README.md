@@ -95,6 +95,7 @@ target_install_package(my_library
    - [Game Engine with Modular Components](#game-engine-with-modular-components-)
    - [Build Variant Support](#build-variant-support-)
    - [Header-Only Libraries](#header-only-libraries-)
+   - [Source-Only Packages](#source-only-packages)
 7. [FILE_SET Features](#file_set-approach-features)
 8. [Similar projects](#similar-projects)
 
@@ -105,6 +106,7 @@ target_install_package(my_library
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
+- First-class source-only interface packages via `SOURCE_FILES`
 - Component-based installation with runtime/development/custom separation
 - Build variant support for debug/release/custom configurations
 - Templated source file configuration with proper include paths
@@ -717,6 +719,8 @@ These example projects live under [`examples/`](examples/) and can be built indi
 | [basic-static](examples/basic-static/) | Static Library | Simple static library with FILE_SET headers |
 | [basic-shared](examples/basic-shared/) | Shared Library | Versioned shared library with runtime/development separation |
 | [basic-interface](examples/basic-interface/) | Interface Library | Header-only library packaging |
+| [basic-source-package](examples/basic-source-package/) | Interface Library | Consumer-built source-only package via `SOURCE_FILES` |
+| [source-package-modules](examples/source-package-modules/) | Interface Library | Consumer-built C++20 modules package |
 | [multi-target](examples/multi-target/) | Multi-Library | Multiple related libraries in one package |
 | [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |
 | [components](examples/components/) | Component-Based | Component Prefix Pattern and selective installation |
@@ -950,6 +954,33 @@ target_install_package(math_header_lib
     cmake/CompilerWarnings.cmake
 )
 ```
+
+### Source-Only Packages
+
+For small implementation libraries that should always be built with the consumer toolchain:
+
+```cmake
+add_library(math_sources INTERFACE)
+
+target_sources(math_sources INTERFACE
+  FILE_SET HEADERS
+  BASE_DIRS include
+  FILES include/math_sources/add.hpp
+)
+
+target_install_package(math_sources
+  NAMESPACE MathSources::
+  SOURCE_FILES
+    src/add.cpp
+    src/subtract.cpp
+)
+```
+
+`SOURCE_FILES` installs the listed sources under `${CMAKE_INSTALL_DATADIR}/<package>/` by default and publishes them through native `INTERFACE_SOURCES` on the installed imported target. Consumers compile those sources with their own toolchain, flags, and target properties after `find_package()`.
+
+This is the right model for small source packages and configuration-sensitive code. It is not a replacement for normal static/shared libraries: each consumer target that links the package may compile the shipped sources separately.
+
+For a module-based variant of the same pattern, see [`examples/source-package-modules/`](examples/source-package-modules/).
 
 ## FILE_SET Approach Features
 

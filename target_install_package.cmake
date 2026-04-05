@@ -59,6 +59,8 @@ endif()
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
+#     SOURCE_FILES <files...>
+#     SOURCE_DESTINATION <dest>
 #     ADDITIONAL_FILES <files...>
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
@@ -83,6 +85,8 @@ endif()
 #   COMPONENT                    - Component prefix for installation. Creates `${COMPONENT}` for runtime and `${COMPONENT}_Development` for development files.
 #                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
+#   SOURCE_FILES                 - Source files to ship as consumer-built interface sources. Supported only for INTERFACE libraries.
+#   SOURCE_DESTINATION           - Destination for installed source files (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}`).
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Destination for additional files (default: install prefix root).
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
@@ -94,6 +98,7 @@ endif()
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
+#   - Supports source-only interface packages via SOURCE_FILES and INTERFACE_SOURCES.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
 #   - Supports multi-config builds with automatic debug postfix handling.
@@ -170,6 +175,53 @@ function(_tip_resolve_absolute_paths RESULT_VAR BASE_DIR)
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_prepare_source_package_files ABSOLUTE_FILES_VAR INTERFACE_ENTRIES_VAR TARGET_NAME BASE_DIR INSTALL_DESTINATION)
+  get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
+  if(NOT _tip_target_type STREQUAL "INTERFACE_LIBRARY")
+    project_log(FATAL_ERROR "SOURCE_FILES is supported only for INTERFACE libraries. Target '${TARGET_NAME}' has type '${_tip_target_type}'.")
+  endif()
+
+  set(_tip_source_base_path "${BASE_DIR}")
+  set(_tip_absolute_source_files "")
+  set(_tip_interface_source_entries "")
+
+  foreach(_tip_source_file IN LISTS ARGN)
+    cmake_path(
+      ABSOLUTE_PATH
+      _tip_source_file
+      BASE_DIRECTORY
+      "${BASE_DIR}"
+      NORMALIZE
+      OUTPUT_VARIABLE
+      _tip_absolute_source_path)
+
+    if(NOT EXISTS "${_tip_absolute_source_path}")
+      project_log(FATAL_ERROR "SOURCE_FILES entry for target '${TARGET_NAME}' does not exist: ${_tip_absolute_source_path}")
+    endif()
+
+    cmake_path(IS_PREFIX _tip_source_base_path "${_tip_absolute_source_path}" NORMALIZE _tip_source_under_base_dir)
+    if(NOT _tip_source_under_base_dir)
+      project_log(FATAL_ERROR "SOURCE_FILES entry for target '${TARGET_NAME}' must stay under '${BASE_DIR}': ${_tip_absolute_source_path}")
+    endif()
+
+    set(_tip_relative_source_path "${_tip_absolute_source_path}")
+    cmake_path(RELATIVE_PATH _tip_relative_source_path BASE_DIRECTORY "${BASE_DIR}")
+
+    set(_tip_install_interface_path "${INSTALL_DESTINATION}")
+    cmake_path(APPEND _tip_install_interface_path "${_tip_relative_source_path}")
+
+    list(APPEND _tip_absolute_source_files "${_tip_absolute_source_path}")
+    list(APPEND _tip_interface_source_entries "$<BUILD_INTERFACE:${_tip_absolute_source_path}>" "$<INSTALL_INTERFACE:${_tip_install_interface_path}>")
+  endforeach()
+
+  set(${ABSOLUTE_FILES_VAR}
+      "${_tip_absolute_source_files}"
+      PARENT_SCOPE)
+  set(${INTERFACE_ENTRIES_VAR}
+      "${_tip_interface_source_entries}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_SUFFIX VALUE DESCRIPTION)
   get_property(_tip_existing GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}")
 
@@ -214,6 +266,8 @@ endfunction()
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
+#     SOURCE_FILES <files...>
+#     SOURCE_DESTINATION <dest>
 #     ADDITIONAL_FILES <files...>
 #     ADDITIONAL_FILES_DESTINATION <dest>
 #     ADDITIONAL_TARGETS <targets...>
@@ -249,9 +303,10 @@ function(target_prepare_package TARGET_NAME)
       CMAKE_CONFIG_DESTINATION
       COMPONENT
       DEBUG_POSTFIX
+      SOURCE_DESTINATION
       ADDITIONAL_FILES_DESTINATION
       LAYOUT)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
+  set(multiValueArgs SOURCE_FILES ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Store DISABLE_RPATH as a target property for later use
@@ -361,6 +416,9 @@ function(target_prepare_package TARGET_NAME)
     ARG_MODULE_DESTINATION
     "${CMAKE_INSTALL_INCLUDEDIR}"
     "Module destination"
+    ARG_SOURCE_DESTINATION
+    "${CMAKE_INSTALL_DATADIR}/${ARG_EXPORT_NAME}"
+    "Source destination"
     ARG_ADDITIONAL_FILES_DESTINATION
     "."
     "Additional files destination")
@@ -381,6 +439,17 @@ function(target_prepare_package TARGET_NAME)
 
   if(ARG_INCLUDE_ON_FIND_PACKAGE)
     _tip_resolve_absolute_paths(ARG_INCLUDE_ON_FIND_PACKAGE "${CMAKE_CURRENT_SOURCE_DIR}" ${ARG_INCLUDE_ON_FIND_PACKAGE})
+  endif()
+
+  if(ARG_SOURCE_FILES)
+    _tip_prepare_source_package_files(
+      _tip_source_package_absolute_files
+      _tip_source_package_interface_entries
+      "${TARGET_NAME}"
+      "${CMAKE_CURRENT_SOURCE_DIR}"
+      "${ARG_SOURCE_DESTINATION}"
+      ${ARG_SOURCE_FILES})
+    target_sources("${TARGET_NAME}" INTERFACE ${_tip_source_package_interface_entries})
   endif()
 
   # Get existing targets for this export (if any)
@@ -447,6 +516,11 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES" "${ARG_ADDITIONAL_FILES}")
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_DESTINATION" "${ARG_ADDITIONAL_FILES_DESTINATION}")
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
+  endif()
+  if(ARG_SOURCE_FILES)
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILES" "${_tip_source_package_absolute_files}")
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_DESTINATION" "${ARG_SOURCE_DESTINATION}")
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_BASE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
 
   # Append to existing dependencies and CMake files
@@ -1169,6 +1243,34 @@ function(finalize_package)
           DESTINATION "${TARGET_ADDITIONAL_FILES_DEST_PATH}"
           ${TARGET_DEV_COMPONENT_ARGS})
         project_log(DEBUG "  Installing additional file for '${TARGET_NAME}': ${SRC_FILE_PATH} -> ${TARGET_ADDITIONAL_FILES_DEST_PATH}")
+      endforeach()
+    endif()
+
+    get_property(TARGET_SOURCE_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILES")
+    if(TARGET_SOURCE_FILES)
+      get_property(TARGET_SOURCE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_DESTINATION")
+      get_property(TARGET_SOURCE_BASE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_BASE_DIR")
+
+      foreach(SRC_FILE_PATH IN LISTS TARGET_SOURCE_FILES)
+        if(NOT EXISTS "${SRC_FILE_PATH}")
+          project_log(WARNING "  Source file to install not found for '${TARGET_NAME}': ${SRC_FILE_PATH}")
+          continue()
+        endif()
+
+        set(_tip_relative_source_path "${SRC_FILE_PATH}")
+        cmake_path(RELATIVE_PATH _tip_relative_source_path BASE_DIRECTORY "${TARGET_SOURCE_BASE_DIR}")
+        get_filename_component(_tip_relative_source_dir "${_tip_relative_source_path}" DIRECTORY)
+
+        set(_tip_source_destination_path "${TARGET_SOURCE_DESTINATION}")
+        if(_tip_relative_source_dir AND NOT _tip_relative_source_dir STREQUAL ".")
+          cmake_path(APPEND _tip_source_destination_path "${_tip_relative_source_dir}")
+        endif()
+
+        install(
+          FILES "${SRC_FILE_PATH}"
+          DESTINATION "${_tip_source_destination_path}"
+          ${TARGET_DEV_COMPONENT_ARGS})
+        project_log(DEBUG "  Installing source file for '${TARGET_NAME}': ${SRC_FILE_PATH} -> ${_tip_source_destination_path}")
       endforeach()
     endif()
   endforeach()

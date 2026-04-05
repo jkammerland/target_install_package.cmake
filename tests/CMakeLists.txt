@@ -151,6 +151,8 @@ target_install_package(component-devel COMPONENT "Developer")
 
 set(_tip_layout_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_layout_matrix_test.cmake")
 set(_tip_layout_test_root "${CMAKE_CURRENT_BINARY_DIR}/layout-matrix")
+set(_tip_source_package_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_source_package_test.cmake")
+set(_tip_source_package_test_root "${CMAKE_CURRENT_BINARY_DIR}/source-package")
 set(_tip_component_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_component_dependencies_test.cmake")
 set(_tip_component_test_root "${CMAKE_CURRENT_BINARY_DIR}/component-dependencies")
 get_filename_component(_tip_repo_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
@@ -199,6 +201,34 @@ foreach(_tip_middle_config IN ITEMS RelWithDebInfo MinSizeRel)
       "${_tip_layout_test_script}")
   set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
 endforeach()
+
+set(_tip_source_package_test_common_args
+    "-DTIP_REPO_ROOT=${_tip_repo_root}"
+    "-DTIP_SOURCE_PACKAGE_TEST_ROOT=${_tip_source_package_test_root}"
+    "-DTIP_SOURCE_PACKAGE_TEST_CONFIG=Debug"
+    "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+
+if(CMAKE_MAKE_PROGRAM)
+  list(APPEND _tip_source_package_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
+endif()
+if(CMAKE_C_COMPILER)
+  list(APPEND _tip_source_package_test_common_args "-DTIP_C_COMPILER=${CMAKE_C_COMPILER}")
+endif()
+if(CMAKE_CXX_COMPILER)
+  list(APPEND _tip_source_package_test_common_args "-DTIP_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+endif()
+if(CMAKE_TOOLCHAIN_FILE)
+  list(APPEND _tip_source_package_test_common_args "-DTIP_CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+endif()
+if(CMAKE_GENERATOR_PLATFORM)
+  list(APPEND _tip_source_package_test_common_args "-DTIP_CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(CMAKE_GENERATOR_TOOLSET)
+  list(APPEND _tip_source_package_test_common_args "-DTIP_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
+endif()
+
+add_test(NAME source_package COMMAND ${CMAKE_COMMAND} ${_tip_source_package_test_common_args} -P "${_tip_source_package_test_script}")
+set_tests_properties(source_package PROPERTIES LABELS "source-package")
 
 set(_tip_component_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_COMPONENT_TEST_ROOT=${_tip_component_test_root}" "-DTIP_COMPONENT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
 

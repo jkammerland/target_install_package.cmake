@@ -10,6 +10,7 @@
 | LIBRARY | Unix shared libraries (.so, .dylib) | `lib/` or `lib64/` | `CMAKE_INSTALL_LIBDIR` |
 | ARCHIVE | Static libraries, Windows import libs | `lib/` or `lib64/` | `CMAKE_INSTALL_LIBDIR` |
 | HEADERS | Header files | `include/` | `CMAKE_INSTALL_INCLUDEDIR` |
+| SOURCE_FILES | Consumer-built package sources | `share/<package>/` by default | `SOURCE_DESTINATION` |
 | MODULES | C++20 module files | `include/` | `CMAKE_INSTALL_INCLUDEDIR` |
 | CONFIG | CMake config files | `share/cmake/<package>/` | `CMAKE_INSTALL_DATADIR` |
 | ADDITIONAL_FILES | User-specified files | `<prefix>` or custom | `ADDITIONAL_FILES_DESTINATION` |
@@ -48,7 +49,26 @@ Notes:
 | Component | Contains | Purpose |
 |-----------|----------|---------|
 | Runtime | Executables, DLLs, shared libraries | Required at runtime |
-| Development | Headers, import libs, static libs, CMake configs | Required for building |
+| Development | Headers, source packages, import libs, static libs, CMake configs | Required for building |
+
+## Source Files
+
+`SOURCE_FILES` installs implementation sources for `INTERFACE` libraries so consumers compile them through the installed imported target:
+
+```cmake
+target_install_package(mylib
+  SOURCE_FILES
+    src/core.cpp
+    src/math/add.cpp
+)
+```
+
+| Setting | Default | Result |
+|---------|---------|--------|
+| `SOURCE_DESTINATION` omitted | `${CMAKE_INSTALL_DATADIR}/<package>` | Sources land under `share/<package>/...` |
+| `SOURCE_DESTINATION "src"` | `src/` | Sources land under `<prefix>/src/...` |
+
+Relative layout is preserved under the destination. For example, `src/math/add.cpp` installs to `share/<package>/src/math/add.cpp` by default.
 
 ## Additional Files
 
@@ -76,6 +96,7 @@ For legal/compliance files, a common destination is `${CMAKE_INSTALL_DATADIR}/li
 - **Unix shared libs in lib/**: Standard location, RPATH configured automatically  
 - **Import libs in lib/**: Development artifacts, not runtime dependencies
 - **Headers in include/**: Standard include path for consumers
+- **Source files in share/<package>/**: Consumer-build artifacts that stay out of the public include tree
 - **Config files in share/cmake/**: Standard CMake package location
 - **Additional files flexible**: User controls destination
 - **Components separate runtime/dev**: Enables selective installation
