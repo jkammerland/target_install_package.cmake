@@ -3,6 +3,12 @@ function(_tip_attach_source_math_modules_file_set module_dir)
     message(FATAL_ERROR "Expected imported target SourceMathModules::source_math_modules to exist before attaching module file set")
   endif()
 
+  # Imported INTERFACE targets do not preserve CXX_EXTENSIONS, so force the
+  # module BMI to use the same non-GNU C++20 mode as downstream consumers.
+  target_compile_options(
+    SourceMathModules::source_math_modules
+    INTERFACE "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang,GNU>:-std=c++20>")
+
   target_sources(
     SourceMathModules::source_math_modules
     INTERFACE FILE_SET
