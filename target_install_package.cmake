@@ -755,6 +755,8 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
   get_target_property(_tip_interface_compile_options "${TARGET_NAME}" INTERFACE_COMPILE_OPTIONS)
   get_target_property(_tip_interface_include_directories "${TARGET_NAME}" INTERFACE_INCLUDE_DIRECTORIES)
   get_target_property(_tip_interface_system_include_directories "${TARGET_NAME}" INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+  get_target_property(_tip_link_options "${TARGET_NAME}" LINK_OPTIONS)
+  get_target_property(_tip_link_libraries "${TARGET_NAME}" LINK_LIBRARIES)
   get_target_property(_tip_interface_link_options "${TARGET_NAME}" INTERFACE_LINK_OPTIONS)
   get_target_property(_tip_interface_link_libraries "${TARGET_NAME}" INTERFACE_LINK_LIBRARIES)
   get_target_property(_tip_cxx_extensions "${TARGET_NAME}" CXX_EXTENSIONS)
@@ -839,6 +841,8 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_INCLUDE_DIRECTORIES" "${_tip_mapped_interface_include_directories}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_SYSTEM_INCLUDE_DIRECTORIES"
                          "${_tip_mapped_interface_system_include_directories}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_LINK_OPTIONS" "${_tip_link_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_LINK_LIBRARIES" "${_tip_link_libraries}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_OPTIONS" "${_tip_interface_link_options}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_LIBRARIES" "${_tip_interface_link_libraries}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_CXX_EXTENSIONS" "${_tip_cxx_extensions}")
@@ -1748,6 +1752,8 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     get_property(_tip_entry_compile_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_COMPILE_OPTIONS")
     get_property(_tip_entry_include_directories GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_INCLUDE_DIRECTORIES")
     get_property(_tip_entry_system_include_directories GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_SYSTEM_INCLUDE_DIRECTORIES")
+    get_property(_tip_entry_private_link_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_LINK_OPTIONS")
+    get_property(_tip_entry_private_link_libraries GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_LINK_LIBRARIES")
     get_property(_tip_entry_link_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_LINK_OPTIONS")
     get_property(_tip_entry_link_libraries GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_LINK_LIBRARIES")
     get_property(_tip_entry_cxx_extensions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_CXX_EXTENSIONS")
@@ -1999,6 +2005,59 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         "${_tip_local_target}"
         "${_tip_target_scope}"
         ${_tip_resolved_link_libraries})
+    endif()
+
+    if(NOT _tip_create_scope STREQUAL "INTERFACE")
+      set(_tip_resolved_private_link_options "")
+      foreach(_tip_link_option IN LISTS _tip_entry_private_link_options)
+        if(NOT _tip_link_option IN_LIST _tip_entry_link_options)
+          list(APPEND _tip_resolved_private_link_options "${_tip_link_option}")
+        endif()
+      endforeach()
+      if(_tip_resolved_private_link_options)
+        _tip_append_cmake_list_command(
+          _tip_source_targets_code
+          "target_link_options"
+          "${_tip_local_target}"
+          "PRIVATE"
+          ${_tip_resolved_private_link_options})
+      endif()
+
+      set(_tip_resolved_private_link_libraries "")
+      foreach(_tip_link_item IN LISTS _tip_entry_private_link_libraries)
+        set(_tip_resolved_link_item "${_tip_link_item}")
+        set(_tip_lookup_target "")
+        if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
+          set(_tip_lookup_target "${CMAKE_MATCH_1}")
+        elseif(NOT _tip_link_item MATCHES "\\$<")
+          set(_tip_lookup_target "${_tip_link_item}")
+        endif()
+
+        if(NOT _tip_lookup_target STREQUAL "")
+          _tip_make_c_identifier(_tip_lookup_key "${_tip_lookup_target}")
+          set(_tip_preferred_var "_tip_preferred_alias_${_tip_lookup_key}")
+          if(DEFINED ${_tip_preferred_var})
+            if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
+              set(_tip_resolved_link_item "$<LINK_ONLY:${${_tip_preferred_var}}>")
+            else()
+              set(_tip_resolved_link_item "${${_tip_preferred_var}}")
+            endif()
+          endif()
+        endif()
+
+        if(NOT _tip_resolved_link_item IN_LIST _tip_resolved_link_libraries)
+          list(APPEND _tip_resolved_private_link_libraries "${_tip_resolved_link_item}")
+        endif()
+      endforeach()
+
+      if(_tip_resolved_private_link_libraries)
+        _tip_append_cmake_list_command(
+          _tip_source_targets_code
+          "target_link_libraries"
+          "${_tip_local_target}"
+          "PRIVATE"
+          ${_tip_resolved_private_link_libraries})
+      endif()
     endif()
 
     if(NOT _tip_create_scope STREQUAL "INTERFACE")

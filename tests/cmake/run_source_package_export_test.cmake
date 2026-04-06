@@ -206,6 +206,8 @@ if(NOT _source_sdk_algorithms_sources)
   message(FATAL_ERROR "SourceSdk::export_algorithms did not expose local SOURCES")
 endif()
 get_target_property(_source_sdk_algorithms_type "${_source_sdk_algorithms_target}" TYPE)
+get_target_property(_source_sdk_algorithms_links "${_source_sdk_algorithms_target}" LINK_LIBRARIES)
+get_target_property(_source_sdk_algorithms_link_options "${_source_sdk_algorithms_target}" LINK_OPTIONS)
 
 get_target_property(_source_sdk_prebuilt_target SourceSdk::export_algorithms_prebuilt ALIASED_TARGET)
 if(_source_sdk_prebuilt_target)
@@ -229,6 +231,8 @@ endif()
 get_target_property(_source_sdk_sdk_links "${_source_sdk_sdk_target}" INTERFACE_LINK_LIBRARIES)
 file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_algorithms_sources.txt" "${_source_sdk_algorithms_sources}\n")
 file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_algorithms_type.txt" "${_source_sdk_algorithms_type}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_algorithms_links.txt" "${_source_sdk_algorithms_links}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_algorithms_link_options.txt" "${_source_sdk_algorithms_link_options}\n")
 file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_sdk_links.txt" "${_source_sdk_sdk_links}\n")
 
 add_executable(source_package_export_consumer main.cpp)
@@ -259,7 +263,7 @@ int main() {
   const bool edition_ok = source_sdk::runtime::edition() == "source-sdk";
   const bool size_ok = calibrated.size() == 3;
   const bool values_ok = calibrated[0] == 5 && calibrated[1] == 6 && calibrated[2] == 7;
-  const bool score_ok = source_sdk::algorithms::score(values) == 18;
+  const bool score_ok = source_sdk::algorithms::score(values) == 28;
 
   return edition_ok && size_ok && values_ok && score_ok ? 0 : 1;
 }
@@ -308,10 +312,14 @@ _tip_run_step(
 
 set(_consumer_sources_file "${_consumer_build_dir}/source_sdk_algorithms_sources.txt")
 set(_consumer_type_file "${_consumer_build_dir}/source_sdk_algorithms_type.txt")
+set(_consumer_links_file "${_consumer_build_dir}/source_sdk_algorithms_links.txt")
+set(_consumer_link_options_file "${_consumer_build_dir}/source_sdk_algorithms_link_options.txt")
 set(_consumer_sdk_links_file "${_consumer_build_dir}/source_sdk_sdk_links.txt")
 _tip_assert_file_contains("${_consumer_sources_file}" "${_installed_source}")
 _tip_assert_file_not_contains("${_consumer_sources_file}" "${_fixture_source_dir}/src/algorithms.cpp")
 _tip_assert_file_contains("${_consumer_type_file}" "STATIC_LIBRARY")
+_tip_assert_file_contains("${_consumer_links_file}" "SourceSdk::export_support")
+_tip_assert_file_contains("${_consumer_link_options_file}" "BOOL:0")
 _tip_assert_file_contains("${_consumer_sdk_links_file}" "SourceSdk::export_algorithms")
 _tip_assert_file_contains("${_consumer_sdk_links_file}" "SourceSdk::export_runtime")
 

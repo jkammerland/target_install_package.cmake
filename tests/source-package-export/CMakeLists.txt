@@ -32,7 +32,10 @@ if(WIN32)
   set_target_properties(export_runtime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-add_library(export_algorithms STATIC)
+add_library(export_support STATIC src/support.cpp)
+target_compile_features(export_support PUBLIC cxx_std_17)
+
+add_library(export_algorithms SHARED)
 target_sources(
   export_algorithms
   PRIVATE src/algorithms.cpp
@@ -42,8 +45,12 @@ target_sources(
          "${CMAKE_CURRENT_SOURCE_DIR}/include"
          FILES
          "include/source_sdk/algorithms.hpp")
-target_link_libraries(export_algorithms PUBLIC export_runtime)
+target_link_libraries(export_algorithms PUBLIC export_runtime PRIVATE export_support)
 target_compile_features(export_algorithms PUBLIC cxx_std_17)
+target_link_options(export_algorithms PRIVATE "$<$<BOOL:0>:LINKER:-z,defs>")
+if(WIN32)
+  set_target_properties(export_algorithms PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 
 add_library(export_sdk INTERFACE)
 target_sources(
@@ -59,6 +66,15 @@ target_compile_features(export_sdk INTERFACE cxx_std_17)
 
 target_install_package(
   export_runtime
+  EXPORT_NAME
+  source_sdk
+  NAMESPACE
+  SourceSdk::
+  VERSION
+  ${PROJECT_VERSION})
+
+target_install_package(
+  export_support
   EXPORT_NAME
   source_sdk
   NAMESPACE
