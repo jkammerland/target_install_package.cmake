@@ -64,8 +64,6 @@ Begin with the basic examples to understand core concepts:
 
 ### 2. More Complex Scenarios
 
-Progress to more sophisticated packaging strategies:
-
 6. **[multi-target](multi-target/)** - Package multiple related libraries together
 7. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
 8. **[components](components/)** - Implement flexible component-based installation with logical groups
