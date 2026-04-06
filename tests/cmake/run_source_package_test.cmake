@@ -173,10 +173,12 @@ if(_install_datadir STREQUAL "")
 endif()
 
 set(_installed_source "${_install_prefix}/${_install_datadir}/source_package/src/source_package.cpp")
+set(_installed_generated_source "${_install_prefix}/${_install_datadir}/source_package/generated/source_package_generated.cpp")
 set(_installed_header "${_install_prefix}/${_install_includedir}/source_package/source_package.hpp")
 set(_installed_config "${_install_prefix}/${_install_datadir}/cmake/source_package/source_packageConfig.cmake")
 
 _tip_assert_exists("${_installed_source}")
+_tip_assert_exists("${_installed_generated_source}")
 _tip_assert_exists("${_installed_header}")
 _tip_assert_exists("${_installed_config}")
 
@@ -270,7 +272,9 @@ _tip_run_step(
 set(_consumer_sources_file "${_consumer_build_dir}/source_package_sources.txt")
 set(_consumer_type_file "${_consumer_build_dir}/source_package_type.txt")
 _tip_assert_file_contains("${_consumer_sources_file}" "${_installed_source}")
+_tip_assert_file_contains("${_consumer_sources_file}" "${_installed_generated_source}")
 _tip_assert_file_not_contains("${_consumer_sources_file}" "${_fixture_source_dir}/src/source_package.cpp")
+_tip_assert_file_not_contains("${_consumer_sources_file}" "${_build_dir}/generated/source_package_generated.cpp")
 _tip_assert_file_contains("${_consumer_type_file}" "STATIC_LIBRARY")
 
 set(_consumer_executable_candidates

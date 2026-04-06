@@ -273,6 +273,12 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
   if(IS_ABSOLUTE "${INPUT_PATH}")
     set(_tip_resolved_path "${INPUT_PATH}")
   else()
+    set(_tip_use_binary_dir FALSE)
+    get_source_file_property(_tip_relative_generated "${INPUT_PATH}" GENERATED)
+    if(_tip_relative_generated AND _tip_target_binary_dir)
+      set(_tip_use_binary_dir TRUE)
+    endif()
+
     cmake_path(
       ABSOLUTE_PATH
       INPUT_PATH
@@ -280,9 +286,10 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
       "${_tip_target_source_dir}"
       NORMALIZE
       OUTPUT_VARIABLE
-      _tip_resolved_path)
+      _tip_source_resolved_path)
+    set(_tip_resolved_path "${_tip_source_resolved_path}")
 
-    if(NOT EXISTS "${_tip_resolved_path}" AND _tip_target_binary_dir)
+    if(_tip_target_binary_dir)
       cmake_path(
         ABSOLUTE_PATH
         INPUT_PATH
@@ -291,7 +298,15 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
         NORMALIZE
         OUTPUT_VARIABLE
         _tip_binary_resolved_path)
-      if(EXISTS "${_tip_binary_resolved_path}")
+
+      if(NOT _tip_use_binary_dir)
+        get_source_file_property(_tip_binary_generated "${_tip_binary_resolved_path}" GENERATED)
+        if(_tip_binary_generated)
+          set(_tip_use_binary_dir TRUE)
+        endif()
+      endif()
+
+      if(_tip_use_binary_dir)
         set(_tip_resolved_path "${_tip_binary_resolved_path}")
       endif()
     endif()
@@ -392,6 +407,129 @@ function(_tip_compute_installed_relative_path OUT_VAR FILE_PATH DESTINATION)
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_map_included_source_path_entry OUT_VAR TARGET_NAME INPUT_PATH INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION HEADER_BASE_DIRS
+         MODULE_BASE_DIRS SOURCE_BASE_DIRS)
+  if(INPUT_PATH MATCHES "^\\$<BUILD_INTERFACE:(.*)>$")
+    _tip_map_included_source_path_entry(
+      _tip_mapped_path
+      "${TARGET_NAME}"
+      "${CMAKE_MATCH_1}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${HEADER_BASE_DIRS}"
+      "${MODULE_BASE_DIRS}"
+      "${SOURCE_BASE_DIRS}")
+    set(${OUT_VAR}
+        "${_tip_mapped_path}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "^\\$<INSTALL_INTERFACE:(.*)>$")
+    set(_tip_install_path "${CMAKE_MATCH_1}")
+    if(IS_ABSOLUTE "${_tip_install_path}" OR _tip_install_path MATCHES "\\$<")
+      set(_tip_mapped_path "${_tip_install_path}")
+    else()
+      cmake_path(NORMAL_PATH _tip_install_path OUTPUT_VARIABLE _tip_mapped_path)
+    endif()
+
+    set(${OUT_VAR}
+        "${_tip_mapped_path}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "\\$<")
+    set(${OUT_VAR}
+        "${INPUT_PATH}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  set(_tip_path_mapping_bases "")
+  set(_tip_path_mapping_destinations "")
+  foreach(_tip_header_base_dir IN LISTS HEADER_BASE_DIRS)
+    list(APPEND _tip_path_mapping_bases "${_tip_header_base_dir}")
+    list(APPEND _tip_path_mapping_destinations "${INCLUDE_DESTINATION}")
+  endforeach()
+  foreach(_tip_module_base_dir IN LISTS MODULE_BASE_DIRS)
+    list(APPEND _tip_path_mapping_bases "${_tip_module_base_dir}")
+    list(APPEND _tip_path_mapping_destinations "${MODULE_DESTINATION}")
+  endforeach()
+  foreach(_tip_source_base_dir IN LISTS SOURCE_BASE_DIRS)
+    list(APPEND _tip_path_mapping_bases "${_tip_source_base_dir}")
+    list(APPEND _tip_path_mapping_destinations "${SOURCE_DESTINATION}")
+  endforeach()
+
+  _tip_resolve_target_path(_tip_resolved_path "${TARGET_NAME}" "${INPUT_PATH}")
+  set(_tip_mapped_path "${_tip_resolved_path}")
+  set(_tip_matching_base_dir "")
+  set(_tip_matching_destination "")
+  set(_tip_matching_length -1)
+
+  list(LENGTH _tip_path_mapping_bases _tip_mapping_length)
+  if(_tip_mapping_length GREATER 0)
+    math(EXPR _tip_mapping_last_index "${_tip_mapping_length} - 1")
+    foreach(_tip_mapping_index RANGE ${_tip_mapping_last_index})
+      list(GET _tip_path_mapping_bases ${_tip_mapping_index} _tip_base_dir)
+      list(GET _tip_path_mapping_destinations ${_tip_mapping_index} _tip_destination)
+
+      cmake_path(NORMAL_PATH _tip_base_dir OUTPUT_VARIABLE _tip_normalized_base_dir)
+      cmake_path(IS_PREFIX _tip_normalized_base_dir "${_tip_resolved_path}" NORMALIZE _tip_matches)
+      if(_tip_matches)
+        string(LENGTH "${_tip_normalized_base_dir}" _tip_base_length)
+        if(_tip_base_length GREATER _tip_matching_length)
+          set(_tip_matching_base_dir "${_tip_normalized_base_dir}")
+          set(_tip_matching_destination "${_tip_destination}")
+          set(_tip_matching_length "${_tip_base_length}")
+        endif()
+      endif()
+    endforeach()
+  endif()
+
+  if(NOT _tip_matching_base_dir STREQUAL "")
+    set(_tip_relative_path "${_tip_resolved_path}")
+    cmake_path(RELATIVE_PATH _tip_relative_path BASE_DIRECTORY "${_tip_matching_base_dir}")
+
+    set(_tip_mapped_path "${_tip_matching_destination}")
+    if(_tip_relative_path AND NOT _tip_relative_path STREQUAL ".")
+      cmake_path(APPEND _tip_mapped_path "${_tip_relative_path}")
+    endif()
+    cmake_path(NORMAL_PATH _tip_mapped_path)
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_mapped_path}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_map_included_source_path_list OUT_VAR TARGET_NAME INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION HEADER_BASE_DIRS MODULE_BASE_DIRS
+         SOURCE_BASE_DIRS)
+  set(_tip_mapped_paths "")
+  foreach(_tip_input_path IN LISTS ARGN)
+    _tip_map_included_source_path_entry(
+      _tip_mapped_path
+      "${TARGET_NAME}"
+      "${_tip_input_path}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${HEADER_BASE_DIRS}"
+      "${MODULE_BASE_DIRS}"
+      "${SOURCE_BASE_DIRS}")
+    list(APPEND _tip_mapped_paths "${_tip_mapped_path}")
+  endforeach()
+
+  if(_tip_mapped_paths)
+    list(REMOVE_DUPLICATES _tip_mapped_paths)
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_mapped_paths}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARGET_NAME INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION)
   _tip_collect_target_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
   _tip_collect_target_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
@@ -428,21 +566,96 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
   endforeach()
 
   get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
+  get_target_property(_tip_compile_features "${TARGET_NAME}" COMPILE_FEATURES)
+  get_target_property(_tip_compile_definitions "${TARGET_NAME}" COMPILE_DEFINITIONS)
+  get_target_property(_tip_compile_options "${TARGET_NAME}" COMPILE_OPTIONS)
+  get_target_property(_tip_include_directories "${TARGET_NAME}" INCLUDE_DIRECTORIES)
+  get_target_property(_tip_system_include_directories "${TARGET_NAME}" SYSTEM_INCLUDE_DIRECTORIES)
   get_target_property(_tip_interface_compile_features "${TARGET_NAME}" INTERFACE_COMPILE_FEATURES)
   get_target_property(_tip_interface_compile_definitions "${TARGET_NAME}" INTERFACE_COMPILE_DEFINITIONS)
   get_target_property(_tip_interface_compile_options "${TARGET_NAME}" INTERFACE_COMPILE_OPTIONS)
+  get_target_property(_tip_interface_include_directories "${TARGET_NAME}" INTERFACE_INCLUDE_DIRECTORIES)
+  get_target_property(_tip_interface_system_include_directories "${TARGET_NAME}" INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
   get_target_property(_tip_interface_link_options "${TARGET_NAME}" INTERFACE_LINK_OPTIONS)
   get_target_property(_tip_interface_link_libraries "${TARGET_NAME}" INTERFACE_LINK_LIBRARIES)
   get_target_property(_tip_cxx_extensions "${TARGET_NAME}" CXX_EXTENSIONS)
   get_target_property(_tip_cxx_scan_for_modules "${TARGET_NAME}" CXX_SCAN_FOR_MODULES)
 
+  if(_tip_include_directories)
+    _tip_map_included_source_path_list(
+      _tip_mapped_include_directories
+      "${TARGET_NAME}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_header_base_dirs}"
+      "${_tip_module_base_dirs}"
+      "${_tip_source_base_dirs}"
+      ${_tip_include_directories})
+  else()
+    set(_tip_mapped_include_directories "")
+  endif()
+
+  if(_tip_system_include_directories)
+    _tip_map_included_source_path_list(
+      _tip_mapped_system_include_directories
+      "${TARGET_NAME}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_header_base_dirs}"
+      "${_tip_module_base_dirs}"
+      "${_tip_source_base_dirs}"
+      ${_tip_system_include_directories})
+  else()
+    set(_tip_mapped_system_include_directories "")
+  endif()
+
+  if(_tip_interface_include_directories)
+    _tip_map_included_source_path_list(
+      _tip_mapped_interface_include_directories
+      "${TARGET_NAME}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_header_base_dirs}"
+      "${_tip_module_base_dirs}"
+      "${_tip_source_base_dirs}"
+      ${_tip_interface_include_directories})
+  else()
+    set(_tip_mapped_interface_include_directories "")
+  endif()
+
+  if(_tip_interface_system_include_directories)
+    _tip_map_included_source_path_list(
+      _tip_mapped_interface_system_include_directories
+      "${TARGET_NAME}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_header_base_dirs}"
+      "${_tip_module_base_dirs}"
+      "${_tip_source_base_dirs}"
+      ${_tip_interface_system_include_directories})
+  else()
+    set(_tip_mapped_interface_system_include_directories "")
+  endif()
+
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_TARGET_TYPE" "${_tip_target_type}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_HEADER_FILES" "${_tip_installed_header_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_MODULE_FILES" "${_tip_installed_module_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_FILES" "${_tip_installed_source_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_FEATURES" "${_tip_compile_features}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_DEFINITIONS" "${_tip_compile_definitions}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_OPTIONS" "${_tip_compile_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INCLUDE_DIRECTORIES" "${_tip_mapped_include_directories}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SYSTEM_INCLUDE_DIRECTORIES" "${_tip_mapped_system_include_directories}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_FEATURES" "${_tip_interface_compile_features}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_DEFINITIONS" "${_tip_interface_compile_definitions}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_OPTIONS" "${_tip_interface_compile_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_INCLUDE_DIRECTORIES" "${_tip_mapped_interface_include_directories}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_SYSTEM_INCLUDE_DIRECTORIES"
+                         "${_tip_mapped_interface_system_include_directories}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_OPTIONS" "${_tip_interface_link_options}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_LIBRARIES" "${_tip_interface_link_libraries}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_CXX_EXTENSIONS" "${_tip_cxx_extensions}")
@@ -1330,9 +1543,16 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     get_property(_tip_entry_source_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_SOURCE_FILES")
     get_property(_tip_entry_header_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_HEADER_FILES")
     get_property(_tip_entry_module_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_MODULE_FILES")
+    get_property(_tip_entry_private_compile_features GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_COMPILE_FEATURES")
+    get_property(_tip_entry_private_compile_definitions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_COMPILE_DEFINITIONS")
+    get_property(_tip_entry_private_compile_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_COMPILE_OPTIONS")
+    get_property(_tip_entry_private_include_directories GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INCLUDE_DIRECTORIES")
+    get_property(_tip_entry_private_system_include_directories GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_SYSTEM_INCLUDE_DIRECTORIES")
     get_property(_tip_entry_compile_features GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_COMPILE_FEATURES")
     get_property(_tip_entry_compile_definitions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_COMPILE_DEFINITIONS")
     get_property(_tip_entry_compile_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_COMPILE_OPTIONS")
+    get_property(_tip_entry_include_directories GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_INCLUDE_DIRECTORIES")
+    get_property(_tip_entry_system_include_directories GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_SYSTEM_INCLUDE_DIRECTORIES")
     get_property(_tip_entry_link_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_LINK_OPTIONS")
     get_property(_tip_entry_link_libraries GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_LINK_LIBRARIES")
     get_property(_tip_entry_cxx_extensions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_CXX_EXTENSIONS")
@@ -1409,6 +1629,65 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       _tip_append_cmake_path_list_command(_tip_source_targets_code "target_sources" "${_tip_local_target}" "PRIVATE" ${_tip_installed_source_paths})
     endif()
 
+    if(NOT _tip_create_scope STREQUAL "INTERFACE")
+      if(_tip_entry_private_compile_features)
+        _tip_append_cmake_list_command(
+          _tip_source_targets_code
+          "target_compile_features"
+          "${_tip_local_target}"
+          "PRIVATE"
+          ${_tip_entry_private_compile_features})
+      endif()
+      if(_tip_entry_private_compile_definitions)
+        _tip_append_cmake_list_command(
+          _tip_source_targets_code
+          "target_compile_definitions"
+          "${_tip_local_target}"
+          "PRIVATE"
+          ${_tip_entry_private_compile_definitions})
+      endif()
+      if(_tip_entry_private_compile_options)
+        _tip_append_cmake_list_command(
+          _tip_source_targets_code
+          "target_compile_options"
+          "${_tip_local_target}"
+          "PRIVATE"
+          ${_tip_entry_private_compile_options})
+      endif()
+      if(_tip_entry_private_include_directories)
+        set(_tip_private_include_paths "")
+        foreach(_tip_include_directory IN LISTS _tip_entry_private_include_directories)
+          if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+            list(APPEND _tip_private_include_paths "${_tip_include_directory}")
+          else()
+            list(APPEND _tip_private_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
+          endif()
+        endforeach()
+        _tip_append_cmake_path_list_command(
+          _tip_source_targets_code
+          "target_include_directories"
+          "${_tip_local_target}"
+          "PRIVATE"
+          ${_tip_private_include_paths})
+      endif()
+      if(_tip_entry_private_system_include_directories)
+        set(_tip_private_system_include_paths "")
+        foreach(_tip_include_directory IN LISTS _tip_entry_private_system_include_directories)
+          if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+            list(APPEND _tip_private_system_include_paths "${_tip_include_directory}")
+          else()
+            list(APPEND _tip_private_system_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
+          endif()
+        endforeach()
+        _tip_append_cmake_path_list_command(
+          _tip_source_targets_code
+          "target_include_directories"
+          "${_tip_local_target}"
+          "SYSTEM PRIVATE"
+          ${_tip_private_system_include_paths})
+      endif()
+    endif()
+
     if(_tip_entry_header_files)
       set(_tip_installed_header_paths "")
       foreach(_tip_header_file IN LISTS _tip_entry_header_files)
@@ -1460,6 +1739,38 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         "${_tip_local_target}"
         "${_tip_target_scope}"
         ${_tip_entry_compile_options})
+    endif()
+    if(_tip_entry_include_directories)
+      set(_tip_interface_include_paths "")
+      foreach(_tip_include_directory IN LISTS _tip_entry_include_directories)
+        if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+          list(APPEND _tip_interface_include_paths "${_tip_include_directory}")
+        else()
+          list(APPEND _tip_interface_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
+        endif()
+      endforeach()
+      _tip_append_cmake_path_list_command(
+        _tip_source_targets_code
+        "target_include_directories"
+        "${_tip_local_target}"
+        "${_tip_target_scope}"
+        ${_tip_interface_include_paths})
+    endif()
+    if(_tip_entry_system_include_directories)
+      set(_tip_interface_system_include_paths "")
+      foreach(_tip_include_directory IN LISTS _tip_entry_system_include_directories)
+        if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+          list(APPEND _tip_interface_system_include_paths "${_tip_include_directory}")
+        else()
+          list(APPEND _tip_interface_system_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
+        endif()
+      endforeach()
+      _tip_append_cmake_path_list_command(
+        _tip_source_targets_code
+        "target_include_directories"
+        "${_tip_local_target}"
+        "SYSTEM ${_tip_target_scope}"
+        ${_tip_interface_system_include_paths})
     endif()
     if(_tip_entry_link_options)
       _tip_append_cmake_list_command(
