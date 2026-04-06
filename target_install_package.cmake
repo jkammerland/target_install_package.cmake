@@ -86,7 +86,8 @@ endif()
 #                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   INCLUDE_SOURCES              - Install extracted target sources for consumer builds. `NO` keeps normal imported-target packaging (default). `EXCLUSIVE` generates a local consumer target from installed sources.
-#   SOURCE_DESTINATION           - Destination for installed source files (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}`).
+#   SOURCE_DESTINATION           - Destination for installed source files (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}` for matching export/alias names,
+#                                  otherwise `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}/${ALIAS_NAME}` to avoid collisions inside one export).
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Destination for additional files (default: install prefix root).
 #   ADDITIONAL_TARGETS           - Additional targets to include in the same export set.
@@ -210,28 +211,51 @@ function(_tip_entry_property_prefix OUT_VAR EXPORT_PROPERTY_PREFIX ENTRY_ID)
       PARENT_SCOPE)
 endfunction()
 
-function(_tip_collect_target_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS TARGET_NAME)
-  set(_tip_set_names "")
+function(_tip_get_target_file_set_metadata FILE_SET_KIND OUT_INTERFACE_SETS OUT_NONINTERFACE_SETS OUT_FILE_PROPERTY_PREFIX OUT_DIR_PROPERTY_PREFIX TARGET_NAME)
   if(FILE_SET_KIND STREQUAL "HEADERS")
     get_target_property(_tip_interface_sets "${TARGET_NAME}" INTERFACE_HEADER_SETS)
-    get_target_property(_tip_public_sets "${TARGET_NAME}" HEADER_SETS)
+    get_target_property(_tip_noninterface_sets "${TARGET_NAME}" HEADER_SETS)
     set(_tip_file_property_prefix "HEADER_SET_")
     set(_tip_dir_property_prefix "HEADER_DIRS_")
   elseif(FILE_SET_KIND STREQUAL "CXX_MODULES")
     get_target_property(_tip_interface_sets "${TARGET_NAME}" INTERFACE_CXX_MODULE_SETS)
-    get_target_property(_tip_public_sets "${TARGET_NAME}" CXX_MODULE_SETS)
+    get_target_property(_tip_noninterface_sets "${TARGET_NAME}" CXX_MODULE_SETS)
     set(_tip_file_property_prefix "CXX_MODULE_SET_")
     set(_tip_dir_property_prefix "CXX_MODULE_DIRS_")
   else()
     project_log(FATAL_ERROR "Unsupported file set kind '${FILE_SET_KIND}'")
   endif()
 
-  if(_tip_interface_sets)
-    list(APPEND _tip_set_names ${_tip_interface_sets})
-  endif()
-  if(_tip_public_sets)
-    list(APPEND _tip_set_names ${_tip_public_sets})
-  endif()
+  foreach(_tip_value_name IN ITEMS _tip_interface_sets _tip_noninterface_sets)
+    if(${_tip_value_name} MATCHES "-NOTFOUND$")
+      set(${_tip_value_name} "")
+    endif()
+  endforeach()
+
+  set(${OUT_INTERFACE_SETS}
+      "${_tip_interface_sets}"
+      PARENT_SCOPE)
+  set(${OUT_NONINTERFACE_SETS}
+      "${_tip_noninterface_sets}"
+      PARENT_SCOPE)
+  set(${OUT_FILE_PROPERTY_PREFIX}
+      "${_tip_file_property_prefix}"
+      PARENT_SCOPE)
+  set(${OUT_DIR_PROPERTY_PREFIX}
+      "${_tip_dir_property_prefix}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_collect_named_target_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS TARGET_NAME)
+  _tip_get_target_file_set_metadata(
+    "${FILE_SET_KIND}"
+    _tip_interface_sets
+    _tip_noninterface_sets
+    _tip_file_property_prefix
+    _tip_dir_property_prefix
+    "${TARGET_NAME}")
+
+  set(_tip_set_names ${ARGN})
   if(_tip_set_names)
     list(REMOVE_DUPLICATES _tip_set_names)
   endif()
@@ -266,6 +290,64 @@ function(_tip_collect_target_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_collect_target_public_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS TARGET_NAME)
+  _tip_get_target_file_set_metadata(
+    "${FILE_SET_KIND}"
+    _tip_interface_sets
+    _tip_noninterface_sets
+    _tip_file_property_prefix
+    _tip_dir_property_prefix
+    "${TARGET_NAME}")
+  _tip_collect_named_target_file_set_info("${FILE_SET_KIND}" _tip_files _tip_base_dirs "${TARGET_NAME}" ${_tip_interface_sets})
+  set(${OUT_FILES}
+      "${_tip_files}"
+      PARENT_SCOPE)
+  set(${OUT_BASE_DIRS}
+      "${_tip_base_dirs}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_collect_target_private_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS TARGET_NAME)
+  _tip_get_target_file_set_metadata(
+    "${FILE_SET_KIND}"
+    _tip_interface_sets
+    _tip_noninterface_sets
+    _tip_file_property_prefix
+    _tip_dir_property_prefix
+    "${TARGET_NAME}")
+
+  set(_tip_private_sets ${_tip_noninterface_sets})
+  foreach(_tip_public_set IN LISTS _tip_interface_sets)
+    list(REMOVE_ITEM _tip_private_sets "${_tip_public_set}")
+  endforeach()
+
+  _tip_collect_named_target_file_set_info("${FILE_SET_KIND}" _tip_files _tip_base_dirs "${TARGET_NAME}" ${_tip_private_sets})
+  set(${OUT_FILES}
+      "${_tip_files}"
+      PARENT_SCOPE)
+  set(${OUT_BASE_DIRS}
+      "${_tip_base_dirs}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_collect_target_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS TARGET_NAME)
+  _tip_get_target_file_set_metadata(
+    "${FILE_SET_KIND}"
+    _tip_interface_sets
+    _tip_noninterface_sets
+    _tip_file_property_prefix
+    _tip_dir_property_prefix
+    "${TARGET_NAME}")
+  set(_tip_set_names ${_tip_noninterface_sets} ${_tip_interface_sets})
+  _tip_collect_named_target_file_set_info("${FILE_SET_KIND}" _tip_files _tip_base_dirs "${TARGET_NAME}" ${_tip_set_names})
+  set(${OUT_FILES}
+      "${_tip_files}"
+      PARENT_SCOPE)
+  set(${OUT_BASE_DIRS}
+      "${_tip_base_dirs}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_collect_legacy_public_headers OUT_FILES TARGET_NAME)
   get_target_property(_tip_public_headers "${TARGET_NAME}" PUBLIC_HEADER)
   if(NOT _tip_public_headers OR _tip_public_headers MATCHES "-NOTFOUND$")
@@ -297,12 +379,6 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
   if(IS_ABSOLUTE "${INPUT_PATH}")
     set(_tip_resolved_path "${INPUT_PATH}")
   else()
-    set(_tip_use_binary_dir FALSE)
-    get_source_file_property(_tip_relative_generated "${INPUT_PATH}" GENERATED)
-    if(_tip_relative_generated AND _tip_target_binary_dir)
-      set(_tip_use_binary_dir TRUE)
-    endif()
-
     cmake_path(
       ABSOLUTE_PATH
       INPUT_PATH
@@ -313,6 +389,9 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
       _tip_source_resolved_path)
     set(_tip_resolved_path "${_tip_source_resolved_path}")
 
+    # Prefer the build tree for sources explicitly marked GENERATED, even if a
+    # same-named source-tree file exists. Otherwise keep normal relative paths
+    # anchored to the target source dir.
     if(_tip_target_binary_dir)
       cmake_path(
         ABSOLUTE_PATH
@@ -323,14 +402,12 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
         OUTPUT_VARIABLE
         _tip_binary_resolved_path)
 
-      if(NOT _tip_use_binary_dir)
-        get_source_file_property(_tip_binary_generated "${_tip_binary_resolved_path}" GENERATED)
-        if(_tip_binary_generated)
-          set(_tip_use_binary_dir TRUE)
-        endif()
-      endif()
+      get_source_file_property(_tip_source_generated "${_tip_source_resolved_path}" GENERATED)
+      get_source_file_property(_tip_binary_generated "${_tip_binary_resolved_path}" GENERATED)
 
-      if(_tip_use_binary_dir)
+      if(_tip_binary_generated AND NOT _tip_source_generated)
+        set(_tip_resolved_path "${_tip_binary_resolved_path}")
+      elseif(NOT EXISTS "${_tip_source_resolved_path}")
         set(_tip_resolved_path "${_tip_binary_resolved_path}")
       endif()
     endif()
@@ -392,7 +469,7 @@ function(_tip_parse_installable_source_entry OUT_KIND OUT_CONDITION OUT_PAYLOAD 
       PARENT_SCOPE)
 endfunction()
 
-function(_tip_process_installable_source_entry OUT_INSTALL_FILE OUT_INSTALL_DESTINATION OUT_INSTALL_RENAME OUT_INSTALLED_ENTRY TARGET_NAME SOURCE_ENTRY
+function(_tip_process_installable_source_entry OUT_STATUS OUT_INSTALL_FILE OUT_INSTALL_DESTINATION OUT_INSTALL_RENAME OUT_INSTALLED_ENTRY TARGET_NAME SOURCE_ENTRY
          SOURCE_DESTINATION SOURCE_BASE_DIRS)
   _tip_parse_installable_source_entry(_tip_entry_kind _tip_entry_condition _tip_entry_payload "${TARGET_NAME}" "${SOURCE_ENTRY}")
 
@@ -404,8 +481,11 @@ function(_tip_process_installable_source_entry OUT_INSTALL_FILE OUT_INSTALL_DEST
   get_filename_component(_tip_source_extension "${_tip_resolved_source}" EXT)
   set(_tip_compilable_extensions ".c" ".cc" ".cp" ".cpp" ".cxx" ".c++" ".C" ".m" ".mm")
   if(NOT _tip_source_extension IN_LIST _tip_compilable_extensions)
+    set(${OUT_STATUS}
+        "UNSUPPORTED"
+        PARENT_SCOPE)
     set(${OUT_INSTALL_FILE}
-        ""
+        "${_tip_resolved_source}"
         PARENT_SCOPE)
     set(${OUT_INSTALL_DESTINATION}
         ""
@@ -431,6 +511,9 @@ function(_tip_process_installable_source_entry OUT_INSTALL_FILE OUT_INSTALL_DEST
     set(_tip_installed_source_entry "$<${_tip_entry_condition}:${_tip_installed_source_entry}>")
   endif()
 
+  set(${OUT_STATUS}
+      "OK"
+      PARENT_SCOPE)
   set(${OUT_INSTALL_FILE}
       "${_tip_resolved_source}"
       PARENT_SCOPE)
@@ -445,8 +528,8 @@ function(_tip_process_installable_source_entry OUT_INSTALL_FILE OUT_INSTALL_DEST
       PARENT_SCOPE)
 endfunction()
 
-function(_tip_collect_installable_source_entries OUT_INSTALL_FILES OUT_INSTALL_DESTINATIONS OUT_INSTALL_RENAMES OUT_ENTRIES TARGET_NAME SOURCE_DESTINATION)
-  get_target_property(_tip_target_sources "${TARGET_NAME}" SOURCES)
+function(_tip_collect_installable_source_entries_from_list OUT_INSTALL_FILES OUT_INSTALL_DESTINATIONS OUT_INSTALL_RENAMES OUT_ENTRIES TARGET_NAME SOURCE_DESTINATION)
+  set(_tip_target_sources ${ARGN})
   if(NOT _tip_target_sources)
     set(${OUT_INSTALL_FILES}
         ""
@@ -494,6 +577,7 @@ function(_tip_collect_installable_source_entries OUT_INSTALL_FILES OUT_INSTALL_D
 
   foreach(_tip_target_source IN LISTS _tip_target_sources)
     _tip_process_installable_source_entry(
+      _tip_install_status
       _tip_install_file
       _tip_install_destination
       _tip_install_rename
@@ -508,6 +592,17 @@ function(_tip_collect_installable_source_entries OUT_INSTALL_FILES OUT_INSTALL_D
     endif()
     if(_tip_install_file IN_LIST _tip_excluded_files)
       continue()
+    endif()
+    if(_tip_install_status STREQUAL "UNSUPPORTED")
+      get_filename_component(_tip_source_extension "${_tip_install_file}" EXT)
+      if(_tip_source_extension STREQUAL "")
+        set(_tip_source_extension "<none>")
+      endif()
+      project_log(
+        FATAL_ERROR
+        "INCLUDE_SOURCES EXCLUSIVE does not support implementation source '${_tip_target_source}' for target '${TARGET_NAME}' "
+        "because it resolves to '${_tip_install_file}' with unsupported extension '${_tip_source_extension}'. "
+        "Declare headers or module interface units through FILE_SET, or package this target without INCLUDE_SOURCES EXCLUSIVE.")
     endif()
 
     set(_tip_source_key "${_tip_install_destination}|${_tip_install_rename}|${_tip_installed_entry}")
@@ -536,6 +631,323 @@ function(_tip_collect_installable_source_entries OUT_INSTALL_FILES OUT_INSTALL_D
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_collect_install_layout_entries_from_list OUT_INSTALL_FILES OUT_INSTALL_DESTINATIONS OUT_INSTALL_RENAMES OUT_ENTRIES TARGET_NAME
+         ROOT_DESTINATION BASE_DIRS)
+  set(_tip_install_files "")
+  set(_tip_install_destinations "")
+  set(_tip_install_renames "")
+  set(_tip_installed_entries "")
+
+  foreach(_tip_input_file IN LISTS ARGN)
+    _tip_resolve_target_path(_tip_resolved_file "${TARGET_NAME}" "${_tip_input_file}")
+    _tip_compute_installed_relative_path(_tip_installed_entry "${_tip_resolved_file}" "${ROOT_DESTINATION}" ${BASE_DIRS})
+    _tip_split_install_relative_path(_tip_install_destination _tip_install_rename "${_tip_installed_entry}")
+
+    list(APPEND _tip_install_files "${_tip_resolved_file}")
+    list(APPEND _tip_install_destinations "${_tip_install_destination}")
+    list(APPEND _tip_install_renames "${_tip_install_rename}")
+    list(APPEND _tip_installed_entries "${_tip_installed_entry}")
+  endforeach()
+
+  set(${OUT_INSTALL_FILES}
+      "${_tip_install_files}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_DESTINATIONS}
+      "${_tip_install_destinations}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_RENAMES}
+      "${_tip_install_renames}"
+      PARENT_SCOPE)
+  set(${OUT_ENTRIES}
+      "${_tip_installed_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_collect_installable_source_entries OUT_INSTALL_FILES OUT_INSTALL_DESTINATIONS OUT_INSTALL_RENAMES OUT_ENTRIES TARGET_NAME SOURCE_DESTINATION)
+  get_target_property(_tip_target_sources "${TARGET_NAME}" SOURCES)
+  if(NOT _tip_target_sources)
+    set(_tip_target_sources "")
+  endif()
+
+  _tip_collect_installable_source_entries_from_list(
+    _tip_install_files
+    _tip_install_destinations
+    _tip_install_renames
+    _tip_installed_entries
+    "${TARGET_NAME}"
+    "${SOURCE_DESTINATION}"
+    ${_tip_target_sources})
+
+  set(${OUT_INSTALL_FILES}
+      "${_tip_install_files}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_DESTINATIONS}
+      "${_tip_install_destinations}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_RENAMES}
+      "${_tip_install_renames}"
+      PARENT_SCOPE)
+  set(${OUT_ENTRIES}
+      "${_tip_installed_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_parse_link_item OUT_KIND OUT_CONDITION OUT_PAYLOAD LINK_ITEM)
+  if(LINK_ITEM MATCHES "^\\$<LINK_ONLY:(.*)>$")
+    set(_tip_link_kind "LINK_ONLY")
+    set(_tip_link_condition "")
+    set(_tip_link_payload "${CMAKE_MATCH_1}")
+  elseif(LINK_ITEM MATCHES "^\\$<(\\$<.+>):(.+)>$")
+    set(_tip_link_kind "CONDITIONAL")
+    set(_tip_link_condition "${CMAKE_MATCH_1}")
+    set(_tip_link_payload "${CMAKE_MATCH_2}")
+  elseif(LINK_ITEM MATCHES "\\$<")
+    set(_tip_link_kind "OTHER")
+    set(_tip_link_condition "")
+    set(_tip_link_payload "${LINK_ITEM}")
+  else()
+    set(_tip_link_kind "PLAIN")
+    set(_tip_link_condition "")
+    set(_tip_link_payload "${LINK_ITEM}")
+  endif()
+
+  if(_tip_link_kind STREQUAL "CONDITIONAL" AND (_tip_link_payload MATCHES ";" OR _tip_link_payload MATCHES "\\$<"))
+    set(_tip_link_kind "OTHER")
+  endif()
+
+  set(${OUT_KIND}
+      "${_tip_link_kind}"
+      PARENT_SCOPE)
+  set(${OUT_CONDITION}
+      "${_tip_link_condition}"
+      PARENT_SCOPE)
+  set(${OUT_PAYLOAD}
+      "${_tip_link_payload}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_extract_link_lookup_target OUT_VAR LINK_ITEM)
+  _tip_parse_link_item(_tip_link_kind _tip_link_condition _tip_link_payload "${LINK_ITEM}")
+
+  set(_tip_lookup_target "")
+  if(_tip_link_kind STREQUAL "LINK_ONLY" AND _tip_link_payload MATCHES "\\$<")
+    _tip_extract_link_lookup_target(_tip_lookup_target "${_tip_link_payload}")
+  elseif(_tip_link_kind STREQUAL "PLAIN" OR _tip_link_kind STREQUAL "LINK_ONLY" OR _tip_link_kind STREQUAL "CONDITIONAL")
+    set(_tip_lookup_target "${_tip_link_payload}")
+  endif()
+
+  if(NOT _tip_lookup_target STREQUAL "" AND TARGET "${_tip_lookup_target}")
+    get_target_property(_tip_aliased_target "${_tip_lookup_target}" ALIASED_TARGET)
+    if(_tip_aliased_target AND NOT _tip_aliased_target MATCHES "-NOTFOUND$")
+      set(_tip_lookup_target "${_tip_aliased_target}")
+    endif()
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_lookup_target}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_rewrite_link_item_with_target OUT_VAR LINK_ITEM TARGET_NAME)
+  _tip_parse_link_item(_tip_link_kind _tip_link_condition _tip_link_payload "${LINK_ITEM}")
+
+  if(_tip_link_kind STREQUAL "LINK_ONLY")
+    if(_tip_link_payload MATCHES "\\$<")
+      _tip_rewrite_link_item_with_target(_tip_rewritten_link_payload "${_tip_link_payload}" "${TARGET_NAME}")
+      set(_tip_rewritten_link_item "$<LINK_ONLY:${_tip_rewritten_link_payload}>")
+    else()
+      set(_tip_rewritten_link_item "$<LINK_ONLY:${TARGET_NAME}>")
+    endif()
+  elseif(_tip_link_kind STREQUAL "CONDITIONAL")
+    set(_tip_rewritten_link_item "$<${_tip_link_condition}:${TARGET_NAME}>")
+  else()
+    set(_tip_rewritten_link_item "${TARGET_NAME}")
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_rewritten_link_item}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_dependency_package_hint OUT_VAR TARGET_NAME)
+  if(TARGET_NAME MATCHES "^([^:]+)::")
+    set(_tip_package_hint "${CMAKE_MATCH_1}")
+  else()
+    set(_tip_package_hint "${TARGET_NAME}")
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_package_hint}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_identifier_tokens OUT_VAR IDENTIFIER)
+  string(TOLOWER "${IDENTIFIER}" _tip_normalized_identifier)
+  string(REGEX REPLACE "[^a-z0-9]+" ";" _tip_identifier_tokens "${_tip_normalized_identifier}")
+
+  set(_tip_collapsed_tokens "")
+  set(_tip_previous_token "")
+  foreach(_tip_token IN LISTS _tip_identifier_tokens)
+    if(_tip_token STREQUAL "")
+      continue()
+    endif()
+    if(NOT _tip_token STREQUAL "${_tip_previous_token}")
+      list(APPEND _tip_collapsed_tokens "${_tip_token}")
+      set(_tip_previous_token "${_tip_token}")
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_collapsed_tokens}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_target_dependency_candidates OUT_VAR TARGET_NAME)
+  _tip_identifier_tokens(_tip_target_tokens "${TARGET_NAME}")
+
+  set(_tip_candidates "")
+  set(_tip_prefix_candidate "")
+  foreach(_tip_token IN LISTS _tip_target_tokens)
+    string(APPEND _tip_prefix_candidate "${_tip_token}")
+    list(APPEND _tip_candidates "${_tip_prefix_candidate}")
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_candidates}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_dependency_entry_candidates OUT_VAR DEPENDENCY_ENTRY)
+  separate_arguments(_tip_dependency_words NATIVE_COMMAND "${DEPENDENCY_ENTRY}")
+  list(LENGTH _tip_dependency_words _tip_dependency_word_count)
+  if(_tip_dependency_word_count EQUAL 0)
+    set(${OUT_VAR} "" PARENT_SCOPE)
+    return()
+  endif()
+
+  list(GET _tip_dependency_words 0 _tip_dependency_head)
+  _tip_identifier_tokens(_tip_dependency_head_tokens "${_tip_dependency_head}")
+  list(JOIN _tip_dependency_head_tokens "" _tip_dependency_head_candidate)
+
+  set(_tip_candidates "")
+  if(NOT _tip_dependency_head_candidate STREQUAL "")
+    list(APPEND _tip_candidates "${_tip_dependency_head_candidate}")
+  endif()
+
+  set(_tip_find_package_keywords
+      REQUIRED
+      OPTIONAL
+      CONFIG
+      NO_MODULE
+      MODULE
+      EXACT
+      QUIET
+      GLOBAL
+      BYPASS_PROVIDER
+      UNWIND_INCLUDE
+      COMPONENTS
+      OPTIONAL_COMPONENTS
+      REGISTRY_VIEW)
+  set(_tip_collect_components FALSE)
+  foreach(_tip_word IN LISTS _tip_dependency_words)
+    if(_tip_word STREQUAL "${_tip_dependency_head}")
+      continue()
+    endif()
+
+    if(_tip_word STREQUAL "COMPONENTS" OR _tip_word STREQUAL "OPTIONAL_COMPONENTS")
+      set(_tip_collect_components TRUE)
+      continue()
+    endif()
+
+    if(_tip_collect_components AND _tip_word IN_LIST _tip_find_package_keywords)
+      continue()
+    endif()
+
+    if(_tip_collect_components)
+      _tip_identifier_tokens(_tip_component_tokens "${_tip_word}")
+      list(JOIN _tip_component_tokens "" _tip_component_normalized)
+      if(NOT _tip_component_normalized STREQUAL "")
+        set(_tip_component_candidate "${_tip_dependency_head_candidate}${_tip_component_normalized}")
+        list(APPEND _tip_candidates "${_tip_component_candidate}")
+      endif()
+    endif()
+  endforeach()
+
+  list(REMOVE_DUPLICATES _tip_candidates)
+  set(${OUT_VAR}
+      "${_tip_candidates}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_public_dependencies_cover_target OUT_VAR TARGET_NAME)
+  _tip_target_dependency_candidates(_tip_target_candidates "${TARGET_NAME}")
+  list(LENGTH _tip_target_candidates _tip_target_candidate_count)
+  set(_tip_is_covered FALSE)
+
+  foreach(_tip_dependency IN LISTS ARGN)
+    _tip_dependency_entry_candidates(_tip_dependency_candidates "${_tip_dependency}")
+    list(LENGTH _tip_dependency_candidates _tip_dependency_candidate_count)
+
+    set(_tip_target_candidate_index 0)
+    foreach(_tip_target_candidate IN LISTS _tip_target_candidates)
+      foreach(_tip_dependency_candidate IN LISTS _tip_dependency_candidates)
+        if(_tip_dependency_candidate STREQUAL "")
+          continue()
+        endif()
+        if(NOT _tip_target_candidate STREQUAL "${_tip_dependency_candidate}")
+          continue()
+        endif()
+
+        if(_tip_target_candidate_count EQUAL 1 OR _tip_target_candidate_index GREATER 0 OR _tip_dependency_candidate_count EQUAL 1)
+          set(_tip_is_covered TRUE)
+          break()
+        endif()
+      endforeach()
+
+      if(_tip_is_covered)
+        break()
+      endif()
+
+      math(EXPR _tip_target_candidate_index "${_tip_target_candidate_index} + 1")
+    endforeach()
+
+    if(_tip_is_covered)
+      break()
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_is_covered}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_link_item_is_definitely_disabled OUT_VAR LINK_ITEM)
+  _tip_parse_link_item(_tip_link_kind _tip_link_condition _tip_link_payload "${LINK_ITEM}")
+
+  set(_tip_is_disabled FALSE)
+  if(_tip_link_kind STREQUAL "LINK_ONLY" AND _tip_link_payload MATCHES "\\$<")
+    _tip_link_item_is_definitely_disabled(_tip_is_disabled "${_tip_link_payload}")
+  elseif(_tip_link_kind STREQUAL "CONDITIONAL")
+    if(_tip_link_condition STREQUAL "$<BOOL:0>")
+      set(_tip_is_disabled TRUE)
+    elseif(_tip_link_condition MATCHES "^\\$<PLATFORM_ID:([^>]+)>$")
+      string(REPLACE "," ";" _tip_platform_ids "${CMAKE_MATCH_1}")
+      if(NOT CMAKE_SYSTEM_NAME IN_LIST _tip_platform_ids)
+        set(_tip_is_disabled TRUE)
+      endif()
+    elseif(_tip_link_condition MATCHES "^\\$<NOT:\\$<PLATFORM_ID:([^>]+)>>$")
+      string(REPLACE "," ";" _tip_platform_ids "${CMAKE_MATCH_1}")
+      if(CMAKE_SYSTEM_NAME IN_LIST _tip_platform_ids)
+        set(_tip_is_disabled TRUE)
+      endif()
+    endif()
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_is_disabled}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_compute_installed_relative_path OUT_VAR FILE_PATH DESTINATION)
   set(_tip_base_dirs ${ARGN})
   if(NOT _tip_base_dirs)
@@ -557,6 +969,32 @@ function(_tip_compute_installed_relative_path OUT_VAR FILE_PATH DESTINATION)
   endforeach()
 
   if(NOT _tip_matching_base_dir)
+    foreach(_tip_base_dir IN LISTS _tip_base_dirs)
+      cmake_path(NORMAL_PATH _tip_base_dir OUTPUT_VARIABLE _tip_candidate_base_dir)
+
+      while(TRUE)
+        cmake_path(GET _tip_candidate_base_dir PARENT_PATH _tip_candidate_parent_dir)
+        cmake_path(IS_PREFIX _tip_candidate_base_dir "${FILE_PATH}" NORMALIZE _tip_matches)
+        if(_tip_matches)
+          if(NOT _tip_candidate_parent_dir STREQUAL _tip_candidate_base_dir)
+            string(LENGTH "${_tip_candidate_base_dir}" _tip_base_length)
+            if(_tip_base_length GREATER _tip_matching_length)
+              set(_tip_matching_base_dir "${_tip_candidate_base_dir}")
+              set(_tip_matching_length "${_tip_base_length}")
+            endif()
+          endif()
+          break()
+        endif()
+
+        if(_tip_candidate_parent_dir STREQUAL "" OR _tip_candidate_parent_dir STREQUAL _tip_candidate_base_dir)
+          break()
+        endif()
+        set(_tip_candidate_base_dir "${_tip_candidate_parent_dir}")
+      endwhile()
+    endforeach()
+  endif()
+
+  if(NOT _tip_matching_base_dir)
     project_log(FATAL_ERROR "Could not match '${FILE_PATH}' to any declared base directory: ${_tip_base_dirs}")
   endif()
 
@@ -574,28 +1012,206 @@ function(_tip_compute_installed_relative_path OUT_VAR FILE_PATH DESTINATION)
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_split_nested_list OUT_VAR INPUT_VALUE)
+  if(NOT DEFINED INPUT_VALUE OR INPUT_VALUE STREQUAL "")
+    set(${OUT_VAR} "" PARENT_SCOPE)
+    return()
+  endif()
+
+  string(LENGTH "${INPUT_VALUE}" _tip_input_length)
+  set(_tip_entries "")
+  set(_tip_current_entry "")
+  set(_tip_genex_depth 0)
+  set(_tip_index 0)
+  while(_tip_index LESS _tip_input_length)
+    string(SUBSTRING "${INPUT_VALUE}" ${_tip_index} 1 _tip_char)
+
+    math(EXPR _tip_next_index "${_tip_index} + 1")
+    set(_tip_next_char "")
+    if(_tip_next_index LESS _tip_input_length)
+      string(SUBSTRING "${INPUT_VALUE}" ${_tip_next_index} 1 _tip_next_char)
+    endif()
+
+    if(_tip_char STREQUAL "\\" AND _tip_next_char STREQUAL ";")
+      string(APPEND _tip_current_entry "\\;")
+      math(EXPR _tip_index "${_tip_index} + 2")
+      continue()
+    endif()
+
+    if(_tip_char STREQUAL "$" AND _tip_next_char STREQUAL "<")
+      string(APPEND _tip_current_entry "$<")
+      math(EXPR _tip_genex_depth "${_tip_genex_depth} + 1")
+      math(EXPR _tip_index "${_tip_index} + 2")
+      continue()
+    endif()
+
+    if(_tip_char STREQUAL ">" AND _tip_genex_depth GREATER 0)
+      string(APPEND _tip_current_entry ">")
+      math(EXPR _tip_genex_depth "${_tip_genex_depth} - 1")
+      math(EXPR _tip_index "${_tip_index} + 1")
+      continue()
+    endif()
+
+    if(_tip_char STREQUAL ";" AND _tip_genex_depth EQUAL 0)
+      string(REPLACE ";" "\\;" _tip_list_entry "${_tip_current_entry}")
+      list(APPEND _tip_entries "${_tip_list_entry}")
+      set(_tip_current_entry "")
+      math(EXPR _tip_index "${_tip_index} + 1")
+      continue()
+    endif()
+
+    string(APPEND _tip_current_entry "${_tip_char}")
+    math(EXPR _tip_index "${_tip_index} + 1")
+  endwhile()
+
+  if(NOT _tip_current_entry STREQUAL "" OR INPUT_VALUE MATCHES ";$")
+    string(REPLACE ";" "\\;" _tip_list_entry "${_tip_current_entry}")
+    list(APPEND _tip_entries "${_tip_list_entry}")
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_parse_top_level_genex OUT_IS_MATCH OUT_HEAD OUT_PAYLOAD ENTRY)
+  set(${OUT_IS_MATCH}
+      FALSE
+      PARENT_SCOPE)
+  set(${OUT_HEAD}
+      ""
+      PARENT_SCOPE)
+  set(${OUT_PAYLOAD}
+      ""
+      PARENT_SCOPE)
+
+  if(NOT ENTRY MATCHES "^\\$<.*>$")
+    return()
+  endif()
+
+  string(LENGTH "${ENTRY}" _tip_entry_length)
+  if(_tip_entry_length LESS 4)
+    return()
+  endif()
+
+  set(_tip_genex_depth 1)
+  set(_tip_colon_index -1)
+  set(_tip_index 2)
+  while(_tip_index LESS _tip_entry_length)
+    string(SUBSTRING "${ENTRY}" ${_tip_index} 1 _tip_char)
+
+    math(EXPR _tip_next_index "${_tip_index} + 1")
+    set(_tip_next_char "")
+    if(_tip_next_index LESS _tip_entry_length)
+      string(SUBSTRING "${ENTRY}" ${_tip_next_index} 1 _tip_next_char)
+    endif()
+
+    if(_tip_char STREQUAL "$" AND _tip_next_char STREQUAL "<")
+      math(EXPR _tip_genex_depth "${_tip_genex_depth} + 1")
+      math(EXPR _tip_index "${_tip_index} + 2")
+      continue()
+    endif()
+
+    if(_tip_char STREQUAL ":")
+      if(_tip_genex_depth EQUAL 1 AND _tip_colon_index EQUAL -1)
+        set(_tip_colon_index "${_tip_index}")
+      endif()
+      math(EXPR _tip_index "${_tip_index} + 1")
+      continue()
+    endif()
+
+    if(_tip_char STREQUAL ">")
+      math(EXPR _tip_genex_depth "${_tip_genex_depth} - 1")
+      if(_tip_genex_depth EQUAL 0)
+        break()
+      endif()
+    endif()
+
+    math(EXPR _tip_index "${_tip_index} + 1")
+  endwhile()
+
+  if(_tip_colon_index EQUAL -1 OR NOT _tip_genex_depth EQUAL 0)
+    return()
+  endif()
+
+  math(EXPR _tip_head_length "${_tip_colon_index} - 2")
+  if(_tip_head_length LESS 0)
+    return()
+  endif()
+
+  math(EXPR _tip_payload_start "${_tip_colon_index} + 1")
+  math(EXPR _tip_payload_length "${_tip_entry_length} - ${_tip_payload_start} - 1")
+  if(_tip_payload_length LESS 0)
+    set(_tip_payload_length 0)
+  endif()
+
+  string(SUBSTRING "${ENTRY}" 2 ${_tip_head_length} _tip_head)
+  string(SUBSTRING "${ENTRY}" ${_tip_payload_start} ${_tip_payload_length} _tip_payload)
+
+  set(${OUT_IS_MATCH}
+      TRUE
+      PARENT_SCOPE)
+  set(${OUT_HEAD}
+      "${_tip_head}"
+      PARENT_SCOPE)
+  set(${OUT_PAYLOAD}
+      "${_tip_payload}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_map_included_source_path_entry OUT_VAR TARGET_NAME INPUT_PATH INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION HEADER_BASE_DIRS
          MODULE_BASE_DIRS SOURCE_BASE_DIRS)
-  if(INPUT_PATH MATCHES "^\\$<BUILD_INTERFACE:(.*)>$")
-    _tip_map_included_source_path_entry(
-      _tip_mapped_path
-      "${TARGET_NAME}"
-      "${CMAKE_MATCH_1}"
-      "${INCLUDE_DESTINATION}"
-      "${MODULE_DESTINATION}"
-      "${SOURCE_DESTINATION}"
-      "${HEADER_BASE_DIRS}"
-      "${MODULE_BASE_DIRS}"
-      "${SOURCE_BASE_DIRS}")
+  if(INPUT_PATH MATCHES "^\\$<(\\$<.+>):\\$<BUILD_INTERFACE:(.*)>>$")
     set(${OUT_VAR}
-        "${_tip_mapped_path}"
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "^\\$<(\\$<.+>):\\$<INSTALL_INTERFACE:(.*)>>$")
+    _tip_normalize_install_interface_path_payload(_tip_mapped_payload "${CMAKE_MATCH_2}")
+    set(${OUT_VAR}
+        "$<${CMAKE_MATCH_1}:${_tip_mapped_payload}>"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "^\\$<BUILD_INTERFACE:\\$<(\\$<.+>):(.*)>>$")
+    set(${OUT_VAR}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "^\\$<INSTALL_INTERFACE:\\$<(\\$<.+>):(.*)>>$")
+    _tip_normalize_install_interface_path_payload(_tip_mapped_payload "${CMAKE_MATCH_2}")
+    set(${OUT_VAR}
+        "$<${CMAKE_MATCH_1}:${_tip_mapped_payload}>"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "^\\$<BUILD_INTERFACE:(.*)>$")
+    set(${OUT_VAR}
+        ""
         PARENT_SCOPE)
     return()
   endif()
 
   if(INPUT_PATH MATCHES "^\\$<INSTALL_INTERFACE:(.*)>$")
     set(_tip_install_path "${CMAKE_MATCH_1}")
-    if(IS_ABSOLUTE "${_tip_install_path}" OR _tip_install_path MATCHES "\\$<")
+    if(_tip_install_path MATCHES "\\$<" OR _tip_install_path MATCHES ";")
+      _tip_map_included_source_path_payload(
+        _tip_mapped_path
+        "${TARGET_NAME}"
+        "${_tip_install_path}"
+        "${INCLUDE_DESTINATION}"
+        "${MODULE_DESTINATION}"
+        "${SOURCE_DESTINATION}"
+        "${HEADER_BASE_DIRS}"
+        "${MODULE_BASE_DIRS}"
+        "${SOURCE_BASE_DIRS}")
+    elseif(IS_ABSOLUTE "${_tip_install_path}" OR _tip_install_path MATCHES "\\$<")
       set(_tip_mapped_path "${_tip_install_path}")
     else()
       cmake_path(NORMAL_PATH _tip_install_path OUTPUT_VARIABLE _tip_mapped_path)
@@ -603,6 +1219,31 @@ function(_tip_map_included_source_path_entry OUT_VAR TARGET_NAME INPUT_PATH INCL
 
     set(${OUT_VAR}
         "${_tip_mapped_path}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(INPUT_PATH MATCHES "^\\$<(\\$<.+>):(.+)>$")
+    set(_tip_condition "${CMAKE_MATCH_1}")
+    set(_tip_payload "${CMAKE_MATCH_2}")
+    _tip_map_included_source_path_payload(
+      _tip_mapped_payload
+      "${TARGET_NAME}"
+      "${_tip_payload}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${HEADER_BASE_DIRS}"
+      "${MODULE_BASE_DIRS}"
+      "${SOURCE_BASE_DIRS}")
+    if(_tip_mapped_payload STREQUAL "")
+      set(${OUT_VAR}
+          ""
+          PARENT_SCOPE)
+      return()
+    endif()
+    set(${OUT_VAR}
+        "$<${_tip_condition}:${_tip_mapped_payload}>"
         PARENT_SCOPE)
     return()
   endif()
@@ -671,6 +1312,62 @@ function(_tip_map_included_source_path_entry OUT_VAR TARGET_NAME INPUT_PATH INCL
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_normalize_install_interface_path_payload OUT_VAR INPUT_PAYLOAD)
+  set(_tip_payload_entries "")
+  _tip_split_nested_list(_tip_input_payload_entries "${INPUT_PAYLOAD}")
+  foreach(_tip_payload_entry IN LISTS _tip_input_payload_entries)
+    if(_tip_payload_entry STREQUAL "")
+      continue()
+    endif()
+    if(IS_ABSOLUTE "${_tip_payload_entry}" OR _tip_payload_entry MATCHES "\\$<")
+      list(APPEND _tip_payload_entries "${_tip_payload_entry}")
+    else()
+      cmake_path(NORMAL_PATH _tip_payload_entry OUTPUT_VARIABLE _tip_normalized_payload_entry)
+      list(APPEND _tip_payload_entries "\${PACKAGE_PREFIX_DIR}/${_tip_normalized_payload_entry}")
+    endif()
+  endforeach()
+
+  list(JOIN _tip_payload_entries ";" _tip_joined_payload)
+  set(${OUT_VAR}
+      "${_tip_joined_payload}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_map_included_source_path_payload OUT_VAR TARGET_NAME INPUT_PAYLOAD INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION HEADER_BASE_DIRS
+         MODULE_BASE_DIRS SOURCE_BASE_DIRS)
+  set(_tip_mapped_payload_entries "")
+  _tip_split_nested_list(_tip_input_payload_entries "${INPUT_PAYLOAD}")
+  foreach(_tip_payload_entry IN LISTS _tip_input_payload_entries)
+    _tip_map_included_source_path_entry(
+      _tip_mapped_payload_entry
+      "${TARGET_NAME}"
+      "${_tip_payload_entry}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${HEADER_BASE_DIRS}"
+      "${MODULE_BASE_DIRS}"
+      "${SOURCE_BASE_DIRS}")
+    if(_tip_mapped_payload_entry STREQUAL "")
+      continue()
+    endif()
+    if(NOT IS_ABSOLUTE "${_tip_mapped_payload_entry}" AND NOT _tip_mapped_payload_entry MATCHES "\\$<")
+      set(_tip_mapped_payload_entry "\${PACKAGE_PREFIX_DIR}/${_tip_mapped_payload_entry}")
+    endif()
+    list(APPEND _tip_mapped_payload_entries "${_tip_mapped_payload_entry}")
+  endforeach()
+
+  if(_tip_mapped_payload_entries)
+    list(JOIN _tip_mapped_payload_entries ";" _tip_joined_payload)
+  else()
+    set(_tip_joined_payload "")
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_joined_payload}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_map_included_source_path_list OUT_VAR TARGET_NAME INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION HEADER_BASE_DIRS MODULE_BASE_DIRS
          SOURCE_BASE_DIRS)
   set(_tip_mapped_paths "")
@@ -685,6 +1382,9 @@ function(_tip_map_included_source_path_list OUT_VAR TARGET_NAME INCLUDE_DESTINAT
       "${HEADER_BASE_DIRS}"
       "${MODULE_BASE_DIRS}"
       "${SOURCE_BASE_DIRS}")
+    if(_tip_mapped_path STREQUAL "")
+      continue()
+    endif()
     list(APPEND _tip_mapped_paths "${_tip_mapped_path}")
   endforeach()
 
@@ -697,17 +1397,278 @@ function(_tip_map_included_source_path_list OUT_VAR TARGET_NAME INCLUDE_DESTINAT
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_map_included_source_path_property_list OUT_VAR TARGET_NAME INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION HEADER_BASE_DIRS
+         MODULE_BASE_DIRS SOURCE_BASE_DIRS LIST_VAR_NAME)
+  set(_tip_mapped_paths "")
+  _tip_split_nested_list(_tip_input_paths "${${LIST_VAR_NAME}}")
+  foreach(_tip_input_path IN LISTS _tip_input_paths)
+    _tip_map_included_source_path_entry(
+      _tip_mapped_path
+      "${TARGET_NAME}"
+      "${_tip_input_path}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${HEADER_BASE_DIRS}"
+      "${MODULE_BASE_DIRS}"
+      "${SOURCE_BASE_DIRS}")
+    if(_tip_mapped_path STREQUAL "")
+      continue()
+    endif()
+    list(APPEND _tip_mapped_paths "${_tip_mapped_path}")
+  endforeach()
+
+  if(_tip_mapped_paths)
+    list(REMOVE_DUPLICATES _tip_mapped_paths)
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_mapped_paths}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_usage_entries OUT_VAR ENTRY)
+  _tip_parse_top_level_genex(_tip_is_genex _tip_genex_head _tip_genex_payload "${ENTRY}")
+  if(NOT _tip_is_genex)
+    set(${OUT_VAR}
+        "${ENTRY}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(_tip_genex_head STREQUAL "BUILD_INTERFACE")
+    set(${OUT_VAR} "" PARENT_SCOPE)
+    return()
+  endif()
+
+  if(_tip_genex_head STREQUAL "INSTALL_INTERFACE")
+    set(_tip_normalized_entries "")
+    _tip_split_nested_list(_tip_install_entries "${_tip_genex_payload}")
+    foreach(_tip_install_entry IN LISTS _tip_install_entries)
+      if(_tip_install_entry STREQUAL "")
+        continue()
+      endif()
+      _tip_normalize_included_source_usage_entries(_tip_nested_entries "${_tip_install_entry}")
+      list(APPEND _tip_normalized_entries ${_tip_nested_entries})
+    endforeach()
+    set(${OUT_VAR}
+        "${_tip_normalized_entries}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  set(_tip_normalized_entries "")
+  _tip_normalize_included_source_usage_entries(_tip_nested_entries "${_tip_genex_payload}")
+  foreach(_tip_nested_entry IN LISTS _tip_nested_entries)
+    list(APPEND _tip_normalized_entries "$<${_tip_genex_head}:${_tip_nested_entry}>")
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_normalized_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_usage_item OUT_STATUS OUT_ITEM ENTRY)
+  _tip_normalize_included_source_usage_entries(_tip_normalized_entries "${ENTRY}")
+  if(NOT _tip_normalized_entries)
+    set(${OUT_STATUS}
+        "SKIP"
+        PARENT_SCOPE)
+    set(${OUT_ITEM}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  list(JOIN _tip_normalized_entries ";" _tip_joined_entry)
+  set(${OUT_STATUS}
+      "KEEP"
+      PARENT_SCOPE)
+  set(${OUT_ITEM}
+      "${_tip_joined_entry}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_usage_list OUT_VAR)
+  set(_tip_normalized_entries "")
+  foreach(_tip_entry IN LISTS ARGN)
+    _tip_normalize_included_source_usage_entries(_tip_entry_items "${_tip_entry}")
+    list(APPEND _tip_normalized_entries ${_tip_entry_items})
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_normalized_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_usage_property_list OUT_VAR LIST_VAR_NAME)
+  set(_tip_normalized_entries "")
+  _tip_split_nested_list(_tip_usage_entries "${${LIST_VAR_NAME}}")
+  foreach(_tip_entry IN LISTS _tip_usage_entries)
+    _tip_normalize_included_source_usage_entries(_tip_entry_items "${_tip_entry}")
+    list(APPEND _tip_normalized_entries ${_tip_entry_items})
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_normalized_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_link_item OUT_STATUS OUT_ITEM LINK_ITEM)
+  if(LINK_ITEM MATCHES "^\\$<BUILD_INTERFACE:(.*)>$")
+    set(${OUT_STATUS}
+        "SKIP"
+        PARENT_SCOPE)
+    set(${OUT_ITEM}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(LINK_ITEM MATCHES "^\\$<INSTALL_INTERFACE:(.*)>$")
+    set(${OUT_STATUS}
+        "KEEP"
+        PARENT_SCOPE)
+    set(${OUT_ITEM}
+        "${CMAKE_MATCH_1}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(LINK_ITEM MATCHES "^\\$<LINK_ONLY:(.*)>$")
+    _tip_normalize_included_source_link_item(_tip_inner_status _tip_inner_item "${CMAKE_MATCH_1}")
+    if(_tip_inner_status STREQUAL "SKIP")
+      set(${OUT_STATUS}
+          "SKIP"
+          PARENT_SCOPE)
+      set(${OUT_ITEM}
+          ""
+          PARENT_SCOPE)
+    elseif(_tip_inner_item STREQUAL "${CMAKE_MATCH_1}")
+      set(${OUT_STATUS}
+          "KEEP"
+          PARENT_SCOPE)
+      set(${OUT_ITEM}
+          "${LINK_ITEM}"
+          PARENT_SCOPE)
+    else()
+      set(${OUT_STATUS}
+          "KEEP"
+          PARENT_SCOPE)
+      set(${OUT_ITEM}
+          "$<LINK_ONLY:${_tip_inner_item}>"
+          PARENT_SCOPE)
+    endif()
+    return()
+  endif()
+
+  if(LINK_ITEM MATCHES "^\\$<(\\$<.+>):(.+)>$")
+    set(_tip_condition "${CMAKE_MATCH_1}")
+    set(_tip_payload "${CMAKE_MATCH_2}")
+    _tip_normalize_included_source_link_item(_tip_inner_status _tip_inner_item "${_tip_payload}")
+    if(_tip_inner_status STREQUAL "SKIP")
+      set(${OUT_STATUS}
+          "SKIP"
+          PARENT_SCOPE)
+      set(${OUT_ITEM}
+          ""
+          PARENT_SCOPE)
+    elseif(_tip_inner_item STREQUAL "${_tip_payload}")
+      set(${OUT_STATUS}
+          "KEEP"
+          PARENT_SCOPE)
+      set(${OUT_ITEM}
+          "${LINK_ITEM}"
+          PARENT_SCOPE)
+    else()
+      set(${OUT_STATUS}
+          "KEEP"
+          PARENT_SCOPE)
+      set(${OUT_ITEM}
+          "$<${_tip_condition}:${_tip_inner_item}>"
+          PARENT_SCOPE)
+    endif()
+    return()
+  endif()
+
+  set(${OUT_STATUS}
+      "KEEP"
+      PARENT_SCOPE)
+  set(${OUT_ITEM}
+      "${LINK_ITEM}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_link_list OUT_VAR)
+  set(_tip_normalized_entries "")
+  foreach(_tip_entry IN LISTS ARGN)
+    _tip_normalize_included_source_link_item(_tip_entry_status _tip_normalized_entry "${_tip_entry}")
+    if(_tip_entry_status STREQUAL "KEEP")
+      list(APPEND _tip_normalized_entries "${_tip_normalized_entry}")
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_normalized_entries}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_normalize_included_source_link_property_list OUT_VAR LIST_VAR_NAME)
+  set(_tip_normalized_entries "")
+  _tip_split_nested_list(_tip_link_entries "${${LIST_VAR_NAME}}")
+  foreach(_tip_entry IN LISTS _tip_link_entries)
+    _tip_normalize_included_source_link_item(_tip_entry_status _tip_normalized_entry "${_tip_entry}")
+    if(_tip_entry_status STREQUAL "KEEP")
+      list(APPEND _tip_normalized_entries "${_tip_normalized_entry}")
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_normalized_entries}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARGET_NAME INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION)
-  _tip_collect_target_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
-  _tip_collect_target_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
+  _tip_collect_target_public_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
+  _tip_collect_target_private_file_set_info("HEADERS" _tip_private_header_files _tip_private_header_base_dirs "${TARGET_NAME}")
+  _tip_collect_target_public_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
+  _tip_collect_target_private_file_set_info("CXX_MODULES" _tip_private_module_files _tip_private_module_base_dirs "${TARGET_NAME}")
   _tip_collect_legacy_public_headers(_tip_public_header_files "${TARGET_NAME}")
 
-  set(_tip_installed_header_files "")
-  foreach(_tip_header_file IN LISTS _tip_header_files)
-    _tip_resolve_target_path(_tip_resolved_header_file "${TARGET_NAME}" "${_tip_header_file}")
-    _tip_compute_installed_relative_path(_tip_installed_header_file "${_tip_resolved_header_file}" "${INCLUDE_DESTINATION}" ${_tip_header_base_dirs})
-    list(APPEND _tip_installed_header_files "${_tip_installed_header_file}")
-  endforeach()
+  get_target_property(_tip_target_source_dir "${TARGET_NAME}" SOURCE_DIR)
+  get_target_property(_tip_target_binary_dir "${TARGET_NAME}" BINARY_DIR)
+  set(_tip_source_base_dirs "")
+  if(_tip_target_source_dir)
+    list(APPEND _tip_source_base_dirs "${_tip_target_source_dir}")
+  endif()
+  if(_tip_target_binary_dir)
+    list(APPEND _tip_source_base_dirs "${_tip_target_binary_dir}")
+  endif()
+  if(_tip_private_header_base_dirs)
+    list(APPEND _tip_source_base_dirs ${_tip_private_header_base_dirs})
+  endif()
+  if(_tip_private_module_base_dirs)
+    list(APPEND _tip_source_base_dirs ${_tip_private_module_base_dirs})
+  endif()
+  if(_tip_source_base_dirs)
+    list(REMOVE_DUPLICATES _tip_source_base_dirs)
+  endif()
+
+  if(_tip_header_files)
+    _tip_map_included_source_path_list(
+      _tip_installed_header_files
+      "${TARGET_NAME}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_header_base_dirs}"
+      "${_tip_module_base_dirs}"
+      "${_tip_source_base_dirs}"
+      ${_tip_header_files})
+  else()
+    set(_tip_installed_header_files "")
+  endif()
+
   foreach(_tip_public_header_file IN LISTS _tip_public_header_files)
     get_filename_component(_tip_public_header_name "${_tip_public_header_file}" NAME)
     set(_tip_installed_public_header_file "${INCLUDE_DESTINATION}")
@@ -719,21 +1680,19 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
     list(REMOVE_DUPLICATES _tip_installed_header_files)
   endif()
 
-  set(_tip_installed_module_files "")
-  foreach(_tip_module_file IN LISTS _tip_module_files)
-    _tip_resolve_target_path(_tip_resolved_module_file "${TARGET_NAME}" "${_tip_module_file}")
-    _tip_compute_installed_relative_path(_tip_installed_module_file "${_tip_resolved_module_file}" "${MODULE_DESTINATION}" ${_tip_module_base_dirs})
-    list(APPEND _tip_installed_module_files "${_tip_installed_module_file}")
-  endforeach()
-
-  get_target_property(_tip_target_source_dir "${TARGET_NAME}" SOURCE_DIR)
-  get_target_property(_tip_target_binary_dir "${TARGET_NAME}" BINARY_DIR)
-  set(_tip_source_base_dirs "")
-  if(_tip_target_source_dir)
-    list(APPEND _tip_source_base_dirs "${_tip_target_source_dir}")
-  endif()
-  if(_tip_target_binary_dir)
-    list(APPEND _tip_source_base_dirs "${_tip_target_binary_dir}")
+  if(_tip_module_files)
+    _tip_map_included_source_path_list(
+      _tip_installed_module_files
+      "${TARGET_NAME}"
+      "${INCLUDE_DESTINATION}"
+      "${MODULE_DESTINATION}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_header_base_dirs}"
+      "${_tip_module_base_dirs}"
+      "${_tip_source_base_dirs}"
+      ${_tip_module_files})
+  else()
+    set(_tip_installed_module_files "")
   endif()
 
   _tip_collect_installable_source_entries(
@@ -743,6 +1702,87 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
     _tip_installed_source_files
     "${TARGET_NAME}"
     "${SOURCE_DESTINATION}")
+
+  get_target_property(_tip_interface_target_sources "${TARGET_NAME}" INTERFACE_SOURCES)
+  if(NOT _tip_interface_target_sources)
+    set(_tip_interface_target_sources "")
+  endif()
+
+  _tip_collect_installable_source_entries_from_list(
+    _tip_interface_source_install_files
+    _tip_interface_source_install_destinations
+    _tip_interface_source_install_renames
+    _tip_installed_interface_source_files
+    "${TARGET_NAME}"
+    "${SOURCE_DESTINATION}"
+    ${_tip_interface_target_sources})
+
+  _tip_collect_install_layout_entries_from_list(
+    _tip_private_header_install_files
+    _tip_private_header_install_destinations
+    _tip_private_header_install_renames
+    _tip_installed_private_header_files
+    "${TARGET_NAME}"
+    "${SOURCE_DESTINATION}"
+    "${_tip_private_header_base_dirs}"
+    ${_tip_private_header_files})
+
+  _tip_collect_install_layout_entries_from_list(
+    _tip_private_module_install_files
+    _tip_private_module_install_destinations
+    _tip_private_module_install_renames
+    _tip_installed_private_module_files
+    "${TARGET_NAME}"
+    "${SOURCE_DESTINATION}"
+    "${_tip_private_module_base_dirs}"
+    ${_tip_private_module_files})
+
+  set(_tip_all_source_install_files
+      ${_tip_source_install_files}
+      ${_tip_interface_source_install_files}
+      ${_tip_private_header_install_files}
+      ${_tip_private_module_install_files})
+  set(_tip_all_source_install_destinations
+      ${_tip_source_install_destinations}
+      ${_tip_interface_source_install_destinations}
+      ${_tip_private_header_install_destinations}
+      ${_tip_private_module_install_destinations})
+  set(_tip_all_source_install_renames
+      ${_tip_source_install_renames}
+      ${_tip_interface_source_install_renames}
+      ${_tip_private_header_install_renames}
+      ${_tip_private_module_install_renames})
+  set(_tip_all_source_install_keys "")
+  set(_tip_merged_source_install_files "")
+  set(_tip_merged_source_install_destinations "")
+  set(_tip_merged_source_install_renames "")
+
+  list(LENGTH _tip_all_source_install_files _tip_all_source_install_count)
+  if(_tip_all_source_install_count GREATER 0)
+    math(EXPR _tip_all_source_install_last_index "${_tip_all_source_install_count} - 1")
+    foreach(_tip_source_install_index RANGE ${_tip_all_source_install_last_index})
+      list(GET _tip_all_source_install_files ${_tip_source_install_index} _tip_source_install_file)
+      list(GET _tip_all_source_install_destinations ${_tip_source_install_index} _tip_source_install_destination)
+      list(GET _tip_all_source_install_renames ${_tip_source_install_index} _tip_source_install_rename)
+
+      set(_tip_source_install_key "${_tip_source_install_file}|${_tip_source_install_destination}|${_tip_source_install_rename}")
+      if(_tip_source_install_key IN_LIST _tip_all_source_install_keys)
+        continue()
+      endif()
+
+      list(APPEND _tip_all_source_install_keys "${_tip_source_install_key}")
+      list(APPEND _tip_merged_source_install_files "${_tip_source_install_file}")
+      list(APPEND _tip_merged_source_install_destinations "${_tip_source_install_destination}")
+      list(APPEND _tip_merged_source_install_renames "${_tip_source_install_rename}")
+    endforeach()
+  endif()
+
+  if(NOT _tip_installed_private_header_files)
+    set(_tip_installed_private_header_files "")
+  endif()
+  if(NOT _tip_installed_private_module_files)
+    set(_tip_installed_private_module_files "")
+  endif()
 
   get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
   get_target_property(_tip_compile_features "${TARGET_NAME}" COMPILE_FEATURES)
@@ -759,11 +1799,94 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
   get_target_property(_tip_link_libraries "${TARGET_NAME}" LINK_LIBRARIES)
   get_target_property(_tip_interface_link_options "${TARGET_NAME}" INTERFACE_LINK_OPTIONS)
   get_target_property(_tip_interface_link_libraries "${TARGET_NAME}" INTERFACE_LINK_LIBRARIES)
+  get_target_property(_tip_c_standard "${TARGET_NAME}" C_STANDARD)
+  get_target_property(_tip_c_standard_required "${TARGET_NAME}" C_STANDARD_REQUIRED)
+  get_target_property(_tip_c_extensions "${TARGET_NAME}" C_EXTENSIONS)
+  get_target_property(_tip_cxx_standard "${TARGET_NAME}" CXX_STANDARD)
+  get_target_property(_tip_cxx_standard_required "${TARGET_NAME}" CXX_STANDARD_REQUIRED)
   get_target_property(_tip_cxx_extensions "${TARGET_NAME}" CXX_EXTENSIONS)
   get_target_property(_tip_cxx_scan_for_modules "${TARGET_NAME}" CXX_SCAN_FOR_MODULES)
+  get_target_property(_tip_position_independent_code "${TARGET_NAME}" POSITION_INDEPENDENT_CODE)
+  get_target_property(_tip_windows_export_all_symbols "${TARGET_NAME}" WINDOWS_EXPORT_ALL_SYMBOLS)
+
+  if(_tip_c_standard MATCHES "-NOTFOUND$")
+    set(_tip_c_standard "")
+  endif()
+  if(_tip_c_standard_required MATCHES "-NOTFOUND$")
+    set(_tip_c_standard_required "")
+  endif()
+  if(_tip_c_extensions MATCHES "-NOTFOUND$")
+    set(_tip_c_extensions "")
+  endif()
+  if(_tip_cxx_standard MATCHES "-NOTFOUND$")
+    set(_tip_cxx_standard "")
+  endif()
+  if(_tip_cxx_standard_required MATCHES "-NOTFOUND$")
+    set(_tip_cxx_standard_required "")
+  endif()
+  if(_tip_cxx_extensions MATCHES "-NOTFOUND$")
+    set(_tip_cxx_extensions "")
+  endif()
+  if(_tip_cxx_scan_for_modules MATCHES "-NOTFOUND$")
+    set(_tip_cxx_scan_for_modules "")
+  endif()
+  if(_tip_position_independent_code MATCHES "-NOTFOUND$")
+    set(_tip_position_independent_code "")
+  endif()
+  if(_tip_windows_export_all_symbols MATCHES "-NOTFOUND$")
+    set(_tip_windows_export_all_symbols "")
+  endif()
+
+  if(_tip_compile_definitions)
+    _tip_normalize_included_source_usage_property_list(_tip_normalized_compile_definitions _tip_compile_definitions)
+  else()
+    set(_tip_normalized_compile_definitions "")
+  endif()
+
+  if(_tip_compile_options)
+    _tip_normalize_included_source_usage_property_list(_tip_normalized_compile_options _tip_compile_options)
+  else()
+    set(_tip_normalized_compile_options "")
+  endif()
+
+  if(_tip_interface_compile_definitions)
+    _tip_normalize_included_source_usage_property_list(_tip_normalized_interface_compile_definitions _tip_interface_compile_definitions)
+  else()
+    set(_tip_normalized_interface_compile_definitions "")
+  endif()
+
+  if(_tip_interface_compile_options)
+    _tip_normalize_included_source_usage_property_list(_tip_normalized_interface_compile_options _tip_interface_compile_options)
+  else()
+    set(_tip_normalized_interface_compile_options "")
+  endif()
+
+  if(_tip_link_options)
+    _tip_normalize_included_source_usage_property_list(_tip_normalized_link_options _tip_link_options)
+  else()
+    set(_tip_normalized_link_options "")
+  endif()
+
+  if(_tip_link_libraries)
+    _tip_normalize_included_source_link_property_list(_tip_normalized_link_libraries _tip_link_libraries)
+  else()
+    set(_tip_normalized_link_libraries "")
+  endif()
+
+  if(_tip_interface_link_options)
+    _tip_normalize_included_source_usage_property_list(_tip_normalized_interface_link_options _tip_interface_link_options)
+  else()
+    set(_tip_normalized_interface_link_options "")
+  endif()
+
+  if(_tip_interface_link_libraries)
+    _tip_normalize_included_source_link_property_list(_tip_normalized_interface_link_libraries _tip_interface_link_libraries)
+  else()
+    set(_tip_normalized_interface_link_libraries "")
+  endif()
 
   if(_tip_include_directories)
-    _tip_map_included_source_path_list(
+    _tip_map_included_source_path_property_list(
       _tip_mapped_include_directories
       "${TARGET_NAME}"
       "${INCLUDE_DESTINATION}"
@@ -772,13 +1895,13 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
       "${_tip_header_base_dirs}"
       "${_tip_module_base_dirs}"
       "${_tip_source_base_dirs}"
-      ${_tip_include_directories})
+      _tip_include_directories)
   else()
     set(_tip_mapped_include_directories "")
   endif()
 
   if(_tip_system_include_directories)
-    _tip_map_included_source_path_list(
+    _tip_map_included_source_path_property_list(
       _tip_mapped_system_include_directories
       "${TARGET_NAME}"
       "${INCLUDE_DESTINATION}"
@@ -787,13 +1910,13 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
       "${_tip_header_base_dirs}"
       "${_tip_module_base_dirs}"
       "${_tip_source_base_dirs}"
-      ${_tip_system_include_directories})
+      _tip_system_include_directories)
   else()
     set(_tip_mapped_system_include_directories "")
   endif()
 
   if(_tip_interface_include_directories)
-    _tip_map_included_source_path_list(
+    _tip_map_included_source_path_property_list(
       _tip_mapped_interface_include_directories
       "${TARGET_NAME}"
       "${INCLUDE_DESTINATION}"
@@ -802,13 +1925,13 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
       "${_tip_header_base_dirs}"
       "${_tip_module_base_dirs}"
       "${_tip_source_base_dirs}"
-      ${_tip_interface_include_directories})
+      _tip_interface_include_directories)
   else()
     set(_tip_mapped_interface_include_directories "")
   endif()
 
   if(_tip_interface_system_include_directories)
-    _tip_map_included_source_path_list(
+    _tip_map_included_source_path_property_list(
       _tip_mapped_interface_system_include_directories
       "${TARGET_NAME}"
       "${INCLUDE_DESTINATION}"
@@ -817,36 +1940,48 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
       "${_tip_header_base_dirs}"
       "${_tip_module_base_dirs}"
       "${_tip_source_base_dirs}"
-      ${_tip_interface_system_include_directories})
+      _tip_interface_system_include_directories)
   else()
     set(_tip_mapped_interface_system_include_directories "")
   endif()
 
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_TARGET_TYPE" "${_tip_target_type}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_HEADER_FILES" "${_tip_installed_header_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_PRIVATE_HEADER_FILES" "${_tip_installed_private_header_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_PUBLIC_HEADER_SOURCE_FILES" "${_tip_public_header_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_MODULE_FILES" "${_tip_installed_module_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_PRIVATE_MODULE_FILES" "${_tip_installed_private_module_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_FILES" "${_tip_installed_source_files}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_FILES" "${_tip_source_install_files}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_DESTINATIONS" "${_tip_source_install_destinations}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_RENAMES" "${_tip_source_install_renames}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_SOURCE_FILES" "${_tip_installed_interface_source_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_FILES" "${_tip_merged_source_install_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_DESTINATIONS" "${_tip_merged_source_install_destinations}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_RENAMES" "${_tip_merged_source_install_renames}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_FEATURES" "${_tip_compile_features}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_DEFINITIONS" "${_tip_compile_definitions}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_OPTIONS" "${_tip_compile_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_DEFINITIONS" "${_tip_normalized_compile_definitions}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_OPTIONS" "${_tip_normalized_compile_options}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INCLUDE_DIRECTORIES" "${_tip_mapped_include_directories}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SYSTEM_INCLUDE_DIRECTORIES" "${_tip_mapped_system_include_directories}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_FEATURES" "${_tip_interface_compile_features}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_DEFINITIONS" "${_tip_interface_compile_definitions}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_OPTIONS" "${_tip_interface_compile_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_DEFINITIONS"
+                         "${_tip_normalized_interface_compile_definitions}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_COMPILE_OPTIONS"
+                         "${_tip_normalized_interface_compile_options}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_INCLUDE_DIRECTORIES" "${_tip_mapped_interface_include_directories}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_SYSTEM_INCLUDE_DIRECTORIES"
                          "${_tip_mapped_interface_system_include_directories}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_LINK_OPTIONS" "${_tip_link_options}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_LINK_LIBRARIES" "${_tip_link_libraries}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_OPTIONS" "${_tip_interface_link_options}")
-  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_LIBRARIES" "${_tip_interface_link_libraries}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_LINK_OPTIONS" "${_tip_normalized_link_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_LINK_LIBRARIES" "${_tip_normalized_link_libraries}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_OPTIONS" "${_tip_normalized_interface_link_options}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_INTERFACE_LINK_LIBRARIES" "${_tip_normalized_interface_link_libraries}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_C_STANDARD" "${_tip_c_standard}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_C_STANDARD_REQUIRED" "${_tip_c_standard_required}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_C_EXTENSIONS" "${_tip_c_extensions}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_CXX_STANDARD" "${_tip_cxx_standard}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_CXX_STANDARD_REQUIRED" "${_tip_cxx_standard_required}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_CXX_EXTENSIONS" "${_tip_cxx_extensions}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_CXX_SCAN_FOR_MODULES" "${_tip_cxx_scan_for_modules}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_POSITION_INDEPENDENT_CODE" "${_tip_position_independent_code}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_WINDOWS_EXPORT_ALL_SYMBOLS" "${_tip_windows_export_all_symbols}")
 endfunction()
 
 function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_SUFFIX VALUE DESCRIPTION)
@@ -1033,6 +2168,12 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Debug postfix not provided, using default: ${ARG_DEBUG_POSTFIX}")
   endif()
 
+  set(_tip_default_source_destination "${CMAKE_INSTALL_DATADIR}/${ARG_EXPORT_NAME}")
+  if(NOT ARG_ALIAS_NAME STREQUAL ARG_EXPORT_NAME)
+    cmake_path(APPEND _tip_default_source_destination "${ARG_ALIAS_NAME}")
+    cmake_path(NORMAL_PATH _tip_default_source_destination)
+  endif()
+
   # Set default values using the helper function (skip NAMESPACE and EXPORT_NAME as they're already handled)
   _set_default_args(
     ARG_COMPATIBILITY
@@ -1045,7 +2186,7 @@ function(target_prepare_package TARGET_NAME)
     "${CMAKE_INSTALL_INCLUDEDIR}"
     "Module destination"
     ARG_SOURCE_DESTINATION
-    "${CMAKE_INSTALL_DATADIR}/${ARG_EXPORT_NAME}"
+    "${_tip_default_source_destination}"
     "Source destination"
     ARG_ADDITIONAL_FILES_DESTINATION
     "."
@@ -1163,15 +2304,6 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${_tip_entry_prefix}_ADDITIONAL_FILES" "${ARG_ADDITIONAL_FILES}")
     set_property(GLOBAL PROPERTY "${_tip_entry_prefix}_ADDITIONAL_FILES_DESTINATION" "${ARG_ADDITIONAL_FILES_DESTINATION}")
     set_property(GLOBAL PROPERTY "${_tip_entry_prefix}_ADDITIONAL_FILES_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
-  endif()
-
-  if(_tip_include_sources_mode STREQUAL "EXCLUSIVE")
-    _tip_collect_target_included_source_metadata(
-      "${_tip_entry_prefix}"
-      "${TARGET_NAME}"
-      "${ARG_INCLUDE_DESTINATION}"
-      "${ARG_MODULE_DESTINATION}"
-      "${ARG_SOURCE_DESTINATION}")
   endif()
 
   # Append to existing dependencies and CMake files
@@ -1499,6 +2631,13 @@ function(_tip_make_c_identifier OUT_VAR INPUT_VALUE)
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_make_lookup_key OUT_VAR INPUT_VALUE)
+  string(SHA1 _tip_identifier_hash "${INPUT_VALUE}")
+  set(${OUT_VAR}
+      "key_${_tip_identifier_hash}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_install_entry_additional_files ENTRY_PROPERTY_PREFIX TARGET_NAME)
   set(_tip_component_args ${ARGN})
 
@@ -1561,7 +2700,7 @@ function(_tip_install_included_source_payload ENTRY_PROPERTY_PREFIX TARGET_NAME)
   get_property(_tip_include_destination GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDE_DESTINATION")
   get_property(_tip_module_destination GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_MODULE_DESTINATION")
 
-  _tip_collect_target_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
+  _tip_collect_target_public_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
   if(_tip_header_files)
     set(_tip_resolved_header_files "")
     foreach(_tip_header_file IN LISTS _tip_header_files)
@@ -1579,7 +2718,7 @@ function(_tip_install_included_source_payload ENTRY_PROPERTY_PREFIX TARGET_NAME)
       ${_tip_component_args})
   endif()
 
-  _tip_collect_target_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
+  _tip_collect_target_public_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
   if(_tip_module_files)
     set(_tip_resolved_module_files "")
     foreach(_tip_module_file IN LISTS _tip_module_files)
@@ -1643,7 +2782,8 @@ function(_tip_append_cmake_path_list_command CODE_VAR COMMAND_NAME TARGET_NAME S
 
   string(APPEND _tip_existing_code "${COMMAND_NAME}(${TARGET_NAME} ${SCOPE}\n")
   foreach(_tip_item IN LISTS _tip_items)
-    string(APPEND _tip_existing_code "  \"${_tip_item}\"\n")
+    string(REPLACE ";" "\\;" _tip_rendered_item "${_tip_item}")
+    string(APPEND _tip_existing_code "  \"${_tip_rendered_item}\"\n")
   endforeach()
   string(APPEND _tip_existing_code ")\n")
 
@@ -1682,6 +2822,36 @@ function(_tip_append_cmake_file_set_command CODE_VAR TARGET_NAME SCOPE FILE_SET_
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_append_named_cmake_file_set_command CODE_VAR TARGET_NAME SCOPE FILE_SET_NAME FILE_SET_KIND BASE_DIR)
+  set(_tip_existing_code "${${CODE_VAR}}")
+  set(_tip_files ${ARGN})
+  if(NOT _tip_files)
+    set(${CODE_VAR}
+        "${_tip_existing_code}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  string(APPEND _tip_existing_code "target_sources(${TARGET_NAME} ${SCOPE}\n")
+  if(FILE_SET_KIND STREQUAL "HEADERS")
+    string(APPEND _tip_existing_code "  FILE_SET ${FILE_SET_NAME} TYPE HEADERS\n")
+  elseif(FILE_SET_KIND STREQUAL "CXX_MODULES")
+    string(APPEND _tip_existing_code "  FILE_SET ${FILE_SET_NAME} TYPE CXX_MODULES\n")
+  else()
+    project_log(FATAL_ERROR "Unsupported FILE_SET kind '${FILE_SET_KIND}'")
+  endif()
+  string(APPEND _tip_existing_code "  BASE_DIRS \"${BASE_DIR}\"\n")
+  string(APPEND _tip_existing_code "  FILES\n")
+  foreach(_tip_file IN LISTS _tip_files)
+    string(APPEND _tip_existing_code "    \"${_tip_file}\"\n")
+  endforeach()
+  string(APPEND _tip_existing_code ")\n")
+
+  set(${CODE_VAR}
+      "${_tip_existing_code}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXPORT_PROPERTY_PREFIX IMPORTED_TARGETS EXCLUSIVE_ENTRY_IDS)
   get_property(_tip_all_entry_ids GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ENTRY_IDS")
 
@@ -1699,7 +2869,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       endif()
     endforeach()
 
-    _tip_make_c_identifier(_tip_target_key "${_tip_target_name}")
+    _tip_make_lookup_key(_tip_target_key "${_tip_target_name}")
     set("_tip_imported_alias_${_tip_target_key}" "${_tip_imported_alias}")
     if(NOT _tip_target_key IN_LIST _tip_all_mapping_names)
       list(APPEND _tip_all_mapping_names "${_tip_target_key}")
@@ -1713,7 +2883,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     set(_tip_exclusive_alias "${NAMESPACE}${_tip_entry_alias_name}")
 
     foreach(_tip_name IN ITEMS "${_tip_entry_target_name}" "${_tip_entry_alias_name}")
-      _tip_make_c_identifier(_tip_target_key "${_tip_name}")
+      _tip_make_lookup_key(_tip_target_key "${_tip_name}")
       set("_tip_exclusive_alias_${_tip_target_key}" "${_tip_exclusive_alias}")
       if(NOT _tip_target_key IN_LIST _tip_all_mapping_names)
         list(APPEND _tip_all_mapping_names "${_tip_target_key}")
@@ -1740,8 +2910,11 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
 
     get_property(_tip_entry_alias_name GLOBAL PROPERTY "${_tip_entry_prefix}_ALIAS_NAME")
     get_property(_tip_entry_source_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_SOURCE_FILES")
+    get_property(_tip_entry_interface_source_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_SOURCE_FILES")
     get_property(_tip_entry_header_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_HEADER_FILES")
+    get_property(_tip_entry_private_header_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_PRIVATE_HEADER_FILES")
     get_property(_tip_entry_module_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_MODULE_FILES")
+    get_property(_tip_entry_private_module_files GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_PRIVATE_MODULE_FILES")
     get_property(_tip_entry_private_compile_features GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_COMPILE_FEATURES")
     get_property(_tip_entry_private_compile_definitions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_COMPILE_DEFINITIONS")
     get_property(_tip_entry_private_compile_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_COMPILE_OPTIONS")
@@ -1756,19 +2929,28 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     get_property(_tip_entry_private_link_libraries GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_LINK_LIBRARIES")
     get_property(_tip_entry_link_options GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_LINK_OPTIONS")
     get_property(_tip_entry_link_libraries GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_INTERFACE_LINK_LIBRARIES")
+    get_property(_tip_entry_c_standard GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_C_STANDARD")
+    get_property(_tip_entry_c_standard_required GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_C_STANDARD_REQUIRED")
+    get_property(_tip_entry_c_extensions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_C_EXTENSIONS")
+    get_property(_tip_entry_cxx_standard GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_CXX_STANDARD")
+    get_property(_tip_entry_cxx_standard_required GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_CXX_STANDARD_REQUIRED")
     get_property(_tip_entry_cxx_extensions GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_CXX_EXTENSIONS")
     get_property(_tip_entry_cxx_scan_for_modules GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_CXX_SCAN_FOR_MODULES")
+    get_property(_tip_entry_position_independent_code GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_POSITION_INDEPENDENT_CODE")
+    get_property(_tip_entry_windows_export_all_symbols GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_WINDOWS_EXPORT_ALL_SYMBOLS")
     get_property(_tip_entry_target_type GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDED_TARGET_TYPE")
     get_property(_tip_entry_include_destination GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDE_DESTINATION")
     get_property(_tip_entry_module_destination GLOBAL PROPERTY "${_tip_entry_prefix}_MODULE_DESTINATION")
+    get_property(_tip_entry_source_destination GLOBAL PROPERTY "${_tip_entry_prefix}_SOURCE_DESTINATION")
 
     _tip_make_c_identifier(_tip_alias_identifier "${_tip_entry_alias_name}")
-    set(_tip_local_target "__tip_${_tip_export_identifier}_${_tip_alias_identifier}")
+    _tip_make_c_identifier(_tip_entry_identifier "${_tip_entry_id}")
+    set(_tip_local_target "__tip_${_tip_export_identifier}_${_tip_entry_identifier}_${_tip_alias_identifier}")
     set(_tip_namespaced_alias "${NAMESPACE}${_tip_entry_alias_name}")
 
     set(_tip_create_scope "PUBLIC")
     set(_tip_has_compiled_payload FALSE)
-    if(_tip_entry_source_files OR _tip_entry_module_files)
+    if(_tip_entry_source_files OR _tip_entry_module_files OR _tip_entry_private_module_files)
       set(_tip_has_compiled_payload TRUE)
     endif()
 
@@ -1799,26 +2981,55 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       "  message(DEBUG \"[target_install_package] Recreated ${_tip_namespaced_alias} as \${_tip_local_target_type} (BUILD_SHARED_LIBS=\${_tip_build_shared_libs_value})\")\n")
     string(APPEND _tip_source_targets_code "  unset(_tip_local_target_type)\n")
     string(APPEND _tip_source_targets_code "  unset(_tip_build_shared_libs_value)\n")
-    string(APPEND _tip_source_targets_code "endif()\n\n")
 
     if(_tip_has_compiled_payload)
-      set(_tip_target_scope "PUBLIC")
+      set(_tip_public_file_set_scope "PUBLIC")
     else()
-      set(_tip_target_scope "INTERFACE")
+      set(_tip_public_file_set_scope "INTERFACE")
     endif()
+    set(_tip_usage_scope "INTERFACE")
 
     if(_tip_entry_source_files)
       set(_tip_installed_source_paths "")
       foreach(_tip_source_file IN LISTS _tip_entry_source_files)
         if(_tip_source_file MATCHES "^\\$<(\\$<.+>):(.+)>$")
           list(APPEND _tip_installed_source_paths "$<${CMAKE_MATCH_1}:\${PACKAGE_PREFIX_DIR}/${CMAKE_MATCH_2}>")
+        elseif(_tip_source_file MATCHES "^\\$\\{PACKAGE_PREFIX_DIR\\}/")
+          list(APPEND _tip_installed_source_paths "${_tip_source_file}")
         elseif(IS_ABSOLUTE "${_tip_source_file}" OR _tip_source_file MATCHES "\\$<")
           list(APPEND _tip_installed_source_paths "${_tip_source_file}")
         else()
           list(APPEND _tip_installed_source_paths "\${PACKAGE_PREFIX_DIR}/${_tip_source_file}")
         endif()
       endforeach()
-      _tip_append_cmake_path_list_command(_tip_source_targets_code "target_sources" "${_tip_local_target}" "PRIVATE" ${_tip_installed_source_paths})
+      if(_tip_create_scope STREQUAL "INTERFACE")
+        set(_tip_source_scope "INTERFACE")
+      else()
+        set(_tip_source_scope "PRIVATE")
+      endif()
+      _tip_append_cmake_path_list_command(_tip_source_targets_code "target_sources" "${_tip_local_target}" "${_tip_source_scope}"
+                                          ${_tip_installed_source_paths})
+    endif()
+
+    if(_tip_entry_interface_source_files)
+      set(_tip_installed_interface_source_paths "")
+      foreach(_tip_source_file IN LISTS _tip_entry_interface_source_files)
+        if(_tip_source_file MATCHES "^\\$<(\\$<.+>):(.+)>$")
+          list(APPEND _tip_installed_interface_source_paths "$<${CMAKE_MATCH_1}:\${PACKAGE_PREFIX_DIR}/${CMAKE_MATCH_2}>")
+        elseif(_tip_source_file MATCHES "^\\$\\{PACKAGE_PREFIX_DIR\\}/")
+          list(APPEND _tip_installed_interface_source_paths "${_tip_source_file}")
+        elseif(IS_ABSOLUTE "${_tip_source_file}" OR _tip_source_file MATCHES "\\$<")
+          list(APPEND _tip_installed_interface_source_paths "${_tip_source_file}")
+        else()
+          list(APPEND _tip_installed_interface_source_paths "\${PACKAGE_PREFIX_DIR}/${_tip_source_file}")
+        endif()
+      endforeach()
+      _tip_append_cmake_path_list_command(
+        _tip_source_targets_code
+        "target_sources"
+        "${_tip_local_target}"
+        "INTERFACE"
+        ${_tip_installed_interface_source_paths})
     endif()
 
     if(NOT _tip_create_scope STREQUAL "INTERFACE")
@@ -1849,7 +3060,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       if(_tip_entry_private_include_directories)
         set(_tip_private_include_paths "")
         foreach(_tip_include_directory IN LISTS _tip_entry_private_include_directories)
-          if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+          if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}" OR _tip_include_directory MATCHES "^\\$\\{PACKAGE_PREFIX_DIR\\}/")
             list(APPEND _tip_private_include_paths "${_tip_include_directory}")
           else()
             list(APPEND _tip_private_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
@@ -1865,7 +3076,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       if(_tip_entry_private_system_include_directories)
         set(_tip_private_system_include_paths "")
         foreach(_tip_include_directory IN LISTS _tip_entry_private_system_include_directories)
-          if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+          if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}" OR _tip_include_directory MATCHES "^\\$\\{PACKAGE_PREFIX_DIR\\}/")
             list(APPEND _tip_private_system_include_paths "${_tip_include_directory}")
           else()
             list(APPEND _tip_private_system_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
@@ -1888,10 +3099,25 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       _tip_append_cmake_file_set_command(
         _tip_source_targets_code
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_public_file_set_scope}"
         "HEADERS"
         "\${PACKAGE_PREFIX_DIR}/${_tip_entry_include_destination}"
         ${_tip_installed_header_paths})
+    endif()
+
+    if(NOT _tip_create_scope STREQUAL "INTERFACE" AND _tip_entry_private_header_files)
+      set(_tip_installed_private_header_paths "")
+      foreach(_tip_header_file IN LISTS _tip_entry_private_header_files)
+        list(APPEND _tip_installed_private_header_paths "\${PACKAGE_PREFIX_DIR}/${_tip_header_file}")
+      endforeach()
+      _tip_append_named_cmake_file_set_command(
+        _tip_source_targets_code
+        "${_tip_local_target}"
+        "PRIVATE"
+        "tip_private_headers_${_tip_entry_identifier}"
+        "HEADERS"
+        "\${PACKAGE_PREFIX_DIR}/${_tip_entry_source_destination}"
+        ${_tip_installed_private_header_paths})
     endif()
 
     if(_tip_entry_module_files)
@@ -1902,10 +3128,25 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
       _tip_append_cmake_file_set_command(
         _tip_source_targets_code
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_public_file_set_scope}"
         "CXX_MODULES"
         "\${PACKAGE_PREFIX_DIR}/${_tip_entry_module_destination}"
         ${_tip_installed_module_paths})
+    endif()
+
+    if(NOT _tip_create_scope STREQUAL "INTERFACE" AND _tip_entry_private_module_files)
+      set(_tip_installed_private_module_paths "")
+      foreach(_tip_module_file IN LISTS _tip_entry_private_module_files)
+        list(APPEND _tip_installed_private_module_paths "\${PACKAGE_PREFIX_DIR}/${_tip_module_file}")
+      endforeach()
+      _tip_append_named_cmake_file_set_command(
+        _tip_source_targets_code
+        "${_tip_local_target}"
+        "PRIVATE"
+        "tip_private_modules_${_tip_entry_identifier}"
+        "CXX_MODULES"
+        "\${PACKAGE_PREFIX_DIR}/${_tip_entry_source_destination}"
+        ${_tip_installed_private_module_paths})
     endif()
 
     if(_tip_entry_compile_features)
@@ -1913,7 +3154,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_compile_features"
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_usage_scope}"
         ${_tip_entry_compile_features})
     endif()
     if(_tip_entry_compile_definitions)
@@ -1921,7 +3162,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_compile_definitions"
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_usage_scope}"
         ${_tip_entry_compile_definitions})
     endif()
     if(_tip_entry_compile_options)
@@ -1929,13 +3170,13 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_compile_options"
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_usage_scope}"
         ${_tip_entry_compile_options})
     endif()
     if(_tip_entry_include_directories)
       set(_tip_interface_include_paths "")
       foreach(_tip_include_directory IN LISTS _tip_entry_include_directories)
-        if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+        if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}" OR _tip_include_directory MATCHES "^\\$\\{PACKAGE_PREFIX_DIR\\}/")
           list(APPEND _tip_interface_include_paths "${_tip_include_directory}")
         else()
           list(APPEND _tip_interface_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
@@ -1945,13 +3186,13 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_include_directories"
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_usage_scope}"
         ${_tip_interface_include_paths})
     endif()
     if(_tip_entry_system_include_directories)
       set(_tip_interface_system_include_paths "")
       foreach(_tip_include_directory IN LISTS _tip_entry_system_include_directories)
-        if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}")
+        if(_tip_include_directory MATCHES "\\$<" OR IS_ABSOLUTE "${_tip_include_directory}" OR _tip_include_directory MATCHES "^\\$\\{PACKAGE_PREFIX_DIR\\}/")
           list(APPEND _tip_interface_system_include_paths "${_tip_include_directory}")
         else()
           list(APPEND _tip_interface_system_include_paths "\${PACKAGE_PREFIX_DIR}/${_tip_include_directory}")
@@ -1961,7 +3202,7 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_include_directories"
         "${_tip_local_target}"
-        "SYSTEM ${_tip_target_scope}"
+        "SYSTEM ${_tip_usage_scope}"
         ${_tip_interface_system_include_paths})
     endif()
     if(_tip_entry_link_options)
@@ -1969,29 +3210,20 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_link_options"
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_usage_scope}"
         ${_tip_entry_link_options})
     endif()
 
     set(_tip_resolved_link_libraries "")
     foreach(_tip_link_item IN LISTS _tip_entry_link_libraries)
       set(_tip_resolved_link_item "${_tip_link_item}")
-      set(_tip_lookup_target "")
-      if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
-        set(_tip_lookup_target "${CMAKE_MATCH_1}")
-      elseif(NOT _tip_link_item MATCHES "\\$<")
-        set(_tip_lookup_target "${_tip_link_item}")
-      endif()
+      _tip_extract_link_lookup_target(_tip_lookup_target "${_tip_link_item}")
 
       if(NOT _tip_lookup_target STREQUAL "")
-        _tip_make_c_identifier(_tip_lookup_key "${_tip_lookup_target}")
+        _tip_make_lookup_key(_tip_lookup_key "${_tip_lookup_target}")
         set(_tip_preferred_var "_tip_preferred_alias_${_tip_lookup_key}")
         if(DEFINED ${_tip_preferred_var})
-          if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
-            set(_tip_resolved_link_item "$<LINK_ONLY:${${_tip_preferred_var}}>")
-          else()
-            set(_tip_resolved_link_item "${${_tip_preferred_var}}")
-          endif()
+          _tip_rewrite_link_item_with_target(_tip_resolved_link_item "${_tip_link_item}" "${${_tip_preferred_var}}")
         endif()
       endif()
 
@@ -2003,51 +3235,34 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
         _tip_source_targets_code
         "target_link_libraries"
         "${_tip_local_target}"
-        "${_tip_target_scope}"
+        "${_tip_usage_scope}"
         ${_tip_resolved_link_libraries})
     endif()
 
     if(NOT _tip_create_scope STREQUAL "INTERFACE")
-      set(_tip_resolved_private_link_options "")
-      foreach(_tip_link_option IN LISTS _tip_entry_private_link_options)
-        if(NOT _tip_link_option IN_LIST _tip_entry_link_options)
-          list(APPEND _tip_resolved_private_link_options "${_tip_link_option}")
-        endif()
-      endforeach()
-      if(_tip_resolved_private_link_options)
+      if(_tip_entry_private_link_options)
         _tip_append_cmake_list_command(
           _tip_source_targets_code
           "target_link_options"
           "${_tip_local_target}"
           "PRIVATE"
-          ${_tip_resolved_private_link_options})
+          ${_tip_entry_private_link_options})
       endif()
 
       set(_tip_resolved_private_link_libraries "")
       foreach(_tip_link_item IN LISTS _tip_entry_private_link_libraries)
         set(_tip_resolved_link_item "${_tip_link_item}")
-        set(_tip_lookup_target "")
-        if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
-          set(_tip_lookup_target "${CMAKE_MATCH_1}")
-        elseif(NOT _tip_link_item MATCHES "\\$<")
-          set(_tip_lookup_target "${_tip_link_item}")
-        endif()
+        _tip_extract_link_lookup_target(_tip_lookup_target "${_tip_link_item}")
 
         if(NOT _tip_lookup_target STREQUAL "")
-          _tip_make_c_identifier(_tip_lookup_key "${_tip_lookup_target}")
+          _tip_make_lookup_key(_tip_lookup_key "${_tip_lookup_target}")
           set(_tip_preferred_var "_tip_preferred_alias_${_tip_lookup_key}")
           if(DEFINED ${_tip_preferred_var})
-            if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
-              set(_tip_resolved_link_item "$<LINK_ONLY:${${_tip_preferred_var}}>")
-            else()
-              set(_tip_resolved_link_item "${${_tip_preferred_var}}")
-            endif()
+            _tip_rewrite_link_item_with_target(_tip_resolved_link_item "${_tip_link_item}" "${${_tip_preferred_var}}")
           endif()
         endif()
 
-        if(NOT _tip_resolved_link_item IN_LIST _tip_resolved_link_libraries)
-          list(APPEND _tip_resolved_private_link_libraries "${_tip_resolved_link_item}")
-        endif()
+        list(APPEND _tip_resolved_private_link_libraries "${_tip_resolved_link_item}")
       endforeach()
 
       if(_tip_resolved_private_link_libraries)
@@ -2061,15 +3276,42 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     endif()
 
     if(NOT _tip_create_scope STREQUAL "INTERFACE")
+      if(NOT _tip_entry_c_standard STREQUAL "")
+        string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES C_STANDARD [==[${_tip_entry_c_standard}]==])\n")
+      endif()
+      if(NOT _tip_entry_c_standard_required STREQUAL "")
+        string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES C_STANDARD_REQUIRED [==[${_tip_entry_c_standard_required}]==])\n")
+      endif()
+      if(NOT _tip_entry_c_extensions STREQUAL "")
+        string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES C_EXTENSIONS [==[${_tip_entry_c_extensions}]==])\n")
+      endif()
+      if(NOT _tip_entry_cxx_standard STREQUAL "")
+        string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES CXX_STANDARD [==[${_tip_entry_cxx_standard}]==])\n")
+      endif()
+      if(NOT _tip_entry_cxx_standard_required STREQUAL "")
+        string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES CXX_STANDARD_REQUIRED [==[${_tip_entry_cxx_standard_required}]==])\n")
+      endif()
       if(NOT _tip_entry_cxx_extensions STREQUAL "")
         string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES CXX_EXTENSIONS [==[${_tip_entry_cxx_extensions}]==])\n")
       endif()
       if(NOT _tip_entry_cxx_scan_for_modules STREQUAL "")
         string(APPEND _tip_source_targets_code "set_target_properties(${_tip_local_target} PROPERTIES CXX_SCAN_FOR_MODULES [==[${_tip_entry_cxx_scan_for_modules}]==])\n")
       endif()
+      if(NOT _tip_entry_position_independent_code STREQUAL "")
+        string(
+          APPEND
+          _tip_source_targets_code
+          "set_target_properties(${_tip_local_target} PROPERTIES POSITION_INDEPENDENT_CODE [==[${_tip_entry_position_independent_code}]==])\n")
+      endif()
+      if(NOT _tip_entry_windows_export_all_symbols STREQUAL "")
+        string(
+          APPEND
+          _tip_source_targets_code
+          "set_target_properties(${_tip_local_target} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS [==[${_tip_entry_windows_export_all_symbols}]==])\n")
+      endif()
     endif()
 
-    string(APPEND _tip_source_targets_code "\n")
+    string(APPEND _tip_source_targets_code "endif()\n\n")
   endforeach()
 
   file(WRITE "${OUTPUT_PATH}" "${_tip_source_targets_code}")
@@ -2212,13 +3454,18 @@ function(finalize_package)
 
   foreach(_tip_imported_target IN LISTS TARGETS)
     get_target_property(_tip_imported_links "${_tip_imported_target}" INTERFACE_LINK_LIBRARIES)
+    if(_tip_imported_links)
+      _tip_normalize_included_source_link_property_list(_tip_imported_links _tip_imported_links)
+    else()
+      set(_tip_imported_links "")
+    endif()
     foreach(_tip_link_item IN LISTS _tip_imported_links)
-      set(_tip_link_target "")
-      if(_tip_link_item MATCHES "^\\$<LINK_ONLY:([^>]+)>$")
-        set(_tip_link_target "${CMAKE_MATCH_1}")
-      elseif(NOT _tip_link_item MATCHES "\\$<")
-        set(_tip_link_target "${_tip_link_item}")
+      _tip_link_item_is_definitely_disabled(_tip_skip_link_item "${_tip_link_item}")
+      if(_tip_skip_link_item)
+        continue()
       endif()
+
+      _tip_extract_link_lookup_target(_tip_link_target "${_tip_link_item}")
 
       if(_tip_link_target AND _tip_link_target IN_LIST _tip_exclusive_only_targets)
         project_log(
@@ -2226,6 +3473,77 @@ function(finalize_package)
           "Imported target '${_tip_imported_target}' in export '${ARG_EXPORT_NAME}' depends on '${_tip_link_target}', which is configured only with INCLUDE_SOURCES EXCLUSIVE. "
           "Install '${_tip_link_target}' once with INCLUDE_SOURCES NO as a second alias, or make '${_tip_imported_target}' use INCLUDE_SOURCES EXCLUSIVE too.")
       endif()
+    endforeach()
+  endforeach()
+
+  set(_tip_export_target_names ${TARGETS} ${_tip_registered_exclusive_targets})
+  if(_tip_export_target_names)
+    list(REMOVE_DUPLICATES _tip_export_target_names)
+  endif()
+
+  foreach(_tip_entry_id IN LISTS _tip_exclusive_entry_ids)
+    _tip_entry_property_prefix(_tip_entry_prefix "${EXPORT_PROPERTY_PREFIX}" "${_tip_entry_id}")
+    get_property(_tip_entry_target_name GLOBAL PROPERTY "${_tip_entry_prefix}_TARGET_NAME")
+    get_property(_tip_entry_include_destination GLOBAL PROPERTY "${_tip_entry_prefix}_INCLUDE_DESTINATION")
+    get_property(_tip_entry_module_destination GLOBAL PROPERTY "${_tip_entry_prefix}_MODULE_DESTINATION")
+    get_property(_tip_entry_source_destination GLOBAL PROPERTY "${_tip_entry_prefix}_SOURCE_DESTINATION")
+
+    _tip_collect_target_included_source_metadata(
+      "${_tip_entry_prefix}"
+      "${_tip_entry_target_name}"
+      "${_tip_entry_include_destination}"
+      "${_tip_entry_module_destination}"
+      "${_tip_entry_source_destination}")
+  endforeach()
+
+  foreach(_tip_entry_id IN LISTS _tip_exclusive_entry_ids)
+    _tip_entry_property_prefix(_tip_entry_prefix "${EXPORT_PROPERTY_PREFIX}" "${_tip_entry_id}")
+    get_property(_tip_entry_target_name GLOBAL PROPERTY "${_tip_entry_prefix}_TARGET_NAME")
+    get_property(_tip_entry_alias_name GLOBAL PROPERTY "${_tip_entry_prefix}_ALIAS_NAME")
+
+    foreach(_tip_link_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+      get_target_property(_tip_entry_links "${_tip_entry_target_name}" "${_tip_link_property}")
+      if(_tip_entry_links)
+        _tip_normalize_included_source_link_property_list(_tip_entry_links _tip_entry_links)
+      else()
+        set(_tip_entry_links "")
+      endif()
+      foreach(_tip_link_item IN LISTS _tip_entry_links)
+        _tip_link_item_is_definitely_disabled(_tip_skip_link_item "${_tip_link_item}")
+        if(_tip_skip_link_item)
+          continue()
+        endif()
+
+        _tip_extract_link_lookup_target(_tip_link_target "${_tip_link_item}")
+        if(_tip_link_target STREQUAL "" OR NOT TARGET "${_tip_link_target}")
+          continue()
+        endif()
+        if(_tip_link_target IN_LIST _tip_export_target_names)
+          continue()
+        endif()
+
+        get_target_property(_tip_link_target_imported "${_tip_link_target}" IMPORTED)
+        if(NOT _tip_link_target_imported)
+          project_log(
+            FATAL_ERROR
+            "Source-backed target '${_tip_entry_alias_name}' in export '${ARG_EXPORT_NAME}' links to local target '${_tip_link_target}', "
+            "but that target is not part of the same export and cannot be recreated for consumers. "
+            "Export '${_tip_link_target}' in the same package, expose it as an external dependency, or remove it from the source-backed target's link interface.")
+        endif()
+
+        _tip_public_dependencies_cover_target(_tip_has_declared_dependency "${_tip_link_target}" ${PUBLIC_DEPENDENCIES})
+        if(_tip_has_declared_dependency)
+          continue()
+        endif()
+
+        _tip_dependency_package_hint(_tip_dependency_hint "${_tip_link_target}")
+        project_log(
+          FATAL_ERROR
+          "Source-backed target '${_tip_entry_alias_name}' in export '${ARG_EXPORT_NAME}' links to external imported target '${_tip_link_target}', "
+          "but no matching PUBLIC_DEPENDENCIES entry was provided. target_install_package() cannot infer find_dependency() automatically for INCLUDE_SOURCES EXCLUSIVE, "
+          "and INCLUDE_ON_FIND_PACKAGE does not waive that declaration requirement. Add PUBLIC_DEPENDENCIES \"${_tip_dependency_hint}\" to this export, and use "
+          "INCLUDE_ON_FIND_PACKAGE only for extra package setup that must run before source targets are created.")
+      endforeach()
     endforeach()
   endforeach()
 
@@ -2746,33 +4064,75 @@ function(_validate_config_template_placeholders template_path export_name includ
   endif()
 
   file(READ "${template_path}" template_content)
+  string(REGEX REPLACE "(^|[\r\n])[ \t]*#[^\r\n]*" "\\1" _tip_template_content "${template_content}")
+  string(REGEX REPLACE "#[^\r\n]*" "" _tip_template_content "${_tip_template_content}")
 
   # Check for required placeholders based on provided parameters
   set(missing_placeholders)
 
   # Always required placeholder
-  if(NOT template_content MATCHES "@ARG_EXPORT_NAME@")
+  if(NOT _tip_template_content MATCHES "@ARG_EXPORT_NAME@")
     list(APPEND missing_placeholders "@ARG_EXPORT_NAME@")
   endif()
 
   # Check placeholders that depend on parameters being provided
-  if(include_files AND NOT template_content MATCHES "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
+  if(include_files AND NOT _tip_template_content MATCHES "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
     list(APPEND missing_placeholders "@PACKAGE_INCLUDE_ON_FIND_PACKAGE@")
   endif()
 
-  if(public_deps AND NOT template_content MATCHES "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
+  if(public_deps AND NOT _tip_template_content MATCHES "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
     list(APPEND missing_placeholders "@PACKAGE_PUBLIC_DEPENDENCIES_CONTENT@")
   endif()
 
-  if(component_deps AND NOT template_content MATCHES "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  if(component_deps AND NOT _tip_template_content MATCHES "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
     list(APPEND missing_placeholders "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
   endif()
 
-  if(imported_targets AND NOT template_content MATCHES "@PACKAGE_IMPORTED_TARGETS_CONTENT@")
+  string(REGEX REPLACE "([][+.*?^$(){}|\\\\])" "\\\\\\1" _tip_escaped_export_name "${export_name}")
+  set(_tip_export_name_refs "@ARG_EXPORT_NAME@" "\\$\\{CMAKE_FIND_PACKAGE_NAME\\}" "${_tip_escaped_export_name}")
+  string(REGEX MATCHALL "set\\([^\\)]*\\)" _tip_template_set_commands "${_tip_template_content}")
+  foreach(_tip_set_command IN LISTS _tip_template_set_commands)
+    if(_tip_set_command MATCHES
+       "^set\\(([A-Za-z_][A-Za-z0-9_]*)[ \t\r\n]+\"?(@ARG_EXPORT_NAME@|\\$\\{CMAKE_FIND_PACKAGE_NAME\\}|${_tip_escaped_export_name})\"?[ \t\r\n]*\\)$")
+      list(APPEND _tip_export_name_refs "\\$\\{${CMAKE_MATCH_1}\\}")
+    endif()
+  endforeach()
+  list(REMOVE_DUPLICATES _tip_export_name_refs)
+  list(JOIN _tip_export_name_refs "|" _tip_export_name_ref_pattern)
+
+  set(_tip_has_direct_imported_targets_include FALSE)
+  if(_tip_template_content MATCHES
+     "include\\([^\\)]*(${_tip_export_name_ref_pattern})Targets\\.cmake[^\\)]*\\)")
+    set(_tip_has_direct_imported_targets_include TRUE)
+  endif()
+
+  if(NOT imported_targets AND _tip_has_direct_imported_targets_include)
+    project_log(
+      FATAL_ERROR
+      "Template '${template_path}' directly includes the export Targets.cmake file for export '${export_name}', "
+      "but this export has no imported targets to install. Remove the direct Targets.cmake include, or add "
+      "@PACKAGE_IMPORTED_TARGETS_CONTENT@ only when the export actually contains imported targets.")
+  endif()
+
+  if(imported_targets AND NOT _tip_template_content MATCHES "@PACKAGE_IMPORTED_TARGETS_CONTENT@" AND NOT _tip_has_direct_imported_targets_include)
     list(APPEND missing_placeholders "@PACKAGE_IMPORTED_TARGETS_CONTENT@")
   endif()
 
-  if(source_targets AND NOT template_content MATCHES "@PACKAGE_SOURCE_TARGETS_CONTENT@")
+  set(_tip_has_direct_source_targets_include FALSE)
+  if(_tip_template_content MATCHES
+     "include\\([^\\)]*(${_tip_export_name_ref_pattern})SourceTargets\\.cmake[^\\)]*\\)")
+    set(_tip_has_direct_source_targets_include TRUE)
+  endif()
+
+  if(NOT source_targets AND _tip_has_direct_source_targets_include)
+    project_log(
+      FATAL_ERROR
+      "Template '${template_path}' directly includes the export SourceTargets.cmake file for export '${export_name}', "
+      "but this export has no source-backed targets to install. Remove the direct SourceTargets.cmake include, or add "
+      "@PACKAGE_SOURCE_TARGETS_CONTENT@ only when the export actually contains source-backed targets.")
+  endif()
+
+  if(source_targets AND NOT _tip_template_content MATCHES "@PACKAGE_SOURCE_TARGETS_CONTENT@" AND NOT _tip_has_direct_source_targets_include)
     list(APPEND missing_placeholders "@PACKAGE_SOURCE_TARGETS_CONTENT@")
   endif()
 

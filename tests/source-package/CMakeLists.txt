@@ -16,6 +16,7 @@ include("${TIP_REPO_ROOT}/target_install_package.cmake")
 add_library(source_package STATIC)
 
 set(_tip_generated_source "${CMAKE_CURRENT_BINARY_DIR}/generated/source_package_generated.cpp")
+set(_tip_generated_build_interface_source "${CMAKE_CURRENT_BINARY_DIR}/generated/source_package_build_interface.cpp")
 set(_tip_generated_source_script "${CMAKE_CURRENT_BINARY_DIR}/write_generated_source.cmake")
 file(
   WRITE
@@ -39,9 +40,15 @@ add_custom_command(
   DEPENDS "${_tip_generated_source_script}"
   VERBATIM)
 
+file(
+  GENERATE
+  OUTPUT "${_tip_generated_build_interface_source}"
+  CONTENT "int source_package_build_interface_offset() { return 0; }\n")
+
 target_sources(
   source_package
   PRIVATE "$<BUILD_INTERFACE:src/source_package.cpp>"
+          "$<BUILD_INTERFACE:generated/source_package_build_interface.cpp>"
           generated/source_package_generated.cpp
           "$<$<PLATFORM_ID:Windows>:src/source_package_platform_windows.cpp>"
           "$<$<NOT:$<PLATFORM_ID:Windows>>:src/source_package_platform_posix.cpp>"

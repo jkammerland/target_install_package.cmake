@@ -12,9 +12,9 @@ endif()
 
 @PACKAGE_IMPORTED_TARGETS_CONTENT@
 
-@PACKAGE_SOURCE_TARGETS_CONTENT@
-
 # Include additional CMake files on find_package
 @PACKAGE_INCLUDE_ON_FIND_PACKAGE@
+
+@PACKAGE_SOURCE_TARGETS_CONTENT@
 
 check_required_components(@ARG_EXPORT_NAME@)

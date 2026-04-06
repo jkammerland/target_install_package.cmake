@@ -52,6 +52,8 @@ target_link_libraries(app PRIVATE MathOps::math_ops)
 
 `OBJECT_LIBRARY` and plugin-style `MODULE_LIBRARY` targets keep their producer type. Header-only exclusive targets remain `INTERFACE`.
 
+Included sources default to `share/<export>/` when the alias matches the export name, or `share/<export>/<alias>/` when one export contains multiple source-backed aliases. That keeps multi-target exports from overwriting each other’s installed source payloads.
+
 ## Dual Install
 
 If one package needs both forms, install the same producer target twice with different aliases:
@@ -93,3 +95,5 @@ If an imported target depends on an exclusive-only sibling, `target_install_pack
 - make the depending target `EXCLUSIVE` too
 
 That keeps the package surface predictable and avoids hidden mode switches.
+
+If an exclusive target links external imported targets from another package, declare the package load explicitly with `PUBLIC_DEPENDENCIES`. The generated config can replay imported targets like `Threads::Threads`, but it cannot infer the exact `find_dependency()` call from target metadata alone. `INCLUDE_ON_FIND_PACKAGE` remains useful for extra consumer-side setup before source-target recreation, but it does not replace that dependency declaration.

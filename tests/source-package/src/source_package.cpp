@@ -1,11 +1,12 @@
 #include "source_package/source_package.hpp"
 
 int source_package_generated_offset();
+int source_package_build_interface_offset();
 
 namespace source_package {
 
 int add(int lhs, int rhs) {
-  return lhs + rhs + source_package_generated_offset() + selected_platform_bonus();
+  return lhs + rhs + source_package_generated_offset() + source_package_build_interface_offset() + selected_platform_bonus();
 }
 
 }

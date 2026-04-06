@@ -989,7 +989,9 @@ unset(BUILD_SHARED_LIBS)
 
 `OBJECT_LIBRARY` and plugin-style `MODULE_LIBRARY` targets keep their original type. `INTERFACE_LIBRARY` targets remain `INTERFACE`.
 
-Use `SOURCE_DESTINATION` and `MODULE_DESTINATION` to control where the extracted files land in the install tree. The file lists themselves are not part of the public API.
+Use `SOURCE_DESTINATION` and `MODULE_DESTINATION` to control where the extracted files land in the install tree. By default, included sources go under `share/<export>/` for matching export/alias names, or `share/<export>/<alias>/` when one export contains multiple source-backed aliases. The file lists themselves are not part of the public API.
+
+If a source-backed target links external imported targets from another package, declare the corresponding package load explicitly with `PUBLIC_DEPENDENCIES`. `target_install_package()` can replay targets like `Threads::Threads`, but it cannot infer the correct `find_dependency()` call automatically. `INCLUDE_ON_FIND_PACKAGE` is still available for extra setup that must run before source-backed targets are created, but it does not replace `PUBLIC_DEPENDENCIES`. If a source entry resolves to an unsupported implementation source kind, configuration now fails early instead of silently dropping that file from the recreated target.
 
 If you need both a normal imported target and a source-built variant, install the same producer target twice with different aliases: once with `INCLUDE_SOURCES NO`, once with `INCLUDE_SOURCES EXCLUSIVE`. See the [included sources user story](docs/included_sources_user_story.md).
 

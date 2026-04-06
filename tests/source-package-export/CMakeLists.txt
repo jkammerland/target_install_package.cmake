@@ -12,6 +12,7 @@ endif()
 include("${TIP_REPO_ROOT}/cmake/list_file_include_guard.cmake")
 include("${TIP_REPO_ROOT}/cmake/project_log.cmake")
 include("${TIP_REPO_ROOT}/target_install_package.cmake")
+find_package(Threads REQUIRED)
 
 add_library(export_runtime SHARED src/runtime.cpp)
 target_sources(
@@ -26,11 +27,10 @@ target_compile_features(export_runtime PUBLIC cxx_std_17)
 set_target_properties(
   export_runtime
   PROPERTIES POSITION_INDEPENDENT_CODE ON
+             WINDOWS_EXPORT_ALL_SYMBOLS ON
              VERSION ${PROJECT_VERSION}
              SOVERSION ${PROJECT_VERSION_MAJOR})
-if(WIN32)
-  set_target_properties(export_runtime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
+add_library(export_runtime_alias ALIAS export_runtime)
 
 add_library(export_support STATIC src/support.cpp)
 target_compile_features(export_support PUBLIC cxx_std_17)
@@ -45,12 +45,13 @@ target_sources(
          "${CMAKE_CURRENT_SOURCE_DIR}/include"
          FILES
          "include/source_sdk/algorithms.hpp")
-target_link_libraries(export_algorithms PUBLIC export_runtime PRIVATE export_support)
+target_link_libraries(export_algorithms PUBLIC "$<$<BOOL:1>:export_runtime_alias>" PRIVATE export_support "$<$<BOOL:1>:Threads::Threads>")
 target_compile_features(export_algorithms PUBLIC cxx_std_17)
-target_link_options(export_algorithms PRIVATE "$<$<BOOL:0>:LINKER:-z,defs>")
-if(WIN32)
-  set_target_properties(export_algorithms PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
+target_link_options(
+  export_algorithms
+  PUBLIC "$<BUILD_INTERFACE:$<$<PLATFORM_ID:Linux>:LINKER:-z,defs>>"
+         "$<INSTALL_INTERFACE:$<$<PLATFORM_ID:Linux>:LINKER:-z,origin>>")
+set_target_properties(export_algorithms PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON POSITION_INDEPENDENT_CODE ON)
 
 add_library(export_sdk INTERFACE)
 target_sources(
@@ -61,7 +62,7 @@ target_sources(
             "${CMAKE_CURRENT_SOURCE_DIR}/include"
             FILES
             "include/source_sdk/sdk.hpp")
-target_link_libraries(export_sdk INTERFACE export_runtime export_algorithms)
+target_link_libraries(export_sdk INTERFACE "$<$<BOOL:1>:export_runtime_alias>" export_algorithms)
 target_compile_features(export_sdk INTERFACE cxx_std_17)
 
 target_install_package(
@@ -90,6 +91,8 @@ target_install_package(
   SourceSdk::
   VERSION
   ${PROJECT_VERSION}
+  PUBLIC_DEPENDENCIES
+  "Threads"
   ALIAS_NAME
   export_algorithms_prebuilt)
 
@@ -101,6 +104,8 @@ target_install_package(
   SourceSdk::
   VERSION
   ${PROJECT_VERSION}
+  PUBLIC_DEPENDENCIES
+  "Threads"
   INCLUDE_SOURCES
   EXCLUSIVE)
 
