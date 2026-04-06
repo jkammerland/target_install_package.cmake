@@ -34,3 +34,5 @@ target_link_libraries(app PRIVATE Sdk::sdk)
 The consumer links one SDK target, gets the prebuilt runtime library, and compiles the shipped extension source with its own toolchain.
 
 `Sdk::sdk_runtime` stays imported from the install tree. `Sdk::sdk_open_algorithms` and `Sdk::sdk` are recreated locally during `find_package()` because they were installed with `INCLUDE_SOURCES EXCLUSIVE`.
+
+If the consumer wants those recreated libraries as shared libraries, set `BUILD_SHARED_LIBS` before `find_package(sdk ...)` and unset it afterward if needed.

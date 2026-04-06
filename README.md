@@ -979,6 +979,16 @@ target_install_package(math_sources
 
 `INCLUDE_SOURCES EXCLUSIVE` extracts installable headers, module interface units, and implementation sources from the target itself. The installed package then creates a local target during `find_package()`, so the consumer compiles those shipped sources with its own toolchain, flags, and target properties.
 
+For ordinary compiled libraries, the recreated local target uses `add_library(<name>)` with no explicit type, so consumers can select `STATIC` or `SHARED` the native CMake way:
+
+```cmake
+set(BUILD_SHARED_LIBS ON)
+find_package(math_sources CONFIG REQUIRED)
+unset(BUILD_SHARED_LIBS)
+```
+
+`OBJECT_LIBRARY` and plugin-style `MODULE_LIBRARY` targets keep their original type. `INTERFACE_LIBRARY` targets remain `INTERFACE`.
+
 Use `SOURCE_DESTINATION` and `MODULE_DESTINATION` to control where the extracted files land in the install tree. The file lists themselves are not part of the public API.
 
 If you need both a normal imported target and a source-built variant, install the same producer target twice with different aliases: once with `INCLUDE_SOURCES NO`, once with `INCLUDE_SOURCES EXCLUSIVE`. See the [included sources user story](docs/included_sources_user_story.md).

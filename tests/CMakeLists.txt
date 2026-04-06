@@ -153,8 +153,12 @@ set(_tip_layout_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_layout_matrix
 set(_tip_layout_test_root "${CMAKE_CURRENT_BINARY_DIR}/layout-matrix")
 set(_tip_source_package_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_source_package_test.cmake")
 set(_tip_source_package_test_root "${CMAKE_CURRENT_BINARY_DIR}/source-package")
+set(_tip_source_package_object_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_source_package_object_test.cmake")
+set(_tip_source_package_object_test_root "${CMAKE_CURRENT_BINARY_DIR}/source-package-object")
 set(_tip_source_package_export_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_source_package_export_test.cmake")
 set(_tip_source_package_export_test_root "${CMAKE_CURRENT_BINARY_DIR}/source-package-export")
+set(_tip_source_package_module_library_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_source_package_module_library_test.cmake")
+set(_tip_source_package_module_library_test_root "${CMAKE_CURRENT_BINARY_DIR}/source-package-module-library")
 set(_tip_source_package_modules_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_source_package_modules_test.cmake")
 set(_tip_source_package_modules_test_root "${CMAKE_CURRENT_BINARY_DIR}/source-package-modules")
 set(_tip_component_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_component_dependencies_test.cmake")
@@ -237,6 +241,34 @@ endif()
 add_test(NAME source_package COMMAND ${CMAKE_COMMAND} ${_tip_source_package_test_common_args} -P "${_tip_source_package_test_script}")
 set_tests_properties(source_package PROPERTIES LABELS "source-package")
 
+set(_tip_source_package_object_test_common_args
+    "-DTIP_REPO_ROOT=${_tip_repo_root}"
+    "-DTIP_SOURCE_PACKAGE_OBJECT_TEST_ROOT=${_tip_source_package_object_test_root}"
+    "-DTIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG=Debug"
+    "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+
+if(CMAKE_MAKE_PROGRAM)
+  list(APPEND _tip_source_package_object_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
+endif()
+if(CMAKE_C_COMPILER)
+  list(APPEND _tip_source_package_object_test_common_args "-DTIP_C_COMPILER=${CMAKE_C_COMPILER}")
+endif()
+if(CMAKE_CXX_COMPILER)
+  list(APPEND _tip_source_package_object_test_common_args "-DTIP_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+endif()
+if(CMAKE_TOOLCHAIN_FILE)
+  list(APPEND _tip_source_package_object_test_common_args "-DTIP_CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+endif()
+if(CMAKE_GENERATOR_PLATFORM)
+  list(APPEND _tip_source_package_object_test_common_args "-DTIP_CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(CMAKE_GENERATOR_TOOLSET)
+  list(APPEND _tip_source_package_object_test_common_args "-DTIP_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
+endif()
+
+add_test(NAME source_package_object COMMAND ${CMAKE_COMMAND} ${_tip_source_package_object_test_common_args} -P "${_tip_source_package_object_test_script}")
+set_tests_properties(source_package_object PROPERTIES LABELS "source-package;object")
+
 set(_tip_source_package_export_test_common_args
     "-DTIP_REPO_ROOT=${_tip_repo_root}"
     "-DTIP_SOURCE_PACKAGE_EXPORT_TEST_ROOT=${_tip_source_package_export_test_root}"
@@ -264,6 +296,36 @@ endif()
 
 add_test(NAME source_package_export COMMAND ${CMAKE_COMMAND} ${_tip_source_package_export_test_common_args} -P "${_tip_source_package_export_test_script}")
 set_tests_properties(source_package_export PROPERTIES LABELS "source-package;shared-export")
+
+set(_tip_source_package_module_library_test_common_args
+    "-DTIP_REPO_ROOT=${_tip_repo_root}"
+    "-DTIP_SOURCE_PACKAGE_MODULE_LIBRARY_TEST_ROOT=${_tip_source_package_module_library_test_root}"
+    "-DTIP_SOURCE_PACKAGE_MODULE_LIBRARY_TEST_CONFIG=Debug"
+    "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+
+if(CMAKE_MAKE_PROGRAM)
+  list(APPEND _tip_source_package_module_library_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
+endif()
+if(CMAKE_C_COMPILER)
+  list(APPEND _tip_source_package_module_library_test_common_args "-DTIP_C_COMPILER=${CMAKE_C_COMPILER}")
+endif()
+if(CMAKE_CXX_COMPILER)
+  list(APPEND _tip_source_package_module_library_test_common_args "-DTIP_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+endif()
+if(CMAKE_TOOLCHAIN_FILE)
+  list(APPEND _tip_source_package_module_library_test_common_args "-DTIP_CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+endif()
+if(CMAKE_GENERATOR_PLATFORM)
+  list(APPEND _tip_source_package_module_library_test_common_args "-DTIP_CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(CMAKE_GENERATOR_TOOLSET)
+  list(APPEND _tip_source_package_module_library_test_common_args "-DTIP_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
+endif()
+
+add_test(
+  NAME source_package_module_library
+  COMMAND ${CMAKE_COMMAND} ${_tip_source_package_module_library_test_common_args} -P "${_tip_source_package_module_library_test_script}")
+set_tests_properties(source_package_module_library PROPERTIES LABELS "source-package;module-library")
 
 if(_tip_should_test_source_package_modules)
   set(_tip_source_package_modules_test_common_args

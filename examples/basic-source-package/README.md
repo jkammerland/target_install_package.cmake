@@ -22,8 +22,9 @@ install/
 ## Usage
 
 ```cmake
-set(source_ops_LIBRARY_TYPE STATIC)
+set(BUILD_SHARED_LIBS ON)
 find_package(source_ops REQUIRED)
+unset(BUILD_SHARED_LIBS)
 target_link_libraries(app PRIVATE SourceOps::source_ops)
 ```
 
@@ -32,4 +33,4 @@ target_link_libraries(app PRIVATE SourceOps::source_ops)
 source_ops::add(20, 22);  // 42
 ```
 
-`find_package()` recreates `SourceOps::source_ops` from the installed files because the package was installed with `INCLUDE_SOURCES EXCLUSIVE`.
+`find_package()` recreates `SourceOps::source_ops` from the installed files because the package was installed with `INCLUDE_SOURCES EXCLUSIVE`. For ordinary compiled libraries like this one, the recreated target follows `BUILD_SHARED_LIBS`.

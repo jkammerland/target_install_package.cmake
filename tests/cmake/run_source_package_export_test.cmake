@@ -191,7 +191,6 @@ file(
 cmake_minimum_required(VERSION 3.25)
 project(source_package_export_consumer LANGUAGES CXX)
 
-set(export_algorithms_LIBRARY_TYPE STATIC)
 find_package(source_sdk CONFIG REQUIRED)
 
 get_target_property(_source_sdk_algorithms_target SourceSdk::export_algorithms ALIASED_TARGET)
@@ -206,6 +205,7 @@ get_target_property(_source_sdk_algorithms_sources "${_source_sdk_algorithms_tar
 if(NOT _source_sdk_algorithms_sources)
   message(FATAL_ERROR "SourceSdk::export_algorithms did not expose local SOURCES")
 endif()
+get_target_property(_source_sdk_algorithms_type "${_source_sdk_algorithms_target}" TYPE)
 
 get_target_property(_source_sdk_prebuilt_target SourceSdk::export_algorithms_prebuilt ALIASED_TARGET)
 if(_source_sdk_prebuilt_target)
@@ -228,6 +228,7 @@ if(_source_sdk_sdk_imported)
 endif()
 get_target_property(_source_sdk_sdk_links "${_source_sdk_sdk_target}" INTERFACE_LINK_LIBRARIES)
 file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_algorithms_sources.txt" "${_source_sdk_algorithms_sources}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_algorithms_type.txt" "${_source_sdk_algorithms_type}\n")
 file(WRITE "${CMAKE_BINARY_DIR}/source_sdk_sdk_links.txt" "${_source_sdk_sdk_links}\n")
 
 add_executable(source_package_export_consumer main.cpp)
@@ -306,9 +307,11 @@ _tip_run_step(
   "${TIP_SOURCE_PACKAGE_EXPORT_TEST_CONFIG}")
 
 set(_consumer_sources_file "${_consumer_build_dir}/source_sdk_algorithms_sources.txt")
+set(_consumer_type_file "${_consumer_build_dir}/source_sdk_algorithms_type.txt")
 set(_consumer_sdk_links_file "${_consumer_build_dir}/source_sdk_sdk_links.txt")
 _tip_assert_file_contains("${_consumer_sources_file}" "${_installed_source}")
 _tip_assert_file_not_contains("${_consumer_sources_file}" "${_fixture_source_dir}/src/algorithms.cpp")
+_tip_assert_file_contains("${_consumer_type_file}" "STATIC_LIBRARY")
 _tip_assert_file_contains("${_consumer_sdk_links_file}" "SourceSdk::export_algorithms")
 _tip_assert_file_contains("${_consumer_sdk_links_file}" "SourceSdk::export_runtime")
 

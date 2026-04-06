@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 function(_tip_fail text)
-  message(FATAL_ERROR "[source-package-modules] ${text}")
+  message(FATAL_ERROR "[source-package-object] ${text}")
 endfunction()
 
 function(_tip_run_step)
@@ -24,12 +24,12 @@ function(_tip_run_step)
     ERROR_VARIABLE _stderr)
 
   if(NOT _result EQUAL 0)
-    message(STATUS "[source-package-modules] Step '${ARG_NAME}' failed.")
+    message(STATUS "[source-package-object] Step '${ARG_NAME}' failed.")
     if(NOT _stdout STREQUAL "")
-      message(STATUS "[source-package-modules][stdout]\n${_stdout}")
+      message(STATUS "[source-package-object][stdout]\n${_stdout}")
     endif()
     if(NOT _stderr STREQUAL "")
-      message(STATUS "[source-package-modules][stderr]\n${_stderr}")
+      message(STATUS "[source-package-object][stderr]\n${_stderr}")
     endif()
     _tip_fail("Step '${ARG_NAME}' exited with code ${_result}")
   endif()
@@ -47,15 +47,6 @@ function(_tip_assert_file_contains path needle)
   string(FIND "${_content}" "${needle}" _match_index)
   if(_match_index EQUAL -1)
     _tip_fail("Expected to find '${needle}' in '${path}'")
-  endif()
-endfunction()
-
-function(_tip_assert_file_not_contains path needle)
-  _tip_assert_exists("${path}")
-  file(READ "${path}" _content)
-  string(FIND "${_content}" "${needle}" _match_index)
-  if(NOT _match_index EQUAL -1)
-    _tip_fail("Did not expect to find '${needle}' in '${path}'")
   endif()
 endfunction()
 
@@ -87,12 +78,12 @@ endfunction()
 if(NOT DEFINED TIP_REPO_ROOT)
   _tip_fail("TIP_REPO_ROOT is required")
 endif()
-if(NOT DEFINED TIP_SOURCE_PACKAGE_MODULES_TEST_ROOT)
-  _tip_fail("TIP_SOURCE_PACKAGE_MODULES_TEST_ROOT is required")
+if(NOT DEFINED TIP_SOURCE_PACKAGE_OBJECT_TEST_ROOT)
+  _tip_fail("TIP_SOURCE_PACKAGE_OBJECT_TEST_ROOT is required")
 endif()
 
-if(NOT DEFINED TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG OR TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG STREQUAL "")
-  set(TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG "Debug")
+if(NOT DEFINED TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG OR TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG STREQUAL "")
+  set(TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG "Debug")
 endif()
 
 if(WIN32)
@@ -101,18 +92,17 @@ else()
   set(_tip_executable_suffix "${CMAKE_EXECUTABLE_SUFFIX}")
 endif()
 
-string(TOLOWER "${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}" _tip_source_package_modules_config_lower)
+string(TOLOWER "${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}" _tip_source_package_object_config_lower)
 
-set(_fixture_source_dir "${TIP_REPO_ROOT}/tests/source-package-modules")
-set(_case_root "${TIP_SOURCE_PACKAGE_MODULES_TEST_ROOT}/${_tip_source_package_modules_config_lower}")
+set(_fixture_source_dir "${TIP_REPO_ROOT}/tests/source-package-object")
+set(_case_root "${TIP_SOURCE_PACKAGE_OBJECT_TEST_ROOT}/${_tip_source_package_object_config_lower}")
 set(_build_dir "${_case_root}/build")
 set(_install_prefix "${_case_root}/install")
 
 file(REMOVE_RECURSE "${_case_root}")
 file(MAKE_DIRECTORY "${_case_root}")
 
-set(_configure_command "${CMAKE_COMMAND}" -S "${_fixture_source_dir}" -B "${_build_dir}" "-DTIP_REPO_ROOT=${TIP_REPO_ROOT}" "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}")
-
+set(_configure_command "${CMAKE_COMMAND}" -S "${_fixture_source_dir}" -B "${_build_dir}" "-DTIP_REPO_ROOT=${TIP_REPO_ROOT}" "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _configure_command -G "${TIP_CMAKE_GENERATOR}")
 endif()
@@ -136,34 +126,13 @@ if(DEFINED TIP_CMAKE_GENERATOR_TOOLSET AND NOT TIP_CMAKE_GENERATOR_TOOLSET STREQ
 endif()
 
 _tip_run_step(NAME "configure-fixture" COMMAND ${_configure_command})
-_tip_run_step(
-  NAME
-  "build-fixture"
-  COMMAND
-  "${CMAKE_COMMAND}"
-  --build
-  "${_build_dir}"
-  --config
-  "${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}")
-_tip_run_step(
-  NAME
-  "install-fixture"
-  COMMAND
-  "${CMAKE_COMMAND}"
-  --install
-  "${_build_dir}"
-  --config
-  "${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}"
-  --prefix
-  "${_install_prefix}")
+_tip_run_step(NAME "build-fixture" COMMAND "${CMAKE_COMMAND}" --build "${_build_dir}" --config "${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}")
+_tip_run_step(NAME "install-fixture" COMMAND "${CMAKE_COMMAND}" --install "${_build_dir}" --config "${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}" --prefix "${_install_prefix}")
 
 set(_cache_file "${_build_dir}/CMakeCache.txt")
 _tip_assert_exists("${_cache_file}")
-
 _tip_read_cache_entry("${_cache_file}" "CMAKE_INSTALL_DATADIR" _install_datadir)
 _tip_read_cache_entry("${_cache_file}" "CMAKE_INSTALL_DATAROOTDIR" _install_datarootdir)
-_tip_read_cache_entry("${_cache_file}" "CMAKE_INSTALL_INCLUDEDIR" _install_includedir)
-
 if(_install_datadir STREQUAL "")
   if(_install_datarootdir STREQUAL "")
     set(_install_datadir "share")
@@ -172,12 +141,9 @@ if(_install_datadir STREQUAL "")
   endif()
 endif()
 
-set(_installed_source "${_install_prefix}/${_install_datadir}/source_math_modules/src/source_math.cpp")
-set(_installed_module "${_install_prefix}/${_install_includedir}/source_math_modules/modules/source_math.cppm")
-set(_installed_config "${_install_prefix}/${_install_datadir}/cmake/source_math_modules/source_math_modulesConfig.cmake")
-
+set(_installed_source "${_install_prefix}/${_install_datadir}/source_objects/src/source_objects.cpp")
+set(_installed_config "${_install_prefix}/${_install_datadir}/cmake/source_objects/source_objectsConfig.cmake")
 _tip_assert_exists("${_installed_source}")
-_tip_assert_exists("${_installed_module}")
 _tip_assert_exists("${_installed_config}")
 
 set(_consumer_dir "${_case_root}/consumer")
@@ -189,53 +155,36 @@ file(
   "${_consumer_dir}/CMakeLists.txt"
   [=[
 cmake_minimum_required(VERSION 3.25)
-project(source_package_modules_consumer LANGUAGES CXX)
+project(source_package_object_consumer LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+find_package(source_objects CONFIG REQUIRED)
 
-find_package(source_math_modules CONFIG REQUIRED)
+get_target_property(_source_objects_local_target SourceObjects::source_objects ALIASED_TARGET)
+if(NOT _source_objects_local_target)
+  message(FATAL_ERROR "SourceObjects::source_objects is not an alias target")
+endif()
+get_target_property(_source_objects_imported "${_source_objects_local_target}" IMPORTED)
+if(_source_objects_imported)
+  message(FATAL_ERROR "SourceObjects::source_objects resolved to an imported target")
+endif()
+get_target_property(_source_objects_type "${_source_objects_local_target}" TYPE)
+get_target_property(_source_objects_sources "${_source_objects_local_target}" SOURCES)
+file(WRITE "${CMAKE_BINARY_DIR}/source_objects_type.txt" "${_source_objects_type}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/source_objects_sources.txt" "${_source_objects_sources}\n")
 
-get_target_property(_source_math_modules_local_target SourceMathModules::source_math_modules ALIASED_TARGET)
-if(NOT _source_math_modules_local_target)
-  message(FATAL_ERROR "SourceMathModules::source_math_modules is not an alias target")
-endif()
-get_target_property(_source_math_modules_imported "${_source_math_modules_local_target}" IMPORTED)
-if(_source_math_modules_imported)
-  message(FATAL_ERROR "SourceMathModules::source_math_modules resolved to an imported target")
-endif()
-get_target_property(_source_math_modules_sources "${_source_math_modules_local_target}" SOURCES)
-if(NOT _source_math_modules_sources)
-  message(FATAL_ERROR "SourceMathModules::source_math_modules did not expose local SOURCES")
-endif()
-get_target_property(_source_math_modules_module_sets "${_source_math_modules_local_target}" CXX_MODULE_SETS)
-if(NOT _source_math_modules_module_sets)
-  message(FATAL_ERROR "SourceMathModules::source_math_modules did not expose a CXX_MODULES file set")
-endif()
-list(GET _source_math_modules_module_sets 0 _source_math_modules_module_set_name)
-get_target_property(_source_math_modules_module_files "${_source_math_modules_local_target}" "CXX_MODULE_SET_${_source_math_modules_module_set_name}")
-get_target_property(_source_math_modules_type "${_source_math_modules_local_target}" TYPE)
-file(WRITE "${CMAKE_BINARY_DIR}/source_math_modules_sources.txt" "${_source_math_modules_sources}\n")
-file(WRITE "${CMAKE_BINARY_DIR}/source_math_modules_module_files.txt" "${_source_math_modules_module_files}\n")
-file(WRITE "${CMAKE_BINARY_DIR}/source_math_modules_type.txt" "${_source_math_modules_type}\n")
-
-add_executable(source_package_modules_consumer main.cpp)
-target_link_libraries(source_package_modules_consumer PRIVATE SourceMathModules::source_math_modules)
-target_compile_features(source_package_modules_consumer PRIVATE cxx_std_20)
-set_target_properties(source_package_modules_consumer PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES ON)
+add_executable(source_package_object_consumer main.cpp)
+target_compile_features(source_package_object_consumer PRIVATE cxx_std_17)
+target_link_libraries(source_package_object_consumer PRIVATE SourceObjects::source_objects)
 ]=])
 
 file(
   WRITE
   "${_consumer_dir}/main.cpp"
   [=[
-import source_math;
+#include "source_objects/value.hpp"
 
 int main() {
-  const bool add_ok = source_math::add(19, 23) == 42;
-  const bool average_ok = source_math::average(20, 24) == 22.0;
-  return add_ok && average_ok ? 0 : 1;
+  return source_objects::value() == 42 ? 0 : 1;
 }
 ]=])
 
@@ -246,7 +195,7 @@ set(_consumer_configure_command
     -B
     "${_consumer_build_dir}"
     "-DCMAKE_PREFIX_PATH=${_install_prefix}"
-    "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}")
+    "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
 endif()
@@ -270,30 +219,19 @@ if(DEFINED TIP_CMAKE_GENERATOR_TOOLSET AND NOT TIP_CMAKE_GENERATOR_TOOLSET STREQ
 endif()
 
 _tip_run_step(NAME "configure-consumer" COMMAND ${_consumer_configure_command})
-_tip_run_step(
-  NAME
-  "build-consumer"
-  COMMAND
-  "${CMAKE_COMMAND}"
-  --build
-  "${_consumer_build_dir}"
-  --config
-  "${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}")
+_tip_run_step(NAME "build-consumer" COMMAND "${CMAKE_COMMAND}" --build "${_consumer_build_dir}" --config "${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}")
 
-set(_consumer_sources_file "${_consumer_build_dir}/source_math_modules_sources.txt")
-set(_consumer_module_files_file "${_consumer_build_dir}/source_math_modules_module_files.txt")
-set(_consumer_type_file "${_consumer_build_dir}/source_math_modules_type.txt")
+set(_consumer_type_file "${_consumer_build_dir}/source_objects_type.txt")
+set(_consumer_sources_file "${_consumer_build_dir}/source_objects_sources.txt")
+_tip_assert_file_contains("${_consumer_type_file}" "OBJECT_LIBRARY")
 _tip_assert_file_contains("${_consumer_sources_file}" "${_installed_source}")
-_tip_assert_file_not_contains("${_consumer_sources_file}" "${_fixture_source_dir}/src/source_math.cpp")
-_tip_assert_file_contains("${_consumer_module_files_file}" "${_installed_module}")
-_tip_assert_file_contains("${_consumer_type_file}" "STATIC_LIBRARY")
 
 set(_consumer_executable_candidates
-    "${_consumer_build_dir}/source_package_modules_consumer${_tip_executable_suffix}"
-    "${_consumer_build_dir}/${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}/source_package_modules_consumer${_tip_executable_suffix}"
-    "${_consumer_build_dir}/source_package_modules_consumer"
-    "${_consumer_build_dir}/${TIP_SOURCE_PACKAGE_MODULES_TEST_CONFIG}/source_package_modules_consumer")
+    "${_consumer_build_dir}/source_package_object_consumer${_tip_executable_suffix}"
+    "${_consumer_build_dir}/${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}/source_package_object_consumer${_tip_executable_suffix}"
+    "${_consumer_build_dir}/source_package_object_consumer"
+    "${_consumer_build_dir}/${TIP_SOURCE_PACKAGE_OBJECT_TEST_CONFIG}/source_package_object_consumer")
 _tip_find_existing_path(_consumer_executable ${_consumer_executable_candidates})
 _tip_run_step(NAME "run-consumer" COMMAND "${_consumer_executable}")
 
-message(STATUS "[source-package-modules] Modules source-package assertions passed.")
+message(STATUS "[source-package-object] Object-library source-package assertions passed.")

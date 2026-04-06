@@ -39,23 +39,18 @@ target_install_package(
 
 ## Consumer Flow
 
-The consumer can choose the local target kind before `find_package()`:
+For ordinary compiled libraries, the consumer can choose `STATIC` or `SHARED` with the standard `BUILD_SHARED_LIBS` variable before `find_package()`:
 
 ```cmake
-set(math_ops_LIBRARY_TYPE STATIC)
+set(BUILD_SHARED_LIBS ON)
 find_package(math_ops CONFIG REQUIRED)
+unset(BUILD_SHARED_LIBS)
 
 add_executable(app main.cpp)
 target_link_libraries(app PRIVATE MathOps::math_ops)
 ```
 
-Supported values are:
-
-- `STATIC`
-- `SHARED`
-- `OBJECT`
-
-Header-only exclusive targets default to `INTERFACE` and accept only `INTERFACE`.
+`OBJECT_LIBRARY` and plugin-style `MODULE_LIBRARY` targets keep their producer type. Header-only exclusive targets remain `INTERFACE`.
 
 ## Dual Install
 

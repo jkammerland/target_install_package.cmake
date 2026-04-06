@@ -174,13 +174,21 @@ endif()
 
 set(_installed_source "${_install_prefix}/${_install_datadir}/source_package/src/source_package.cpp")
 set(_installed_generated_source "${_install_prefix}/${_install_datadir}/source_package/generated/source_package_generated.cpp")
+set(_installed_platform_source_posix "${_install_prefix}/${_install_datadir}/source_package/src/source_package_platform_posix.cpp")
+set(_installed_platform_source_windows "${_install_prefix}/${_install_datadir}/source_package/src/source_package_platform_windows.cpp")
 set(_installed_header "${_install_prefix}/${_install_includedir}/source_package/source_package.hpp")
+set(_installed_public_header "${_install_prefix}/${_install_includedir}/source_package_legacy.hpp")
 set(_installed_config "${_install_prefix}/${_install_datadir}/cmake/source_package/source_packageConfig.cmake")
+set(_installed_source_targets "${_install_prefix}/${_install_datadir}/cmake/source_package/source_packageSourceTargets.cmake")
 
 _tip_assert_exists("${_installed_source}")
 _tip_assert_exists("${_installed_generated_source}")
+_tip_assert_exists("${_installed_platform_source_posix}")
+_tip_assert_exists("${_installed_platform_source_windows}")
 _tip_assert_exists("${_installed_header}")
+_tip_assert_exists("${_installed_public_header}")
 _tip_assert_exists("${_installed_config}")
+_tip_assert_exists("${_installed_source_targets}")
 
 set(_consumer_dir "${_case_root}/consumer")
 set(_consumer_build_dir "${_consumer_dir}/build")
@@ -193,8 +201,9 @@ file(
 cmake_minimum_required(VERSION 3.25)
 project(source_package_consumer LANGUAGES CXX)
 
-set(source_package_LIBRARY_TYPE STATIC)
+set(BUILD_SHARED_LIBS ON)
 find_package(source_package CONFIG REQUIRED)
+unset(BUILD_SHARED_LIBS)
 
 get_target_property(_source_package_local_target SourcePackage::source_package ALIASED_TARGET)
 if(NOT _source_package_local_target)
@@ -215,6 +224,14 @@ file(WRITE "${CMAKE_BINARY_DIR}/source_package_type.txt" "${_source_package_type
 add_executable(source_package_consumer main.cpp)
 target_compile_features(source_package_consumer PRIVATE cxx_std_17)
 target_link_libraries(source_package_consumer PRIVATE SourcePackage::source_package)
+
+if(WIN32)
+  add_custom_command(
+    TARGET source_package_consumer
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:source_package_consumer> $<TARGET_RUNTIME_DLLS:source_package_consumer>
+    COMMAND_EXPAND_LISTS)
+endif()
 ]=])
 
 file(
@@ -222,9 +239,10 @@ file(
   "${_consumer_dir}/main.cpp"
   [=[
 #include "source_package/source_package.hpp"
+#include "source_package_legacy.hpp"
 
 int main() {
-  return source_package::add(19, 23) == 42 ? 0 : 1;
+  return source_package::add(19, 23) == 42 && source_package::legacy_marker() == 42 ? 0 : 1;
 }
 ]=])
 
@@ -235,7 +253,8 @@ set(_consumer_configure_command
     -B
     "${_consumer_build_dir}"
     "-DCMAKE_PREFIX_PATH=${_install_prefix}"
-    "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_TEST_CONFIG}")
+    "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_TEST_CONFIG}"
+    "-DCMAKE_MESSAGE_LOG_LEVEL=DEBUG")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
 endif()
@@ -258,7 +277,21 @@ if(DEFINED TIP_CMAKE_GENERATOR_TOOLSET AND NOT TIP_CMAKE_GENERATOR_TOOLSET STREQ
   list(APPEND _consumer_configure_command "-T" "${TIP_CMAKE_GENERATOR_TOOLSET}")
 endif()
 
-_tip_run_step(NAME "configure-consumer" COMMAND ${_consumer_configure_command})
+execute_process(
+  COMMAND ${_consumer_configure_command}
+  RESULT_VARIABLE _consumer_configure_result
+  OUTPUT_VARIABLE _consumer_configure_stdout
+  ERROR_VARIABLE _consumer_configure_stderr)
+if(NOT _consumer_configure_result EQUAL 0)
+  message(STATUS "[source-package] Step 'configure-consumer' failed.")
+  if(NOT _consumer_configure_stdout STREQUAL "")
+    message(STATUS "[source-package][stdout]\n${_consumer_configure_stdout}")
+  endif()
+  if(NOT _consumer_configure_stderr STREQUAL "")
+    message(STATUS "[source-package][stderr]\n${_consumer_configure_stderr}")
+  endif()
+  _tip_fail("Step 'configure-consumer' exited with code ${_consumer_configure_result}")
+endif()
 _tip_run_step(
   NAME
   "build-consumer"
@@ -273,9 +306,20 @@ set(_consumer_sources_file "${_consumer_build_dir}/source_package_sources.txt")
 set(_consumer_type_file "${_consumer_build_dir}/source_package_type.txt")
 _tip_assert_file_contains("${_consumer_sources_file}" "${_installed_source}")
 _tip_assert_file_contains("${_consumer_sources_file}" "${_installed_generated_source}")
+_tip_assert_file_contains("${_consumer_sources_file}" "${_install_prefix}/${_install_datadir}/source_package/src/source_package_platform_")
 _tip_assert_file_not_contains("${_consumer_sources_file}" "${_fixture_source_dir}/src/source_package.cpp")
 _tip_assert_file_not_contains("${_consumer_sources_file}" "${_build_dir}/generated/source_package_generated.cpp")
-_tip_assert_file_contains("${_consumer_type_file}" "STATIC_LIBRARY")
+_tip_assert_file_contains("${_consumer_type_file}" "SHARED_LIBRARY")
+
+set(_consumer_configure_output "${_consumer_configure_stdout}\n${_consumer_configure_stderr}")
+string(FIND "${_consumer_configure_output}" "Recreated SourcePackage::source_package as SHARED_LIBRARY (BUILD_SHARED_LIBS=ON)" _consumer_debug_match)
+if(_consumer_debug_match EQUAL -1)
+  _tip_fail("Expected debug recreation message for shared source package")
+endif()
+
+_tip_assert_file_contains("${_installed_source_targets}" "PLATFORM_ID:Windows")
+_tip_assert_file_contains("${_installed_source_targets}" "source_package_platform_windows.cpp")
+_tip_assert_file_contains("${_installed_source_targets}" "source_package_platform_posix.cpp")
 
 set(_consumer_executable_candidates
     "${_consumer_build_dir}/source_package_consumer${_tip_executable_suffix}"
@@ -338,6 +382,62 @@ set(_invalid_output "${_invalid_stdout}\n${_invalid_stderr}")
 string(FIND "${_invalid_output}" "supported only for library targets" _invalid_match_index)
 if(_invalid_match_index EQUAL -1)
   _tip_fail("Expected validation error for non-library INCLUDE_SOURCES EXCLUSIVE usage")
+endif()
+
+set(_invalid_genex_dir "${_case_root}/invalid-genex")
+set(_invalid_genex_build_dir "${_invalid_genex_dir}/build")
+file(MAKE_DIRECTORY "${_invalid_genex_dir}/src")
+
+file(
+  WRITE
+  "${_invalid_genex_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n"
+  "project(source_package_invalid_genex LANGUAGES CXX)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/list_file_include_guard.cmake\")\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/project_log.cmake\")\n"
+  "include(\"${TIP_REPO_ROOT}/target_install_package.cmake\")\n"
+  "add_library(invalid_genex STATIC)\n"
+  "target_sources(invalid_genex PRIVATE \"$<BUILD_INTERFACE:$<CONFIG>/src/invalid.cpp>\")\n"
+  "target_install_package(invalid_genex INCLUDE_SOURCES EXCLUSIVE)\n")
+file(WRITE "${_invalid_genex_dir}/src/invalid.cpp" "int invalid_genex() { return 0; }\n")
+
+set(_invalid_genex_configure_command "${CMAKE_COMMAND}" -S "${_invalid_genex_dir}" -B "${_invalid_genex_build_dir}" "-DCMAKE_BUILD_TYPE=${TIP_SOURCE_PACKAGE_TEST_CONFIG}")
+if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
+  list(APPEND _invalid_genex_configure_command -G "${TIP_CMAKE_GENERATOR}")
+endif()
+if(DEFINED TIP_CMAKE_MAKE_PROGRAM AND NOT TIP_CMAKE_MAKE_PROGRAM STREQUAL "")
+  list(APPEND _invalid_genex_configure_command "-DCMAKE_MAKE_PROGRAM=${TIP_CMAKE_MAKE_PROGRAM}")
+endif()
+if(DEFINED TIP_C_COMPILER AND NOT TIP_C_COMPILER STREQUAL "")
+  list(APPEND _invalid_genex_configure_command "-DCMAKE_C_COMPILER=${TIP_C_COMPILER}")
+endif()
+if(DEFINED TIP_CXX_COMPILER AND NOT TIP_CXX_COMPILER STREQUAL "")
+  list(APPEND _invalid_genex_configure_command "-DCMAKE_CXX_COMPILER=${TIP_CXX_COMPILER}")
+endif()
+if(DEFINED TIP_CMAKE_TOOLCHAIN_FILE AND NOT TIP_CMAKE_TOOLCHAIN_FILE STREQUAL "")
+  list(APPEND _invalid_genex_configure_command "-DCMAKE_TOOLCHAIN_FILE=${TIP_CMAKE_TOOLCHAIN_FILE}")
+endif()
+if(DEFINED TIP_CMAKE_GENERATOR_PLATFORM AND NOT TIP_CMAKE_GENERATOR_PLATFORM STREQUAL "")
+  list(APPEND _invalid_genex_configure_command "-A" "${TIP_CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(DEFINED TIP_CMAKE_GENERATOR_TOOLSET AND NOT TIP_CMAKE_GENERATOR_TOOLSET STREQUAL "")
+  list(APPEND _invalid_genex_configure_command "-T" "${TIP_CMAKE_GENERATOR_TOOLSET}")
+endif()
+
+execute_process(
+  COMMAND ${_invalid_genex_configure_command}
+  RESULT_VARIABLE _invalid_genex_result
+  OUTPUT_VARIABLE _invalid_genex_stdout
+  ERROR_VARIABLE _invalid_genex_stderr)
+
+if(_invalid_genex_result EQUAL 0)
+  _tip_fail("Expected unsupported SOURCES generator expression configure to fail")
+endif()
+
+set(_invalid_genex_output "${_invalid_genex_stdout}\n${_invalid_genex_stderr}")
+string(FIND "${_invalid_genex_output}" "SOURCES generator expression" _invalid_genex_match_index)
+if(_invalid_genex_match_index EQUAL -1)
+  _tip_fail("Expected validation error for unsupported INCLUDE_SOURCES EXCLUSIVE generator expression usage")
 endif()
 
 message(STATUS "[source-package] Source package assertions passed.")

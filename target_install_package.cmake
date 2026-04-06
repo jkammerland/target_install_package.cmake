@@ -266,6 +266,30 @@ function(_tip_collect_target_file_set_info FILE_SET_KIND OUT_FILES OUT_BASE_DIRS
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_collect_legacy_public_headers OUT_FILES TARGET_NAME)
+  get_target_property(_tip_public_headers "${TARGET_NAME}" PUBLIC_HEADER)
+  if(NOT _tip_public_headers OR _tip_public_headers MATCHES "-NOTFOUND$")
+    set(${OUT_FILES}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  set(_tip_resolved_headers "")
+  foreach(_tip_public_header IN LISTS _tip_public_headers)
+    _tip_resolve_target_path(_tip_resolved_public_header "${TARGET_NAME}" "${_tip_public_header}")
+    list(APPEND _tip_resolved_headers "${_tip_resolved_public_header}")
+  endforeach()
+
+  if(_tip_resolved_headers)
+    list(REMOVE_DUPLICATES _tip_resolved_headers)
+  endif()
+
+  set(${OUT_FILES}
+      "${_tip_resolved_headers}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
   get_target_property(_tip_target_source_dir "${TARGET_NAME}" SOURCE_DIR)
   get_target_property(_tip_target_binary_dir "${TARGET_NAME}" BINARY_DIR)
@@ -317,10 +341,123 @@ function(_tip_resolve_target_path OUT_VAR TARGET_NAME INPUT_PATH)
       PARENT_SCOPE)
 endfunction()
 
-function(_tip_collect_installable_source_files OUT_FILES TARGET_NAME)
+function(_tip_split_install_relative_path OUT_DESTINATION OUT_RENAME INSTALL_PATH)
+  get_filename_component(_tip_install_destination "${INSTALL_PATH}" DIRECTORY)
+  get_filename_component(_tip_install_rename "${INSTALL_PATH}" NAME)
+  if(_tip_install_destination STREQUAL "")
+    set(_tip_install_destination ".")
+  endif()
+
+  set(${OUT_DESTINATION}
+      "${_tip_install_destination}"
+      PARENT_SCOPE)
+  set(${OUT_RENAME}
+      "${_tip_install_rename}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_parse_installable_source_entry OUT_KIND OUT_CONDITION OUT_PAYLOAD TARGET_NAME SOURCE_ENTRY)
+  if(SOURCE_ENTRY MATCHES "^\\$<BUILD_INTERFACE:(.*)>$")
+    set(_tip_entry_kind "BUILD_INTERFACE")
+    set(_tip_entry_condition "")
+    set(_tip_entry_payload "${CMAKE_MATCH_1}")
+  elseif(SOURCE_ENTRY MATCHES "^\\$<INSTALL_INTERFACE:(.*)>$")
+    set(_tip_entry_kind "INSTALL_INTERFACE")
+    set(_tip_entry_condition "")
+    set(_tip_entry_payload "${CMAKE_MATCH_1}")
+  elseif(SOURCE_ENTRY MATCHES "^\\$<(\\$<.+>):(.+)>$")
+    set(_tip_entry_kind "CONDITIONAL")
+    set(_tip_entry_condition "${CMAKE_MATCH_1}")
+    set(_tip_entry_payload "${CMAKE_MATCH_2}")
+  elseif(SOURCE_ENTRY MATCHES "\\$<")
+    project_log(FATAL_ERROR "INCLUDE_SOURCES EXCLUSIVE does not support this SOURCES generator expression for target '${TARGET_NAME}': ${SOURCE_ENTRY}")
+  else()
+    set(_tip_entry_kind "PLAIN")
+    set(_tip_entry_condition "")
+    set(_tip_entry_payload "${SOURCE_ENTRY}")
+  endif()
+
+  if(_tip_entry_payload MATCHES ";" OR (_tip_entry_payload MATCHES "\\$<" AND NOT _tip_entry_kind STREQUAL "INSTALL_INTERFACE"))
+    project_log(FATAL_ERROR "INCLUDE_SOURCES EXCLUSIVE does not support this SOURCES generator expression for target '${TARGET_NAME}': ${SOURCE_ENTRY}")
+  endif()
+
+  set(${OUT_KIND}
+      "${_tip_entry_kind}"
+      PARENT_SCOPE)
+  set(${OUT_CONDITION}
+      "${_tip_entry_condition}"
+      PARENT_SCOPE)
+  set(${OUT_PAYLOAD}
+      "${_tip_entry_payload}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_process_installable_source_entry OUT_INSTALL_FILE OUT_INSTALL_DESTINATION OUT_INSTALL_RENAME OUT_INSTALLED_ENTRY TARGET_NAME SOURCE_ENTRY
+         SOURCE_DESTINATION SOURCE_BASE_DIRS)
+  _tip_parse_installable_source_entry(_tip_entry_kind _tip_entry_condition _tip_entry_payload "${TARGET_NAME}" "${SOURCE_ENTRY}")
+
+  if(_tip_entry_kind STREQUAL "INSTALL_INTERFACE" AND IS_ABSOLUTE "${_tip_entry_payload}")
+    project_log(FATAL_ERROR "INCLUDE_SOURCES EXCLUSIVE does not support absolute INSTALL_INTERFACE source paths for target '${TARGET_NAME}': ${SOURCE_ENTRY}")
+  endif()
+
+  _tip_resolve_target_path(_tip_resolved_source "${TARGET_NAME}" "${_tip_entry_payload}")
+  get_filename_component(_tip_source_extension "${_tip_resolved_source}" EXT)
+  set(_tip_compilable_extensions ".c" ".cc" ".cp" ".cpp" ".cxx" ".c++" ".C" ".m" ".mm")
+  if(NOT _tip_source_extension IN_LIST _tip_compilable_extensions)
+    set(${OUT_INSTALL_FILE}
+        ""
+        PARENT_SCOPE)
+    set(${OUT_INSTALL_DESTINATION}
+        ""
+        PARENT_SCOPE)
+    set(${OUT_INSTALL_RENAME}
+        ""
+        PARENT_SCOPE)
+    set(${OUT_INSTALLED_ENTRY}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if(_tip_entry_kind STREQUAL "INSTALL_INTERFACE")
+    cmake_path(NORMAL_PATH _tip_entry_payload OUTPUT_VARIABLE _tip_installed_source_entry)
+  else()
+    _tip_compute_installed_relative_path(_tip_installed_source_entry "${_tip_resolved_source}" "${SOURCE_DESTINATION}" ${SOURCE_BASE_DIRS})
+  endif()
+
+  _tip_split_install_relative_path(_tip_install_destination _tip_install_rename "${_tip_installed_source_entry}")
+
+  if(_tip_entry_kind STREQUAL "CONDITIONAL")
+    set(_tip_installed_source_entry "$<${_tip_entry_condition}:${_tip_installed_source_entry}>")
+  endif()
+
+  set(${OUT_INSTALL_FILE}
+      "${_tip_resolved_source}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_DESTINATION}
+      "${_tip_install_destination}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_RENAME}
+      "${_tip_install_rename}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALLED_ENTRY}
+      "${_tip_installed_source_entry}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_collect_installable_source_entries OUT_INSTALL_FILES OUT_INSTALL_DESTINATIONS OUT_INSTALL_RENAMES OUT_ENTRIES TARGET_NAME SOURCE_DESTINATION)
   get_target_property(_tip_target_sources "${TARGET_NAME}" SOURCES)
   if(NOT _tip_target_sources)
-    set(${OUT_FILES}
+    set(${OUT_INSTALL_FILES}
+        ""
+        PARENT_SCOPE)
+    set(${OUT_INSTALL_DESTINATIONS}
+        ""
+        PARENT_SCOPE)
+    set(${OUT_INSTALL_RENAMES}
+        ""
+        PARENT_SCOPE)
+    set(${OUT_ENTRIES}
         ""
         PARENT_SCOPE)
     return()
@@ -339,33 +476,63 @@ function(_tip_collect_installable_source_files OUT_FILES TARGET_NAME)
     list(APPEND _tip_excluded_files "${_tip_resolved_module}")
   endforeach()
 
-  set(_tip_compilable_extensions ".c" ".cc" ".cp" ".cpp" ".cxx" ".c++" ".C" ".m" ".mm")
-  set(_tip_installable_sources "")
-
-  foreach(_tip_target_source IN LISTS _tip_target_sources)
-    if(_tip_target_source MATCHES "\\$<")
-      project_log(FATAL_ERROR "INCLUDE_SOURCES does not support generator expressions in SOURCES for target '${TARGET_NAME}': ${_tip_target_source}")
-    endif()
-
-    _tip_resolve_target_path(_tip_resolved_source "${TARGET_NAME}" "${_tip_target_source}")
-    get_filename_component(_tip_source_extension "${_tip_resolved_source}" EXT)
-
-    if(NOT _tip_source_extension IN_LIST _tip_compilable_extensions)
-      continue()
-    endif()
-    if(_tip_resolved_source IN_LIST _tip_excluded_files)
-      continue()
-    endif()
-
-    list(APPEND _tip_installable_sources "${_tip_resolved_source}")
-  endforeach()
-
-  if(_tip_installable_sources)
-    list(REMOVE_DUPLICATES _tip_installable_sources)
+  get_target_property(_tip_target_source_dir "${TARGET_NAME}" SOURCE_DIR)
+  get_target_property(_tip_target_binary_dir "${TARGET_NAME}" BINARY_DIR)
+  set(_tip_source_base_dirs "")
+  if(_tip_target_source_dir)
+    list(APPEND _tip_source_base_dirs "${_tip_target_source_dir}")
+  endif()
+  if(_tip_target_binary_dir)
+    list(APPEND _tip_source_base_dirs "${_tip_target_binary_dir}")
   endif()
 
-  set(${OUT_FILES}
-      "${_tip_installable_sources}"
+  set(_tip_install_files "")
+  set(_tip_install_destinations "")
+  set(_tip_install_renames "")
+  set(_tip_installed_entries "")
+  set(_tip_seen_source_keys "")
+
+  foreach(_tip_target_source IN LISTS _tip_target_sources)
+    _tip_process_installable_source_entry(
+      _tip_install_file
+      _tip_install_destination
+      _tip_install_rename
+      _tip_installed_entry
+      "${TARGET_NAME}"
+      "${_tip_target_source}"
+      "${SOURCE_DESTINATION}"
+      "${_tip_source_base_dirs}")
+
+    if(_tip_install_file STREQUAL "" AND _tip_installed_entry STREQUAL "")
+      continue()
+    endif()
+    if(_tip_install_file IN_LIST _tip_excluded_files)
+      continue()
+    endif()
+
+    set(_tip_source_key "${_tip_install_destination}|${_tip_install_rename}|${_tip_installed_entry}")
+    if(_tip_source_key IN_LIST _tip_seen_source_keys)
+      continue()
+    endif()
+
+    list(APPEND _tip_seen_source_keys "${_tip_source_key}")
+    list(APPEND _tip_install_files "${_tip_install_file}")
+    list(APPEND _tip_install_destinations "${_tip_install_destination}")
+    list(APPEND _tip_install_renames "${_tip_install_rename}")
+    list(APPEND _tip_installed_entries "${_tip_installed_entry}")
+  endforeach()
+
+  set(${OUT_INSTALL_FILES}
+      "${_tip_install_files}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_DESTINATIONS}
+      "${_tip_install_destinations}"
+      PARENT_SCOPE)
+  set(${OUT_INSTALL_RENAMES}
+      "${_tip_install_renames}"
+      PARENT_SCOPE)
+  set(${OUT_ENTRIES}
+      "${_tip_installed_entries}"
       PARENT_SCOPE)
 endfunction()
 
@@ -533,7 +700,7 @@ endfunction()
 function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARGET_NAME INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION)
   _tip_collect_target_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
   _tip_collect_target_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
-  _tip_collect_installable_source_files(_tip_source_files "${TARGET_NAME}")
+  _tip_collect_legacy_public_headers(_tip_public_header_files "${TARGET_NAME}")
 
   set(_tip_installed_header_files "")
   foreach(_tip_header_file IN LISTS _tip_header_files)
@@ -541,6 +708,16 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
     _tip_compute_installed_relative_path(_tip_installed_header_file "${_tip_resolved_header_file}" "${INCLUDE_DESTINATION}" ${_tip_header_base_dirs})
     list(APPEND _tip_installed_header_files "${_tip_installed_header_file}")
   endforeach()
+  foreach(_tip_public_header_file IN LISTS _tip_public_header_files)
+    get_filename_component(_tip_public_header_name "${_tip_public_header_file}" NAME)
+    set(_tip_installed_public_header_file "${INCLUDE_DESTINATION}")
+    cmake_path(APPEND _tip_installed_public_header_file "${_tip_public_header_name}")
+    cmake_path(NORMAL_PATH _tip_installed_public_header_file)
+    list(APPEND _tip_installed_header_files "${_tip_installed_public_header_file}")
+  endforeach()
+  if(_tip_installed_header_files)
+    list(REMOVE_DUPLICATES _tip_installed_header_files)
+  endif()
 
   set(_tip_installed_module_files "")
   foreach(_tip_module_file IN LISTS _tip_module_files)
@@ -559,11 +736,13 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
     list(APPEND _tip_source_base_dirs "${_tip_target_binary_dir}")
   endif()
 
-  set(_tip_installed_source_files "")
-  foreach(_tip_source_file IN LISTS _tip_source_files)
-    _tip_compute_installed_relative_path(_tip_installed_source_file "${_tip_source_file}" "${SOURCE_DESTINATION}" ${_tip_source_base_dirs})
-    list(APPEND _tip_installed_source_files "${_tip_installed_source_file}")
-  endforeach()
+  _tip_collect_installable_source_entries(
+    _tip_source_install_files
+    _tip_source_install_destinations
+    _tip_source_install_renames
+    _tip_installed_source_files
+    "${TARGET_NAME}"
+    "${SOURCE_DESTINATION}")
 
   get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
   get_target_property(_tip_compile_features "${TARGET_NAME}" COMPILE_FEATURES)
@@ -643,8 +822,12 @@ function(_tip_collect_target_included_source_metadata ENTRY_PROPERTY_PREFIX TARG
 
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_TARGET_TYPE" "${_tip_target_type}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_HEADER_FILES" "${_tip_installed_header_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_PUBLIC_HEADER_SOURCE_FILES" "${_tip_public_header_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_MODULE_FILES" "${_tip_installed_module_files}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_FILES" "${_tip_installed_source_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_FILES" "${_tip_source_install_files}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_DESTINATIONS" "${_tip_source_install_destinations}")
+  set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_RENAMES" "${_tip_source_install_renames}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_FEATURES" "${_tip_compile_features}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_DEFINITIONS" "${_tip_compile_definitions}")
   set_property(GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_COMPILE_OPTIONS" "${_tip_compile_options}")
@@ -888,7 +1071,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
   if(_tip_include_sources_mode STREQUAL "EXCLUSIVE")
     get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
-    if(NOT _tip_target_type MATCHES "^(STATIC|SHARED|OBJECT|INTERFACE)_LIBRARY$")
+    if(NOT _tip_target_type MATCHES "^(STATIC|SHARED|MODULE|OBJECT|INTERFACE)_LIBRARY$")
       project_log(FATAL_ERROR "INCLUDE_SOURCES EXCLUSIVE is supported only for library targets. '${TARGET_NAME}' has type '${_tip_target_type}'.")
     endif()
   endif()
@@ -1373,7 +1556,6 @@ function(_tip_install_included_source_payload ENTRY_PROPERTY_PREFIX TARGET_NAME)
 
   get_property(_tip_include_destination GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDE_DESTINATION")
   get_property(_tip_module_destination GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_MODULE_DESTINATION")
-  get_property(_tip_source_destination GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_SOURCE_DESTINATION")
 
   _tip_collect_target_file_set_info("HEADERS" _tip_header_files _tip_header_base_dirs "${TARGET_NAME}")
   if(_tip_header_files)
@@ -1383,6 +1565,14 @@ function(_tip_install_included_source_payload ENTRY_PROPERTY_PREFIX TARGET_NAME)
       list(APPEND _tip_resolved_header_files "${_tip_resolved_header_file}")
     endforeach()
     _tip_install_files_preserving_layout("${TARGET_NAME}" "${_tip_resolved_header_files}" "${_tip_header_base_dirs}" "${_tip_include_destination}" ${_tip_component_args})
+  endif()
+
+  get_property(_tip_public_header_files GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_PUBLIC_HEADER_SOURCE_FILES")
+  if(_tip_public_header_files)
+    install(
+      FILES ${_tip_public_header_files}
+      DESTINATION "${_tip_include_destination}"
+      ${_tip_component_args})
   endif()
 
   _tip_collect_target_file_set_info("CXX_MODULES" _tip_module_files _tip_module_base_dirs "${TARGET_NAME}")
@@ -1395,19 +1585,24 @@ function(_tip_install_included_source_payload ENTRY_PROPERTY_PREFIX TARGET_NAME)
     _tip_install_files_preserving_layout("${TARGET_NAME}" "${_tip_resolved_module_files}" "${_tip_module_base_dirs}" "${_tip_module_destination}" ${_tip_component_args})
   endif()
 
-  _tip_collect_installable_source_files(_tip_source_files "${TARGET_NAME}")
-  if(_tip_source_files)
-    get_target_property(_tip_target_source_dir "${TARGET_NAME}" SOURCE_DIR)
-    get_target_property(_tip_target_binary_dir "${TARGET_NAME}" BINARY_DIR)
-    set(_tip_source_base_dirs "")
-    if(_tip_target_source_dir)
-      list(APPEND _tip_source_base_dirs "${_tip_target_source_dir}")
-    endif()
-    if(_tip_target_binary_dir)
-      list(APPEND _tip_source_base_dirs "${_tip_target_binary_dir}")
-    endif()
+  get_property(_tip_source_install_files GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_FILES")
+  get_property(_tip_source_install_destinations GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_DESTINATIONS")
+  get_property(_tip_source_install_renames GLOBAL PROPERTY "${ENTRY_PROPERTY_PREFIX}_INCLUDED_SOURCE_INSTALL_RENAMES")
+  if(_tip_source_install_files)
+    list(LENGTH _tip_source_install_files _tip_source_install_count)
+    math(EXPR _tip_source_install_last_index "${_tip_source_install_count} - 1")
+    foreach(_tip_source_install_index RANGE ${_tip_source_install_last_index})
+      list(GET _tip_source_install_files ${_tip_source_install_index} _tip_source_install_file)
+      list(GET _tip_source_install_destinations ${_tip_source_install_index} _tip_source_install_destination)
+      list(GET _tip_source_install_renames ${_tip_source_install_index} _tip_source_install_rename)
 
-    _tip_install_files_preserving_layout("${TARGET_NAME}" "${_tip_source_files}" "${_tip_source_base_dirs}" "${_tip_source_destination}" ${_tip_component_args})
+      install(
+        FILES "${_tip_source_install_file}"
+        DESTINATION "${_tip_source_install_destination}"
+        RENAME "${_tip_source_install_rename}"
+        ${_tip_component_args})
+      project_log(DEBUG "  Installing extracted source for '${TARGET_NAME}': ${_tip_source_install_file} -> ${_tip_source_install_destination}/${_tip_source_install_rename}")
+    endforeach()
   endif()
 endfunction()
 
@@ -1564,55 +1759,40 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     _tip_make_c_identifier(_tip_alias_identifier "${_tip_entry_alias_name}")
     set(_tip_local_target "__tip_${_tip_export_identifier}_${_tip_alias_identifier}")
     set(_tip_namespaced_alias "${NAMESPACE}${_tip_entry_alias_name}")
-    set(_tip_library_type_var "${_tip_alias_identifier}_LIBRARY_TYPE")
 
     set(_tip_create_scope "PUBLIC")
-    if(_tip_entry_target_type STREQUAL "INTERFACE_LIBRARY")
-      set(_tip_default_library_type "STATIC")
-    elseif(_tip_entry_target_type STREQUAL "SHARED_LIBRARY")
-      set(_tip_default_library_type "SHARED")
-    elseif(_tip_entry_target_type STREQUAL "OBJECT_LIBRARY")
-      set(_tip_default_library_type "OBJECT")
-    else()
-      set(_tip_default_library_type "STATIC")
-    endif()
-
     set(_tip_has_compiled_payload FALSE)
     if(_tip_entry_source_files OR _tip_entry_module_files)
       set(_tip_has_compiled_payload TRUE)
     endif()
 
     string(APPEND _tip_source_targets_code "if(NOT TARGET ${_tip_namespaced_alias})\n")
-    string(APPEND _tip_source_targets_code "  set(_tip_requested_library_type \"\")\n")
-    string(APPEND _tip_source_targets_code "  if(DEFINED ${_tip_library_type_var})\n")
-    string(APPEND _tip_source_targets_code "    set(_tip_requested_library_type \"\${${_tip_library_type_var}}\")\n")
-    string(APPEND _tip_source_targets_code "  endif()\n")
-    string(APPEND _tip_source_targets_code "  string(TOUPPER \"\${_tip_requested_library_type}\" _tip_requested_library_type)\n")
-    if(_tip_has_compiled_payload)
-      string(APPEND _tip_source_targets_code "  if(NOT _tip_requested_library_type)\n")
-      string(APPEND _tip_source_targets_code "    set(_tip_requested_library_type \"${_tip_default_library_type}\")\n")
-      string(APPEND _tip_source_targets_code "  endif()\n")
-      string(APPEND _tip_source_targets_code "  set(_tip_supported_library_types STATIC SHARED OBJECT)\n")
-      string(APPEND _tip_source_targets_code "  if(NOT _tip_requested_library_type IN_LIST _tip_supported_library_types)\n")
-      string(
-        APPEND
-        _tip_source_targets_code
-        "    message(FATAL_ERROR \"${_tip_library_type_var} must be one of: STATIC, SHARED, OBJECT for package target ${_tip_namespaced_alias}.\")\n")
-      string(APPEND _tip_source_targets_code "  endif()\n")
-      string(APPEND _tip_source_targets_code "  add_library(${_tip_local_target} \${_tip_requested_library_type})\n")
+    if(_tip_entry_target_type STREQUAL "INTERFACE_LIBRARY")
+      string(APPEND _tip_source_targets_code "  add_library(${_tip_local_target} INTERFACE)\n")
+      set(_tip_create_scope "INTERFACE")
+    elseif(_tip_entry_target_type STREQUAL "OBJECT_LIBRARY")
+      string(APPEND _tip_source_targets_code "  add_library(${_tip_local_target} OBJECT)\n")
+    elseif(_tip_entry_target_type STREQUAL "MODULE_LIBRARY")
+      string(APPEND _tip_source_targets_code "  add_library(${_tip_local_target} MODULE)\n")
+    elseif(_tip_has_compiled_payload)
+      string(APPEND _tip_source_targets_code "  add_library(${_tip_local_target})\n")
     else()
-      string(APPEND _tip_source_targets_code "  if(NOT _tip_requested_library_type)\n")
-      string(APPEND _tip_source_targets_code "    set(_tip_requested_library_type \"INTERFACE\")\n")
-      string(APPEND _tip_source_targets_code "  endif()\n")
-      string(APPEND _tip_source_targets_code "  if(NOT _tip_requested_library_type STREQUAL \"INTERFACE\")\n")
-      string(APPEND _tip_source_targets_code "    message(FATAL_ERROR \"${_tip_library_type_var} must be INTERFACE for package target ${_tip_namespaced_alias} because no implementation sources were installed.\")\n")
-      string(APPEND _tip_source_targets_code "  endif()\n")
       string(APPEND _tip_source_targets_code "  add_library(${_tip_local_target} INTERFACE)\n")
       set(_tip_create_scope "INTERFACE")
     endif()
     string(APPEND _tip_source_targets_code "  add_library(${_tip_namespaced_alias} ALIAS ${_tip_local_target})\n")
-    string(APPEND _tip_source_targets_code "  unset(_tip_supported_library_types)\n")
-    string(APPEND _tip_source_targets_code "  unset(_tip_requested_library_type)\n")
+    string(APPEND _tip_source_targets_code "  if(DEFINED BUILD_SHARED_LIBS)\n")
+    string(APPEND _tip_source_targets_code "    set(_tip_build_shared_libs_value \"\${BUILD_SHARED_LIBS}\")\n")
+    string(APPEND _tip_source_targets_code "  else()\n")
+    string(APPEND _tip_source_targets_code "    set(_tip_build_shared_libs_value \"<unset>\")\n")
+    string(APPEND _tip_source_targets_code "  endif()\n")
+    string(APPEND _tip_source_targets_code "  get_target_property(_tip_local_target_type ${_tip_local_target} TYPE)\n")
+    string(
+      APPEND
+      _tip_source_targets_code
+      "  message(DEBUG \"[target_install_package] Recreated ${_tip_namespaced_alias} as \${_tip_local_target_type} (BUILD_SHARED_LIBS=\${_tip_build_shared_libs_value})\")\n")
+    string(APPEND _tip_source_targets_code "  unset(_tip_local_target_type)\n")
+    string(APPEND _tip_source_targets_code "  unset(_tip_build_shared_libs_value)\n")
     string(APPEND _tip_source_targets_code "endif()\n\n")
 
     if(_tip_has_compiled_payload)
@@ -1624,7 +1804,13 @@ function(_tip_generate_source_targets_file OUTPUT_PATH EXPORT_NAME NAMESPACE EXP
     if(_tip_entry_source_files)
       set(_tip_installed_source_paths "")
       foreach(_tip_source_file IN LISTS _tip_entry_source_files)
-        list(APPEND _tip_installed_source_paths "\${PACKAGE_PREFIX_DIR}/${_tip_source_file}")
+        if(_tip_source_file MATCHES "^\\$<(\\$<.+>):(.+)>$")
+          list(APPEND _tip_installed_source_paths "$<${CMAKE_MATCH_1}:\${PACKAGE_PREFIX_DIR}/${CMAKE_MATCH_2}>")
+        elseif(IS_ABSOLUTE "${_tip_source_file}" OR _tip_source_file MATCHES "\\$<")
+          list(APPEND _tip_installed_source_paths "${_tip_source_file}")
+        else()
+          list(APPEND _tip_installed_source_paths "\${PACKAGE_PREFIX_DIR}/${_tip_source_file}")
+        endif()
       endforeach()
       _tip_append_cmake_path_list_command(_tip_source_targets_code "target_sources" "${_tip_local_target}" "PRIVATE" ${_tip_installed_source_paths})
     endif()

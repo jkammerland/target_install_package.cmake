@@ -41,13 +41,17 @@ add_custom_command(
 
 target_sources(
   source_package
-  PRIVATE src/source_package.cpp generated/source_package_generated.cpp
+  PRIVATE "$<BUILD_INTERFACE:src/source_package.cpp>"
+          generated/source_package_generated.cpp
+          "$<$<PLATFORM_ID:Windows>:src/source_package_platform_windows.cpp>"
+          "$<$<NOT:$<PLATFORM_ID:Windows>>:src/source_package_platform_posix.cpp>"
   PUBLIC FILE_SET
          HEADERS
          BASE_DIRS
          "${CMAKE_CURRENT_SOURCE_DIR}/include"
          FILES
          "include/source_package/source_package.hpp")
+set_target_properties(source_package PROPERTIES PUBLIC_HEADER "include/source_package_legacy.hpp")
 target_compile_definitions(source_package PRIVATE SOURCE_PACKAGE_PRIVATE_VALUE=7)
 target_include_directories(source_package PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")

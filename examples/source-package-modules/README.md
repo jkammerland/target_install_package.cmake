@@ -26,8 +26,9 @@ cmake_minimum_required(VERSION 3.28)
 project(consumer LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
-set(source_math_modules_LIBRARY_TYPE STATIC)
+set(BUILD_SHARED_LIBS ON)
 find_package(source_math_modules REQUIRED)
+unset(BUILD_SHARED_LIBS)
 
 add_executable(app main.cpp)
 target_link_libraries(app PRIVATE SourceMathModules::source_math_modules)
@@ -42,4 +43,4 @@ int main() {
 }
 ```
 
-`find_package()` recreates `SourceMathModules::source_math_modules` from the installed `.cppm` and `.cpp` files because the package was installed with `INCLUDE_SOURCES EXCLUSIVE`.
+`find_package()` recreates `SourceMathModules::source_math_modules` from the installed `.cppm` and `.cpp` files because the package was installed with `INCLUDE_SOURCES EXCLUSIVE`. Since it is an ordinary compiled library, the recreated target follows `BUILD_SHARED_LIBS`.

@@ -64,6 +64,8 @@ target_install_package(mylib
 )
 ```
 
+For ordinary compiled libraries, the recreated target follows `BUILD_SHARED_LIBS` in the consumer project. `OBJECT_LIBRARY`, `MODULE_LIBRARY`, and `INTERFACE_LIBRARY` targets keep their original type.
+
 | Setting | Default | Result |
 |---------|---------|--------|
 | `SOURCE_DESTINATION` omitted | `${CMAKE_INSTALL_DATADIR}/<package>` | Sources land under `share/<package>/...` |
