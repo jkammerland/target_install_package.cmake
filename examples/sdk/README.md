@@ -17,7 +17,7 @@ install/
 ├── include/sdk/runtime.hpp
 ├── include/sdk/open_algorithms.hpp
 ├── include/sdk/sdk.hpp
-├── share/sdk/src/open_algorithms.cpp
+├── share/sdk/sdk_open_algorithms/src/open_algorithms.cpp
 ├── lib*/libsdk_runtime.*
 └── share/cmake/sdk/*.cmake
 ```

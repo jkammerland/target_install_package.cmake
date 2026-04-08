@@ -210,6 +210,10 @@ target_compile_features(test_source_package_consumer PRIVATE cxx_std_17)
 add_test(NAME examples_source_package_consume_test COMMAND test_source_package_consumer)
 set_tests_properties(examples_source_package_consume_test PROPERTIES TIMEOUT 120 LABELS "integration;source-package")
 
+# Example-internal verification only. Keep package contract assertions out of the
+# consumer-facing example target setup.
+include(${CMAKE_CURRENT_SOURCE_DIR}/verify_sdk_example_contracts.cmake)
+
 add_executable(test_sdk_consumer test_sdk_consumer.cpp)
 target_link_libraries(test_sdk_consumer PRIVATE Sdk::sdk)
 target_compile_features(test_sdk_consumer PRIVATE cxx_std_17)

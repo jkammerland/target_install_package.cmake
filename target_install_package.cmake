@@ -4090,6 +4090,9 @@ function(_validate_config_template_placeholders template_path export_name includ
 
   string(REGEX REPLACE "([][+.*?^$(){}|\\\\])" "\\\\\\1" _tip_escaped_export_name "${export_name}")
   set(_tip_export_name_refs "@ARG_EXPORT_NAME@" "\\$\\{CMAKE_FIND_PACKAGE_NAME\\}" "${_tip_escaped_export_name}")
+  # Keep compatibility detection deliberately narrow: accept direct include()
+  # and simple set(<var> <export-name>) aliases without trying to evaluate
+  # arbitrary template logic during validation.
   string(REGEX MATCHALL "set\\([^\\)]*\\)" _tip_template_set_commands "${_tip_template_content}")
   foreach(_tip_set_command IN LISTS _tip_template_set_commands)
     if(_tip_set_command MATCHES
