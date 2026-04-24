@@ -485,6 +485,7 @@ EXAMPLES=(
     "multi-config"
     "components"
     "components-same-export"
+    "sdk"
     "dependency-aggregation"
     "configure-files"
     "cxx-modules"

@@ -13,6 +13,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [multi-config](multi-config/) | Multi-Config | Different configurations (Debug/Release) within a single package |
 | [components](components/) | Component-Based | Custom components and selective installation |
 | [components-same-export](components-same-export/) | Multi-Target Export | Correct pattern for multiple targets with dependency aggregation |
+| [sdk](sdk/) | SDK Package | Prebuilt shared/static libraries with an interface umbrella target |
 | [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
 | [configure-files](configure-files/) | Template Configuration | Build-time header generation from templates |
 | [cxx-modules](cxx-modules/) | C++20 Modules | C++20 modules with CXX_MODULES file sets |
@@ -65,15 +66,16 @@ Progress to more sophisticated packaging strategies:
 5. **[multi-config](multi-config/)** - Manage multiple configurations within a single package
 6. **[components](components/)** - Implement flexible component-based installation with logical groups
 7. **[components-same-export](components-same-export/)** - **Multi-target export with dependency aggregation** (use this when multiple targets must be consumed through one export)
-8. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
-9. **[configure-files](configure-files/)** - Generate build-time configuration headers
-10. **[custom-alias](custom-alias/)** - Export cleaner consumer-facing alias names
-11. **[rpath-example](rpath-example/)** - Verify relocatable installs without `LD_LIBRARY_PATH`
-12. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
-13. **[cxx-modules-partitions](cxx-modules-partitions/)** - Explore module partition hierarchies
-14. **[cpack-basic](cpack-basic/)** - Generate component packages with `export_cpack()`
-15. **[cpack-signed](cpack-signed/)** - Add GPG signatures and checksums to generated packages
-16. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
+8. **[sdk](sdk/)** - Model a conventional SDK with prebuilt shared/static libraries and an umbrella target
+9. **[dependency-aggregation](dependency-aggregation/)** - **Minimal dependency aggregation mechanics** (focused example)
+10. **[configure-files](configure-files/)** - Generate build-time configuration headers
+11. **[custom-alias](custom-alias/)** - Export cleaner consumer-facing alias names
+12. **[rpath-example](rpath-example/)** - Verify relocatable installs without `LD_LIBRARY_PATH`
+13. **[cxx-modules](cxx-modules/)** - Explore modern C++20 modules (requires CMake 3.28+)
+14. **[cxx-modules-partitions](cxx-modules-partitions/)** - Explore module partition hierarchies
+15. **[cpack-basic](cpack-basic/)** - Generate component packages with `export_cpack()`
+16. **[cpack-signed](cpack-signed/)** - Add GPG signatures and checksums to generated packages
+17. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
 
 ## 🔧 Common Build Commands
 
@@ -226,6 +228,11 @@ install/
 - Dependency aggregation from multiple `PUBLIC_DEPENDENCIES`
 - Per-target component assignments within single export
 - Uses multi-target exports with shared dependencies
+
+### SDK Package ([sdk](sdk/))
+- Conventional SDK layout with prebuilt shared and static libraries
+- Interface umbrella target for simple consumer linking
+- Demonstrates the package shape used by sysroot-style SDKs
 
 ### Dependency Aggregation ([dependency-aggregation](dependency-aggregation/))
 - **Minimal focused example** of dependency aggregation mechanics

@@ -721,6 +721,7 @@ These example projects live under [`examples/`](examples/) and can be built indi
 | [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |
 | [components](examples/components/) | Component-Based | Component Prefix Pattern and selective installation |
 | [components-same-export](examples/components-same-export/) | Multi-Target Export | Shared export with per-target components |
+| [sdk](examples/sdk/) | SDK Package | Prebuilt shared/static libraries with an interface umbrella target |
 | [dependency-aggregation](examples/dependency-aggregation/) | Dependency Aggregation | Aggregating PUBLIC_DEPENDENCIES across one export |
 | [configure-files](examples/configure-files/) | Template Configuration | Build-time generated headers from templates |
 | [cxx-modules](examples/cxx-modules/) | C++20 Modules | Basic CXX_MODULES packaging |

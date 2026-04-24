@@ -127,6 +127,7 @@ find_package(math_utils CONFIG REQUIRED)
 find_package(MediaLib CONFIG REQUIRED)
 find_package(config_lib CONFIG REQUIRED)
 find_package(engine2 CONFIG REQUIRED)
+find_package(sdk CONFIG REQUIRED)
 find_package(mylib CONFIG REQUIRED)
 find_package(cpack_lib CONFIG REQUIRED)
 find_package(cbor_tags REQUIRED)
@@ -150,6 +151,7 @@ message(STATUS "Found package MediaLib: ${MediaLib_FOUND}")
 message(STATUS "Found package config_lib: ${config_lib_FOUND}")
 message(STATUS "Found package game_engine: ${game_engine_FOUND}")
 message(STATUS "Found package engine2: ${engine2_FOUND}")
+message(STATUS "Found package sdk: ${sdk_FOUND}")
 message(STATUS "Found package mylib(fmt, spdlog, cxxopts): ${mylib_FOUND}")
 message(STATUS "Found package cpack_basic_example: ${cpack_lib_FOUND}")
 message(STATUS "Found package cbor_tags: ${cbor_tags_FOUND}")
@@ -196,6 +198,30 @@ enable_testing()
 add_test(NAME examples_integration_test COMMAND test_examples_main)
 set_tests_properties(examples_integration_test PROPERTIES TIMEOUT 300 # 5 minute timeout
                                                           LABELS "integration")
+
+add_executable(test_sdk_consumer test_sdk_consumer.cpp)
+target_link_libraries(test_sdk_consumer PRIVATE Sdk::sdk)
+if(WIN32)
+  add_custom_command(
+    TARGET test_sdk_consumer
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:test_sdk_consumer> $<TARGET_RUNTIME_DLLS:test_sdk_consumer>
+    COMMAND_EXPAND_LISTS)
+endif()
+add_test(NAME examples_sdk_consume_test COMMAND test_sdk_consumer)
+set_tests_properties(examples_sdk_consume_test PROPERTIES TIMEOUT 60 LABELS "integration;sdk")
+
+add_executable(test_sdk_direct_consumer test_sdk_direct_consumer.cpp)
+target_link_libraries(test_sdk_direct_consumer PRIVATE Sdk::runtime Sdk::algorithms)
+if(WIN32)
+  add_custom_command(
+    TARGET test_sdk_direct_consumer
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:test_sdk_direct_consumer> $<TARGET_RUNTIME_DLLS:test_sdk_direct_consumer>
+    COMMAND_EXPAND_LISTS)
+endif()
+add_test(NAME examples_sdk_direct_consume_test COMMAND test_sdk_direct_consumer)
+set_tests_properties(examples_sdk_direct_consume_test PROPERTIES TIMEOUT 60 LABELS "integration;sdk")
 
 if(SHOULD_TEST_CXX_MODULES)
   add_executable(test_math_modules_consumer test_math_modules_consumer.cpp)
