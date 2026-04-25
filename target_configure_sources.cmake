@@ -154,7 +154,12 @@ function(target_configure_sources TARGET_NAME)
     string(REGEX REPLACE "\\.in$" "" OUTPUT_FILE_NAME "${FILE_NAME}")
     set(OUTPUT_FILE "${ARGS_OUTPUT_DIR}/${OUTPUT_FILE_NAME}")
 
-    configure_file("${SOURCE_FILE}" "${OUTPUT_FILE}" ${ARGS_SUBSTITUTION_MODE})
+    set(_tip_configure_file_options "")
+    if(ARGS_SUBSTITUTION_MODE STREQUAL "@ONLY")
+      list(APPEND _tip_configure_file_options @ONLY)
+    endif()
+
+    configure_file("${SOURCE_FILE}" "${OUTPUT_FILE}" ${_tip_configure_file_options})
 
     list(APPEND CONFIGURED_FILES "${OUTPUT_FILE}")
     project_log(DEBUG "  Configured ${SOURCE_FILE} -> ${OUTPUT_FILE}")

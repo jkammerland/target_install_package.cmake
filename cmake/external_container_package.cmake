@@ -10,10 +10,37 @@ endif()
 # Get configuration from CPack
 set(STAGING_DIR "${CPACK_TEMPORARY_DIRECTORY}")
 set(WORK_DIR "${CPACK_TOPLEVEL_DIRECTORY}")
+set(CONTAINER_ROOTFS_DIR "${STAGING_DIR}")
 
 message(STATUS "Creating minimal container from staged files")
 message(STATUS "  Staging: ${STAGING_DIR}")
 message(STATUS "  Work: ${WORK_DIR}")
+
+# Prefer a runtime component rootfs when CPack staged per-component trees.
+if(IS_DIRECTORY "${STAGING_DIR}/Runtime")
+  set(CONTAINER_ROOTFS_DIR "${STAGING_DIR}/Runtime")
+else()
+  file(GLOB _tip_staged_children RELATIVE "${STAGING_DIR}" "${STAGING_DIR}/*")
+  foreach(_tip_child IN LISTS _tip_staged_children)
+    if(NOT IS_DIRECTORY "${STAGING_DIR}/${_tip_child}")
+      continue()
+    endif()
+    if(_tip_child STREQUAL "Development" OR _tip_child MATCHES "_Development$")
+      continue()
+    endif()
+    foreach(_tip_bin_dir "usr/local/bin" "usr/bin" "bin")
+      if(IS_DIRECTORY "${STAGING_DIR}/${_tip_child}/${_tip_bin_dir}")
+        set(CONTAINER_ROOTFS_DIR "${STAGING_DIR}/${_tip_child}")
+        break()
+      endif()
+    endforeach()
+    if(NOT CONTAINER_ROOTFS_DIR STREQUAL "${STAGING_DIR}")
+      break()
+    endif()
+  endforeach()
+endif()
+
+message(STATUS "  Container rootfs: ${CONTAINER_ROOTFS_DIR}")
 
 # Find the scripts directory
 set(SCRIPT_DIR "${CMAKE_CURRENT_LIST_DIR}")
@@ -30,7 +57,7 @@ if(NOT CONTAINER_TAG)
 endif()
 
 # Export variables for shell scripts
-set(ENV{STAGING_DIR} "${STAGING_DIR}")
+set(ENV{STAGING_DIR} "${CONTAINER_ROOTFS_DIR}")
 set(ENV{WORK_DIR} "${WORK_DIR}")
 set(ENV{CONTAINER_NAME} "${CONTAINER_NAME}")
 set(ENV{CONTAINER_TAG} "${CONTAINER_TAG}")

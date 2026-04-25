@@ -3,7 +3,7 @@
 # Build minimal container from staging directory
 # Creates a FROM scratch container with only app and dependencies
 
-set -e
+set -euo pipefail
 
 STAGING_DIR="${STAGING_DIR:-}"
 WORK_DIR="${WORK_DIR:-}"
@@ -17,20 +17,15 @@ fi
 
 echo "Building container: $CONTAINER_NAME:$CONTAINER_TAG"
 
-# Find the main executable (check common staged layouts)
-# CPack with DESTDIR staging typically prefixes with /usr/local by default.
-# Search both component and non-component layouts; check "bin" locations first.
+# Find the main executable in the selected rootfs.
 ENTRYPOINT=""
 for dir in \
-    "$STAGING_DIR/Runtime/usr/local/bin" \
-    "$STAGING_DIR/Runtime/usr/bin" \
-    "$STAGING_DIR/Runtime/bin" \
     "$STAGING_DIR/usr/local/bin" \
     "$STAGING_DIR/usr/bin" \
     "$STAGING_DIR/bin" \
     "$STAGING_DIR"; do
     if [ -d "$dir" ]; then
-        CANDIDATE=$(find "$dir" -maxdepth 1 -type f -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | head -n1)
+        CANDIDATE=$(find "$dir" -maxdepth 1 -type f -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | sort | head -n1)
         if [ -n "$CANDIDATE" ]; then
             # Make path relative to staging dir
             ENTRYPOINT="${CANDIDATE#$STAGING_DIR}"
@@ -42,7 +37,7 @@ done
 
 if [ -z "$ENTRYPOINT" ]; then
     # Fallback: search any bin directory under the staging tree for an ELF executable
-    CANDIDATE=$(find "$STAGING_DIR" -type f -path '*/bin/*' -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | head -n1)
+    CANDIDATE=$(find "$STAGING_DIR" -type f -path '*/bin/*' -exec file {} \; 2>/dev/null | grep "ELF.*executable" | cut -d: -f1 | sort | head -n1)
     if [ -n "$CANDIDATE" ]; then
         ENTRYPOINT="${CANDIDATE#$STAGING_DIR}"
         ENTRYPOINT="${ENTRYPOINT#/}"
@@ -60,36 +55,31 @@ ENTRYPOINT_PATH="/$ENTRYPOINT"
 # This avoids breaking the ENTRYPOINT JSON array if unusual characters appear in the path
 ENTRYPOINT_JSON=$(printf '%s' "$ENTRYPOINT_PATH" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
-# Generate Dockerfile
-cat > "$STAGING_DIR/Dockerfile" << EOF
+# Generate Containerfile outside the rootfs context so it is not copied into the image.
+CONTAINERFILE="$WORK_DIR/Containerfile.${CONTAINER_NAME//\//_}.${CONTAINER_TAG//\//_}"
+cat > "$CONTAINERFILE" << EOF
 FROM scratch
 
-# Copy entire staged tree
+# Copy the prepared runtime rootfs
 COPY . /
 
 # Set library path for dynamic linker
 ENV LD_LIBRARY_PATH=/lib:/lib64:/usr/lib:/usr/lib64
 
-# Run as non-root user (UID 1000)
-USER 1000
-
 # Set entrypoint to the application
 ENTRYPOINT ["$ENTRYPOINT_JSON"]
 EOF
 
-# Build the container
-cd "$STAGING_DIR"
-
 # Try podman first, then docker
 if command -v podman &> /dev/null; then
     echo "Building with podman..."
-    podman build -t "$CONTAINER_NAME:$CONTAINER_TAG" .
+    podman build -f "$CONTAINERFILE" -t "$CONTAINER_NAME:$CONTAINER_TAG" "$STAGING_DIR"
     echo "Container built: $CONTAINER_NAME:$CONTAINER_TAG"
     echo "Test with: podman run --rm $CONTAINER_NAME:$CONTAINER_TAG"
 
 elif command -v docker &> /dev/null; then
     echo "Building with docker..."
-    docker build -t "$CONTAINER_NAME:$CONTAINER_TAG" .
+    docker build -f "$CONTAINERFILE" -t "$CONTAINER_NAME:$CONTAINER_TAG" "$STAGING_DIR"
     echo "Container built: $CONTAINER_NAME:$CONTAINER_TAG"
     echo "Test with: docker run --rm $CONTAINER_NAME:$CONTAINER_TAG"
 

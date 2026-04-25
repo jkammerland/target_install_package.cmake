@@ -1190,11 +1190,21 @@ function(finalize_package)
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 
-  # Create package version file using EXPORT_NAME
+  # Create package version file using CMake's canonical ConfigVersion naming.
+  # Keep the historical -config-version alias for compatibility with existing installs/tests.
+  set(VERSION_FILENAME "${ARG_EXPORT_NAME}ConfigVersion.cmake")
+  set(VERSION_FILE_PATH "${CURRENT_BINARY_DIR}/${VERSION_FILENAME}")
+  set(LEGACY_VERSION_FILENAME "${ARG_EXPORT_NAME}-config-version.cmake")
+  set(LEGACY_VERSION_FILE_PATH "${CURRENT_BINARY_DIR}/${LEGACY_VERSION_FILENAME}")
+
   write_basic_package_version_file(
-    "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
+    "${VERSION_FILE_PATH}"
     VERSION ${VERSION}
     COMPATIBILITY ${COMPATIBILITY})
+
+  if(NOT VERSION_FILENAME STREQUAL LEGACY_VERSION_FILENAME)
+    configure_file("${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}" COPYONLY)
+  endif()
 
   # Prepare public dependencies content
   set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "")
@@ -1207,9 +1217,11 @@ function(finalize_package)
 
   # Prepare component dependencies content for template substitution
   set(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "")
-  if(COMPONENT_DEPENDENCY_COMPONENTS)
+  set(_tip_find_package_components ${ALL_UNIQUE_COMPONENTS} ${COMPONENT_DEPENDENCY_COMPONENTS})
+  if(_tip_find_package_components)
+    list(REMOVE_DUPLICATES _tip_find_package_components)
     set(_tip_known_find_components "")
-    foreach(component_name ${COMPONENT_DEPENDENCY_COMPONENTS})
+    foreach(component_name ${_tip_find_package_components})
       _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${component_name}")
       get_property(component_deps GLOBAL PROPERTY "${_tip_component_property}")
       list(APPEND _tip_known_find_components "${component_name}")
@@ -1306,7 +1318,7 @@ function(finalize_package)
 
   # Install config files using correct filename with config component
   install(
-    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
+    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}"
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 

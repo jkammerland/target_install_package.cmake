@@ -223,3 +223,60 @@ endif()
 
 add_test(NAME component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_component_test_common_args} -P "${_tip_component_test_script}")
 set_tests_properties(component_dependencies PROPERTIES LABELS "component-dependencies")
+
+option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known review findings" OFF)
+
+if(target_install_package_BUILD_PROOF_TESTS)
+  set(_tip_proof_test_root "${CMAKE_CURRENT_BINARY_DIR}/proofs")
+  set(_tip_proof_script_dir "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+  set(_tip_proof_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_PROOF_TEST_ROOT=${_tip_proof_test_root}" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+
+  if(CMAKE_MAKE_PROGRAM)
+    list(APPEND _tip_proof_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
+  endif()
+  if(CMAKE_C_COMPILER)
+    list(APPEND _tip_proof_common_args "-DTIP_C_COMPILER=${CMAKE_C_COMPILER}")
+  endif()
+  if(CMAKE_CXX_COMPILER)
+    list(APPEND _tip_proof_common_args "-DTIP_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+  endif()
+  if(CMAKE_TOOLCHAIN_FILE)
+    list(APPEND _tip_proof_common_args "-DTIP_CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+  endif()
+  if(CMAKE_GENERATOR_PLATFORM)
+    list(APPEND _tip_proof_common_args "-DTIP_CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}")
+  endif()
+  if(CMAKE_GENERATOR_TOOLSET)
+    list(APPEND _tip_proof_common_args "-DTIP_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
+  endif()
+
+  add_test(
+    NAME proof_versioned_find_package
+    COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_versioned_find_package_test.cmake")
+  set_tests_properties(proof_versioned_find_package PROPERTIES LABELS "proof;review")
+
+  add_test(
+    NAME proof_component_find_package
+    COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_component_find_package_test.cmake")
+  set_tests_properties(proof_component_find_package PROPERTIES LABELS "proof;review")
+
+  add_test(
+    NAME proof_substitution_mode_variables
+    COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_substitution_mode_variables_test.cmake")
+  set_tests_properties(proof_substitution_mode_variables PROPERTIES LABELS "proof;review")
+
+  find_program(_tip_bash bash)
+  find_program(_tip_podman podman)
+  find_program(_tip_docker docker)
+  if(_tip_bash AND (_tip_podman OR _tip_docker))
+    add_test(
+      NAME proof_container_flow
+      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_container_flow.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/container-flow")
+    set_tests_properties(proof_container_flow PROPERTIES LABELS "proof;review;container")
+
+    add_test(
+      NAME proof_collect_runtime_deps
+      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_collect_runtime_deps.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/collect-runtime-deps")
+    set_tests_properties(proof_collect_runtime_deps PROPERTIES LABELS "proof;review;container")
+  endif()
+endif()
