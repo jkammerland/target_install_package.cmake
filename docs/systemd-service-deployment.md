@@ -8,16 +8,22 @@ Deploy containers created with CPack as systemd services using Podman Quadlet fi
 
 - Podman 4.4+ (for Quadlet support)
 - systemd with cgroups v2
-- Container image built with CPack CONTAINER generator
+- Container image built and saved with the CPack `CONTAINER` generator
 
 ## Workflow
 
 ### 1. Build Container
 
 ```bash
-cmake -B build
+cmake -S . -B build
 cmake --build build
-cd build && cpack  # Creates container image
+cmake --build build --target package
+```
+
+CPack builds the image in the local Podman store as a side effect and writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. If you deploy on another host, copy the archive and load it there:
+
+```bash
+podman load -i myapp-1.0.0-oci-archive.tar
 ```
 
 ### 2. Generate Quadlet File
@@ -152,13 +158,15 @@ podman auto-update
 ```bash
 # 1. Build container with CPack
 cd myproject
-cmake -B build -G Ninja
+cmake -S . -B build -G Ninja
 cmake --build build
-cd build
-cpack  # Creates myapp:1.0.0
+cmake --build build --target package
+
+# Optional when deploying from the saved artifact or on another host
+podman load -i build/myapp-1.0.0-oci-archive.tar
 
 # 2. Generate Quadlet
-../cmake/container_to_quadlet.sh myapp:1.0.0 \
+./cmake/container_to_quadlet.sh myapp:1.0.0 \
   --name myapp \
   --restart always \
   --auto-update \

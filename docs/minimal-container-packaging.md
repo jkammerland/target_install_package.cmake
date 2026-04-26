@@ -2,78 +2,110 @@
 
 ## Goal
 Create minimal containers using CPack that:
-- Include only the application and its runtime dependencies
-- Use `FROM scratch` base (no OS layer)
-- Automatically collect system library dependencies
-- Run during `cpack` on the build machine
+
+- Include selected installed components and their runtime dependencies
+- Use a `FROM scratch` base with no OS layer
+- Collect dynamic library dependencies with `ldd`
+- Save the generated image as a CPack-visible archive
+- Run during `cpack` on the build machine with the explicitly configured runtime
 
 ## Architecture
 
 ### 1. CPack External Generator Flow
-```
+```text
 cmake --build
-    ↓
+    |
 cpack -G External
-    ↓
-CPack installs to staging dir
-    ↓
+    |
+CPack installs components to staging
+    |
 external_container_package.cmake runs
-    ↓
-collect_runtime_deps.sh scans binaries
-    ↓
-build_minimal_container.sh creates image
-    ↓
-Container image: myapp:version
+    |
+selected components are merged into container-rootfs
+    |
+CONTAINER_ROOTFS_OVERLAYS are copied into container-rootfs
+    |
+collect_runtime_deps.sh scans ELF files and copies missing dynamic deps
+    |
+build_minimal_container.sh builds and saves the image
+    |
+Top-level archive: myapp-version-oci-archive.tar
 ```
 
 ### 2. Components
 
 #### external_container_package.cmake
 CMake script executed by CPack that:
-- Validates staging directory
-- Calls dependency collection script
-- Calls container build script
-- Reports success/failure
+
+- Selects `CONTAINER_COMPONENTS`, defaulting to CPack's default components
+- Fails if a requested component was not staged
+- Merges selected component directories into a single rootfs
+- Applies configured rootfs overlays
+- Calls dependency collection and container build scripts
+- Publishes the saved image archive through `CPACK_EXTERNAL_BUILT_PACKAGES`
 
 #### collect_runtime_deps.sh
 Shell script that:
-- Finds all executables and libraries in staging
-- Runs `ldd` on each binary
-- Copies system libraries to staging/lib
-- Copies dynamic linker (ld-linux)
-- Creates minimal /etc files if needed
+
+- Resolves the staging root to an absolute physical path
+- Finds ELF executables and libraries in the rootfs
+- Runs `ldd` on each ELF file
+- Fails on missing dependencies
+- Copies host dependencies into the same absolute paths under the rootfs
+- Skips dependencies that are already inside the staged rootfs
+- Preserves dynamic linker paths reported by `ldd`
 
 #### build_minimal_container.sh
 Shell script that:
-- Generates minimal Dockerfile using `FROM scratch`
-- Sets up library paths
-- Configures entry point
-- Builds container with podman/docker
+
+- Requires the configured runtime to be `podman` or `docker`
+- Defaults to `podman` and does not fall back to `docker`
+- Validates explicit `CONTAINER_ENTRYPOINT` paths
+- Auto-discovers an entrypoint only when exactly one executable ELF candidate exists
+- Generates a `Containerfile` using `FROM scratch`
+- Builds and saves the image archive with the configured runtime
 
 ### 3. Usage with export_cpack
 
 #### Integrated API
 ```cmake
-# Use export_cpack with CONTAINER generator
 export_cpack(
   PACKAGE_NAME "MyApp"
-  GENERATORS "TGZ;CONTAINER"  # CONTAINER generates FROM-scratch image
-  CONTAINER_NAME "myapp"       # Defaults to lowercase package name
-  CONTAINER_TAG "1.0.0"        # Defaults to package version
+  PACKAGE_VERSION "1.0.0"
+  GENERATORS "TGZ;CONTAINER"
+  CONTAINER_NAME "myapp"
+  CONTAINER_TAG "1.0.0"
+  CONTAINER_RUNTIME "podman"
+  CONTAINER_ENTRYPOINT "/usr/local/bin/myapp"
+  CONTAINER_ARCHIVE_FORMAT "oci-archive"
+  CONTAINER_COMPONENTS Runtime
+  CONTAINER_ROOTFS_OVERLAYS rootfs-overlay
 )
 ```
 
+`CONTAINER_RUNTIME` defaults to `podman`. Use `CONTAINER_RUNTIME docker` explicitly for Docker; Docker archives must use `docker-archive`.
+
+`CONTAINER_ROOTFS_OVERLAYS` entries are resolved relative to the source directory that calls `export_cpack()`, not necessarily the top-level source directory.
+
 #### Build Workflow
 ```bash
-cmake -B build
+cmake -S . -B build
 cmake --build build
-cd build && cpack
-# Creates both .tar.gz packages and container image
+cmake --build build --target package
+```
+
+The package step creates traditional CPack outputs plus the saved image archive:
+
+```text
+build/myapp-1.0.0-oci-archive.tar
 ```
 
 ### 4. Manual Setup (without export_cpack)
 
+Prefer `export_cpack()` because it validates container names, tags, runtime, archive format, and component names at configure time. Direct CPack variables are an escape hatch and bypass that validation.
+
 For direct CPack configuration:
+
 ```cmake
 set(CPACK_GENERATOR "External")
 set(CPACK_EXTERNAL_PACKAGE_SCRIPT
@@ -82,62 +114,83 @@ set(CPACK_EXTERNAL_ENABLE_STAGING ON)
 set(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
 set(CPACK_EXTERNAL_USER_CONTAINER_NAME "myapp")
 set(CPACK_EXTERNAL_USER_CONTAINER_TAG "1.0.0")
+set(CPACK_EXTERNAL_USER_CONTAINER_RUNTIME "podman")
+set(CPACK_EXTERNAL_USER_CONTAINER_ENTRYPOINT "/usr/local/bin/myapp")
+set(CPACK_EXTERNAL_USER_CONTAINER_ARCHIVE_FORMAT "oci-archive")
+set(CPACK_EXTERNAL_USER_CONTAINER_COMPONENTS "Runtime")
 include(CPack)
 ```
 
 ### 5. Runtime Dependency Collection Strategy
 
 #### Phase 1: Direct Dependencies
-- Use `ldd` on each ELF binary
-- Parse output to get .so paths
-- Skip virtual dependencies (linux-vdso, ld-linux)
+- Use `ldd` on each ELF file in the prepared rootfs
+- Parse direct `name => /path` entries and absolute interpreter paths
+- Fail if `ldd` reports `=> not found`
 
 #### Phase 2: Transitive Dependencies
-- Run `ldd` on collected .so files
-- Repeat until no new dependencies found
-- Handle symbolic links correctly
+- Run `ldd` on copied shared libraries
+- Repeat until no new dependency paths are discovered
+- Track processed paths to avoid loops
 
-#### Phase 3: Special Files
-- Copy dynamic linker (detected via `ldd` output, typically `/lib64/ld-linux-x86-64.so.2`)
-- Create minimal `/etc/passwd` and `/etc/group` if needed
-- Add `/etc/localtime` for timezone support (optional)
+#### Phase 3: Staged Dependencies
+- If `ldd` points to a dependency already under the rootfs, do not copy it again
+- This avoids nested paths such as `<rootfs>/<rootfs>/usr/local/lib/libapp.so`
+- Existing staged files keep their selected component or overlay content
 
 ### 6. Container Structure
 
-Final container filesystem:
+CPack component directories are flattened into the container rootfs. A Runtime component installed as:
+
+```text
+Runtime/usr/local/bin/myapp
+Runtime/usr/local/lib/libmyapp.so
 ```
-/
-├── app/
-│   └── myapp              # Your application
-├── lib/
-│   ├── libc.so.6         # System libraries
-│   ├── libstdc++.so.6
-│   └── ...
-├── lib64/
-│   └── ld-linux-x86-64.so.2  # Dynamic linker
-└── etc/                   # Minimal config (if needed)
-    └── passwd
+
+becomes:
+
+```text
+/usr/local/bin/myapp
+/usr/local/lib/libmyapp.so
 ```
+
+Host dependencies are copied into their absolute runtime paths under the rootfs, for example:
+
+```text
+/lib64/ld-linux-x86-64.so.2
+/usr/lib64/libstdc++.so.6
+```
+
+The generator does not add a shell, package manager, `/etc/passwd`, `/etc/group`, or timezone files automatically. Add required files with `CONTAINER_ROOTFS_OVERLAYS`.
 
 ### 7. Limitations
 
-- Linux only (ldd is Linux-specific)
-- Requires binaries to be dynamically linked
-- Won't work for applications needing /proc, /sys, /dev
-- No shell or debugging tools in container
-- May miss dlopen()'ed libraries (requires manual specification or runtime scanning)
+- Linux only (`ldd` is Linux-specific)
+- Dynamic dependency detection cannot see libraries loaded only through `dlopen()` unless they are also present in the selected components or overlays
+- Applications needing `/proc`, `/sys`, `/dev`, certificates, passwd/group entries, or timezone data need explicit runtime mounts or rootfs overlays
+- No shell or debugging tools are included unless you add them
 
 ### 8. Security Considerations
 
 - Containers run as UID 0 by default with `FROM scratch`
-- No user management without /etc/passwd
-- Consider adding a numeric USER directive
-- No package manager means no security updates
+- The generated `Containerfile` does not set `USER`
+- Add user/group files with an overlay if the application needs name resolution
+- No package manager means no in-image security updates; rebuild from patched host libraries
 
 ### 9. Testing Strategy
 
-1. Build example application with known dependencies
-2. Generate container
-3. Test container runs: `podman run --rm myapp:version`
-4. Verify size is minimal: `podman images | grep myapp`
-5. Check no unnecessary files: `podman run --rm myapp:version ls -la /`
+1. Build the application and run CPack.
+2. Verify the top-level archive exists.
+3. Remove the side-effect runtime image.
+4. Load the saved archive.
+5. Run the loaded image.
+6. Export and inspect the rootfs if layout matters.
+
+```bash
+cmake -S . -B build
+cmake --build build
+cmake --build build --target package
+podman rmi -f myapp:1.0.0 || true
+podman load -i build/myapp-1.0.0-oci-archive.tar
+podman run --rm myapp:1.0.0
+```
