@@ -29,7 +29,7 @@ collect_runtime_deps.sh scans ELF files and copies missing dynamic deps
     |
 build_minimal_container.sh builds and saves the image
     |
-Top-level archive: myapp-version-oci-archive.tar
+Top-level archive: <name>-<tag>-oci-archive.tar
 ```
 
 ### 2. Components
@@ -98,6 +98,16 @@ The package step creates traditional CPack outputs plus the saved image archive:
 
 ```text
 build/myapp-1.0.0-oci-archive.tar
+```
+
+For the included minimal example, use:
+
+```bash
+cmake -S examples/minimal-container -B build/minimal-container
+cmake --build build/minimal-container
+cmake --build build/minimal-container --target package
+podman load -i build/minimal-container/hello-1.0.0-oci-archive.tar
+podman run --rm hello:1.0.0
 ```
 
 ### 4. Manual Setup (without export_cpack)

@@ -12,7 +12,7 @@ services:
   hello_continuous:
     image: hello:1.0.0
     container_name: hello_continuous
-    entrypoint: ["/bin/hello_loop"]
+    entrypoint: ["/usr/local/bin/hello_loop"]
     command: ["continuous", "service"]
     restart: unless-stopped
     stop_signal: SIGTERM
