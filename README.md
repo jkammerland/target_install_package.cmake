@@ -48,8 +48,7 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 > `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
-`target_install_pa
-ckage()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
+`target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
 
 - `fhs` = Filesystem Hierarchy Standard (FHS) layout aligned with system package conventions (`DEB`/`RPM`): no configuration-specific subdirectories and standard `bin/`, `lib*/`, and `share/` destinations.
 - `split_debug` = only Debug artifacts go under `debug/`.
