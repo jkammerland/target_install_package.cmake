@@ -1305,7 +1305,7 @@ function(finalize_package)
     "${ARG_EXPORT_NAME}"
     "${INCLUDE_ON_FIND_PACKAGE}"
     "${PUBLIC_DEPENDENCIES}"
-    "${COMPONENT_DEPENDENCY_COMPONENTS}")
+    "${_tip_find_package_components}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")

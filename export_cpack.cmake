@@ -80,6 +80,11 @@ endif()
 #     [GENERATE_CHECKSUMS]
 #     [CONTAINER_NAME <name>]
 #     [CONTAINER_TAG <tag>]
+#     [CONTAINER_RUNTIME <podman|docker>]
+#     [CONTAINER_ENTRYPOINT </path/in/rootfs>]
+#     [CONTAINER_ARCHIVE_FORMAT <oci-archive|docker-archive>]
+#     [CONTAINER_COMPONENTS <component1> <component2> ...]
+#     [CONTAINER_ROOTFS_OVERLAYS <dir1> <dir2> ...]
 #     [ADDITIONAL_CPACK_VARS <var1> <value1> <var2> <value2> ...]
 #   )
 #
@@ -101,6 +106,11 @@ endif()
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
 #   CONTAINER_NAME          - Name for container image when using CONTAINER generator (default: lowercase package name)
 #   CONTAINER_TAG           - Tag for container image when using CONTAINER generator (default: package version)
+#   CONTAINER_RUNTIME       - Explicit runtime command for container build/save (default: podman)
+#   CONTAINER_ENTRYPOINT    - Entrypoint path inside the container rootfs. If omitted, exactly one executable must be discoverable.
+#   CONTAINER_ARCHIVE_FORMAT - Archive format for saved image (default: oci-archive for podman, docker-archive for docker)
+#   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS)
+#   CONTAINER_ROOTFS_OVERLAYS - Directories whose contents are merged into the rootfs after components
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
 #                             Can override any auto-detected settings including architecture
 #
@@ -152,6 +162,7 @@ endif()
 #     GENERATORS "TGZ;CONTAINER"   # CONTAINER generates FROM-scratch container
 #     CONTAINER_NAME "myapp"        # Defaults to lowercase package name
 #     CONTAINER_TAG "latest"        # Defaults to package version
+#     CONTAINER_RUNTIME "podman"    # Explicit runtime; defaults to podman
 #   )
 # ~~~
 function(export_cpack)
@@ -175,6 +186,7 @@ function(export_cpack)
 
   # Store arguments for deferred configuration
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS" "${ARGN}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED" TRUE)
 
   # Schedule deferred CPack configuration after package finalization
@@ -388,6 +400,10 @@ function(_execute_deferred_cpack_config)
   if(NOT args)
     return()
   endif()
+  get_property(_tip_cpack_config_source_dir GLOBAL PROPERTY "_TIP_CPACK_CONFIG_SOURCE_DIR")
+  if(NOT _tip_cpack_config_source_dir)
+    set(_tip_cpack_config_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
+  endif()
 
   # Now parse and process the stored arguments
   set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS GENERATE_CHECKSUMS)
@@ -406,8 +422,11 @@ function(_execute_deferred_cpack_config)
       SIGNING_METHOD
       GPG_KEYSERVER
       CONTAINER_NAME
-      CONTAINER_TAG)
-  set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS ADDITIONAL_CPACK_VARS)
+      CONTAINER_TAG
+      CONTAINER_RUNTIME
+      CONTAINER_ENTRYPOINT
+      CONTAINER_ARCHIVE_FORMAT)
+  set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS CONTAINER_COMPONENTS CONTAINER_ROOTFS_OVERLAYS ADDITIONAL_CPACK_VARS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
 
   # Set default package metadata from project properties
@@ -560,22 +579,94 @@ function(_execute_deferred_cpack_config)
     # Set container name (default to lowercase package name)
     if(ARG_CONTAINER_NAME)
       set(container_name "${ARG_CONTAINER_NAME}")
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
     else()
       string(TOLOWER "${ARG_PACKAGE_NAME}" container_name)
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
     endif()
+    if(NOT container_name MATCHES "^[a-z0-9]+([._:-]?[a-z0-9]+)*(/[a-z0-9]+([._-]?[a-z0-9]+)*)*$")
+      project_log(FATAL_ERROR "CONTAINER_NAME must be a lowercase container image name without whitespace, got: ${container_name}")
+    endif()
+    string(FIND "${container_name}" ":" _tip_container_name_colon_index)
+    if(NOT _tip_container_name_colon_index EQUAL -1)
+      string(FIND "${container_name}" "/" _tip_container_name_slash_index)
+      if(_tip_container_name_slash_index EQUAL -1 OR _tip_container_name_colon_index GREATER _tip_container_name_slash_index)
+        project_log(FATAL_ERROR "CONTAINER_NAME must not include a tag. Use CONTAINER_TAG instead: ${container_name}")
+      endif()
+    endif()
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_NAME "${container_name}")
 
     # Set container tag (default to package version)
     if(ARG_CONTAINER_TAG)
       set(container_tag "${ARG_CONTAINER_TAG}")
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${container_tag}")
     else()
       set(container_tag "${ARG_PACKAGE_VERSION}")
-      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${container_tag}")
+    endif()
+    string(LENGTH "${container_tag}" container_tag_length)
+    if(container_tag_length GREATER 128 OR NOT container_tag MATCHES "^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
+      project_log(FATAL_ERROR "CONTAINER_TAG must match Docker/Podman tag syntax, got: ${container_tag}")
+    endif()
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_TAG "${container_tag}")
+
+    if(ARG_CONTAINER_RUNTIME)
+      set(container_runtime "${ARG_CONTAINER_RUNTIME}")
+    else()
+      set(container_runtime "podman")
+    endif()
+    if(NOT container_runtime STREQUAL "podman" AND NOT container_runtime STREQUAL "docker")
+      project_log(FATAL_ERROR "CONTAINER_RUNTIME must be either 'podman' or 'docker', got: ${container_runtime}")
+    endif()
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_RUNTIME "${container_runtime}")
+
+    if(ARG_CONTAINER_ENTRYPOINT)
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_ENTRYPOINT "${ARG_CONTAINER_ENTRYPOINT}")
     endif()
 
-    project_log(VERBOSE "Container generation configured: ${container_name}:${container_tag}")
+    if(ARG_CONTAINER_ARCHIVE_FORMAT)
+      set(container_archive_format "${ARG_CONTAINER_ARCHIVE_FORMAT}")
+    elseif(container_runtime STREQUAL "podman")
+      set(container_archive_format "oci-archive")
+    else()
+      set(container_archive_format "docker-archive")
+    endif()
+    if(NOT container_archive_format STREQUAL "oci-archive" AND NOT container_archive_format STREQUAL "docker-archive")
+      project_log(FATAL_ERROR "CONTAINER_ARCHIVE_FORMAT must be 'oci-archive' or 'docker-archive', got: ${container_archive_format}")
+    endif()
+    if(container_runtime STREQUAL "docker" AND NOT container_archive_format STREQUAL "docker-archive")
+      project_log(FATAL_ERROR "Docker runtime only supports CONTAINER_ARCHIVE_FORMAT docker-archive")
+    endif()
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_ARCHIVE_FORMAT "${container_archive_format}")
+
+    if(ARG_CONTAINER_COMPONENTS)
+      set(container_components ${ARG_CONTAINER_COMPONENTS})
+    else()
+      set(container_components ${ARG_DEFAULT_COMPONENTS})
+    endif()
+    if(NOT container_components)
+      project_log(FATAL_ERROR "CONTAINER_COMPONENTS resolved to an empty list. Set CONTAINER_COMPONENTS or DEFAULT_COMPONENTS explicitly.")
+    endif()
+    foreach(container_component IN LISTS container_components)
+      if(NOT container_component IN_LIST ARG_COMPONENTS)
+        project_log(FATAL_ERROR "CONTAINER_COMPONENTS contains unknown component '${container_component}'. Known components: ${ARG_COMPONENTS}")
+      endif()
+    endforeach()
+    _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_COMPONENTS "${container_components}")
+
+    if(ARG_CONTAINER_ROOTFS_OVERLAYS)
+      set(container_rootfs_overlays "")
+      foreach(container_rootfs_overlay IN LISTS ARG_CONTAINER_ROOTFS_OVERLAYS)
+        cmake_path(
+          ABSOLUTE_PATH
+          container_rootfs_overlay
+          BASE_DIRECTORY
+          "${_tip_cpack_config_source_dir}"
+          NORMALIZE
+          OUTPUT_VARIABLE
+          container_rootfs_overlay_abs)
+        list(APPEND container_rootfs_overlays "${container_rootfs_overlay_abs}")
+      endforeach()
+      _tip_store_cpack_var(CPACK_EXTERNAL_USER_CONTAINER_ROOTFS_OVERLAYS "${container_rootfs_overlays}")
+    endif()
+
+    project_log(VERBOSE "Container generation configured: ${container_name}:${container_tag} using ${container_runtime}; components: ${container_components}")
   endif()
 
   # Set generators

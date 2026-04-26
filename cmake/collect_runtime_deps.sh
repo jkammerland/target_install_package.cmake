@@ -15,13 +15,27 @@ if [ ! -d "$STAGING_DIR" ]; then
     echo "ERROR: Staging directory does not exist: $STAGING_DIR" >&2
     exit 1
 fi
+if ! STAGING_DIR="$(cd "$STAGING_DIR" && pwd -P)"; then
+    echo "ERROR: Failed to resolve staging directory: $STAGING_DIR" >&2
+    exit 1
+fi
 
 echo "Scanning binaries in: $STAGING_DIR"
 
-# Find all ELF executables and libraries
-BINARIES=$(find "$STAGING_DIR" -type f -exec file {} \; | grep "ELF" | cut -d: -f1)
+is_elf_file() {
+    local candidate="$1"
+    file "$candidate" 2>/dev/null | grep -q "ELF"
+}
 
-if [ -z "$BINARIES" ]; then
+# Find all ELF executables and libraries without treating an empty match as an error.
+declare -a BINARIES=()
+while IFS= read -r -d '' candidate; do
+    if is_elf_file "$candidate"; then
+        BINARIES+=("$candidate")
+    fi
+done < <(find "$STAGING_DIR" -type f -print0)
+
+if [ "${#BINARIES[@]}" -eq 0 ]; then
     echo "WARNING: No ELF binaries found"
     exit 0
 fi
@@ -33,6 +47,13 @@ copy_dependency() {
     local source_path="$1"
     local target_path="${STAGING_DIR}${source_path}"
     local target_dir
+
+    case "$source_path" in
+        "$STAGING_DIR"/*)
+            echo "  Already staged: $source_path"
+            return
+            ;;
+    esac
 
     target_dir=$(dirname "$target_path")
     mkdir -p "$target_dir"
@@ -58,6 +79,10 @@ process_binary() {
 
     local ldd_output=""
     if ! ldd_output=$(ldd "$binary" 2>&1); then
+        if [[ "$ldd_output" == *"not a dynamic executable"* ]] || [[ "$ldd_output" == *"statically linked"* ]]; then
+            echo "  No dynamic dependencies: $binary"
+            return 0
+        fi
         echo "ERROR: ldd failed for $binary" >&2
         echo "$ldd_output" >&2
         return 1
@@ -87,7 +112,7 @@ process_binary() {
 
 # Process all binaries
 echo "Processing dependencies..."
-for binary in $BINARIES; do
+for binary in "${BINARIES[@]}"; do
     echo "Scanning: $binary"
     process_binary "$binary"
 done

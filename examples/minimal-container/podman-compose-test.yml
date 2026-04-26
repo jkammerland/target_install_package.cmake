@@ -3,14 +3,14 @@ version: '3'
 services:
   # Single-run test
   hello_single:
-    image: hello:6.0.1
+    image: hello:1.0.0
     container_name: hello_single
-    entrypoint: ["/bin/hello_container"]
+    entrypoint: ["/usr/local/bin/hello_container"]
     command: ["single", "run", "test"]
 
   # Continuous loop test
   hello_continuous:
-    image: hello:6.0.1
+    image: hello:1.0.0
     container_name: hello_continuous
     entrypoint: ["/bin/hello_loop"]
     command: ["continuous", "service"]
@@ -20,9 +20,9 @@ services:
 
   # Restart test
   hello_restarter:
-    image: hello:6.0.1
+    image: hello:1.0.0
     container_name: hello_restarter
-    entrypoint: ["/bin/hello_container"]
+    entrypoint: ["/usr/local/bin/hello_container"]
     command: ["restart", "test"]
     restart: always
     restart_policy:

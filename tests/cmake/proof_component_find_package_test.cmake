@@ -15,10 +15,13 @@ set(_tip_fixture_build_dir "${_tip_case_root}/fixture-build")
 set(_tip_install_prefix "${_tip_case_root}/fixture-install")
 set(_tip_consumer_source_dir "${_tip_case_root}/consumer-src")
 set(_tip_consumer_build_dir "${_tip_case_root}/consumer-build")
+set(_tip_bad_template_source_dir "${_tip_case_root}/bad-template-src")
+set(_tip_bad_template_build_dir "${_tip_case_root}/bad-template-build")
 
 file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/src")
 file(MAKE_DIRECTORY "${_tip_consumer_source_dir}")
+file(MAKE_DIRECTORY "${_tip_bad_template_source_dir}/src")
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
@@ -83,5 +86,40 @@ set(_tip_consumer_configure_command
 
 _tip_proof_run_step(NAME "consumer-configure" COMMAND ${_tip_consumer_configure_command})
 _tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config Release)
+
+file(
+  WRITE
+  "${_tip_bad_template_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n"
+  "project(proof_component_bad_template VERSION 1.0.0 LANGUAGES CXX)\n"
+  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+  "add_library(proof_bad_template_lib STATIC src/proof.cpp)\n"
+  "target_install_package(proof_bad_template_lib EXPORT_NAME proof_bad_template_pkg COMPONENT Core CONFIG_TEMPLATE \"\${CMAKE_CURRENT_LIST_DIR}/bad-config.cmake.in\")\n")
+
+file(WRITE "${_tip_bad_template_source_dir}/src/proof.cpp" "int proof_bad_template_value() { return 9; }\n")
+file(
+  WRITE
+  "${_tip_bad_template_source_dir}/bad-config.cmake.in"
+  "@PACKAGE_INIT@\n"
+  "include(\"\${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@Targets.cmake\")\n"
+  "check_required_components(@ARG_EXPORT_NAME@)\n")
+
+set(_tip_bad_template_configure_command
+    "${CMAKE_COMMAND}"
+    -S
+    "${_tip_bad_template_source_dir}"
+    -B
+    "${_tip_bad_template_build_dir}"
+    "-DCMAKE_BUILD_TYPE=Release"
+    ${_tip_toolchain_args})
+
+_tip_proof_expect_failure(
+  NAME
+  "bad-custom-template-configure"
+  COMMAND
+  ${_tip_bad_template_configure_command}
+  EXPECT_CONTAINS
+  "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
 
 message(STATUS "[proof] Component-aware find_package proof passed.")

@@ -224,7 +224,10 @@ endif()
 add_test(NAME component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_component_test_common_args} -P "${_tip_component_test_script}")
 set_tests_properties(component_dependencies PROPERTIES LABELS "component-dependencies")
 
-option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known review findings" OFF)
+option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known review findings" ON)
+set(target_install_package_PROOF_CONTAINER_RUNTIME
+    "podman"
+    CACHE STRING "Container runtime used by container proof tests")
 
 if(target_install_package_BUILD_PROOF_TESTS)
   set(_tip_proof_test_root "${CMAKE_CURRENT_BINARY_DIR}/proofs")
@@ -266,17 +269,80 @@ if(target_install_package_BUILD_PROOF_TESTS)
   set_tests_properties(proof_substitution_mode_variables PROPERTIES LABELS "proof;review")
 
   find_program(_tip_bash bash)
-  find_program(_tip_podman podman)
-  find_program(_tip_docker docker)
-  if(_tip_bash AND (_tip_podman OR _tip_docker))
+  set(_tip_bash_supports_proofs FALSE)
+  if(_tip_bash)
+    execute_process(
+      COMMAND "${_tip_bash}" -c "if (( BASH_VERSINFO[0] >= 4 )); then exit 0; else exit 1; fi"
+      RESULT_VARIABLE _tip_bash_version_result
+      OUTPUT_QUIET
+      ERROR_QUIET)
+    if(_tip_bash_version_result EQUAL 0)
+      set(_tip_bash_supports_proofs TRUE)
+    else()
+      message(STATUS "Skipping shell proof tests: ${_tip_bash} is older than Bash 4")
+    endif()
+  endif()
+
+  set(_tip_shell_proofs_supported FALSE)
+  if(_tip_bash_supports_proofs)
+    if(WIN32)
+      message(STATUS "Skipping shell proof tests: ELF/ldd container proofs are not Windows-clean")
+    else()
+      set(_tip_shell_proofs_supported TRUE)
+    endif()
+  endif()
+
+  if(_tip_shell_proofs_supported)
     add_test(
-      NAME proof_container_flow
-      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_container_flow.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/container-flow")
-    set_tests_properties(proof_container_flow PROPERTIES LABELS "proof;review;container")
+      NAME proof_build_minimal_container
+      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_build_minimal_container.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/build-minimal-container")
+    set_tests_properties(proof_build_minimal_container PROPERTIES LABELS "proof;review;container")
 
     add_test(
       NAME proof_collect_runtime_deps
       COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_collect_runtime_deps.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/collect-runtime-deps")
     set_tests_properties(proof_collect_runtime_deps PROPERTIES LABELS "proof;review;container")
+
+    add_test(
+      NAME proof_external_container_package
+      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_external_container_package.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/external-container-package")
+    set_tests_properties(proof_external_container_package PROPERTIES LABELS "proof;review;container")
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      add_test(
+        NAME proof_cpack_external_container_archive
+        COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_cpack_external_container_archive.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/cpack-external-container-archive")
+      set_tests_properties(proof_cpack_external_container_archive PROPERTIES LABELS "proof;review;container")
+    endif()
+  endif()
+
+  find_program(_tip_container_runtime "${target_install_package_PROOF_CONTAINER_RUNTIME}")
+  set(_tip_container_runtime_usable FALSE)
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(STATUS "Skipping proof_container_flow: live scratch-container proof requires a Linux host")
+  elseif(_tip_container_runtime)
+    execute_process(
+      COMMAND "${_tip_container_runtime}" info
+      RESULT_VARIABLE _tip_container_runtime_info_result
+      OUTPUT_QUIET
+      ERROR_QUIET
+      TIMEOUT 10)
+    if(_tip_container_runtime_info_result EQUAL 0)
+      set(_tip_container_runtime_usable TRUE)
+    else()
+      message(STATUS "Skipping proof_container_flow: ${target_install_package_PROOF_CONTAINER_RUNTIME} exists but is not usable")
+    endif()
+  endif()
+
+  if(_tip_shell_proofs_supported AND _tip_container_runtime_usable)
+    add_test(
+      NAME proof_container_flow
+      COMMAND
+        "${_tip_bash}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_container_flow.sh"
+        "${_tip_repo_root}"
+        "${_tip_proof_test_root}/container-flow"
+        "${target_install_package_PROOF_CONTAINER_RUNTIME}")
+    set_tests_properties(proof_container_flow PROPERTIES LABELS "proof;review;container")
   endif()
 endif()
