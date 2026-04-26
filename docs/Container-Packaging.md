@@ -52,7 +52,7 @@ Container Options
 - `CONTAINER_RUNTIME`: `podman` or `docker`, defaulting to `podman`.
 - `CONTAINER_ENTRYPOINT`: absolute path inside the final rootfs. It must exist, be executable, not contain `..`, and not be `/`.
 - `CONTAINER_ARCHIVE_FORMAT`: defaults to `oci-archive` for `podman` and `docker-archive` for `docker`. Docker only supports `docker-archive`.
-- `CONTAINER_COMPONENTS`: components merged into the container rootfs, defaulting to `DEFAULT_COMPONENTS` (`Runtime` by default). Unknown components fail at configure time.
+- `CONTAINER_COMPONENTS`: components merged into the container rootfs. It defaults to `DEFAULT_COMPONENTS`; if that is the implicit `Runtime` default and no `Runtime` component is declared, it defaults to the declared non-development components such as `Core` from `Core;Core_Development`. Unknown explicit components fail at configure time.
 - `CONTAINER_ROOTFS_OVERLAYS`: directories copied into the rootfs after selected components and before dependency collection. Relative paths are resolved from the source directory where `export_cpack()` was called.
 
 Components and Rootfs Layout

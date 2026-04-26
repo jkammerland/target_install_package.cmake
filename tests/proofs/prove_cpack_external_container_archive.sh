@@ -25,6 +25,11 @@ case "$1" in
       :
     elif [ -f "$context/usr/local/bin/relative_app" ] && [ -f "$context/etc/proof/relative-overlay.txt" ]; then
       :
+    elif [ -f "$context/usr/local/bin/core_app" ]; then
+      if [ -d "$context/usr/local/share/cmake/custom_component_container_fixture" ]; then
+        exit 42
+      fi
+      :
     else
       exit 41
     fi
@@ -183,5 +188,33 @@ cmake -S "${relative_src}" -B "${relative_build}" -DCMAKE_BUILD_TYPE=Release >"$
 cmake --build "${relative_build}" >"${work_root}/logs/relative-build.log" 2>&1
 (cd "${relative_build}" && PATH="${work_root}/wrappers:$PATH" cpack -G External --verbose) >"${work_root}/logs/relative-cpack.log" 2>&1
 [[ -f "${relative_build}/relative-overlay-proof-1.0.0-oci-archive.tar" ]] || fail "Expected relative overlay fixture archive"
+
+custom_component_src="${work_root}/custom-component-src"
+custom_component_build="${work_root}/custom-component-build"
+mkdir -p "${custom_component_src}/src"
+cat >"${custom_component_src}/CMakeLists.txt" <<EOF
+cmake_minimum_required(VERSION 3.25)
+project(custom_component_container_fixture VERSION 1.0.0 LANGUAGES CXX)
+set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
+include("${repo_root}/cmake/load_target_install_package.cmake")
+add_executable(core_app src/main.cpp)
+target_compile_features(core_app PRIVATE cxx_std_17)
+target_install_package(core_app EXPORT_NAME \${PROJECT_NAME} COMPONENT Core)
+include("${repo_root}/export_cpack.cmake")
+export_cpack(
+  PACKAGE_NAME "\${PROJECT_NAME}"
+  PACKAGE_VERSION "\${PROJECT_VERSION}"
+  GENERATORS "CONTAINER"
+  CONTAINER_NAME "custom-component-proof"
+  CONTAINER_TAG "\${PROJECT_VERSION}"
+  CONTAINER_RUNTIME "podman"
+  CONTAINER_ENTRYPOINT "/usr/local/bin/core_app")
+EOF
+printf '#include <iostream>\nint main() { std::cout << "custom component proof\\\\n"; return 0; }\n' >"${custom_component_src}/src/main.cpp"
+
+cmake -S "${custom_component_src}" -B "${custom_component_build}" -DCMAKE_BUILD_TYPE=Release >"${work_root}/logs/custom-component-configure.log" 2>&1
+cmake --build "${custom_component_build}" >"${work_root}/logs/custom-component-build.log" 2>&1
+(cd "${custom_component_build}" && PATH="${work_root}/wrappers:$PATH" cpack -G External --verbose) >"${work_root}/logs/custom-component-cpack.log" 2>&1
+[[ -f "${custom_component_build}/custom-component-proof-1.0.0-oci-archive.tar" ]] || fail "Expected custom component fixture archive"
 
 echo "[proof] CPack External container archive proof passed."

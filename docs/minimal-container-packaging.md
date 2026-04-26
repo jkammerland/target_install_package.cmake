@@ -37,7 +37,7 @@ Top-level archive: <name>-<tag>-<archive-format>.tar
 #### external_container_package.cmake
 CMake script executed by CPack that:
 
-- Selects `CONTAINER_COMPONENTS`, defaulting to CPack's default components
+- Selects `CONTAINER_COMPONENTS`, defaulting to CPack's default components or to declared non-development components when the implicit `Runtime` default is not declared
 - Fails if a requested component was not staged
 - Merges selected component directories into a single rootfs
 - Applies configured rootfs overlays
