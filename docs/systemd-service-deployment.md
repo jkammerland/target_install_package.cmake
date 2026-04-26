@@ -20,7 +20,7 @@ cmake --build build
 cmake --build build --target package
 ```
 
-CPack builds the image in the local Podman store as a side effect and writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. If you deploy on another host, copy the archive and load it there:
+CPack writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. When the package build uses `podman`, the image is also left in the local Podman image store as a side effect. If the package was built with Docker, or if you deploy on another host, load the archive into Podman before creating or starting the Quadlet service:
 
 ```bash
 podman load -i myapp-1.0.0-oci-archive.tar
@@ -29,6 +29,8 @@ podman load -i myapp-1.0.0-oci-archive.tar
 ### 2. Generate Quadlet File
 
 Use the `container_to_quadlet.sh` script to generate a systemd service definition:
+
+The referenced image must exist in the local Podman image store before the service starts. Use `podman images <image>:<tag>` to check, or `podman load -i <archive>` to load a CPack archive.
 
 ```bash
 # Basic usage

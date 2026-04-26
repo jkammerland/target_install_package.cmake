@@ -29,7 +29,7 @@ collect_runtime_deps.sh scans ELF files and copies missing dynamic deps
     |
 build_minimal_container.sh builds and saves the image
     |
-Top-level archive: <name>-<tag>-oci-archive.tar
+Top-level archive: <name>-<tag>-<archive-format>.tar
 ```
 
 ### 2. Components
@@ -117,9 +117,10 @@ Prefer `export_cpack()` because it validates container names, tags, runtime, arc
 For direct CPack configuration:
 
 ```cmake
+set(TARGET_INSTALL_PACKAGE_SOURCE_DIR "/path/to/target_install_package.cmake")
 set(CPACK_GENERATOR "External")
 set(CPACK_EXTERNAL_PACKAGE_SCRIPT
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/external_container_package.cmake")
+    "${TARGET_INSTALL_PACKAGE_SOURCE_DIR}/cmake/external_container_package.cmake")
 set(CPACK_EXTERNAL_ENABLE_STAGING ON)
 set(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
 set(CPACK_EXTERNAL_USER_CONTAINER_NAME "myapp")

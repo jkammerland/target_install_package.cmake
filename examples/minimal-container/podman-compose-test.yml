@@ -25,6 +25,3 @@ services:
     entrypoint: ["/usr/local/bin/hello_container"]
     command: ["restart", "test"]
     restart: always
-    restart_policy:
-      condition: on-failure
-      max_attempts: 3
