@@ -48,7 +48,8 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 > `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
-`target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
+`target_install_pa
+ckage()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
 
 - `fhs` = Filesystem Hierarchy Standard (FHS) layout aligned with system package conventions (`DEB`/`RPM`): no configuration-specific subdirectories and standard `bin/`, `lib*/`, and `share/` destinations.
 - `split_debug` = only Debug artifacts go under `debug/`.
@@ -166,7 +167,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v6.1.7
+  GIT_TAG v6.2.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -183,7 +184,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v6.1.7
+    GIT_TAG v6.2.0
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -402,7 +403,7 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 
 **See [examples/cpack-basic](examples/cpack-basic/) for a complete working example.**
 
-For container packaging using CPack’s External generator (scratch images via podman/docker), see docs/Container-Packaging.md.
+For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [docs/Container-Packaging.md](docs/Container-Packaging.md).
 
 **📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
 

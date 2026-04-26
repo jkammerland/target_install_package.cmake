@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.1.7)
+  list_file_include_guard(VERSION 6.2.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -154,7 +154,12 @@ function(target_configure_sources TARGET_NAME)
     string(REGEX REPLACE "\\.in$" "" OUTPUT_FILE_NAME "${FILE_NAME}")
     set(OUTPUT_FILE "${ARGS_OUTPUT_DIR}/${OUTPUT_FILE_NAME}")
 
-    configure_file("${SOURCE_FILE}" "${OUTPUT_FILE}" ${ARGS_SUBSTITUTION_MODE})
+    set(_tip_configure_file_options "")
+    if(ARGS_SUBSTITUTION_MODE STREQUAL "@ONLY")
+      list(APPEND _tip_configure_file_options @ONLY)
+    endif()
+
+    configure_file("${SOURCE_FILE}" "${OUTPUT_FILE}" ${_tip_configure_file_options})
 
     list(APPEND CONFIGURED_FILES "${OUTPUT_FILE}")
     project_log(DEBUG "  Configured ${SOURCE_FILE} -> ${OUTPUT_FILE}")

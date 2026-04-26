@@ -3,7 +3,7 @@
 # Collect runtime dependencies for all binaries in staging directory
 # Uses ldd to find shared libraries and copies them to staging
 
-set -e
+set -euo pipefail
 
 STAGING_DIR="${STAGING_DIR:-}"
 if [ -z "$STAGING_DIR" ]; then
@@ -15,80 +15,107 @@ if [ ! -d "$STAGING_DIR" ]; then
     echo "ERROR: Staging directory does not exist: $STAGING_DIR" >&2
     exit 1
 fi
+if ! STAGING_DIR="$(cd "$STAGING_DIR" && pwd -P)"; then
+    echo "ERROR: Failed to resolve staging directory: $STAGING_DIR" >&2
+    exit 1
+fi
 
 echo "Scanning binaries in: $STAGING_DIR"
 
-# Create lib directories
-mkdir -p "$STAGING_DIR/lib"
-mkdir -p "$STAGING_DIR/lib64"
+is_elf_file() {
+    local candidate="$1"
+    file "$candidate" 2>/dev/null | grep -q "ELF"
+}
 
-# Find all ELF executables and libraries
-BINARIES=$(find "$STAGING_DIR" -type f -exec file {} \; | grep "ELF" | cut -d: -f1)
+# Find all ELF executables and libraries without treating an empty match as an error.
+declare -a BINARIES=()
+while IFS= read -r -d '' candidate; do
+    if is_elf_file "$candidate"; then
+        BINARIES+=("$candidate")
+    fi
+done < <(find "$STAGING_DIR" -type f -print0)
 
-if [ -z "$BINARIES" ]; then
+if [ "${#BINARIES[@]}" -eq 0 ]; then
     echo "WARNING: No ELF binaries found"
     exit 0
 fi
 
-# Track what we've already processed
-PROCESSED_LIBS=""
+declare -A PROCESSED_BINARIES=()
+ADDED_COUNT=0
+
+copy_dependency() {
+    local source_path="$1"
+    local target_path="${STAGING_DIR}${source_path}"
+    local target_dir
+
+    case "$source_path" in
+        "$STAGING_DIR"/*)
+            echo "  Already staged: $source_path"
+            return
+            ;;
+    esac
+
+    target_dir=$(dirname "$target_path")
+    mkdir -p "$target_dir"
+
+    if [ ! -f "$target_path" ]; then
+        echo "  Adding: $source_path"
+        cp -L "$source_path" "$target_path"
+        ADDED_COUNT=$((ADDED_COUNT + 1))
+    fi
+}
 
 # Function to process a binary
 process_binary() {
     local binary="$1"
+    local direct_dep_regex='=>[[:space:]]+(/[^[:space:]]+)'
+    local absolute_path_regex='^[[:space:]]*(/[^[:space:]]+)'
 
     # Skip if already processed
-    if echo "$PROCESSED_LIBS" | grep -q "$binary"; then
+    if [[ -n "${PROCESSED_BINARIES[$binary]:-}" ]]; then
         return
     fi
-    PROCESSED_LIBS="$PROCESSED_LIBS $binary"
+    PROCESSED_BINARIES["$binary"]=1
 
-    # Get dependencies
-    local deps=$(ldd "$binary" 2>/dev/null | grep "=>" | awk '{print $3}' | grep -v "^$")
-
-    for dep in $deps; do
-        if [ -f "$dep" ]; then
-            local basename=$(basename "$dep")
-            local target=""
-
-            # Determine target directory
-            if [[ "$dep" == */lib64/* ]]; then
-                target="$STAGING_DIR/lib64/$basename"
-            else
-                target="$STAGING_DIR/lib/$basename"
-            fi
-
-            # Copy if not already present
-            if [ ! -f "$target" ]; then
-                echo "  Adding: $dep"
-                cp -L "$dep" "$target" 2>/dev/null || true
-
-                # Process this library's dependencies too
-                process_binary "$target"
-            fi
+    local ldd_output=""
+    if ! ldd_output=$(ldd "$binary" 2>&1); then
+        if [[ "$ldd_output" == *"not a dynamic executable"* ]] || [[ "$ldd_output" == *"statically linked"* ]]; then
+            echo "  No dynamic dependencies: $binary"
+            return 0
         fi
-    done
-
-    # Handle the dynamic linker specially
-    local interp=$(ldd "$binary" 2>/dev/null | grep "ld-linux" | awk '{print $1}')
-    if [ -n "$interp" ] && [ -f "$interp" ]; then
-        local interp_base=$(basename "$interp")
-        local interp_target="$STAGING_DIR/lib64/$interp_base"
-
-        if [ ! -f "$interp_target" ]; then
-            echo "  Adding interpreter: $interp"
-            cp -L "$interp" "$interp_target" 2>/dev/null || true
-        fi
+        echo "ERROR: ldd failed for $binary" >&2
+        echo "$ldd_output" >&2
+        return 1
     fi
+
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+
+        if [[ "$line" == *" => not found"* ]]; then
+            echo "ERROR: Missing dependency for $binary: $line" >&2
+            return 1
+        fi
+
+        local dep=""
+        if [[ "$line" =~ $direct_dep_regex ]]; then
+            dep="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ $absolute_path_regex ]]; then
+            dep="${BASH_REMATCH[1]}"
+        fi
+
+        if [ -n "$dep" ] && [ -f "$dep" ]; then
+            copy_dependency "$dep"
+            process_binary "$dep"
+        fi
+    done <<< "$ldd_output"
 }
 
 # Process all binaries
 echo "Processing dependencies..."
-for binary in $BINARIES; do
+for binary in "${BINARIES[@]}"; do
     echo "Scanning: $binary"
     process_binary "$binary"
 done
 
 # Count what we collected
-NUM_LIBS=$(find "$STAGING_DIR/lib" "$STAGING_DIR/lib64" -type f 2>/dev/null | wc -l)
-echo "Collected $NUM_LIBS runtime dependencies"
+echo "Collected $ADDED_COUNT runtime dependencies"

@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.1.7)
+  list_file_include_guard(VERSION 6.2.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -194,7 +194,7 @@ endfunction()
 # Prepare a CMake installation target for packaging.
 #
 # This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization. Since v6.1.7, finalization happens
+# the configuration for later finalization. Since v6.2.0, finalization happens
 # automatically at the end of configuration using cmake_language(DEFER CALL).
 #
 # Use this function when you have multiple targets that should be part of the same
@@ -774,7 +774,7 @@ endfunction()
 # This function completes the installation process for all targets that were
 # prepared with target_prepare_package() for the given export name.
 #
-# NOTE: Since v6.1.7, this function is OPTIONAL. All exports are automatically
+# NOTE: Since v6.2.0, this function is OPTIONAL. All exports are automatically
 # finalized at the end of configuration using cmake_language(DEFER CALL).
 # Use this function only when you need explicit control over finalization timing.
 #
@@ -1190,11 +1190,21 @@ function(finalize_package)
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 
-  # Create package version file using EXPORT_NAME
+  # Create package version file using CMake's canonical ConfigVersion naming.
+  # Keep the historical -config-version alias for compatibility with existing installs/tests.
+  set(VERSION_FILENAME "${ARG_EXPORT_NAME}ConfigVersion.cmake")
+  set(VERSION_FILE_PATH "${CURRENT_BINARY_DIR}/${VERSION_FILENAME}")
+  set(LEGACY_VERSION_FILENAME "${ARG_EXPORT_NAME}-config-version.cmake")
+  set(LEGACY_VERSION_FILE_PATH "${CURRENT_BINARY_DIR}/${LEGACY_VERSION_FILENAME}")
+
   write_basic_package_version_file(
-    "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
+    "${VERSION_FILE_PATH}"
     VERSION ${VERSION}
     COMPATIBILITY ${COMPATIBILITY})
+
+  if(NOT VERSION_FILENAME STREQUAL LEGACY_VERSION_FILENAME)
+    configure_file("${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}" COPYONLY)
+  endif()
 
   # Prepare public dependencies content
   set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "")
@@ -1207,9 +1217,11 @@ function(finalize_package)
 
   # Prepare component dependencies content for template substitution
   set(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "")
-  if(COMPONENT_DEPENDENCY_COMPONENTS)
+  set(_tip_find_package_components ${ALL_UNIQUE_COMPONENTS} ${COMPONENT_DEPENDENCY_COMPONENTS})
+  if(_tip_find_package_components)
+    list(REMOVE_DUPLICATES _tip_find_package_components)
     set(_tip_known_find_components "")
-    foreach(component_name ${COMPONENT_DEPENDENCY_COMPONENTS})
+    foreach(component_name ${_tip_find_package_components})
       _tip_component_dependency_property_name(_tip_component_property "${EXPORT_PROPERTY_PREFIX}" "${component_name}")
       get_property(component_deps GLOBAL PROPERTY "${_tip_component_property}")
       list(APPEND _tip_known_find_components "${component_name}")
@@ -1293,7 +1305,7 @@ function(finalize_package)
     "${ARG_EXPORT_NAME}"
     "${INCLUDE_ON_FIND_PACKAGE}"
     "${PUBLIC_DEPENDENCIES}"
-    "${COMPONENT_DEPENDENCY_COMPONENTS}")
+    "${_tip_find_package_components}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
@@ -1306,7 +1318,7 @@ function(finalize_package)
 
   # Install config files using correct filename with config component
   install(
-    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${CURRENT_BINARY_DIR}/${ARG_EXPORT_NAME}-config-version.cmake"
+    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}"
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 

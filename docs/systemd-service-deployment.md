@@ -8,27 +8,35 @@ Deploy containers created with CPack as systemd services using Podman Quadlet fi
 
 - Podman 4.4+ (for Quadlet support)
 - systemd with cgroups v2
-- Container image built with CPack CONTAINER generator
+- Container image built and saved with the CPack `CONTAINER` generator
 
 ## Workflow
 
 ### 1. Build Container
 
 ```bash
-cmake -B build
+cmake -S . -B build
 cmake --build build
-cd build && cpack  # Creates container image
+cmake --build build --target package
+```
+
+CPack writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. When the package build uses `podman`, the image is also left in the local Podman image store as a side effect. If the package was built with Docker, or if you deploy on another host, load the archive into Podman before creating or starting the Quadlet service:
+
+```bash
+podman load -i myapp-1.0.0-oci-archive.tar
 ```
 
 ### 2. Generate Quadlet File
 
 Use the `container_to_quadlet.sh` script to generate a systemd service definition:
 
+The referenced image must exist in the local Podman image store before the service starts. Use `podman images <image>:<tag>` to check, or `podman load -i <archive>` to load a CPack archive.
+
 ```bash
 # Basic usage
-./cmake/container_to_quadlet.sh hello:6.0.1 --name hello-service
+./cmake/container_to_quadlet.sh hello:1.0.0 --name hello-service
 
-# With options
+# With options for a locally built or archive-loaded image
 ./cmake/container_to_quadlet.sh myapp:1.0.0 \
   --name myapp-service \
   --description "My application service" \
@@ -36,9 +44,10 @@ Use the `container_to_quadlet.sh` script to generate a systemd service definitio
   --port 8080:8080 \
   --volume /data:/data \
   --env TZ=UTC \
-  --user 1000 \
-  --auto-update
+  --user 1000
 ```
+
+Use `--auto-update` only for images that Podman can update from a registry. It is not useful for an image loaded only from a local CPack archive.
 
 ### 3. Deploy Service
 
@@ -57,12 +66,16 @@ systemctl --user start myapp-service.service
 
 # Enable auto-start at boot (optional)
 systemctl --user enable myapp-service.service
+
+# Keep the user manager running after logout if the service must start at boot
+loginctl enable-linger "$USER"
 ```
 
 #### System Service (Requires root)
 
 ```bash
-# Copy to system directory
+# Create the system Quadlet directory and copy the unit
+sudo mkdir -p /etc/containers/systemd/
 sudo cp myapp-service.container /etc/containers/systemd/
 
 # Reload and start
@@ -152,21 +165,23 @@ podman auto-update
 ```bash
 # 1. Build container with CPack
 cd myproject
-cmake -B build -G Ninja
+cmake -S . -B build -G Ninja
 cmake --build build
-cd build
-cpack  # Creates myapp:1.0.0
+cmake --build build --target package
+
+# Optional when deploying from the saved artifact or on another host
+podman load -i build/myapp-1.0.0-oci-archive.tar
 
 # 2. Generate Quadlet
-../cmake/container_to_quadlet.sh myapp:1.0.0 \
+./cmake/container_to_quadlet.sh myapp:1.0.0 \
   --name myapp \
   --restart always \
-  --auto-update \
   -o ~/.config/containers/systemd/
 
 # 3. Deploy and start
 systemctl --user daemon-reload
 systemctl --user enable --now myapp.service
+loginctl enable-linger "$USER"
 
 # 4. Verify
 systemctl --user status myapp
