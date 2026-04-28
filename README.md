@@ -372,112 +372,15 @@ target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 
 ### Common Package Specification (CPS)
 
-CMake 4.3+ can generate Common Package Specification metadata alongside the normal CMake config files:
+CPS is a standard metadata format for installed packages. It gives build tools a `.cps` data file that describes targets, versions, and link requirements without executing CMake package scripts. With CMake 4.3+, `target_install_package(... CPS ...)` can install CPS metadata alongside the normal CMake config package.
 
-```cmake
-add_library(math_utils STATIC)
-target_sources(math_utils PRIVATE src/matrix.cpp)
-target_sources(math_utils PUBLIC
-  FILE_SET HEADERS
-  BASE_DIRS "include"
-  FILES "include/math/matrix.h"
-)
-
-target_install_package(math_utils
-  EXPORT_NAME MathUtils
-  NAMESPACE Math::          # Legacy CMake config imports Math::core
-  ALIAS_NAME core
-  VERSION ${PROJECT_VERSION}
-  CPS
-  CPS_PACKAGE_NAME MathUtils
-  CPS_LICENSE "MIT"
-  CPS_DESCRIPTION "Math utility library"
-  CPS_HOMEPAGE_URL "https://example.com/math-utils"
-)
-```
-
-Consumers using a CPS-aware CMake can import the CPS package with the CPS package name:
-
-```cmake
-find_package(MathUtils 1.0 CONFIG REQUIRED)
-target_link_libraries(app PRIVATE MathUtils::core)
-```
-
-Important differences from the CMake config path:
-- `CPS` is opt-in, export-scoped, and fails during configure on CMake older than 4.3. Every target sharing the same `EXPORT_NAME` must be compatible with CPS generation.
-- This wrapper rejects executables and CMake `MODULE_LIBRARY` targets (`add_library(... MODULE)`) for CPS exports. C++20 module file sets on libraries are a different feature and remain supported.
-- CPS imports use `<CPS_PACKAGE_NAME>::<component>`. They do not use the legacy `NAMESPACE` from `install(EXPORT ...)`.
-- `CPS_DEFAULT_TARGETS` must use effective exported names: explicit `ALIAS_NAME`, otherwise an existing target `EXPORT_NAME` property, otherwise the build target name. For a root package, if omitted, static, shared, and interface library aliases become default CPS targets.
-- `CPS_APPENDIX` packages should use their own `EXPORT_NAME`; do not mix root package targets and appendix targets in one export. Appendices cannot set root CPS metadata options such as `CPS_PROJECT`, `CPS_VERSION`, `CPS_COMPAT_VERSION`, `CPS_VERSION_SCHEMA`, `CPS_LICENSE`, `CPS_DESCRIPTION`, `CPS_HOMEPAGE_URL`, `CPS_DEFAULT_TARGETS`, or `CPS_DEFAULT_CONFIGURATIONS`. Plain `VERSION` may still be used for the wrapper's CMake config version.
-- `CPS_VERSION` overrides CPS version metadata. If omitted, the CPS root package uses explicit `VERSION`; when `CPS_PROJECT` is set and no explicit `VERSION` or `CPS_VERSION` was provided, CMake inherits version/description/homepage metadata from the named project.
-- `CPS_COMPAT_VERSION` overrides compatibility metadata. Otherwise simple versions are derived from `COMPATIBILITY`: `AnyNewerVersion` -> `0.0.0`, `SameMajorVersion` -> `<major>.0.0`, `SameMinorVersion` -> `<major>.<minor>.0`, and `ExactVersion` omits `COMPAT_VERSION`.
-- `CPS_DESTINATION` should be omitted or placed under a CMake CPS search path containing `/cps/`, such as `share/cps/<package>`. CMake does not look for `.cps` files in normal `share/cmake/<package>` paths.
-- CMake 4.3 can prefer a `.cps` file over a CMake-script config for the same package. If preserving consumer target names matters, keep `NAMESPACE` aligned with `CPS_PACKAGE_NAME::`.
-- `CPS_CXX_MODULES_DIRECTORY` forwards CMake's C++ module metadata directory to `install(PACKAGE_INFO)`. Use it with `CXX_MODULES` file sets on library targets.
-- `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` remain CMake-config features. This wrapper does not translate those CMake snippets into CPS metadata. For CPS transitive dependencies, express dependencies as target usage requirements with `target_link_libraries()`; CMake can emit CPS `requires` for linked imported/exported targets, using `EXPORT_FIND_PACKAGE_NAME` when the package name is not otherwise known.
-- CMake 4.3 `install(PACKAGE_INFO)` does not expose CPS platform metadata (`platform`) or arbitrary CPS component kinds such as `jar` and `symbolic`. This wrapper documents those limits instead of accepting flags it cannot faithfully emit.
-
-Example CPS dependency pattern:
-
-```cmake
-add_library(dep INTERFACE)
-set_target_properties(dep PROPERTIES EXPORT_FIND_PACKAGE_NAME DepPkg)
-target_install_package(dep
-  EXPORT_NAME DepPkg
-  ALIAS_NAME dep
-  CPS
-  CPS_PACKAGE_NAME DepPkg
-)
-
-add_library(core STATIC src/core.cpp)
-target_link_libraries(core PUBLIC dep)
-target_install_package(core
-  EXPORT_NAME CorePkg
-  ALIAS_NAME core
-  CPS
-  CPS_PACKAGE_NAME CorePkg
-)
-```
+See [CPS support](docs/cps.md), the [CPS specification](https://cps-org.github.io/cps/), the [CPS GitHub repository](https://github.com/cps-org/cps), and CMake's [`install(PACKAGE_INFO)` documentation](https://cmake.org/cmake/help/latest/command/install.html#installing-package-info).
 
 ### Software Bill of Materials (SBOM)
 
-CMake 4.3+ can generate an installed SPDX SBOM for an export when its SBOM experiment is activated:
+An SBOM is a machine-readable inventory of what a package contains: components, versions, license data, and related project metadata. With CMake 4.3+ and CMake's SBOM experiment enabled, `target_install_package(... SBOM ...)` can install an SPDX JSON-LD SBOM for an export.
 
-```cmake
-# Example activation value accepted by the local CMake 4.3.1 proof setup.
-set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "ca494ed3-b261-4205-a01f-603c95e4cae0")
-
-target_install_package(math_utils
-  EXPORT_NAME MathUtils
-  VERSION ${PROJECT_VERSION}
-  SBOM
-  SBOM_NAME MathUtils
-  SBOM_DESTINATION "share/sbom/mathutils"
-  SBOM_LICENSE "MIT"
-  SBOM_DESCRIPTION "Math utility library"
-  SBOM_HOMEPAGE_URL "https://example.com/math-utils"
-)
-```
-
-Important differences from the CMake config and CPS paths:
-- `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
-- This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; the value above is the one accepted by the local CMake 4.3.1 proof setup in this repository.
-- `SBOM_NAME` defaults to `EXPORT_NAME`.
-- `SBOM_VERSION` wins, then explicit wrapper `VERSION`, then selected/call-time project `VERSION`.
-  Wrapper effective `VERSION` fallback only applies when `SBOM_PROJECT` was not explicitly set.
-- SBOM activation and inherited project metadata are resolved when `target_install_package()` is called.
-  This allows subdirectory projects to set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` locally and use `SBOM_PROJECT` or a matching
-  `SBOM_NAME`/`EXPORT_NAME` without inheriting top-level project metadata during deferred finalization.
-  Selected project metadata is snapshotted by the wrapper and passed as explicit `install(SBOM)` fields with CMake project inheritance disabled.
-  Inherited metadata covers project `VERSION`, `SPDX_LICENSE`, `DESCRIPTION`, and `HOMEPAGE_URL` when the matching
-  `SBOM_*` option is not explicit.
-- All `target_install_package(... SBOM ...)` calls sharing one `EXPORT_NAME` must agree on metadata inheritance mode: same project metadata, `SBOM_NO_PROJECT_METADATA`, or explicit fields only.
-- `SBOM_PROJECT` and `SBOM_NO_PROJECT_METADATA` are mutually exclusive in a single call and conflict if mixed for the same export.
-- `SBOM_FORMAT` is omitted by default so CMake uses its current SPDX 3.0.1 JSON-LD output.
-- `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Sdk_Development` does not install the SBOM.
-- CMake cannot generate an SBOM for targets whose `LINK_LIBRARIES` or `INTERFACE_LINK_LIBRARIES` contain generator expressions unless those expressions are guarded by `$<LINK_ONLY:...>`.
-- Local CMake 4.3.1 still emits a developer warning that SBOM generation is experimental even when the activation value is correct. Use `-Wno-dev` if you want quieter configure output.
-- This wrapper intentionally does not expose `SBOM_PACKAGE_URL` yet because local CMake 4.3.1 rejects that argument even though the 4.3 docs list it.
+See [SBOM support](docs/sbom.md), CMake's [`install(SBOM)` documentation](https://cmake.org/cmake/help/latest/command/install.html#installing-sbom), and the [SPDX project](https://spdx.dev/).
 
 ### CPack Package Generation
 
