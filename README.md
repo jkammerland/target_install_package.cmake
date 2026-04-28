@@ -47,16 +47,6 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
->[!NOTE]
-> `target_install_package()` uses standard CMake installation directories via
-> [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html):
-> executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`,
-> and config files to `share/cmake/<package>/`.
-> CPS metadata uses CMake's platform-specific `install(PACKAGE_INFO)` default
-> unless `CPS_DESTINATION` is set. SBOM metadata uses CMake's platform-specific
-> `install(SBOM)` default unless `SBOM_DESTINATION` is set. See
-> [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
-
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
 `target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
 
@@ -65,6 +55,12 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 - `split_all` = all configurations are installed under `<config>/` subdirectories.
 
 See [Default Installation Directories](docs/default_install_dirs.md#install-layout-policy) for full behavior and packaging notes.
+
+>[!NOTE]
+> `target_install_package()` uses standard CMake installation directories via
+> [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html):
+> executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`,
+> and config files to `share/cmake/<package>/`.
 
 ### Packaging LICENSE and Notice Files
 For most projects, `ADDITIONAL_FILES` is enough to ship legal/compliance files:
@@ -828,32 +824,6 @@ target_link_libraries(my_game PRIVATE
 Note:
 - You can list multiple dependencies for a component using a semicolon-separated list inside quotes (as in the examples). CMake splits that list internally; the package generator reconstructs and preserves the full set.
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
-
-## More Examples
-
-### Example Directory
-
-These example projects live under [`examples/`](examples/) and can be built individually or via [`examples/build_all_examples.sh`](examples/build_all_examples.sh).
-
-| Example | Type | Focus |
-|---------|------|-------|
-| [basic-static](examples/basic-static/) | Static Library | Simple static library with FILE_SET headers |
-| [basic-shared](examples/basic-shared/) | Shared Library | Versioned shared library with runtime/development separation |
-| [basic-interface](examples/basic-interface/) | Interface Library | Header-only library packaging |
-| [multi-target](examples/multi-target/) | Multi-Library | Multiple related libraries in one package |
-| [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |
-| [components](examples/components/) | Component-Based | Component Prefix Pattern and selective installation |
-| [components-same-export](examples/components-same-export/) | Multi-Target Export | Shared export with per-target components |
-| [sdk](examples/sdk/) | SDK Package | Prebuilt shared/static libraries with an interface umbrella target |
-| [dependency-aggregation](examples/dependency-aggregation/) | Dependency Aggregation | Aggregating PUBLIC_DEPENDENCIES across one export |
-| [configure-files](examples/configure-files/) | Template Configuration | Build-time generated headers from templates |
-| [cxx-modules](examples/cxx-modules/) | C++20 Modules | Basic CXX_MODULES packaging |
-| [cxx-modules-partitions](examples/cxx-modules-partitions/) | C++20 Modules | Module partition hierarchies |
-| [cpack-basic](examples/cpack-basic/) | CPack Basics | Basic package generation with `export_cpack()` |
-| [cpack-signed](examples/cpack-signed/) | Signed Packages | GPG signing and checksum generation |
-| [custom-alias](examples/custom-alias/) | Custom Aliases | Custom exported alias names for consumers |
-| [multi-cpack](examples/multi-cpack/) | Multi-CPack | Separate CPack outputs from one source tree |
-| [rpath-example](examples/rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
 ### Game Engine with Modular Components
 
