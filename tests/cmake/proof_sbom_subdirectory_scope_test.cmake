@@ -22,6 +22,7 @@ set(_tip_install_prefix "${_tip_case_root}/fixture-install")
 
 file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/default-sub/src")
+file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/explicit-top-name/src")
 file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/project-sub/src")
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
@@ -29,9 +30,10 @@ _tip_proof_append_toolchain_args(_tip_toolchain_args)
 file(
   WRITE "${_tip_fixture_source_dir}/CMakeLists.txt"
   "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_sbom_scope_root VERSION 9.9.9 DESCRIPTION \"Root SBOM package\" HOMEPAGE_URL \"https://example.invalid/root-sbom\" LANGUAGES CXX)\n"
+  "project(TopProject VERSION 9.9.9 SPDX_LICENSE \"GPL-3.0-only\" DESCRIPTION \"Top-level SBOM metadata that must not leak\" HOMEPAGE_URL \"https://example.invalid/top-project-sbom\" LANGUAGES CXX)\n"
   "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
   "add_subdirectory(default-sub)\n"
+  "add_subdirectory(explicit-top-name)\n"
   "add_subdirectory(project-sub)\n")
 
 file(
@@ -42,6 +44,16 @@ file(
   "add_library(default_sub_sbom STATIC src/default.cpp)\n"
   "target_install_package(default_sub_sbom EXPORT_NAME DefaultSubSbom SBOM SBOM_DESTINATION \"share/sbom/defaultsub\")\n")
 file(WRITE "${_tip_fixture_source_dir}/default-sub/src/default.cpp" "int default_sub_sbom_value() { return 4; }\n")
+
+file(
+  WRITE "${_tip_fixture_source_dir}/explicit-top-name/CMakeLists.txt"
+  "project(ExplicitTopNameSub VERSION 7.8.9 SPDX_LICENSE \"0BSD\" "
+  "DESCRIPTION \"Explicit subdirectory metadata that should not be inherited\" HOMEPAGE_URL \"https://example.invalid/explicit-top-name-sub\" LANGUAGES CXX)\n"
+  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+  "add_library(explicit_top_sbom STATIC src/explicit.cpp)\n"
+  "target_install_package(explicit_top_sbom EXPORT_NAME TopProject SBOM SBOM_NAME TopProject SBOM_DESTINATION \"share/sbom/explicittop\")\n")
+file(WRITE "${_tip_fixture_source_dir}/explicit-top-name/src/explicit.cpp" "int explicit_top_sbom_value() { return 7; }\n")
 
 file(
   WRITE "${_tip_fixture_source_dir}/project-sub/CMakeLists.txt"
@@ -83,6 +95,18 @@ _tip_proof_assert_json_path_string("${_tip_default_sbom}" "BSD-3-Clause" "@graph
 _tip_proof_assert_json_path_string("${_tip_default_sbom}" "Default subdirectory SBOM package" "@graph" ${_tip_default_document_index} "description")
 _tip_proof_assert_root_element_names("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom")
 _tip_proof_assert_root_element("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom" "4.5.6" "https://example.invalid/default-sub-sbom")
+
+set(_tip_explicit_top_sbom "${_tip_install_prefix}/share/sbom/explicittop/TopProject.spdx.json")
+_tip_proof_find_spdx_document("${_tip_explicit_top_sbom}" "TopProject" _tip_explicit_top_document_index)
+_tip_proof_assert_root_element_names("${_tip_explicit_top_sbom}" "${_tip_explicit_top_document_index}" "explicit_top_sbom")
+_tip_proof_assert_root_element_json_path_string("${_tip_explicit_top_sbom}" "${_tip_explicit_top_document_index}" "explicit_top_sbom" "7.8.9" "software_packageVersion")
+_tip_proof_assert_root_element_json_path_absent("${_tip_explicit_top_sbom}" "${_tip_explicit_top_document_index}" "explicit_top_sbom" "software_homePage")
+_tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "GPL-3.0-only")
+_tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "Top-level SBOM metadata that must not leak")
+_tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "https://example.invalid/top-project-sbom")
+_tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "0BSD")
+_tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "Explicit subdirectory metadata that should not be inherited")
+_tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "https://example.invalid/explicit-top-name-sub")
 
 set(_tip_project_sbom "${_tip_install_prefix}/share/sbom/projectsub/ProjectNamedSbom.spdx.json")
 _tip_proof_find_spdx_document("${_tip_project_sbom}" "ProjectNamedSbom" _tip_project_document_index)

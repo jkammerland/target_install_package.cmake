@@ -467,8 +467,8 @@ Important differences from the CMake config and CPS paths:
 - `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
 - This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; the value above is the one accepted by the local CMake 4.3.1 proof setup in this repository.
 - `SBOM_NAME` defaults to `EXPORT_NAME`.
-- `SBOM_VERSION` overrides SBOM version metadata. If omitted, explicit `VERSION` wins; otherwise call-time project metadata can provide a project `VERSION`.
-  If no explicit `SBOM_PROJECT` selected a project with a version, the wrapper falls back to its effective `VERSION`.
+- `SBOM_VERSION` wins, then explicit wrapper `VERSION`, then selected/call-time project `VERSION`.
+  Wrapper effective `VERSION` fallback only applies when `SBOM_PROJECT` was not explicitly set.
 - SBOM activation and inherited project metadata are resolved when `target_install_package()` is called.
   This allows subdirectory projects to set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` locally and use `SBOM_PROJECT` or a matching
   `SBOM_NAME`/`EXPORT_NAME` without inheriting top-level project metadata during deferred finalization.

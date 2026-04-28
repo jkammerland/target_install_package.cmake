@@ -130,8 +130,8 @@ endif()
 #   SBOM_*                       - Options used to configure install(SBOM ...). SBOM_NAME defaults to EXPORT_NAME. SBOM project metadata is resolved at
 #                                  target_install_package() call time and emitted explicitly with CMake project inheritance disabled.
 #                                  All SBOM calls for the same export must use the same metadata inheritance mode.
-#                                  SBOM version metadata defaults from explicit SBOM_VERSION, then explicit VERSION, then inherited project VERSION,
-#                                  then wrapper VERSION unless SBOM_PROJECT explicitly selected a project with no VERSION.
+#                                  SBOM version metadata defaults from explicit SBOM_VERSION, then explicit wrapper VERSION, then selected
+#                                  call-time project VERSION. Wrapper effective VERSION fallback only applies when SBOM_PROJECT was not explicit.
 #                                  CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to this CMake version's non-boolean activation value.
 #                                  SBOM_PACKAGE_URL is intentionally not exposed because CMake 4.3.1 rejects PACKAGE_URL for install(SBOM).
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
@@ -1404,6 +1404,7 @@ function(finalize_package)
   get_property(CPS_EXCLUDE_FROM_ALL GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_EXCLUDE_FROM_ALL")
   get_property(SBOM_ENABLED GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM")
   get_property(SBOM_EXPERIMENTAL_VALUE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_EXPERIMENTAL_VALUE")
+  get_property(SBOM_METADATA_MODE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_METADATA_MODE")
   get_property(SBOM_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_NAME")
   get_property(SBOM_PROJECT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_PROJECT")
   get_property(SBOM_NO_PROJECT_METADATA GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_NO_PROJECT_METADATA")
@@ -1835,7 +1836,9 @@ function(finalize_package)
 
     set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORT "${ARG_EXPORT_NAME}")
 
-    if(SBOM_NO_PROJECT_METADATA OR SBOM_INHERITED_PROJECT_METADATA)
+    if(SBOM_NO_PROJECT_METADATA
+       OR SBOM_INHERITED_PROJECT_METADATA
+       OR "${SBOM_METADATA_MODE}" STREQUAL "explicit")
       list(APPEND _tip_sbom_args NO_PROJECT_METADATA)
     endif()
 

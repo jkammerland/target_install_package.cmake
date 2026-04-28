@@ -47,7 +47,10 @@ file(
   "if(WIN32)\n"
   "  set_target_properties(sbom_shared PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)\n"
   "endif()\n"
-  "target_install_package(sbom_shared EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION})\n"
+  "target_install_package(sbom_shared EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION} "
+  "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
+  "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL "
+  "\"https://example.invalid/proof-sbom\")\n"
   "add_library(sbom_iface INTERFACE)\n"
   "target_sources(sbom_iface INTERFACE FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/iface.hpp\")\n"
   "target_install_package(sbom_iface EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION})\n")

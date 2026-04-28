@@ -22,6 +22,15 @@ file(REMOVE_RECURSE "${_tip_case_root}")
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
 function(_tip_proof_write_conflict_fixture case_name first_install second_install)
+  set(_tip_first_project "FirstProject")
+  set(_tip_second_project "SecondProject")
+  if(ARGC GREATER 3)
+    set(_tip_first_project "${ARGV3}")
+  endif()
+  if(ARGC GREATER 4)
+    set(_tip_second_project "${ARGV4}")
+  endif()
+
   set(_tip_source_dir "${_tip_case_root}/${case_name}-src")
   set(_tip_build_dir "${_tip_case_root}/${case_name}-build")
 
@@ -38,7 +47,7 @@ function(_tip_proof_write_conflict_fixture case_name first_install second_instal
 
   file(
     WRITE "${_tip_source_dir}/first/CMakeLists.txt"
-    "project(FirstProject VERSION 1.2.3 SPDX_LICENSE \"MIT\" DESCRIPTION \"First project metadata\" HOMEPAGE_URL \"https://example.invalid/first\" LANGUAGES CXX)\n"
+    "project(${_tip_first_project} VERSION 1.2.3 SPDX_LICENSE \"MIT\" DESCRIPTION \"First project metadata\" HOMEPAGE_URL \"https://example.invalid/first\" LANGUAGES CXX)\n"
     "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
     "add_library(first_lib STATIC src/first.cpp)\n"
@@ -47,7 +56,7 @@ function(_tip_proof_write_conflict_fixture case_name first_install second_instal
 
   file(
     WRITE "${_tip_source_dir}/second/CMakeLists.txt"
-    "project(SecondProject VERSION 1.2.3 SPDX_LICENSE \"Apache-2.0\" DESCRIPTION \"Second project metadata\" HOMEPAGE_URL \"https://example.invalid/second\" LANGUAGES CXX)\n"
+    "project(${_tip_second_project} VERSION 1.2.3 SPDX_LICENSE \"Apache-2.0\" DESCRIPTION \"Second project metadata\" HOMEPAGE_URL \"https://example.invalid/second\" LANGUAGES CXX)\n"
     "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
     "add_library(second_lib STATIC src/second.cpp)\n"
@@ -79,6 +88,23 @@ _tip_proof_write_conflict_fixture(
   "none-then-inherit"
   "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/conflict\")"
   "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_DESTINATION \"share/sbom/conflict\")")
+
+_tip_proof_write_conflict_fixture(
+  "project-a-then-project-b"
+  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SharedProjectConflict SBOM_PROJECT FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SharedProjectConflict SBOM_PROJECT SecondProject SBOM_DESTINATION \"share/sbom/conflict\")")
+
+_tip_proof_write_conflict_fixture(
+  "project-b-then-project-a"
+  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SharedProjectConflict SBOM_PROJECT SecondProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SharedProjectConflict SBOM_PROJECT FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "SecondProject"
+  "FirstProject")
+
+_tip_proof_write_conflict_fixture(
+  "inherit-then-explicit"
+  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")")
 
 _tip_proof_write_conflict_fixture(
   "explicit-then-inherit"
