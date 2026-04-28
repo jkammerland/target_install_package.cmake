@@ -65,6 +65,27 @@ endif()
 #     PUBLIC_DEPENDENCIES <deps...>
 #     INCLUDE_ON_FIND_PACKAGE <files...>
 #     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...
+#     CPS
+#     CPS_PACKAGE_NAME <package_name>
+#     CPS_PROJECT <project_name>
+#     CPS_NO_PROJECT_METADATA
+#     CPS_APPENDIX <appendix_name>
+#     CPS_DESTINATION <destination>
+#     CPS_LOWER_CASE_FILE
+#     CPS_VERSION <version>
+#     CPS_COMPAT_VERSION <version>
+#     CPS_VERSION_SCHEMA <schema>
+#     CPS_DEFAULT_TARGETS <targets...>
+#     CPS_DEFAULT_CONFIGURATIONS <configs...>
+#     CPS_LICENSE <license>
+#     CPS_DEFAULT_LICENSE <license>
+#     CPS_DESCRIPTION <description>
+#     CPS_HOMEPAGE_URL <url>
+#     CPS_PERMISSIONS <permissions...>
+#     CPS_CONFIGURATIONS <configs...>
+#     CPS_CXX_MODULES_DIRECTORY <directory>
+#     CPS_COMPONENT <component>
+#     CPS_EXCLUDE_FROM_ALL
 #     DISABLE_RPATH)
 #
 # Parameters:
@@ -89,6 +110,10 @@ endif()
 #   PUBLIC_DEPENDENCIES          - Package global dependencies (always loaded regardless of components).
 #   INCLUDE_ON_FIND_PACKAGE     - Additional CMake files to include when package is found.
 #   COMPONENT_DEPENDENCIES       - Component-specific dependencies (pairs: component name, dependencies).
+#   CPS                          - Generate Common Package Specification metadata for the whole export with CMake 4.3+.
+#   CPS_*                        - Options forwarded to install(PACKAGE_INFO ...). CPS version metadata defaults from VERSION unless CPS_PROJECT inherits it.
+#                                  If CPS_DEFAULT_TARGETS is omitted, only static, shared, and interface library aliases are default CPS targets.
+#                                  This wrapper rejects executables and CMake MODULE_LIBRARY targets for CPS exports.
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
 # Behavior:
@@ -183,6 +208,57 @@ function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_
   endif()
 endfunction()
 
+function(_tip_append_export_property_unique EXPORT_PROPERTY_PREFIX PROPERTY_SUFFIX)
+  set(_tip_values ${ARGN})
+  list(LENGTH _tip_values _tip_values_count)
+  if(_tip_values_count EQUAL 0)
+    return()
+  endif()
+
+  get_property(_tip_existing GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}")
+  set(_tip_updated ${_tip_existing} ${_tip_values})
+  list(REMOVE_DUPLICATES _tip_updated)
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}" "${_tip_updated}")
+endfunction()
+
+function(_tip_derive_cps_compat_version OUT_VAR VERSION COMPATIBILITY VERSION_SCHEMA)
+  set(_tip_compat_version "")
+
+  if(NOT "${VERSION_SCHEMA}" STREQUAL "" AND NOT "${VERSION_SCHEMA}" STREQUAL "simple")
+    set(${OUT_VAR}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if("${COMPATIBILITY}" STREQUAL "ExactVersion")
+    set(${OUT_VAR}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if("${COMPATIBILITY}" STREQUAL "AnyNewerVersion")
+    set(_tip_compat_version "0.0.0")
+  elseif("${VERSION}" MATCHES "^([0-9]+)(\\.([0-9]+))?(\\.([0-9]+))?.*$")
+    set(_tip_major "${CMAKE_MATCH_1}")
+    set(_tip_minor "${CMAKE_MATCH_3}")
+    if(_tip_minor STREQUAL "")
+      set(_tip_minor "0")
+    endif()
+
+    if("${COMPATIBILITY}" STREQUAL "SameMajorVersion")
+      set(_tip_compat_version "${_tip_major}.0.0")
+    elseif("${COMPATIBILITY}" STREQUAL "SameMinorVersion")
+      set(_tip_compat_version "${_tip_major}.${_tip_minor}.0")
+    endif()
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_compat_version}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_component_dependency_property_name OUT_VAR EXPORT_PROPERTY_PREFIX COMPONENT_NAME)
   string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
   set(${OUT_VAR}
@@ -219,7 +295,28 @@ endfunction()
 #     ADDITIONAL_TARGETS <targets...>
 #     PUBLIC_DEPENDENCIES <deps...>
 #     INCLUDE_ON_FIND_PACKAGE <files...>
-#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...)
+#     COMPONENT_DEPENDENCIES <component> <deps...> [<component> <deps...>]...
+#     CPS
+#     CPS_PACKAGE_NAME <package_name>
+#     CPS_PROJECT <project_name>
+#     CPS_NO_PROJECT_METADATA
+#     CPS_APPENDIX <appendix_name>
+#     CPS_DESTINATION <destination>
+#     CPS_LOWER_CASE_FILE
+#     CPS_VERSION <version>
+#     CPS_COMPAT_VERSION <version>
+#     CPS_VERSION_SCHEMA <schema>
+#     CPS_DEFAULT_TARGETS <targets...>
+#     CPS_DEFAULT_CONFIGURATIONS <configs...>
+#     CPS_LICENSE <license>
+#     CPS_DEFAULT_LICENSE <license>
+#     CPS_DESCRIPTION <description>
+#     CPS_HOMEPAGE_URL <url>
+#     CPS_PERMISSIONS <permissions...>
+#     CPS_CONFIGURATIONS <configs...>
+#     CPS_CXX_MODULES_DIRECTORY <directory>
+#     CPS_COMPONENT <component>
+#     CPS_EXCLUDE_FROM_ALL)
 #
 # See target_install_package() for parameter descriptions.
 # CONFIG_TEMPLATE resolution source of truth:
@@ -236,7 +333,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
 
   # Parse function arguments
-  set(options DISABLE_RPATH)
+  set(options DISABLE_RPATH CPS CPS_NO_PROJECT_METADATA CPS_LOWER_CASE_FILE CPS_EXCLUDE_FROM_ALL)
   set(oneValueArgs
       NAMESPACE
       ALIAS_NAME
@@ -250,8 +347,31 @@ function(target_prepare_package TARGET_NAME)
       COMPONENT
       DEBUG_POSTFIX
       ADDITIONAL_FILES_DESTINATION
-      LAYOUT)
-  set(multiValueArgs ADDITIONAL_FILES ADDITIONAL_TARGETS PUBLIC_DEPENDENCIES INCLUDE_ON_FIND_PACKAGE PUBLIC_CMAKE_FILES COMPONENT_DEPENDENCIES)
+      LAYOUT
+      CPS_PACKAGE_NAME
+      CPS_PROJECT
+      CPS_APPENDIX
+      CPS_DESTINATION
+      CPS_VERSION
+      CPS_COMPAT_VERSION
+      CPS_VERSION_SCHEMA
+      CPS_LICENSE
+      CPS_DEFAULT_LICENSE
+      CPS_DESCRIPTION
+      CPS_HOMEPAGE_URL
+      CPS_CXX_MODULES_DIRECTORY
+      CPS_COMPONENT)
+  set(multiValueArgs
+      ADDITIONAL_FILES
+      ADDITIONAL_TARGETS
+      PUBLIC_DEPENDENCIES
+      INCLUDE_ON_FIND_PACKAGE
+      PUBLIC_CMAKE_FILES
+      COMPONENT_DEPENDENCIES
+      CPS_DEFAULT_TARGETS
+      CPS_DEFAULT_CONFIGURATIONS
+      CPS_PERMISSIONS
+      CPS_CONFIGURATIONS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # Store DISABLE_RPATH as a target property for later use
@@ -298,6 +418,15 @@ function(target_prepare_package TARGET_NAME)
   set_target_properties(${TARGET_NAME} PROPERTIES TARGET_INSTALL_PACKAGE_LAYOUT "${_tip_layout}")
   project_log(DEBUG "  Install layout for '${TARGET_NAME}': ${_tip_layout}")
 
+  set(_tip_version_explicit FALSE)
+  if(NOT "${ARG_VERSION}" STREQUAL "")
+    set(_tip_version_explicit TRUE)
+  endif()
+  set(_tip_cps_version_explicit FALSE)
+  if(NOT "${ARG_CPS_VERSION}" STREQUAL "")
+    set(_tip_cps_version_explicit TRUE)
+  endif()
+
   # Handle VERSION specially since it has PROJECT_VERSION fallback logic
   if(NOT ARG_VERSION)
     if(PROJECT_VERSION)
@@ -315,10 +444,25 @@ function(target_prepare_package TARGET_NAME)
     project_log(DEBUG "  Export name not provided, using target name: ${ARG_EXPORT_NAME}")
   endif()
 
-  # ALIAS_NAME defaults to target name
+  set(_tip_alias_name_explicit FALSE)
+  if(NOT "${ARG_ALIAS_NAME}" STREQUAL "")
+    set(_tip_alias_name_explicit TRUE)
+  endif()
+  set(_tip_component_explicit FALSE)
+  if(NOT "${ARG_COMPONENT}" STREQUAL "")
+    set(_tip_component_explicit TRUE)
+  endif()
+
+  # ALIAS_NAME defaults to target name. If the target already has EXPORT_NAME, preserve that as the effective installed name.
   if(NOT ARG_ALIAS_NAME)
-    set(ARG_ALIAS_NAME "${TARGET_NAME}")
-    project_log(DEBUG "  Alias name not provided, using target name: ${ARG_ALIAS_NAME}")
+    get_target_property(_tip_existing_target_export_name ${TARGET_NAME} EXPORT_NAME)
+    if(_tip_existing_target_export_name AND NOT _tip_existing_target_export_name MATCHES "-NOTFOUND$")
+      set(ARG_ALIAS_NAME "${_tip_existing_target_export_name}")
+      project_log(DEBUG "  Alias name not provided, using existing EXPORT_NAME: ${ARG_ALIAS_NAME}")
+    else()
+      set(ARG_ALIAS_NAME "${TARGET_NAME}")
+      project_log(DEBUG "  Alias name not provided, using target name: ${ARG_ALIAS_NAME}")
+    endif()
   endif()
 
   # NAMESPACE defaults to EXPORT_NAME::
@@ -371,6 +515,74 @@ function(target_prepare_package TARGET_NAME)
     project_log(FATAL_ERROR "Invalid COMPATIBILITY '${ARG_COMPATIBILITY}'. Must be one of: ${VALID_COMPATIBILITY}")
   endif()
 
+  set(_tip_cps_specific_requested FALSE)
+  foreach(
+    _tip_cps_arg IN
+    ITEMS ARG_CPS_PACKAGE_NAME
+          ARG_CPS_PROJECT
+          ARG_CPS_APPENDIX
+          ARG_CPS_DESTINATION
+          ARG_CPS_VERSION
+          ARG_CPS_COMPAT_VERSION
+          ARG_CPS_VERSION_SCHEMA
+          ARG_CPS_DEFAULT_TARGETS
+          ARG_CPS_DEFAULT_CONFIGURATIONS
+          ARG_CPS_LICENSE
+          ARG_CPS_DEFAULT_LICENSE
+          ARG_CPS_DESCRIPTION
+          ARG_CPS_HOMEPAGE_URL
+          ARG_CPS_PERMISSIONS
+          ARG_CPS_CONFIGURATIONS
+          ARG_CPS_CXX_MODULES_DIRECTORY
+          ARG_CPS_COMPONENT)
+    if(DEFINED ${_tip_cps_arg} AND NOT "${${_tip_cps_arg}}" STREQUAL "")
+      set(_tip_cps_specific_requested TRUE)
+    endif()
+  endforeach()
+  if(ARG_CPS_NO_PROJECT_METADATA
+     OR ARG_CPS_LOWER_CASE_FILE
+     OR ARG_CPS_EXCLUDE_FROM_ALL)
+    set(_tip_cps_specific_requested TRUE)
+  endif()
+
+  if(_tip_cps_specific_requested AND NOT ARG_CPS)
+    project_log(FATAL_ERROR "CPS-specific options require the CPS flag for target '${TARGET_NAME}'.")
+  endif()
+
+  if(ARG_CPS)
+    if(CMAKE_VERSION VERSION_LESS "4.3")
+      project_log(FATAL_ERROR "CPS package metadata requires CMake 4.3 or newer because it uses install(PACKAGE_INFO).")
+    endif()
+
+    if(NOT "${ARG_CPS_PROJECT}" STREQUAL "" AND ARG_CPS_NO_PROJECT_METADATA)
+      project_log(FATAL_ERROR "CPS_PROJECT and CPS_NO_PROJECT_METADATA cannot be used together.")
+    endif()
+
+    if(NOT "${ARG_CPS_APPENDIX}" STREQUAL "")
+      set(_tip_cps_appendix_forbidden "")
+      foreach(
+        _tip_cps_appendix_arg IN
+        ITEMS ARG_CPS_PROJECT
+              ARG_CPS_VERSION
+              ARG_CPS_COMPAT_VERSION
+              ARG_CPS_VERSION_SCHEMA
+              ARG_CPS_DEFAULT_TARGETS
+              ARG_CPS_DEFAULT_CONFIGURATIONS
+              ARG_CPS_LICENSE
+              ARG_CPS_DESCRIPTION
+              ARG_CPS_HOMEPAGE_URL)
+        if(DEFINED ${_tip_cps_appendix_arg} AND NOT "${${_tip_cps_appendix_arg}}" STREQUAL "")
+          string(REGEX REPLACE "^ARG_" "" _tip_cps_appendix_name "${_tip_cps_appendix_arg}")
+          list(APPEND _tip_cps_appendix_forbidden "${_tip_cps_appendix_name}")
+        endif()
+      endforeach()
+
+      if(_tip_cps_appendix_forbidden)
+        project_log(FATAL_ERROR "CPS_APPENDIX cannot be combined with: ${_tip_cps_appendix_forbidden}")
+      endif()
+    endif()
+  endif()
+
   # Store configuration in global properties for finalize_package
   set(EXPORT_PROPERTY_PREFIX "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}")
 
@@ -393,6 +605,44 @@ function(target_prepare_package TARGET_NAME)
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
   # Store per-target component configuration Component logic: if COMPONENT is set, use it; otherwise use default Runtime/Development
+  get_property(
+    _tip_existing_alias_name_set GLOBAL
+    PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME"
+    SET)
+  if(_tip_existing_alias_name_set)
+    get_property(_tip_existing_alias_name GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
+    get_property(_tip_existing_alias_name_explicit GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT")
+    if(_tip_alias_name_explicit)
+      if(_tip_existing_alias_name_explicit AND NOT "${_tip_existing_alias_name}" STREQUAL "${ARG_ALIAS_NAME}")
+        project_log(FATAL_ERROR "Conflicting ALIAS_NAME for target '${TARGET_NAME}' in export '${ARG_EXPORT_NAME}': '${_tip_existing_alias_name}' vs '${ARG_ALIAS_NAME}'")
+      endif()
+    elseif(NOT "${_tip_existing_alias_name}" STREQUAL "")
+      set(ARG_ALIAS_NAME "${_tip_existing_alias_name}")
+      if(_tip_existing_alias_name_explicit)
+        set(_tip_alias_name_explicit TRUE)
+      endif()
+    endif()
+  endif()
+
+  get_property(
+    _tip_existing_component_set GLOBAL
+    PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT"
+    SET)
+  if(_tip_existing_component_set)
+    get_property(_tip_existing_component GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
+    get_property(_tip_existing_component_explicit GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT_EXPLICIT")
+    if(_tip_component_explicit)
+      if(_tip_existing_component_explicit AND NOT "${_tip_existing_component}" STREQUAL "${ARG_COMPONENT}")
+        project_log(FATAL_ERROR "Conflicting COMPONENT for target '${TARGET_NAME}' in export '${ARG_EXPORT_NAME}': '${_tip_existing_component}' vs '${ARG_COMPONENT}'")
+      endif()
+    elseif(NOT "${_tip_existing_component}" STREQUAL "")
+      set(ARG_COMPONENT "${_tip_existing_component}")
+      if(_tip_existing_component_explicit)
+        set(_tip_component_explicit TRUE)
+      endif()
+    endif()
+  endif()
+
   if(ARG_COMPONENT)
     set(RUNTIME_COMPONENT_NAME "${ARG_COMPONENT}")
     set(DEVELOPMENT_COMPONENT_NAME "${ARG_COMPONENT}_Development")
@@ -404,7 +654,9 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${RUNTIME_COMPONENT_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT" "${ARG_COMPONENT}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT_EXPLICIT" "${_tip_component_explicit}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT" "${_tip_alias_name_explicit}")
 
   # Store whether DEVELOPMENT_COMPONENT was explicitly specified (Always false now since we only use COMPONENT parameter)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" FALSE)
@@ -412,26 +664,77 @@ function(target_prepare_package TARGET_NAME)
 
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
+  if(_tip_version_explicit)
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION_EXPLICIT" TRUE)
+  endif()
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "NAMESPACE" "${ARG_NAMESPACE}" "namespace")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "VERSION" "${ARG_VERSION}" "version")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "COMPATIBILITY" "${ARG_COMPATIBILITY}" "compatibility")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CONFIG_TEMPLATE" "${ARG_CONFIG_TEMPLATE}" "config template")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}" "include destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}" "module destination")
-  _tip_store_export_property(
-    "${EXPORT_PROPERTY_PREFIX}"
-    "${ARG_EXPORT_NAME}"
-    "CMAKE_CONFIG_DESTINATION"
-    "${ARG_CMAKE_CONFIG_DESTINATION}"
-    "CMake config destination")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CMAKE_CONFIG_DESTINATION" "${ARG_CMAKE_CONFIG_DESTINATION}" "CMake config destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}" "debug postfix")
 
-  get_property(_tip_current_source_dir_set GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" SET)
+  if(ARG_CPS)
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS" TRUE)
+    if(_tip_cps_version_explicit)
+      set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_VERSION_EXPLICIT" TRUE)
+    endif()
+
+    foreach(
+      _tip_cps_one_value IN
+      ITEMS CPS_PACKAGE_NAME
+            CPS_PROJECT
+            CPS_APPENDIX
+            CPS_DESTINATION
+            CPS_VERSION
+            CPS_COMPAT_VERSION
+            CPS_VERSION_SCHEMA
+            CPS_LICENSE
+            CPS_DEFAULT_LICENSE
+            CPS_DESCRIPTION
+            CPS_HOMEPAGE_URL
+            CPS_CXX_MODULES_DIRECTORY
+            CPS_COMPONENT)
+      set(_tip_cps_arg_var "ARG_${_tip_cps_one_value}")
+      if(DEFINED ${_tip_cps_arg_var} AND NOT "${${_tip_cps_arg_var}}" STREQUAL "")
+        string(REPLACE "_" " " _tip_cps_description "${_tip_cps_one_value}")
+        string(TOLOWER "${_tip_cps_description}" _tip_cps_description)
+        _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "${_tip_cps_one_value}" "${${_tip_cps_arg_var}}" "${_tip_cps_description}")
+      endif()
+    endforeach()
+
+    foreach(_tip_cps_multi_value IN ITEMS CPS_DEFAULT_TARGETS CPS_DEFAULT_CONFIGURATIONS CPS_PERMISSIONS CPS_CONFIGURATIONS)
+      set(_tip_cps_arg_var "ARG_${_tip_cps_multi_value}")
+      if(DEFINED ${_tip_cps_arg_var} AND NOT "${${_tip_cps_arg_var}}" STREQUAL "")
+        _tip_append_export_property_unique("${EXPORT_PROPERTY_PREFIX}" "${_tip_cps_multi_value}" ${${_tip_cps_arg_var}})
+      endif()
+    endforeach()
+
+    if(ARG_CPS_NO_PROJECT_METADATA)
+      set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_NO_PROJECT_METADATA" TRUE)
+    endif()
+    if(ARG_CPS_LOWER_CASE_FILE)
+      set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_LOWER_CASE_FILE" TRUE)
+    endif()
+    if(ARG_CPS_EXCLUDE_FROM_ALL)
+      set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_EXCLUDE_FROM_ALL" TRUE)
+    endif()
+  endif()
+
+  get_property(
+    _tip_current_source_dir_set GLOBAL
+    PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR"
+    SET)
   if(NOT _tip_current_source_dir_set)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
 
-  get_property(_tip_current_binary_dir_set GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" SET)
+  get_property(
+    _tip_current_binary_dir_set GLOBAL
+    PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR"
+    SET)
   if(NOT _tip_current_binary_dir_set)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
@@ -840,6 +1143,29 @@ function(finalize_package)
   get_property(INCLUDE_ON_FIND_PACKAGE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
   get_property(COMPONENT_DEPENDENCY_COMPONENTS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_COMPONENTS")
   get_property(DEBUG_POSTFIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX")
+  get_property(CPS_ENABLED GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS")
+  get_property(CPS_PACKAGE_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_PACKAGE_NAME")
+  get_property(CPS_PROJECT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_PROJECT")
+  get_property(CPS_NO_PROJECT_METADATA GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_NO_PROJECT_METADATA")
+  get_property(CPS_APPENDIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_APPENDIX")
+  get_property(CPS_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_DESTINATION")
+  get_property(CPS_LOWER_CASE_FILE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_LOWER_CASE_FILE")
+  get_property(CPS_VERSION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_VERSION")
+  get_property(CPS_VERSION_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_VERSION_EXPLICIT")
+  get_property(CPS_COMPAT_VERSION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_COMPAT_VERSION")
+  get_property(CPS_VERSION_SCHEMA GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_VERSION_SCHEMA")
+  get_property(CPS_DEFAULT_TARGETS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_DEFAULT_TARGETS")
+  get_property(CPS_DEFAULT_CONFIGURATIONS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_DEFAULT_CONFIGURATIONS")
+  get_property(CPS_LICENSE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_LICENSE")
+  get_property(CPS_DEFAULT_LICENSE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_DEFAULT_LICENSE")
+  get_property(CPS_DESCRIPTION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_DESCRIPTION")
+  get_property(CPS_HOMEPAGE_URL GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_HOMEPAGE_URL")
+  get_property(CPS_PERMISSIONS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_PERMISSIONS")
+  get_property(CPS_CONFIGURATIONS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_CONFIGURATIONS")
+  get_property(CPS_CXX_MODULES_DIRECTORY GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_CXX_MODULES_DIRECTORY")
+  get_property(CPS_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_COMPONENT")
+  get_property(CPS_EXCLUDE_FROM_ALL GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_EXCLUDE_FROM_ALL")
+  get_property(VERSION_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION_EXPLICIT")
 
   # Collect component information for logging and debugging
   _collect_export_components("${EXPORT_PROPERTY_PREFIX}" "${TARGETS}")
@@ -897,16 +1223,40 @@ function(finalize_package)
     endforeach()
   endif()
 
+  set(_tip_cps_exported_target_names "")
+  set(_tip_cps_default_target_names "")
+  set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
+  set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
+
   # Install each target separately with its own components
   foreach(TARGET_NAME ${TARGETS})
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
     get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
     get_property(TARGET_ALIAS_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
+    get_property(TARGET_ALIAS_NAME_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT")
 
-    # Use alias name if set, otherwise use target name
-    if(NOT TARGET_ALIAS_NAME)
+    if(NOT TARGET_ALIAS_NAME_EXPLICIT)
+      get_target_property(_tip_existing_target_export_name ${TARGET_NAME} EXPORT_NAME)
+      if(_tip_existing_target_export_name AND NOT _tip_existing_target_export_name MATCHES "-NOTFOUND$")
+        set(TARGET_ALIAS_NAME "${_tip_existing_target_export_name}")
+      endif()
+    endif()
+
+    if("${TARGET_ALIAS_NAME}" STREQUAL "")
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
+    endif()
+    list(APPEND _tip_cps_exported_target_names "${TARGET_ALIAS_NAME}")
+
+    get_target_property(_tip_cps_target_type ${TARGET_NAME} TYPE)
+    if(CPS_ENABLED AND _tip_cps_target_type IN_LIST _tip_cps_unsupported_target_types)
+      project_log(
+        FATAL_ERROR
+        "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support target '${TARGET_NAME}' of type '${_tip_cps_target_type}'. Put executables and module libraries in a separate non-CPS export."
+      )
+    endif()
+    if(_tip_cps_target_type IN_LIST _tip_cps_default_target_types)
+      list(APPEND _tip_cps_default_target_names "${TARGET_ALIAS_NAME}")
     endif()
 
     # Build component args for this target Priority: explicit components > prefix pattern > defaults
@@ -951,9 +1301,8 @@ function(finalize_package)
     # - ARCHIVE: Static libraries and Windows import libs → lib/
     #   (Import .lib files are development artifacts, not runtime)
     # ~~~
-    # Determine configuration subdirectory policy based on layout. Layout options: - fhs:           no config subdir (standard system layout) - split_debug:   Debug under debug/, others no subdir - split_all:
-    # all configs
-    # under lower-cased $<CONFIG>/ (guarded for empty)
+    # Determine configuration subdirectory policy based on layout. Layout options: - fhs:           no config subdir (standard system layout) - split_debug:   Debug under debug/, others no subdir -
+    # split_all: all configs under lower-cased $<CONFIG>/ (guarded for empty)
     get_target_property(_tip_target_layout ${TARGET_NAME} TARGET_INSTALL_PACKAGE_LAYOUT)
     if(NOT _tip_target_layout)
       set(_tip_target_layout "fhs")
@@ -1035,7 +1384,9 @@ function(finalize_package)
       project_log(DEBUG "Skipping RPATH due to DISABLE_RPATH parameter for '${TARGET_NAME}'")
     endif()
 
-    if(NOT WIN32 AND NOT CMAKE_SKIP_INSTALL_RPATH AND NOT TARGET_DISABLE_RPATH)
+    if(NOT WIN32
+       AND NOT CMAKE_SKIP_INSTALL_RPATH
+       AND NOT TARGET_DISABLE_RPATH)
       get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
 
       if(TARGET_TYPE STREQUAL "EXECUTABLE" OR TARGET_TYPE STREQUAL "SHARED_LIBRARY")
@@ -1190,8 +1541,154 @@ function(finalize_package)
     DESTINATION ${CMAKE_CONFIG_DESTINATION}
     ${CONFIG_COMPONENT_ARGS})
 
-  # Create package version file using CMake's canonical ConfigVersion naming.
-  # Keep the historical -config-version alias for compatibility with existing installs/tests.
+  if(CPS_ENABLED)
+    if(CMAKE_VERSION VERSION_LESS "4.3")
+      project_log(FATAL_ERROR "CPS package metadata requires CMake 4.3 or newer because it uses install(PACKAGE_INFO).")
+    endif()
+
+    set(_tip_cps_explicit_version "")
+    if(CPS_VERSION_EXPLICIT)
+      set(_tip_cps_explicit_version "${CPS_VERSION}")
+    endif()
+
+    if("${CPS_PACKAGE_NAME}" STREQUAL "")
+      set(CPS_PACKAGE_NAME "${ARG_EXPORT_NAME}")
+    endif()
+
+    set(_tip_cps_effective_version "${CPS_VERSION}")
+    if("${_tip_cps_effective_version}" STREQUAL "")
+      if(VERSION_EXPLICIT OR "${CPS_PROJECT}" STREQUAL "")
+        set(_tip_cps_effective_version "${VERSION}")
+      elseif(NOT "${CPS_COMPAT_VERSION}" STREQUAL "" OR NOT "${CPS_VERSION_SCHEMA}" STREQUAL "")
+        set(_tip_cps_project_version_var "${CPS_PROJECT}_VERSION")
+        if(DEFINED ${_tip_cps_project_version_var} AND NOT "${${_tip_cps_project_version_var}}" STREQUAL "")
+          set(_tip_cps_effective_version "${${_tip_cps_project_version_var}}")
+        else()
+          project_log(FATAL_ERROR "CPS_COMPAT_VERSION or CPS_VERSION_SCHEMA for export '${ARG_EXPORT_NAME}' requires explicit CPS_VERSION/VERSION or a CPS_PROJECT with version metadata.")
+        endif()
+      endif()
+    endif()
+
+    if(NOT "${CPS_PROJECT}" STREQUAL "" AND CPS_NO_PROJECT_METADATA)
+      project_log(FATAL_ERROR "CPS_PROJECT and CPS_NO_PROJECT_METADATA cannot be used together for export '${ARG_EXPORT_NAME}'.")
+    endif()
+
+    if(NOT "${CPS_APPENDIX}" STREQUAL "")
+      set(_tip_cps_appendix_forbidden "")
+      foreach(
+        _tip_cps_appendix_option IN
+        ITEMS CPS_PROJECT
+              CPS_VERSION
+              CPS_COMPAT_VERSION
+              CPS_VERSION_SCHEMA
+              CPS_DEFAULT_TARGETS
+              CPS_DEFAULT_CONFIGURATIONS
+              CPS_LICENSE
+              CPS_DESCRIPTION
+              CPS_HOMEPAGE_URL)
+        set(_tip_cps_appendix_value "${${_tip_cps_appendix_option}}")
+
+        if(NOT "${_tip_cps_appendix_value}" STREQUAL "")
+          list(APPEND _tip_cps_appendix_forbidden "${_tip_cps_appendix_option}")
+        endif()
+      endforeach()
+
+      if(_tip_cps_appendix_forbidden)
+        project_log(FATAL_ERROR "CPS_APPENDIX cannot be combined with export-level CPS options for export '${ARG_EXPORT_NAME}': ${_tip_cps_appendix_forbidden}")
+      endif()
+    endif()
+
+    set(_tip_cps_args PACKAGE_INFO "${CPS_PACKAGE_NAME}" EXPORT "${ARG_EXPORT_NAME}")
+
+    if(NOT "${CPS_PROJECT}" STREQUAL "")
+      list(APPEND _tip_cps_args PROJECT "${CPS_PROJECT}")
+    elseif(CPS_NO_PROJECT_METADATA)
+      list(APPEND _tip_cps_args NO_PROJECT_METADATA)
+    endif()
+
+    if(NOT "${CPS_APPENDIX}" STREQUAL "")
+      list(APPEND _tip_cps_args APPENDIX "${CPS_APPENDIX}")
+    endif()
+    if(NOT "${CPS_DESTINATION}" STREQUAL "")
+      list(APPEND _tip_cps_args DESTINATION "${CPS_DESTINATION}")
+    endif()
+    if(CPS_LOWER_CASE_FILE)
+      list(APPEND _tip_cps_args LOWER_CASE_FILE)
+    endif()
+
+    if("${CPS_APPENDIX}" STREQUAL "")
+      if(NOT "${_tip_cps_effective_version}" STREQUAL "")
+        list(APPEND _tip_cps_args VERSION "${_tip_cps_effective_version}")
+
+        set(_tip_cps_effective_compat_version "${CPS_COMPAT_VERSION}")
+        if("${_tip_cps_effective_compat_version}" STREQUAL "")
+          _tip_derive_cps_compat_version(_tip_cps_effective_compat_version "${_tip_cps_effective_version}" "${COMPATIBILITY}" "${CPS_VERSION_SCHEMA}")
+        endif()
+        if(NOT "${_tip_cps_effective_compat_version}" STREQUAL "")
+          list(APPEND _tip_cps_args COMPAT_VERSION "${_tip_cps_effective_compat_version}")
+        endif()
+
+        if(NOT "${CPS_VERSION_SCHEMA}" STREQUAL "")
+          list(APPEND _tip_cps_args VERSION_SCHEMA "${CPS_VERSION_SCHEMA}")
+        endif()
+      endif()
+
+      set(_tip_cps_effective_default_targets ${CPS_DEFAULT_TARGETS})
+      list(LENGTH _tip_cps_effective_default_targets _tip_cps_effective_default_target_count)
+      if(_tip_cps_effective_default_target_count EQUAL 0)
+        set(_tip_cps_effective_default_targets ${_tip_cps_default_target_names})
+        list(REMOVE_DUPLICATES _tip_cps_effective_default_targets)
+        list(LENGTH _tip_cps_effective_default_targets _tip_cps_effective_default_target_count)
+      endif()
+      if(_tip_cps_effective_default_target_count GREATER 0)
+        foreach(_tip_cps_default_target IN LISTS _tip_cps_effective_default_targets)
+          if(NOT _tip_cps_default_target IN_LIST _tip_cps_exported_target_names)
+            project_log(FATAL_ERROR "CPS_DEFAULT_TARGETS entry '${_tip_cps_default_target}' is not an exported target name for export '${ARG_EXPORT_NAME}'.")
+          endif()
+        endforeach()
+        list(APPEND _tip_cps_args DEFAULT_TARGETS ${_tip_cps_effective_default_targets})
+      endif()
+
+      if(NOT "${CPS_DEFAULT_CONFIGURATIONS}" STREQUAL "")
+        list(APPEND _tip_cps_args DEFAULT_CONFIGURATIONS ${CPS_DEFAULT_CONFIGURATIONS})
+      endif()
+    endif()
+
+    if(NOT "${CPS_LICENSE}" STREQUAL "")
+      list(APPEND _tip_cps_args LICENSE "${CPS_LICENSE}")
+    endif()
+    if(NOT "${CPS_DEFAULT_LICENSE}" STREQUAL "")
+      list(APPEND _tip_cps_args DEFAULT_LICENSE "${CPS_DEFAULT_LICENSE}")
+    endif()
+    if(NOT "${CPS_DESCRIPTION}" STREQUAL "")
+      list(APPEND _tip_cps_args DESCRIPTION "${CPS_DESCRIPTION}")
+    endif()
+    if(NOT "${CPS_HOMEPAGE_URL}" STREQUAL "")
+      list(APPEND _tip_cps_args HOMEPAGE_URL "${CPS_HOMEPAGE_URL}")
+    endif()
+    if(NOT "${CPS_PERMISSIONS}" STREQUAL "")
+      list(APPEND _tip_cps_args PERMISSIONS ${CPS_PERMISSIONS})
+    endif()
+    if(NOT "${CPS_CONFIGURATIONS}" STREQUAL "")
+      list(APPEND _tip_cps_args CONFIGURATIONS ${CPS_CONFIGURATIONS})
+    endif()
+    if(NOT "${CPS_CXX_MODULES_DIRECTORY}" STREQUAL "")
+      list(APPEND _tip_cps_args CXX_MODULES_DIRECTORY "${CPS_CXX_MODULES_DIRECTORY}")
+    endif()
+    if(NOT "${CPS_COMPONENT}" STREQUAL "")
+      list(APPEND _tip_cps_args COMPONENT "${CPS_COMPONENT}")
+    else()
+      list(APPEND _tip_cps_args ${CONFIG_COMPONENT_ARGS})
+    endif()
+    if(CPS_EXCLUDE_FROM_ALL)
+      list(APPEND _tip_cps_args EXCLUDE_FROM_ALL)
+    endif()
+
+    install(${_tip_cps_args})
+    project_log(STATUS "CPS package '${CPS_PACKAGE_NAME}' is ready for export '${ARG_EXPORT_NAME}'")
+  endif()
+
+  # Create package version file using CMake's canonical ConfigVersion naming. Keep the historical -config-version alias for compatibility with existing installs/tests.
   set(VERSION_FILENAME "${ARG_EXPORT_NAME}ConfigVersion.cmake")
   set(VERSION_FILE_PATH "${CURRENT_BINARY_DIR}/${VERSION_FILENAME}")
   set(LEGACY_VERSION_FILENAME "${ARG_EXPORT_NAME}-config-version.cmake")
@@ -1300,12 +1797,7 @@ function(finalize_package)
   endif()
 
   # Validate template contains required placeholders for provided parameters
-  _validate_config_template_placeholders(
-    "${CONFIG_TEMPLATE_TO_USE}"
-    "${ARG_EXPORT_NAME}"
-    "${INCLUDE_ON_FIND_PACKAGE}"
-    "${PUBLIC_DEPENDENCIES}"
-    "${_tip_find_package_components}")
+  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${PUBLIC_DEPENDENCIES}" "${_tip_find_package_components}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")

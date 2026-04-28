@@ -24,6 +24,8 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [multi-cpack](multi-cpack/) | Multi-CPack | Multiple package configurations from one source tree |
 | [rpath-example](rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
+The CPS examples are covered by the proof tests rather than a standalone example directory because CPS requires CMake 4.3+. See the README CPS section for the producer and consumer snippets.
+
 ## 🚀 Quick Start
 
 Each example is self-contained and can be built independently:
@@ -146,6 +148,7 @@ install/
 │   ├── lib<name>.so       # Shared libraries (Linux)
 │   └── <name>.lib         # Import libraries (Windows)
 └── share/
+    ├── cps/<package>/     # Optional CPS metadata, e.g. when CPS_DESTINATION is share/cps/<package>
     └── cmake/
         └── <package>/     # CMake configuration files
             ├── <package>-config.cmake

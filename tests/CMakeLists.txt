@@ -228,6 +228,9 @@ option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known re
 set(target_install_package_PROOF_CONTAINER_RUNTIME
     "podman"
     CACHE STRING "Container runtime used by container proof tests")
+set(target_install_package_PROOF_OLD_CMAKE_COMMAND
+    ""
+    CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake CPS guard proof from newer CMake test configurations")
 
 if(target_install_package_BUILD_PROOF_TESTS)
   set(_tip_proof_test_root "${CMAKE_CURRENT_BINARY_DIR}/proofs")
@@ -267,6 +270,24 @@ if(target_install_package_BUILD_PROOF_TESTS)
     NAME proof_substitution_mode_variables
     COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_substitution_mode_variables_test.cmake")
   set_tests_properties(proof_substitution_mode_variables PROPERTIES LABELS "proof;review")
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.3")
+    add_test(
+      NAME proof_cps_package_info
+      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_package_info_test.cmake")
+    set_tests_properties(proof_cps_package_info PROPERTIES LABELS "proof;cps")
+    if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+      add_test(
+        NAME proof_cps_old_cmake_guard
+        COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
+      set_tests_properties(proof_cps_old_cmake_guard PROPERTIES LABELS "proof;cps")
+    endif()
+  else()
+    add_test(
+      NAME proof_cps_old_cmake_guard
+      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_cps_old_cmake_guard PROPERTIES LABELS "proof;cps")
+  endif()
 
   find_program(_tip_bash bash)
   set(_tip_bash_supports_proofs FALSE)

@@ -1,0 +1,42 @@
+cmake_minimum_required(VERSION 3.25)
+
+include("${CMAKE_CURRENT_LIST_DIR}/proof_helpers.cmake")
+
+if(NOT DEFINED TIP_REPO_ROOT)
+  _tip_proof_fail("TIP_REPO_ROOT is required")
+endif()
+if(NOT DEFINED TIP_PROOF_TEST_ROOT)
+  _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
+endif()
+if(NOT CMAKE_VERSION VERSION_LESS "4.3")
+  _tip_proof_fail("proof_cps_old_cmake_guard requires CMake older than 4.3 and should not be registered on newer CMake versions")
+endif()
+
+set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/cps-old-cmake-guard")
+set(_tip_old_cmake_source_dir "${_tip_case_root}/old-cmake-src")
+set(_tip_old_cmake_build_dir "${_tip_case_root}/old-cmake-build")
+file(REMOVE_RECURSE "${_tip_case_root}")
+file(MAKE_DIRECTORY "${_tip_old_cmake_source_dir}/src")
+
+_tip_proof_append_toolchain_args(_tip_toolchain_args)
+
+file(
+  WRITE "${_tip_old_cmake_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_cps_old_cmake LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(old_cmake_lib STATIC src/old.cpp)\n" "target_install_package(old_cmake_lib EXPORT_NAME old_cmake_pkg CPS)\n")
+file(WRITE "${_tip_old_cmake_source_dir}/src/old.cpp" "int old_cmake_value() { return 1; }\n")
+
+_tip_proof_expect_failure(
+  NAME
+  "old-cmake-cps-configure"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  -S
+  "${_tip_old_cmake_source_dir}"
+  -B
+  "${_tip_old_cmake_build_dir}"
+  ${_tip_toolchain_args}
+  EXPECT_CONTAINS
+  "CPS package metadata requires CMake 4.3 or newer")
+
+message(STATUS "[proof] CPS old-CMake guard proof passed.")

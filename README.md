@@ -20,6 +20,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 
 - CMake 3.25+ for core utilities and examples
 - C++20 modules examples require CMake 3.28+
+- Common Package Specification (CPS) generation requires CMake 4.3+
 
 ## Shipped Functions & Files
 
@@ -37,6 +38,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 
 >[!NOTE]
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
+> With CMake 4.3+, it can also generate opt-in Common Package Specification (`.cps`) metadata via `CPS`.
 
 ### Template Override System 
 The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
@@ -45,7 +47,7 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
 >[!NOTE]
-> `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
+> `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`, and config files to `share/cmake/<package>/`. CPS metadata uses CMake's platform-specific `install(PACKAGE_INFO)` default unless `CPS_DESTINATION` is set. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
 `target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
@@ -80,6 +82,7 @@ target_install_package(my_library
    - [Basic Library Installation](#basic-library-installation)
    - [Configuring Template Headers](#configuring-template-headers-)
    - [Libraries with Dependencies](#libraries-with-dependencies-)
+   - [Common Package Specification (CPS)](#common-package-specification-cps)
    - [CPack Package Generation](#cpack-package-generation-)
    - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands-)
 4. [Component-Based Installation](#component-based-installation-)
@@ -102,6 +105,7 @@ target_install_package(my_library
 
 - Modern feel target centric API with less boilerplate
 - Package installation with CMake config file generation
+- Opt-in Common Package Specification (CPS) metadata generation on CMake 4.3+
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
@@ -358,6 +362,75 @@ target_install_package(graphics_lib
 find_package(graphics_lib REQUIRED)
 target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 # OpenGL and glfw3 are automatically found and linked
+```
+
+### Common Package Specification (CPS)
+
+CMake 4.3+ can generate Common Package Specification metadata alongside the normal CMake config files:
+
+```cmake
+add_library(math_utils STATIC)
+target_sources(math_utils PRIVATE src/matrix.cpp)
+target_sources(math_utils PUBLIC
+  FILE_SET HEADERS
+  BASE_DIRS "include"
+  FILES "include/math/matrix.h"
+)
+
+target_install_package(math_utils
+  EXPORT_NAME MathUtils
+  NAMESPACE Math::          # Legacy CMake config imports Math::core
+  ALIAS_NAME core
+  VERSION ${PROJECT_VERSION}
+  CPS
+  CPS_PACKAGE_NAME MathUtils
+  CPS_LICENSE "MIT"
+  CPS_DESCRIPTION "Math utility library"
+  CPS_HOMEPAGE_URL "https://example.com/math-utils"
+)
+```
+
+Consumers using a CPS-aware CMake can import the CPS package with the CPS package name:
+
+```cmake
+find_package(MathUtils 1.0 CONFIG REQUIRED)
+target_link_libraries(app PRIVATE MathUtils::core)
+```
+
+Important differences from the CMake config path:
+- `CPS` is opt-in, export-scoped, and fails during configure on CMake older than 4.3. Every target sharing the same `EXPORT_NAME` must be compatible with CPS generation.
+- This wrapper rejects executables and CMake `MODULE_LIBRARY` targets (`add_library(... MODULE)`) for CPS exports. C++20 module file sets on libraries are a different feature and remain supported.
+- CPS imports use `<CPS_PACKAGE_NAME>::<component>`. They do not use the legacy `NAMESPACE` from `install(EXPORT ...)`.
+- `CPS_DEFAULT_TARGETS` must use effective exported names: explicit `ALIAS_NAME`, otherwise an existing target `EXPORT_NAME` property, otherwise the build target name. For a root package, if omitted, static, shared, and interface library aliases become default CPS targets.
+- `CPS_APPENDIX` packages should use their own `EXPORT_NAME`; do not mix root package targets and appendix targets in one export. Appendices cannot set root CPS metadata options such as `CPS_PROJECT`, `CPS_VERSION`, `CPS_COMPAT_VERSION`, `CPS_VERSION_SCHEMA`, `CPS_LICENSE`, `CPS_DESCRIPTION`, `CPS_HOMEPAGE_URL`, `CPS_DEFAULT_TARGETS`, or `CPS_DEFAULT_CONFIGURATIONS`. Plain `VERSION` may still be used for the wrapper's CMake config version.
+- `CPS_VERSION` overrides CPS version metadata. If omitted, the CPS root package uses explicit `VERSION`; when `CPS_PROJECT` is set and no explicit `VERSION` or `CPS_VERSION` was provided, CMake inherits version/description/homepage metadata from the named project.
+- `CPS_COMPAT_VERSION` overrides compatibility metadata. Otherwise simple versions are derived from `COMPATIBILITY`: `AnyNewerVersion` -> `0.0.0`, `SameMajorVersion` -> `<major>.0.0`, `SameMinorVersion` -> `<major>.<minor>.0`, and `ExactVersion` omits `COMPAT_VERSION`.
+- `CPS_DESTINATION` should be omitted or placed under a CMake CPS search path containing `/cps/`, such as `share/cps/<package>`. CMake does not look for `.cps` files in normal `share/cmake/<package>` paths.
+- CMake 4.3 can prefer a `.cps` file over a CMake-script config for the same package. If preserving consumer target names matters, keep `NAMESPACE` aligned with `CPS_PACKAGE_NAME::`.
+- `CPS_CXX_MODULES_DIRECTORY` forwards CMake's C++ module metadata directory to `install(PACKAGE_INFO)`. Use it with `CXX_MODULES` file sets on library targets.
+- `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` remain CMake-config features. This wrapper does not translate those CMake snippets into CPS metadata. For CPS transitive dependencies, express dependencies as target usage requirements with `target_link_libraries()`; CMake can emit CPS `requires` for linked imported/exported targets, using `EXPORT_FIND_PACKAGE_NAME` when the package name is not otherwise known.
+- CMake 4.3 `install(PACKAGE_INFO)` does not expose CPS platform metadata (`platform`) or arbitrary CPS component kinds such as `jar` and `symbolic`. This wrapper documents those limits instead of accepting flags it cannot faithfully emit.
+
+Example CPS dependency pattern:
+
+```cmake
+add_library(dep INTERFACE)
+set_target_properties(dep PROPERTIES EXPORT_FIND_PACKAGE_NAME DepPkg)
+target_install_package(dep
+  EXPORT_NAME DepPkg
+  ALIAS_NAME dep
+  CPS
+  CPS_PACKAGE_NAME DepPkg
+)
+
+add_library(core STATIC src/core.cpp)
+target_link_libraries(core PUBLIC dep)
+target_install_package(core
+  EXPORT_NAME CorePkg
+  ALIAS_NAME core
+  CPS
+  CPS_PACKAGE_NAME CorePkg
+)
 ```
 
 ### CPack Package Generation
