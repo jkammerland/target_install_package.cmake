@@ -228,9 +228,12 @@ option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known re
 set(target_install_package_PROOF_CONTAINER_RUNTIME
     "podman"
     CACHE STRING "Container runtime used by container proof tests")
+set(target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE
+    ""
+    CACHE STRING "Optional CMake experimental SBOM activation value used by SBOM proof tests")
 set(target_install_package_PROOF_OLD_CMAKE_COMMAND
     ""
-    CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake CPS guard proof from newer CMake test configurations")
+    CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake CPS/SBOM guard proofs from newer CMake test configurations")
 
 if(target_install_package_BUILD_PROOF_TESTS)
   set(_tip_proof_test_root "${CMAKE_CURRENT_BINARY_DIR}/proofs")
@@ -276,17 +279,45 @@ if(target_install_package_BUILD_PROOF_TESTS)
       NAME proof_cps_package_info
       COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_package_info_test.cmake")
     set_tests_properties(proof_cps_package_info PROPERTIES LABELS "proof;cps")
+
+    if(target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE)
+      add_test(
+        NAME proof_sbom_install
+        COMMAND
+          ${CMAKE_COMMAND}
+          ${_tip_proof_common_args}
+          "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}"
+          -P
+          "${_tip_proof_script_dir}/proof_sbom_install_test.cmake")
+      set_tests_properties(proof_sbom_install PROPERTIES LABELS "proof;sbom")
+    endif()
+
+    add_test(
+      NAME proof_sbom_missing_gate
+      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_missing_gate_test.cmake")
+    set_tests_properties(proof_sbom_missing_gate PROPERTIES LABELS "proof;sbom")
+
     if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
       add_test(
         NAME proof_cps_old_cmake_guard
         COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
       set_tests_properties(proof_cps_old_cmake_guard PROPERTIES LABELS "proof;cps")
+
+      add_test(
+        NAME proof_sbom_old_cmake_guard
+        COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_old_cmake_guard_test.cmake")
+      set_tests_properties(proof_sbom_old_cmake_guard PROPERTIES LABELS "proof;sbom")
     endif()
   else()
     add_test(
       NAME proof_cps_old_cmake_guard
       COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
     set_tests_properties(proof_cps_old_cmake_guard PROPERTIES LABELS "proof;cps")
+
+    add_test(
+      NAME proof_sbom_old_cmake_guard
+      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_sbom_old_cmake_guard PROPERTIES LABELS "proof;sbom")
   endif()
 
   find_program(_tip_bash bash)

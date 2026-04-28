@@ -1,0 +1,161 @@
+cmake_minimum_required(VERSION 3.25)
+
+include("${CMAKE_CURRENT_LIST_DIR}/proof_helpers.cmake")
+
+if(NOT DEFINED TIP_REPO_ROOT)
+  _tip_proof_fail("TIP_REPO_ROOT is required")
+endif()
+if(NOT DEFINED TIP_PROOF_TEST_ROOT)
+  _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
+endif()
+if(NOT DEFINED TIP_SBOM_EXPERIMENTAL_VALUE OR TIP_SBOM_EXPERIMENTAL_VALUE STREQUAL "")
+  _tip_proof_fail("TIP_SBOM_EXPERIMENTAL_VALUE is required")
+endif()
+if(CMAKE_VERSION VERSION_LESS "4.3")
+  _tip_proof_fail("proof_sbom_install requires CMake 4.3 or newer and should not be registered on older CMake versions")
+endif()
+
+function(_tip_proof_read_json path out_var)
+  _tip_proof_assert_exists("${path}")
+  file(READ "${path}" _tip_json_content)
+  set(${out_var}
+      "${_tip_json_content}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_proof_assert_json_path_string path expected)
+  set(_tip_json_path ${ARGN})
+  if(NOT _tip_json_path)
+    _tip_proof_fail("_tip_proof_assert_json_path_string requires at least one JSON path element")
+  endif()
+
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(
+    JSON
+    _tip_json_actual
+    ERROR_VARIABLE
+    _tip_json_error
+    GET
+    "${_tip_json_content}"
+    ${_tip_json_path})
+  if(_tip_json_error)
+    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
+  endif()
+  if(NOT "${_tip_json_actual}" STREQUAL "${expected}")
+    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}' to be '${expected}', got '${_tip_json_actual}'")
+  endif()
+endfunction()
+
+function(_tip_proof_assert_json_path_length path expected)
+  set(_tip_json_path ${ARGN})
+  if(NOT _tip_json_path)
+    _tip_proof_fail("_tip_proof_assert_json_path_length requires at least one JSON path element")
+  endif()
+
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(
+    JSON
+    _tip_json_length
+    ERROR_VARIABLE
+    _tip_json_error
+    LENGTH
+    "${_tip_json_content}"
+    ${_tip_json_path})
+  if(_tip_json_error)
+    _tip_proof_fail("Expected JSON array/object path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
+  endif()
+  if(NOT _tip_json_length EQUAL ${expected})
+    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}' to have length ${expected}, got ${_tip_json_length}")
+  endif()
+endfunction()
+
+set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/sbom-install")
+set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
+set(_tip_fixture_build_dir "${_tip_case_root}/fixture-build")
+set(_tip_install_prefix "${_tip_case_root}/fixture-install")
+
+file(REMOVE_RECURSE "${_tip_case_root}")
+file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/include/proof_sbom")
+file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/src")
+
+_tip_proof_append_toolchain_args(_tip_toolchain_args)
+
+file(
+  WRITE "${_tip_fixture_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n"
+  "project(proof_sbom_fixture VERSION 2.3.4 DESCRIPTION \"Proof SBOM package\" HOMEPAGE_URL \"https://example.invalid/proof-sbom\" LANGUAGES CXX)\n"
+  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+  "add_library(sbom_static STATIC src/static.cpp)\n"
+  "set_target_properties(sbom_static PROPERTIES SPDX_LICENSE \"Apache-2.0\")\n"
+  "target_compile_features(sbom_static PUBLIC cxx_std_17)\n"
+  "target_sources(sbom_static PUBLIC FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/static.hpp\")\n"
+  "target_install_package(sbom_static EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION} "
+  "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
+  "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL "
+  "\"https://example.invalid/proof-sbom\")\n"
+  "add_library(sbom_shared SHARED src/shared.cpp)\n"
+  "target_compile_features(sbom_shared PUBLIC cxx_std_17)\n"
+  "target_sources(sbom_shared PUBLIC FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/shared.hpp\")\n"
+  "if(WIN32)\n"
+  "  set_target_properties(sbom_shared PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)\n"
+  "endif()\n"
+  "target_install_package(sbom_shared EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION})\n"
+  "add_library(sbom_iface INTERFACE)\n"
+  "target_sources(sbom_iface INTERFACE FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/iface.hpp\")\n"
+  "target_install_package(sbom_iface EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION})\n")
+
+file(WRITE "${_tip_fixture_source_dir}/include/proof_sbom/static.hpp" "int sbom_static_value();\n")
+file(WRITE "${_tip_fixture_source_dir}/include/proof_sbom/shared.hpp" "int sbom_shared_value();\n")
+file(WRITE "${_tip_fixture_source_dir}/include/proof_sbom/iface.hpp" "#pragma once\n")
+file(WRITE "${_tip_fixture_source_dir}/src/static.cpp" "#include <proof_sbom/static.hpp>\nint sbom_static_value() { return 3; }\n")
+file(WRITE "${_tip_fixture_source_dir}/src/shared.cpp" "#include <proof_sbom/shared.hpp>\nint sbom_shared_value() { return 4; }\n")
+
+set(_tip_fixture_configure_command "${CMAKE_COMMAND}" -S "${_tip_fixture_source_dir}" -B "${_tip_fixture_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+
+_tip_proof_run_step(NAME "fixture-configure" COMMAND ${_tip_fixture_configure_command})
+_tip_proof_run_step(
+  NAME
+  "fixture-build"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${_tip_fixture_build_dir}"
+  --config
+  Release)
+_tip_proof_run_step(
+  NAME
+  "fixture-install"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --install
+  "${_tip_fixture_build_dir}"
+  --config
+  Release
+  --prefix
+  "${_tip_install_prefix}")
+
+file(GLOB _tip_sbom_files "${_tip_install_prefix}/share/sbom/proofsbom/*.spdx.json")
+list(LENGTH _tip_sbom_files _tip_sbom_file_count)
+if(NOT _tip_sbom_file_count EQUAL 1)
+  _tip_proof_fail("Expected one installed SBOM file, got ${_tip_sbom_file_count}")
+endif()
+list(GET _tip_sbom_files 0 _tip_sbom_file)
+_tip_proof_assert_exists("${_tip_sbom_file}")
+
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://spdx.org/rdf/3.0.1/spdx-context.jsonld" "@context")
+_tip_proof_assert_json_path_length("${_tip_sbom_file}" 2 "@graph")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "ProofSbom" "@graph" 1 "name")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "MIT" "@graph" 1 "dataLicense")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "Proof SBOM package" "@graph" 1 "description")
+_tip_proof_assert_json_path_length("${_tip_sbom_file}" 3 "@graph" 1 "rootElement")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "sbom_static" "@graph" 1 "rootElement" 0 "name")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "2.3.4" "@graph" 1 "rootElement" 0 "software_packageVersion")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://example.invalid/proof-sbom" "@graph" 1 "rootElement" 0 "software_homePage")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "sbom_shared" "@graph" 1 "rootElement" 1 "name")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "2.3.4" "@graph" 1 "rootElement" 1 "software_packageVersion")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "sbom_iface" "@graph" 1 "rootElement" 2 "name")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "2.3.4" "@graph" 1 "rootElement" 2 "software_packageVersion")
+
+message(STATUS "[proof] SBOM install proof passed.")

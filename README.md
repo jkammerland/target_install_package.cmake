@@ -21,6 +21,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 - CMake 3.25+ for core utilities and examples
 - C++20 modules examples require CMake 3.28+
 - Common Package Specification (CPS) generation requires CMake 4.3+
+- SBOM generation requires CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to that CMake version's activation value
 
 ## Shipped Functions & Files
 
@@ -38,7 +39,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 
 >[!NOTE]
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
-> With CMake 4.3+, it can also generate opt-in Common Package Specification (`.cps`) metadata via `CPS`.
+> With CMake 4.3+, it can also generate opt-in Common Package Specification (`.cps`) metadata via `CPS` and an opt-in SPDX SBOM via `SBOM` when CMake's SBOM experiment is explicitly activated.
 
 ### Template Override System 
 The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
@@ -47,7 +48,14 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
 
 >[!NOTE]
-> `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`, and config files to `share/cmake/<package>/`. CPS metadata uses CMake's platform-specific `install(PACKAGE_INFO)` default unless `CPS_DESTINATION` is set. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
+> `target_install_package()` uses standard CMake installation directories via
+> [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html):
+> executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`,
+> and config files to `share/cmake/<package>/`.
+> CPS metadata uses CMake's platform-specific `install(PACKAGE_INFO)` default
+> unless `CPS_DESTINATION` is set. SBOM metadata uses CMake's platform-specific
+> `install(SBOM)` default unless `SBOM_DESTINATION` is set. See
+> [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
 `target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
@@ -83,6 +91,7 @@ target_install_package(my_library
    - [Configuring Template Headers](#configuring-template-headers-)
    - [Libraries with Dependencies](#libraries-with-dependencies-)
    - [Common Package Specification (CPS)](#common-package-specification-cps)
+   - [Software Bill of Materials (SBOM)](#software-bill-of-materials-sbom)
    - [CPack Package Generation](#cpack-package-generation-)
    - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands-)
 4. [Component-Based Installation](#component-based-installation-)
@@ -106,6 +115,7 @@ target_install_package(my_library
 - Modern feel target centric API with less boilerplate
 - Package installation with CMake config file generation
 - Opt-in Common Package Specification (CPS) metadata generation on CMake 4.3+
+- Opt-in SPDX SBOM generation on CMake 4.3+ with explicit experimental activation
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
@@ -432,6 +442,38 @@ target_install_package(core
   CPS_PACKAGE_NAME CorePkg
 )
 ```
+
+### Software Bill of Materials (SBOM)
+
+CMake 4.3+ can generate an installed SPDX SBOM for an export when its SBOM experiment is activated:
+
+```cmake
+# Example activation value accepted by the local CMake 4.3.1 proof setup.
+set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "ca494ed3-b261-4205-a01f-603c95e4cae0")
+
+target_install_package(math_utils
+  EXPORT_NAME MathUtils
+  VERSION ${PROJECT_VERSION}
+  SBOM
+  SBOM_NAME MathUtils
+  SBOM_DESTINATION "share/sbom/mathutils"
+  SBOM_LICENSE "MIT"
+  SBOM_DESCRIPTION "Math utility library"
+  SBOM_HOMEPAGE_URL "https://example.com/math-utils"
+)
+```
+
+Important differences from the CMake config and CPS paths:
+- `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
+- This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; the value above is the one accepted by the local CMake 4.3.1 proof setup in this repository.
+- `SBOM_NAME` defaults to `EXPORT_NAME`.
+- `SBOM_VERSION` overrides SBOM version metadata. If omitted, explicit `VERSION` wins; otherwise the wrapper passes its effective `VERSION` unless `SBOM_PROJECT` is set.
+  In that case, version metadata is left to project inheritance.
+- `SBOM_PROJECT` and `SBOM_NO_PROJECT_METADATA` are mutually exclusive.
+- `SBOM_FORMAT` is omitted by default so CMake uses its current SPDX 3.0.1 JSON-LD output.
+- `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Sdk_Development` does not install the SBOM.
+- Local CMake 4.3.1 still emits a developer warning that SBOM generation is experimental even when the activation value is correct. Use `-Wno-dev` if you want quieter configure output.
+- This wrapper intentionally does not expose `SBOM_PACKAGE_URL` yet because local CMake 4.3.1 rejects that argument even though the 4.3 docs list it.
 
 ### CPack Package Generation
 
