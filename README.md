@@ -20,8 +20,8 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 
 - CMake 3.25+ for core utilities and examples
 - C++20 modules examples require CMake 3.28+
-- Common Package Specification (CPS) generation requires CMake 4.3+
-- SBOM generation requires CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to that CMake version's activation value
+- [Common Package Specification (CPS)](docs/cps.md) generation requires CMake 4.3+
+- [SBOM](docs/sbom.md) generation requires CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to that CMake version's activation value
 
 ## Shipped Functions & Files
 
@@ -80,38 +80,37 @@ target_install_package(my_library
 
 ## Table of Contents
 
-1. [Features](#features-)
+1. [Features](#features)
 2. [Installation](#installation)
 3. [Usage](#usage)
    - [Basic Library Installation](#basic-library-installation)
-   - [Configuring Template Headers](#configuring-template-headers-)
-   - [Libraries with Dependencies](#libraries-with-dependencies-)
+   - [Configuring Template Headers](#configuring-template-headers)
+   - [Libraries with Dependencies](#libraries-with-dependencies)
    - [Common Package Specification (CPS)](#common-package-specification-cps)
    - [Software Bill of Materials (SBOM)](#software-bill-of-materials-sbom)
-   - [CPack Package Generation](#cpack-package-generation-)
-   - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands-)
-4. [Component-Based Installation](#component-based-installation-)
-   - [Default Component Behavior](#default-component-behavior-)
-   - [Custom Component Names](#custom-component-names-)
-   - [Installing Specific Components](#installing-specific-components-)
-5. [Multi-Target Exports](#multi-target-exports-)
+   - [CPack Package Generation](#cpack-package-generation)
+   - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands)
+4. [Component-Based Installation](#component-based-installation)
+   - [Component Prefix Pattern](#component-prefix-pattern)
+   - [Logical Component Grouping](#logical-component-grouping)
+   - [Installing Specific Components](#installing-specific-components)
+5. [Multi-Target Exports](#multi-target-exports)
    - [When to Use Multi-Target Exports](#when-to-use-multi-target-exports)
-   - [Simple Multi-Target Package](#simple-multi-target-package-)
-   - [Component-Dependent Dependencies](#component-dependent-dependencies-)
-6. [More Examples](#more-examples)
-   - [Example Directory](#example-directory)
-   - [Game Engine with Modular Components](#game-engine-with-modular-components-)
-   - [Build Variant Support](#build-variant-support-)
-   - [Header-Only Libraries](#header-only-libraries-)
-7. [FILE_SET Features](#file_set-approach-features)
-8. [Similar projects](#similar-projects)
+   - [Simple Multi-Target Package](#simple-multi-target-package)
+   - [Component-Dependent Dependencies](#component-dependent-dependencies)
+6. [Game Engine with Modular Components](#game-engine-with-modular-components)
+7. [Build Variant Support](#build-variant-support)
+8. [Header-Only Libraries](#header-only-libraries)
+9. [FILE_SET Features](#file_set-approach-features)
+10. [FILE_SET vs Manual Installation](#file_set-vs-manual-installation)
+11. [Similar projects](#similar-projects)
 
 ## Features
 
 - Modern feel target centric API with less boilerplate
 - Package installation with CMake config file generation
-- Opt-in Common Package Specification (CPS) metadata generation on CMake 4.3+
-- Opt-in SPDX SBOM generation on CMake 4.3+ with explicit experimental activation
+- Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
+- Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
@@ -300,7 +299,7 @@ This works with INTERFACE or SHARED library targets. Check the defaults in [targ
 **What this creates:**
 - Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by the cross-platform **GNUInstallDirs** module)
 - Installs library to `${CMAKE_INSTALL_LIBDIR}` (GNUInstallDirs)
-- Creates `math_utils-config.cmake` and `math_utils-config-version.cmake`
+- Creates `math_utilsConfig.cmake` and `math_utilsConfigVersion.cmake`
 - Consumers can use: `find_package(math_utils REQUIRED)`
 
 ### Configuring Template Headers
@@ -372,15 +371,15 @@ target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 
 ### Common Package Specification (CPS)
 
-CPS is a standard metadata format for installed packages. Its purpose is cross-build-system and package-manager consumption: tools can read a `.cps` data file describing targets, versions, and link requirements without executing CMake package scripts. With CMake 4.3+, `target_install_package(... CPS ...)` can install CPS metadata alongside the normal CMake config package.
+CPS is a standard metadata format for installed packages. Its purpose is cross-build-system consumption: tools can read a `.cps` data file describing targets, versions, and link requirements without executing CMake package scripts. Package managers and distribution tooling can ship or generate CPS metadata as ecosystem support develops. With CMake 4.3+, `target_install_package(... CPS ...)` can install CPS metadata alongside the normal CMake config package.
 
-See [CPS support](docs/cps.md), the [CPS specification](https://cps-org.github.io/cps/), the [CPS GitHub repository](https://github.com/cps-org/cps), and CMake's [`install(PACKAGE_INFO)` documentation](https://cmake.org/cmake/help/latest/command/install.html#installing-package-info).
+See [CPS support](docs/cps.md), the [CPS specification](https://cps-org.github.io/cps/), the [CPS GitHub repository](https://github.com/cps-org/cps), and CMake's [`install(PACKAGE_INFO)` documentation](https://cmake.org/cmake/help/latest/command/install.html#package-info).
 
 ### Software Bill of Materials (SBOM)
 
 An SBOM is a machine-readable inventory of what a package contains: components, versions, license data, and related project metadata. Its purpose is supply-chain visibility for package managers, scanners, and compliance tooling. With CMake 4.3+ and CMake's SBOM experiment enabled, `target_install_package(... SBOM ...)` can install an SPDX JSON-LD SBOM for an export.
 
-See [SBOM support](docs/sbom.md), CMake's [`install(SBOM)` documentation](https://cmake.org/cmake/help/latest/command/install.html#installing-sbom), and the [SPDX project](https://spdx.dev/).
+See [SBOM support](docs/sbom.md), CMake's [`install(SBOM)` documentation](https://cmake.org/cmake/help/latest/command/install.html#sbom), and the [SPDX project](https://spdx.dev/).
 
 ### CPack Package Generation
 
@@ -485,7 +484,7 @@ cmake --install . --component Documentation
 
 ## Component-Based Installation
 
-`target_install_package` supports logical component grouping using the **Component Prefix Pattern** (v6.0+), providing predictable component naming and clean installation control.
+`target_install_package` supports logical component grouping using the **Component Prefix Pattern**, providing predictable component naming and clean installation control.
 
 ### Component Prefix Pattern
 

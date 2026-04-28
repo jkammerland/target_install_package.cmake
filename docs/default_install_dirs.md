@@ -57,7 +57,7 @@ Notes:
 | Runtime | Executables, DLLs, shared libraries | Required at runtime |
 | Development | Headers, import libs, static libs, CMake configs, CPS metadata by default | Required for building |
 
-CPS metadata is installed with the same component as the CMake config files: `Development` by default, or `<COMPONENT>_Development` when `COMPONENT` is set.
+CPS metadata is installed with the same component as the CMake config files: `Development` by default, or the first development component for the export when component prefixes are used.
 Set `CPS_COMPONENT` to place CPS metadata in a different install component.
 SBOM metadata is different: `install(SBOM)` does not expose a `COMPONENT`
 option, so SBOM files are available in full installs and follow CMake's

@@ -116,7 +116,7 @@ endif()
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
-#   - Auto-detects logical component groups from naming patterns (e.g., Core_Runtime → Core group)
+#   - Auto-detects logical component groups from naming patterns (e.g., Core and Core_Development → Core group)
 #   - Sets platform-appropriate default generators (TGZ/ZIP on all, DEB/RPM on Linux, WIX on Windows)
 #   - Configures component dependencies and descriptions automatically
 #   - Handles both single-component and multi-component packages
@@ -223,7 +223,7 @@ function(_tip_append_cpack_list_var_unique var_name)
   _tip_store_cpack_var("${var_name}" "${updated_value}")
 endfunction()
 
-# Helper function to determine if component groups should be auto-enabled Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development or Core_Runtime/Core_Development)
+# Helper function to determine if component groups should be auto-enabled Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development)
 function(_should_auto_enable_component_groups component_list)
   foreach(component ${component_list})
     # NEW SCHEME: Check if component follows COMPONENT_Development pattern

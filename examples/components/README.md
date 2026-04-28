@@ -1,6 +1,6 @@
 # Component Prefix Pattern Example
 
-This example demonstrates the **Component Prefix Pattern** (v6.0) for logical component grouping with shared exports and predictable naming.
+This example demonstrates the **Component Prefix Pattern** for logical component grouping with shared exports and predictable naming.
 
 ## Features Demonstrated
 
@@ -104,8 +104,8 @@ install/
 │       ├── core.h                        # Core_Development  
 │       └── dev_tools.h                   # Core_Development
 ├── lib64/
-│   ├── libmedia_core.so.6.3.0           # Core
-│   ├── libmedia_core.so.5                # Core  
+│   ├── libmedia_core.so.1.0.0           # Core
+│   ├── libmedia_core.so.1                # Core
 │   ├── libmedia_core.so                  # Core (dev symlink)
 │   └── libmedia_dev_tools.a              # Core_Development
 └── share/
@@ -114,14 +114,14 @@ install/
             ├── MediaLib.cmake
             ├── MediaLib-noconfig.cmake  
             ├── MediaLibConfig.cmake
-            └── MediaLib-config-version.cmake
+            └── MediaLibConfigVersion.cmake
 ```
 
 #### Component-Specific Installation Examples
 
 **Core Runtime Only** (minimal deployment):
 ```
-install/lib64/libmedia_core.so.6.3.0
+install/lib64/libmedia_core.so.1.0.0
 ```
 
 **Tools Runtime Only**:
@@ -234,7 +234,7 @@ int main() {
 The installed tool provides media conversion capabilities:
 
 ```bash
-# Basic usage (if Tools_Runtime component is installed)
+# Basic usage (if the Tools component is installed)
 ./install/bin/asset_converter input.wav output.mp3
 
 # With options

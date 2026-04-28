@@ -1221,10 +1221,9 @@ endfunction(_collect_export_components)
 #   COMPONENT_TYPE - Component type: "Runtime" or "Development"
 #
 # Returns via parent scope:
-#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT Core_Runtime")
+#   ${VAR_PREFIX}_ARGS - CMake arguments for install() command (e.g., "COMPONENT Runtime")
 #
 # Examples:
-#   _build_component_args(TARGET "Core" "Runtime") → "COMPONENT Core_Runtime"
 #   _build_component_args(TARGET "" "Runtime") → "COMPONENT Runtime"
 # ~~~
 function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)

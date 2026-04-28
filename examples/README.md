@@ -151,9 +151,9 @@ install/
     ├── cps/<package>/     # Optional CPS metadata, e.g. when CPS_DESTINATION is share/cps/<package>
     └── cmake/
         └── <package>/     # CMake configuration files
-            ├── <package>-config.cmake
-            ├── <package>-config-version.cmake
-            └── <package>-targets.cmake
+            ├── <package>Config.cmake
+            ├── <package>ConfigVersion.cmake
+            └── <package>Targets.cmake
 ```
 
 ## 🎯 Key Features Covered

@@ -63,9 +63,9 @@ install/
 └── share/
     └── cmake/
         └── game_engine/
-            ├── game_engine-config.cmake
-            ├── game_engine-config-version.cmake
-            └── game_engine-targets.cmake
+            ├── game_engineConfig.cmake
+            ├── game_engineConfigVersion.cmake
+            └── game_engineTargets.cmake
 ```
 
 ## Using the Installed Package
