@@ -469,6 +469,11 @@ Important differences from the CMake config and CPS paths:
 - `SBOM_NAME` defaults to `EXPORT_NAME`.
 - `SBOM_VERSION` overrides SBOM version metadata. If omitted, explicit `VERSION` wins; otherwise the wrapper passes its effective `VERSION` unless `SBOM_PROJECT` is set.
   In that case, version metadata is left to project inheritance.
+- SBOM activation and inherited project metadata are resolved when `target_install_package()` is called.
+  This allows subdirectory projects to set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` locally and use `SBOM_PROJECT` or a matching
+  `SBOM_NAME`/`EXPORT_NAME` without inheriting top-level project metadata during deferred finalization.
+  Inherited metadata covers project `VERSION`, `SPDX_LICENSE`, `DESCRIPTION`, and `HOMEPAGE_URL` when the matching
+  `SBOM_*` option is not explicit.
 - `SBOM_PROJECT` and `SBOM_NO_PROJECT_METADATA` are mutually exclusive.
 - `SBOM_FORMAT` is omitted by default so CMake uses its current SPDX 3.0.1 JSON-LD output.
 - `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Sdk_Development` does not install the SBOM.

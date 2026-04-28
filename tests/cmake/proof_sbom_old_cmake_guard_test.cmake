@@ -41,6 +41,7 @@ _tip_proof_expect_failure(
   "${_tip_build_dir}"
   ${_tip_toolchain_args}
   EXPECT_CONTAINS
-  "SBOM metadata requires CMake 4.3 or newer because it uses install(SBOM).")
+  "SBOM metadata requires CMake 4.3"
+  "install(SBOM)")
 
 message(STATUS "[proof] SBOM old-CMake guard proof passed.")

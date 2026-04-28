@@ -15,60 +15,6 @@ if(CMAKE_VERSION VERSION_LESS "4.3")
   _tip_proof_fail("proof_sbom_install requires CMake 4.3 or newer and should not be registered on older CMake versions")
 endif()
 
-function(_tip_proof_read_json path out_var)
-  _tip_proof_assert_exists("${path}")
-  file(READ "${path}" _tip_json_content)
-  set(${out_var}
-      "${_tip_json_content}"
-      PARENT_SCOPE)
-endfunction()
-
-function(_tip_proof_assert_json_path_string path expected)
-  set(_tip_json_path ${ARGN})
-  if(NOT _tip_json_path)
-    _tip_proof_fail("_tip_proof_assert_json_path_string requires at least one JSON path element")
-  endif()
-
-  _tip_proof_read_json("${path}" _tip_json_content)
-  string(
-    JSON
-    _tip_json_actual
-    ERROR_VARIABLE
-    _tip_json_error
-    GET
-    "${_tip_json_content}"
-    ${_tip_json_path})
-  if(_tip_json_error)
-    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
-  endif()
-  if(NOT "${_tip_json_actual}" STREQUAL "${expected}")
-    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}' to be '${expected}', got '${_tip_json_actual}'")
-  endif()
-endfunction()
-
-function(_tip_proof_assert_json_path_length path expected)
-  set(_tip_json_path ${ARGN})
-  if(NOT _tip_json_path)
-    _tip_proof_fail("_tip_proof_assert_json_path_length requires at least one JSON path element")
-  endif()
-
-  _tip_proof_read_json("${path}" _tip_json_content)
-  string(
-    JSON
-    _tip_json_length
-    ERROR_VARIABLE
-    _tip_json_error
-    LENGTH
-    "${_tip_json_content}"
-    ${_tip_json_path})
-  if(_tip_json_error)
-    _tip_proof_fail("Expected JSON array/object path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
-  endif()
-  if(NOT _tip_json_length EQUAL ${expected})
-    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}' to have length ${expected}, got ${_tip_json_length}")
-  endif()
-endfunction()
-
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/sbom-install")
 set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
 set(_tip_fixture_build_dir "${_tip_case_root}/fixture-build")
@@ -145,17 +91,11 @@ list(GET _tip_sbom_files 0 _tip_sbom_file)
 _tip_proof_assert_exists("${_tip_sbom_file}")
 
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://spdx.org/rdf/3.0.1/spdx-context.jsonld" "@context")
-_tip_proof_assert_json_path_length("${_tip_sbom_file}" 2 "@graph")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "ProofSbom" "@graph" 1 "name")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "MIT" "@graph" 1 "dataLicense")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "Proof SBOM package" "@graph" 1 "description")
-_tip_proof_assert_json_path_length("${_tip_sbom_file}" 3 "@graph" 1 "rootElement")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "sbom_static" "@graph" 1 "rootElement" 0 "name")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "2.3.4" "@graph" 1 "rootElement" 0 "software_packageVersion")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://example.invalid/proof-sbom" "@graph" 1 "rootElement" 0 "software_homePage")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "sbom_shared" "@graph" 1 "rootElement" 1 "name")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "2.3.4" "@graph" 1 "rootElement" 1 "software_packageVersion")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "sbom_iface" "@graph" 1 "rootElement" 2 "name")
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "2.3.4" "@graph" 1 "rootElement" 2 "software_packageVersion")
+_tip_proof_find_spdx_document("${_tip_sbom_file}" "ProofSbom" _tip_document_index)
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "MIT" "@graph" ${_tip_document_index} "dataLicense")
+_tip_proof_assert_json_path_string("${_tip_sbom_file}" "Proof SBOM package" "@graph" ${_tip_document_index} "description")
+_tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "2.3.4" "https://example.invalid/proof-sbom")
+_tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_shared" "2.3.4" "https://example.invalid/proof-sbom")
+_tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_iface" "2.3.4" "https://example.invalid/proof-sbom")
 
 message(STATUS "[proof] SBOM install proof passed.")

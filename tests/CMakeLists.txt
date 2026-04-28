@@ -280,7 +280,7 @@ if(target_install_package_BUILD_PROOF_TESTS)
       COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_package_info_test.cmake")
     set_tests_properties(proof_cps_package_info PROPERTIES LABELS "proof;cps")
 
-    if(target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE)
+    if(NOT "${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" STREQUAL "")
       add_test(
         NAME proof_sbom_install
         COMMAND
@@ -290,6 +290,16 @@ if(target_install_package_BUILD_PROOF_TESTS)
           -P
           "${_tip_proof_script_dir}/proof_sbom_install_test.cmake")
       set_tests_properties(proof_sbom_install PROPERTIES LABELS "proof;sbom")
+
+      add_test(
+        NAME proof_sbom_subdirectory_scope
+        COMMAND
+          ${CMAKE_COMMAND}
+          ${_tip_proof_common_args}
+          "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}"
+          -P
+          "${_tip_proof_script_dir}/proof_sbom_subdirectory_scope_test.cmake")
+      set_tests_properties(proof_sbom_subdirectory_scope PROPERTIES LABELS "proof;sbom")
     endif()
 
     add_test(

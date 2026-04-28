@@ -98,6 +98,8 @@ endif()
 #     SBOM_FORMAT <format>
 #     DISABLE_RPATH)
 #
+#   SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM. SBOM_PACKAGE_URL is not exposed in v1.
+#
 # Parameters:
 #   TARGET_NAME                  - Name of the target to install.
 #   NAMESPACE                    - CMake namespace for the export (default: `${TARGET_NAME}::`).
@@ -127,6 +129,8 @@ endif()
 #   SBOM                         - Generate a software bill of materials for the whole export with CMake 4.3+ experimental install(SBOM).
 #   SBOM_*                       - Options forwarded to install(SBOM ...). SBOM_NAME defaults to EXPORT_NAME. SBOM version metadata defaults from explicit SBOM_VERSION,
 #                                  then explicit VERSION, then wrapper VERSION unless SBOM_PROJECT inherits it.
+#                                  CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to this CMake version's non-boolean activation value.
+#                                  SBOM_PACKAGE_URL is intentionally not exposed because CMake 4.3.1 rejects PACKAGE_URL for install(SBOM).
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
 # Behavior:
@@ -374,6 +378,8 @@ endfunction()
 #     SBOM_HOMEPAGE_URL <url>
 #     SBOM_FORMAT <format>)
 #
+# SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM. SBOM_PACKAGE_URL is not exposed in v1.
+#
 # See target_install_package() for parameter descriptions.
 # CONFIG_TEMPLATE resolution source of truth:
 # docs/template_resolution.md#source-of-truth
@@ -389,7 +395,14 @@ function(target_prepare_package TARGET_NAME)
   endif()
 
   # Parse function arguments
-  set(options DISABLE_RPATH CPS CPS_NO_PROJECT_METADATA CPS_LOWER_CASE_FILE CPS_EXCLUDE_FROM_ALL SBOM SBOM_NO_PROJECT_METADATA)
+  set(options
+      DISABLE_RPATH
+      CPS
+      CPS_NO_PROJECT_METADATA
+      CPS_LOWER_CASE_FILE
+      CPS_EXCLUDE_FROM_ALL
+      SBOM
+      SBOM_NO_PROJECT_METADATA)
   set(oneValueArgs
       NAMESPACE
       ALIAS_NAME
@@ -680,6 +693,26 @@ function(target_prepare_package TARGET_NAME)
     if(NOT "${ARG_SBOM_PROJECT}" STREQUAL "" AND ARG_SBOM_NO_PROJECT_METADATA)
       project_log(FATAL_ERROR "SBOM_PROJECT and SBOM_NO_PROJECT_METADATA cannot be used together.")
     endif()
+
+    set(_tip_sbom_metadata_project "")
+    if(NOT ARG_SBOM_NO_PROJECT_METADATA)
+      if(NOT "${ARG_SBOM_PROJECT}" STREQUAL "")
+        set(_tip_sbom_metadata_project "${ARG_SBOM_PROJECT}")
+        set(_tip_sbom_project_source_var "${ARG_SBOM_PROJECT}_SOURCE_DIR")
+        if(NOT DEFINED ${_tip_sbom_project_source_var})
+          project_log(FATAL_ERROR "SBOM_PROJECT '${ARG_SBOM_PROJECT}' is not visible from target '${TARGET_NAME}'.")
+        endif()
+      else()
+        set(_tip_effective_sbom_name "${ARG_SBOM_NAME}")
+        if("${_tip_effective_sbom_name}" STREQUAL "")
+          set(_tip_effective_sbom_name "${ARG_EXPORT_NAME}")
+        endif()
+
+        if("${_tip_effective_sbom_name}" STREQUAL "${PROJECT_NAME}")
+          set(_tip_sbom_metadata_project "${PROJECT_NAME}")
+        endif()
+      endif()
+    endif()
   endif()
 
   # Store configuration in global properties for finalize_package
@@ -824,11 +857,26 @@ function(target_prepare_package TARGET_NAME)
 
   if(ARG_SBOM)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM" TRUE)
+    _tip_store_export_property(
+      "${EXPORT_PROPERTY_PREFIX}"
+      "${ARG_EXPORT_NAME}"
+      "SBOM_EXPERIMENTAL_VALUE"
+      "${CMAKE_EXPERIMENTAL_GENERATE_SBOM}"
+      "SBOM experimental activation value")
     if(_tip_sbom_version_explicit)
       set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_VERSION_EXPLICIT" TRUE)
     endif()
 
-    foreach(_tip_sbom_one_value IN ITEMS SBOM_NAME SBOM_PROJECT SBOM_DESTINATION SBOM_VERSION SBOM_LICENSE SBOM_DESCRIPTION SBOM_HOMEPAGE_URL SBOM_FORMAT)
+    foreach(
+      _tip_sbom_one_value IN
+      ITEMS SBOM_NAME
+            SBOM_PROJECT
+            SBOM_DESTINATION
+            SBOM_VERSION
+            SBOM_LICENSE
+            SBOM_DESCRIPTION
+            SBOM_HOMEPAGE_URL
+            SBOM_FORMAT)
       set(_tip_sbom_arg_var "ARG_${_tip_sbom_one_value}")
       if(DEFINED ${_tip_sbom_arg_var} AND NOT "${${_tip_sbom_arg_var}}" STREQUAL "")
         string(REPLACE "_" " " _tip_sbom_description "${_tip_sbom_one_value}")
@@ -839,6 +887,59 @@ function(target_prepare_package TARGET_NAME)
 
     if(ARG_SBOM_NO_PROJECT_METADATA)
       set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_NO_PROJECT_METADATA" TRUE)
+    endif()
+
+    if(NOT "${_tip_sbom_metadata_project}" STREQUAL "")
+      set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_INHERITED_PROJECT_METADATA" TRUE)
+
+      set(_tip_sbom_project_version_var "${_tip_sbom_metadata_project}_VERSION")
+      if(NOT _tip_sbom_version_explicit
+        AND NOT _tip_version_explicit
+        AND DEFINED ${_tip_sbom_project_version_var}
+        AND NOT "${${_tip_sbom_project_version_var}}" STREQUAL "")
+        _tip_store_export_property(
+          "${EXPORT_PROPERTY_PREFIX}"
+          "${ARG_EXPORT_NAME}"
+          "SBOM_INHERITED_VERSION"
+          "${${_tip_sbom_project_version_var}}"
+          "SBOM inherited project version")
+      endif()
+
+      set(_tip_sbom_project_license_var "${_tip_sbom_metadata_project}_SPDX_LICENSE")
+      if("${ARG_SBOM_LICENSE}" STREQUAL ""
+         AND DEFINED ${_tip_sbom_project_license_var}
+         AND NOT "${${_tip_sbom_project_license_var}}" STREQUAL "")
+        _tip_store_export_property(
+          "${EXPORT_PROPERTY_PREFIX}"
+          "${ARG_EXPORT_NAME}"
+          "SBOM_INHERITED_LICENSE"
+          "${${_tip_sbom_project_license_var}}"
+          "SBOM inherited project license")
+      endif()
+
+      set(_tip_sbom_project_description_var "${_tip_sbom_metadata_project}_DESCRIPTION")
+      if("${ARG_SBOM_DESCRIPTION}" STREQUAL ""
+         AND DEFINED ${_tip_sbom_project_description_var}
+         AND NOT "${${_tip_sbom_project_description_var}}" STREQUAL "")
+        _tip_store_export_property(
+          "${EXPORT_PROPERTY_PREFIX}"
+          "${ARG_EXPORT_NAME}"
+          "SBOM_INHERITED_DESCRIPTION"
+          "${${_tip_sbom_project_description_var}}"
+          "SBOM inherited project description")
+      endif()
+
+      set(_tip_sbom_project_homepage_var "${_tip_sbom_metadata_project}_HOMEPAGE_URL")
+      if("${ARG_SBOM_HOMEPAGE_URL}" STREQUAL ""
+         AND DEFINED ${_tip_sbom_project_homepage_var}
+         AND NOT "${${_tip_sbom_project_homepage_var}}" STREQUAL "")
+        _tip_store_export_property(
+          "${EXPORT_PROPERTY_PREFIX}"
+          "${ARG_EXPORT_NAME}"
+          "SBOM_INHERITED_HOMEPAGE_URL"
+          "${${_tip_sbom_project_homepage_var}}"
+          "SBOM inherited project homepage URL")
+      endif()
     endif()
   endif()
 
@@ -1285,15 +1386,21 @@ function(finalize_package)
   get_property(CPS_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_COMPONENT")
   get_property(CPS_EXCLUDE_FROM_ALL GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_EXCLUDE_FROM_ALL")
   get_property(SBOM_ENABLED GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM")
+  get_property(SBOM_EXPERIMENTAL_VALUE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_EXPERIMENTAL_VALUE")
   get_property(SBOM_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_NAME")
   get_property(SBOM_PROJECT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_PROJECT")
   get_property(SBOM_NO_PROJECT_METADATA GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_NO_PROJECT_METADATA")
+  get_property(SBOM_INHERITED_PROJECT_METADATA GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_INHERITED_PROJECT_METADATA")
   get_property(SBOM_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_DESTINATION")
   get_property(SBOM_VERSION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_VERSION")
   get_property(SBOM_VERSION_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_VERSION_EXPLICIT")
+  get_property(SBOM_INHERITED_VERSION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_INHERITED_VERSION")
   get_property(SBOM_LICENSE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_LICENSE")
+  get_property(SBOM_INHERITED_LICENSE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_INHERITED_LICENSE")
   get_property(SBOM_DESCRIPTION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_DESCRIPTION")
+  get_property(SBOM_INHERITED_DESCRIPTION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_INHERITED_DESCRIPTION")
   get_property(SBOM_HOMEPAGE_URL GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_HOMEPAGE_URL")
+  get_property(SBOM_INHERITED_HOMEPAGE_URL GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_INHERITED_HOMEPAGE_URL")
   get_property(SBOM_FORMAT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_FORMAT")
   get_property(VERSION_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION_EXPLICIT")
 
@@ -1672,6 +1779,7 @@ function(finalize_package)
     ${CONFIG_COMPONENT_ARGS})
 
   if(SBOM_ENABLED)
+    set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${SBOM_EXPERIMENTAL_VALUE}")
     _tip_validate_sbom_activation("${ARG_EXPORT_NAME}")
 
     if(NOT "${SBOM_PROJECT}" STREQUAL "" AND SBOM_NO_PROJECT_METADATA)
@@ -1687,15 +1795,30 @@ function(finalize_package)
       set(_tip_sbom_effective_version "${SBOM_VERSION}")
     elseif(VERSION_EXPLICIT)
       set(_tip_sbom_effective_version "${VERSION}")
+    elseif(NOT "${SBOM_INHERITED_VERSION}" STREQUAL "")
+      set(_tip_sbom_effective_version "${SBOM_INHERITED_VERSION}")
     elseif("${SBOM_PROJECT}" STREQUAL "")
       set(_tip_sbom_effective_version "${VERSION}")
     endif()
 
+    set(_tip_sbom_effective_description "${SBOM_DESCRIPTION}")
+    if("${_tip_sbom_effective_description}" STREQUAL "")
+      set(_tip_sbom_effective_description "${SBOM_INHERITED_DESCRIPTION}")
+    endif()
+
+    set(_tip_sbom_effective_homepage_url "${SBOM_HOMEPAGE_URL}")
+    if("${_tip_sbom_effective_homepage_url}" STREQUAL "")
+      set(_tip_sbom_effective_homepage_url "${SBOM_INHERITED_HOMEPAGE_URL}")
+    endif()
+
+    set(_tip_sbom_effective_license "${SBOM_LICENSE}")
+    if("${_tip_sbom_effective_license}" STREQUAL "")
+      set(_tip_sbom_effective_license "${SBOM_INHERITED_LICENSE}")
+    endif()
+
     set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORT "${ARG_EXPORT_NAME}")
 
-    if(NOT "${SBOM_PROJECT}" STREQUAL "")
-      list(APPEND _tip_sbom_args PROJECT "${SBOM_PROJECT}")
-    elseif(SBOM_NO_PROJECT_METADATA)
+    if(SBOM_NO_PROJECT_METADATA OR SBOM_INHERITED_PROJECT_METADATA)
       list(APPEND _tip_sbom_args NO_PROJECT_METADATA)
     endif()
 
@@ -1705,14 +1828,14 @@ function(finalize_package)
     if(NOT "${_tip_sbom_effective_version}" STREQUAL "")
       list(APPEND _tip_sbom_args VERSION "${_tip_sbom_effective_version}")
     endif()
-    if(NOT "${SBOM_LICENSE}" STREQUAL "")
-      list(APPEND _tip_sbom_args LICENSE "${SBOM_LICENSE}")
+    if(NOT "${_tip_sbom_effective_license}" STREQUAL "")
+      list(APPEND _tip_sbom_args LICENSE "${_tip_sbom_effective_license}")
     endif()
-    if(NOT "${SBOM_DESCRIPTION}" STREQUAL "")
-      list(APPEND _tip_sbom_args DESCRIPTION "${SBOM_DESCRIPTION}")
+    if(NOT "${_tip_sbom_effective_description}" STREQUAL "")
+      list(APPEND _tip_sbom_args DESCRIPTION "${_tip_sbom_effective_description}")
     endif()
-    if(NOT "${SBOM_HOMEPAGE_URL}" STREQUAL "")
-      list(APPEND _tip_sbom_args HOMEPAGE_URL "${SBOM_HOMEPAGE_URL}")
+    if(NOT "${_tip_sbom_effective_homepage_url}" STREQUAL "")
+      list(APPEND _tip_sbom_args HOMEPAGE_URL "${_tip_sbom_effective_homepage_url}")
     endif()
     if(NOT "${SBOM_FORMAT}" STREQUAL "")
       list(APPEND _tip_sbom_args FORMAT "${SBOM_FORMAT}")
