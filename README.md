@@ -467,16 +467,19 @@ Important differences from the CMake config and CPS paths:
 - `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
 - This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; the value above is the one accepted by the local CMake 4.3.1 proof setup in this repository.
 - `SBOM_NAME` defaults to `EXPORT_NAME`.
-- `SBOM_VERSION` overrides SBOM version metadata. If omitted, explicit `VERSION` wins; otherwise the wrapper passes its effective `VERSION` unless `SBOM_PROJECT` is set.
-  In that case, version metadata is left to project inheritance.
+- `SBOM_VERSION` overrides SBOM version metadata. If omitted, explicit `VERSION` wins; otherwise call-time project metadata can provide a project `VERSION`.
+  If no explicit `SBOM_PROJECT` selected a project with a version, the wrapper falls back to its effective `VERSION`.
 - SBOM activation and inherited project metadata are resolved when `target_install_package()` is called.
   This allows subdirectory projects to set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` locally and use `SBOM_PROJECT` or a matching
   `SBOM_NAME`/`EXPORT_NAME` without inheriting top-level project metadata during deferred finalization.
+  Selected project metadata is snapshotted by the wrapper and passed as explicit `install(SBOM)` fields with CMake project inheritance disabled.
   Inherited metadata covers project `VERSION`, `SPDX_LICENSE`, `DESCRIPTION`, and `HOMEPAGE_URL` when the matching
   `SBOM_*` option is not explicit.
-- `SBOM_PROJECT` and `SBOM_NO_PROJECT_METADATA` are mutually exclusive.
+- All `target_install_package(... SBOM ...)` calls sharing one `EXPORT_NAME` must agree on metadata inheritance mode: same project metadata, `SBOM_NO_PROJECT_METADATA`, or explicit fields only.
+- `SBOM_PROJECT` and `SBOM_NO_PROJECT_METADATA` are mutually exclusive in a single call and conflict if mixed for the same export.
 - `SBOM_FORMAT` is omitted by default so CMake uses its current SPDX 3.0.1 JSON-LD output.
 - `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Sdk_Development` does not install the SBOM.
+- CMake cannot generate an SBOM for targets whose `LINK_LIBRARIES` or `INTERFACE_LINK_LIBRARIES` contain generator expressions unless those expressions are guarded by `$<LINK_ONLY:...>`.
 - Local CMake 4.3.1 still emits a developer warning that SBOM generation is experimental even when the activation value is correct. Use `-Wno-dev` if you want quieter configure output.
 - This wrapper intentionally does not expose `SBOM_PACKAGE_URL` yet because local CMake 4.3.1 rejects that argument even though the 4.3 docs list it.
 

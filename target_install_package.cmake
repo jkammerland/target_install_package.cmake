@@ -127,8 +127,11 @@ endif()
 #                                  If CPS_DEFAULT_TARGETS is omitted, only static, shared, and interface library aliases are default CPS targets.
 #                                  This wrapper rejects executables and CMake MODULE_LIBRARY targets for CPS exports.
 #   SBOM                         - Generate a software bill of materials for the whole export with CMake 4.3+ experimental install(SBOM).
-#   SBOM_*                       - Options forwarded to install(SBOM ...). SBOM_NAME defaults to EXPORT_NAME. SBOM version metadata defaults from explicit SBOM_VERSION,
-#                                  then explicit VERSION, then wrapper VERSION unless SBOM_PROJECT inherits it.
+#   SBOM_*                       - Options used to configure install(SBOM ...). SBOM_NAME defaults to EXPORT_NAME. SBOM project metadata is resolved at
+#                                  target_install_package() call time and emitted explicitly with CMake project inheritance disabled.
+#                                  All SBOM calls for the same export must use the same metadata inheritance mode.
+#                                  SBOM version metadata defaults from explicit SBOM_VERSION, then explicit VERSION, then inherited project VERSION,
+#                                  then wrapper VERSION unless SBOM_PROJECT explicitly selected a project with no VERSION.
 #                                  CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to this CMake version's non-boolean activation value.
 #                                  SBOM_PACKAGE_URL is intentionally not exposed because CMake 4.3.1 rejects PACKAGE_URL for install(SBOM).
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
@@ -713,6 +716,14 @@ function(target_prepare_package TARGET_NAME)
         endif()
       endif()
     endif()
+
+    if(ARG_SBOM_NO_PROJECT_METADATA)
+      set(_tip_sbom_metadata_mode "none")
+    elseif(NOT "${_tip_sbom_metadata_project}" STREQUAL "")
+      set(_tip_sbom_metadata_mode "project:${_tip_sbom_metadata_project}")
+    else()
+      set(_tip_sbom_metadata_mode "explicit")
+    endif()
   endif()
 
   # Store configuration in global properties for finalize_package
@@ -857,6 +868,12 @@ function(target_prepare_package TARGET_NAME)
 
   if(ARG_SBOM)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM" TRUE)
+    _tip_store_export_property(
+      "${EXPORT_PROPERTY_PREFIX}"
+      "${ARG_EXPORT_NAME}"
+      "SBOM_METADATA_MODE"
+      "${_tip_sbom_metadata_mode}"
+      "SBOM metadata inheritance mode")
     _tip_store_export_property(
       "${EXPORT_PROPERTY_PREFIX}"
       "${ARG_EXPORT_NAME}"

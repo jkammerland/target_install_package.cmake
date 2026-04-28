@@ -40,7 +40,7 @@ file(
   "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(default_sub_sbom STATIC src/default.cpp)\n"
-  "target_install_package(default_sub_sbom EXPORT_NAME DefaultSubSbom SBOM SBOM_NAME DefaultSubSbom SBOM_DESTINATION \"share/sbom/defaultsub\")\n")
+  "target_install_package(default_sub_sbom EXPORT_NAME DefaultSubSbom SBOM SBOM_DESTINATION \"share/sbom/defaultsub\")\n")
 file(WRITE "${_tip_fixture_source_dir}/default-sub/src/default.cpp" "int default_sub_sbom_value() { return 4; }\n")
 
 file(
@@ -81,12 +81,14 @@ set(_tip_default_sbom "${_tip_install_prefix}/share/sbom/defaultsub/DefaultSubSb
 _tip_proof_find_spdx_document("${_tip_default_sbom}" "DefaultSubSbom" _tip_default_document_index)
 _tip_proof_assert_json_path_string("${_tip_default_sbom}" "BSD-3-Clause" "@graph" ${_tip_default_document_index} "dataLicense")
 _tip_proof_assert_json_path_string("${_tip_default_sbom}" "Default subdirectory SBOM package" "@graph" ${_tip_default_document_index} "description")
+_tip_proof_assert_root_element_names("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom")
 _tip_proof_assert_root_element("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom" "4.5.6" "https://example.invalid/default-sub-sbom")
 
 set(_tip_project_sbom "${_tip_install_prefix}/share/sbom/projectsub/ProjectNamedSbom.spdx.json")
 _tip_proof_find_spdx_document("${_tip_project_sbom}" "ProjectNamedSbom" _tip_project_document_index)
 _tip_proof_assert_json_path_string("${_tip_project_sbom}" "Apache-2.0" "@graph" ${_tip_project_document_index} "dataLicense")
 _tip_proof_assert_json_path_string("${_tip_project_sbom}" "Explicit project subdirectory SBOM package" "@graph" ${_tip_project_document_index} "description")
+_tip_proof_assert_root_element_names("${_tip_project_sbom}" "${_tip_project_document_index}" "project_sub_sbom")
 _tip_proof_assert_root_element("${_tip_project_sbom}" "${_tip_project_document_index}" "project_sub_sbom" "5.6.7" "https://example.invalid/project-sub-sbom")
 
 message(STATUS "[proof] SBOM subdirectory scope proof passed.")

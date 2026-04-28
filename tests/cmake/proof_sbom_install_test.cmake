@@ -94,6 +94,7 @@ _tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://spdx.org/rdf/3.0
 _tip_proof_find_spdx_document("${_tip_sbom_file}" "ProofSbom" _tip_document_index)
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "MIT" "@graph" ${_tip_document_index} "dataLicense")
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "Proof SBOM package" "@graph" ${_tip_document_index} "description")
+_tip_proof_assert_root_element_names("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "sbom_shared" "sbom_iface")
 _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "2.3.4" "https://example.invalid/proof-sbom")
 _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_shared" "2.3.4" "https://example.invalid/proof-sbom")
 _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_iface" "2.3.4" "https://example.invalid/proof-sbom")

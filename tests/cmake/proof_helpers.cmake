@@ -203,6 +203,54 @@ function(_tip_proof_find_spdx_document path name out_var)
   _tip_proof_fail("Expected SPDX document '${name}' in '${path}'")
 endfunction()
 
+function(_tip_proof_assert_root_element_names path document_index)
+  set(_tip_expected_names ${ARGN})
+  if(NOT _tip_expected_names)
+    _tip_proof_fail("_tip_proof_assert_root_element_names requires at least one expected root name")
+  endif()
+
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(JSON _tip_root_length ERROR_VARIABLE _tip_root_error LENGTH "${_tip_json_content}" "@graph" ${document_index} "rootElement")
+  if(_tip_root_error)
+    _tip_proof_fail("Expected rootElement array in '${path}': ${_tip_root_error}")
+  endif()
+
+  list(LENGTH _tip_expected_names _tip_expected_count)
+  if(NOT _tip_root_length EQUAL _tip_expected_count)
+    _tip_proof_fail("Expected ${_tip_expected_count} root elements in '${path}', got ${_tip_root_length}")
+  endif()
+
+  set(_tip_actual_names "")
+  math(EXPR _tip_last_index "${_tip_root_length} - 1")
+  foreach(_tip_index RANGE 0 ${_tip_last_index})
+    string(
+      JSON
+      _tip_name
+      ERROR_VARIABLE
+      _tip_name_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${document_index}
+      "rootElement"
+      ${_tip_index}
+      "name")
+    if(_tip_name_error)
+      _tip_proof_fail("Expected rootElement name in '${path}': ${_tip_name_error}")
+    endif()
+    list(APPEND _tip_actual_names "${_tip_name}")
+  endforeach()
+
+  set(_tip_sorted_expected ${_tip_expected_names})
+  set(_tip_sorted_actual ${_tip_actual_names})
+  list(SORT _tip_sorted_expected)
+  list(SORT _tip_sorted_actual)
+
+  if(NOT "${_tip_sorted_actual}" STREQUAL "${_tip_sorted_expected}")
+    _tip_proof_fail("Expected rootElement names '${_tip_sorted_expected}' in '${path}', got '${_tip_sorted_actual}'")
+  endif()
+endfunction()
+
 function(_tip_proof_assert_root_element path document_index root_name expected_version expected_homepage)
   _tip_proof_read_json("${path}" _tip_json_content)
   string(JSON _tip_root_length ERROR_VARIABLE _tip_root_error LENGTH "${_tip_json_content}" "@graph" ${document_index} "rootElement")
