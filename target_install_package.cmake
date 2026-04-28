@@ -133,7 +133,7 @@ endif()
 #                                  SBOM version metadata defaults from explicit SBOM_VERSION, then explicit wrapper VERSION, then selected
 #                                  call-time project VERSION. Wrapper effective VERSION fallback only applies when SBOM_PROJECT was not explicit.
 #                                  CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to this CMake version's non-boolean activation value.
-#                                  SBOM_PACKAGE_URL is intentionally not exposed because CMake 4.3.1 rejects PACKAGE_URL for install(SBOM).
+#                                  SBOM_PACKAGE_URL is intentionally not exposed while CMake's experimental SBOM interface stabilizes.
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
 # Behavior:

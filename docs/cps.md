@@ -1,6 +1,6 @@
 # Common Package Specification (CPS)
 
-The [Common Package Specification](https://cps-org.github.io/cps/) is a standard package metadata format for installed libraries and tools. A `.cps` file describes package components, versions, configurations, and link requirements in data form instead of CMake script code. The specification is developed at [`cps-org/cps`](https://github.com/cps-org/cps), and CMake 4.3 can generate CPS metadata with [`install(PACKAGE_INFO)`](https://cmake.org/cmake/help/latest/command/install.html#installing-package-info).
+The [Common Package Specification](https://cps-org.github.io/cps/) is a standard package metadata format for installed libraries and tools. Its purpose is cross-build-system and package-manager consumption: tools can read the same declarative package data instead of interpreting build-system-specific package scripts. A `.cps` file describes package components, versions, configurations, and link requirements in data form instead of CMake script code. The specification is developed at [`cps-org/cps`](https://github.com/cps-org/cps), and CMake 4.3 can generate CPS metadata with [`install(PACKAGE_INFO)`](https://cmake.org/cmake/help/latest/command/install.html#installing-package-info).
 
 `target_install_package(... CPS ...)` keeps the normal CMake config package and additionally asks CMake to install CPS metadata for the export.
 

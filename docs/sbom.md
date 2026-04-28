@@ -1,13 +1,13 @@
 # Software Bill of Materials (SBOM)
 
-A Software Bill of Materials is a machine-readable inventory of what a package contains, including component names, versions, licenses, and related project metadata. CMake 4.3 can generate installed SPDX SBOM metadata with [`install(SBOM)`](https://cmake.org/cmake/help/latest/command/install.html#installing-sbom), and SPDX is documented by the [SPDX project](https://spdx.dev/).
+A Software Bill of Materials is a machine-readable inventory of what a package contains, including component names, versions, licenses, and related project metadata. Its purpose is supply-chain visibility: package managers, scanners, and compliance tooling can inspect what was shipped and connect it to license or vulnerability data. CMake 4.3 can generate installed SPDX SBOM metadata with [`install(SBOM)`](https://cmake.org/cmake/help/latest/command/install.html#installing-sbom), and SPDX is documented by the [SPDX project](https://spdx.dev/).
 
 `target_install_package(... SBOM ...)` keeps the normal CMake config package and additionally asks CMake to install an SPDX SBOM for the export when CMake's SBOM experiment is activated.
 
 ## Basic Example
 
 ```cmake
-# Example activation value accepted by the local CMake 4.3.1 proof setup.
+# Example activation value for CMake 4.3; use the value required by your CMake version.
 set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "ca494ed3-b261-4205-a01f-603c95e4cae0")
 
 target_install_package(math_utils
@@ -25,7 +25,7 @@ target_install_package(math_utils
 ## Important Behavior
 
 - `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
-- This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; the value above is the one accepted by the local CMake 4.3.1 proof setup in this repository.
+- This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; use the value required by your CMake version.
 - `SBOM_NAME` defaults to `EXPORT_NAME`.
 - `SBOM_VERSION` wins, then explicit wrapper `VERSION`, then selected/call-time project `VERSION`.
 - Wrapper effective `VERSION` fallback only applies when `SBOM_PROJECT` was not explicitly set.
@@ -36,7 +36,7 @@ target_install_package(math_utils
 - `SBOM_FORMAT` is omitted by default so CMake uses its current SPDX 3.0.1 JSON-LD output.
 - `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Sdk_Development` does not install the SBOM.
 - CMake cannot generate an SBOM for targets whose `LINK_LIBRARIES` or `INTERFACE_LINK_LIBRARIES` contain generator expressions unless those expressions are guarded by `$<LINK_ONLY:...>`.
-- Local CMake 4.3.1 still emits a developer warning that SBOM generation is experimental even when the activation value is correct. Use `-Wno-dev` if you want quieter configure output.
-- This wrapper intentionally does not expose `SBOM_PACKAGE_URL` yet because local CMake 4.3.1 rejects that argument even though the 4.3 docs list it.
+- CMake may emit a developer warning because SBOM generation is experimental. Use `-Wno-dev` if you want quieter configure output.
+- This wrapper intentionally does not expose `SBOM_PACKAGE_URL` yet while CMake's experimental SBOM interface stabilizes.
 
 See [Default Installation Directories](default_install_dirs.md) for SBOM install destination defaults and component behavior.

@@ -372,13 +372,13 @@ target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 
 ### Common Package Specification (CPS)
 
-CPS is a standard metadata format for installed packages. It gives build tools a `.cps` data file that describes targets, versions, and link requirements without executing CMake package scripts. With CMake 4.3+, `target_install_package(... CPS ...)` can install CPS metadata alongside the normal CMake config package.
+CPS is a standard metadata format for installed packages. Its purpose is cross-build-system and package-manager consumption: tools can read a `.cps` data file describing targets, versions, and link requirements without executing CMake package scripts. With CMake 4.3+, `target_install_package(... CPS ...)` can install CPS metadata alongside the normal CMake config package.
 
 See [CPS support](docs/cps.md), the [CPS specification](https://cps-org.github.io/cps/), the [CPS GitHub repository](https://github.com/cps-org/cps), and CMake's [`install(PACKAGE_INFO)` documentation](https://cmake.org/cmake/help/latest/command/install.html#installing-package-info).
 
 ### Software Bill of Materials (SBOM)
 
-An SBOM is a machine-readable inventory of what a package contains: components, versions, license data, and related project metadata. With CMake 4.3+ and CMake's SBOM experiment enabled, `target_install_package(... SBOM ...)` can install an SPDX JSON-LD SBOM for an export.
+An SBOM is a machine-readable inventory of what a package contains: components, versions, license data, and related project metadata. Its purpose is supply-chain visibility for package managers, scanners, and compliance tooling. With CMake 4.3+ and CMake's SBOM experiment enabled, `target_install_package(... SBOM ...)` can install an SPDX JSON-LD SBOM for an export.
 
 See [SBOM support](docs/sbom.md), CMake's [`install(SBOM)` documentation](https://cmake.org/cmake/help/latest/command/install.html#installing-sbom), and the [SPDX project](https://spdx.dev/).
 
