@@ -22,6 +22,7 @@ scratch/
 TODO
 CLAUDE.md
 AGENTS.md
+/test_package/CMakeUserPresets.json
 
 # Local CI artifacts (kept out of the source tree on purpose)
 fmt-install/
