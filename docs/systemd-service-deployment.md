@@ -23,7 +23,7 @@ cmake --build build --target package
 CPack writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. When the package build uses `podman`, the image is also left in the local Podman image store as a side effect. If the package was built with Docker, or if you deploy on another host, load the archive into Podman before creating or starting the Quadlet service:
 
 ```bash
-podman load -i myapp-1.0.0-oci-archive.tar
+podman load -i build/myapp-1.0.0-oci-archive.tar
 ```
 
 ### 2. Generate Quadlet File

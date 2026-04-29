@@ -20,6 +20,8 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 
 - CMake 3.25+ for core utilities and examples
 - C++20 modules examples require CMake 3.28+
+- [Common Package Specification (CPS)](docs/cps.md) generation requires CMake 4.3+
+- [SBOM](docs/sbom.md) generation requires CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to that CMake version's activation value
 
 ## Shipped Functions & Files
 
@@ -37,15 +39,13 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 
 >[!NOTE]
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
+> With CMake 4.3+, it can also generate opt-in Common Package Specification (`.cps`) metadata via `CPS` and an opt-in SPDX SBOM via `SBOM` when CMake's SBOM experiment is explicitly activated.
 
 ### Template Override System 
 The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
 
 >[!NOTE]
 > Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
-
->[!NOTE]
-> `target_install_package()` uses standard CMake installation directories via [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64`, and config files to `share/cmake/<package>/`. See [Default Installation Directories](docs/default_install_dirs.md) for complete reference.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
 `target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
@@ -55,6 +55,12 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 - `split_all` = all configurations are installed under `<config>/` subdirectories.
 
 See [Default Installation Directories](docs/default_install_dirs.md#install-layout-policy) for full behavior and packaging notes.
+
+>[!NOTE]
+> `target_install_package()` uses standard CMake installation directories via
+> [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html):
+> executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`,
+> and config files to `share/cmake/<package>/`.
 
 ### Packaging LICENSE and Notice Files
 For most projects, `ADDITIONAL_FILES` is enough to ship legal/compliance files:
@@ -74,35 +80,39 @@ target_install_package(my_library
 
 ## Table of Contents
 
-1. [Features](#features-)
+1. [Features](#features)
 2. [Installation](#installation)
 3. [Usage](#usage)
    - [Basic Library Installation](#basic-library-installation)
-   - [Configuring Template Headers](#configuring-template-headers-)
-   - [Libraries with Dependencies](#libraries-with-dependencies-)
-   - [CPack Package Generation](#cpack-package-generation-)
-   - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands-)
-4. [Component-Based Installation](#component-based-installation-)
-   - [Default Component Behavior](#default-component-behavior-)
-   - [Custom Component Names](#custom-component-names-)
-   - [Installing Specific Components](#installing-specific-components-)
-5. [Multi-Target Exports](#multi-target-exports-)
+   - [Configuring Template Headers](#configuring-template-headers)
+   - [Libraries with Dependencies](#libraries-with-dependencies)
+   - [Common Package Specification (CPS)](#common-package-specification-cps)
+   - [Software Bill of Materials (SBOM)](#software-bill-of-materials-sbom)
+   - [CPack Package Generation](#cpack-package-generation)
+   - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands)
+4. [Component-Based Installation](#component-based-installation)
+   - [Component Prefix Pattern](#component-prefix-pattern)
+   - [Logical Component Grouping](#logical-component-grouping)
+   - [Installing Specific Components](#installing-specific-components)
+5. [Multi-Target Exports](#multi-target-exports)
    - [When to Use Multi-Target Exports](#when-to-use-multi-target-exports)
-   - [Simple Multi-Target Package](#simple-multi-target-package-)
-   - [Component-Dependent Dependencies](#component-dependent-dependencies-)
-6. [More Examples](#more-examples)
-   - [Example Directory](#example-directory)
-   - [Game Engine with Modular Components](#game-engine-with-modular-components-)
-   - [Build Variant Support](#build-variant-support-)
-   - [Header-Only Libraries](#header-only-libraries-)
-7. [FILE_SET Features](#file_set-approach-features)
-8. [Similar projects](#similar-projects)
+   - [Simple Multi-Target Package](#simple-multi-target-package)
+   - [Component-Dependent Dependencies](#component-dependent-dependencies)
+6. [Game Engine with Modular Components](#game-engine-with-modular-components)
+7. [Build Variant Support](#build-variant-support)
+8. [Header-Only Libraries](#header-only-libraries)
+9. [FILE_SET Features](#file_set-approach-features)
+10. [FILE_SET vs Manual Installation](#file_set-vs-manual-installation)
+11. [Similar projects](#similar-projects)
 
 ## Features
 
 - Modern feel target centric API with less boilerplate
 - Package installation with CMake config file generation
+- Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
+- Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
+- Integrated [container image generation](docs/Container-Packaging.md) through CPack's External generator and `export_cpack(GENERATORS "CONTAINER")`
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
 - Component-based installation with runtime/development/custom separation
@@ -166,7 +176,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v6.2.0
+  GIT_TAG v6.3.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -183,7 +193,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v6.2.0
+    GIT_TAG v6.3.0
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -290,7 +300,7 @@ This works with INTERFACE or SHARED library targets. Check the defaults in [targ
 **What this creates:**
 - Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by the cross-platform **GNUInstallDirs** module)
 - Installs library to `${CMAKE_INSTALL_LIBDIR}` (GNUInstallDirs)
-- Creates `math_utils-config.cmake` and `math_utils-config-version.cmake`
+- Creates `math_utilsConfig.cmake` and `math_utilsConfigVersion.cmake`
 - Consumers can use: `find_package(math_utils REQUIRED)`
 
 ### Configuring Template Headers
@@ -360,6 +370,18 @@ target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
 # OpenGL and glfw3 are automatically found and linked
 ```
 
+### Common Package Specification (CPS)
+
+CPS is a standard metadata format for installed packages. Its purpose is cross-build-system consumption: tools can read a `.cps` data file describing targets, versions, and link requirements without executing CMake package scripts. Package managers and distribution tooling can ship or generate CPS metadata as ecosystem support develops. With CMake 4.3+, `target_install_package(... CPS ...)` can install CPS metadata alongside the normal CMake config package.
+
+See [CPS support](docs/cps.md), the [CPS specification](https://cps-org.github.io/cps/), the [CPS GitHub repository](https://github.com/cps-org/cps), and CMake's [`install(PACKAGE_INFO)` documentation](https://cmake.org/cmake/help/latest/command/install.html#package-info).
+
+### Software Bill of Materials (SBOM)
+
+An SBOM is a machine-readable inventory of what a package contains: components, versions, license data, and related project metadata. Its purpose is supply-chain visibility for package managers, scanners, and compliance tooling. With CMake 4.3+ and CMake's SBOM experiment enabled, `target_install_package(... SBOM ...)` can install an SPDX JSON-LD SBOM for an export.
+
+See [SBOM support](docs/sbom.md), CMake's [`install(SBOM)` documentation](https://cmake.org/cmake/help/latest/command/install.html#sbom), and the [SPDX project](https://spdx.dev/).
+
 ### CPack Package Generation
 
 Generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation:
@@ -402,7 +424,7 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 
 **See [examples/cpack-basic](examples/cpack-basic/) for a complete working example.**
 
-For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [docs/Container-Packaging.md](docs/Container-Packaging.md).
+For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [Container Packaging](docs/Container-Packaging.md).
 
 **📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
 
@@ -463,7 +485,7 @@ cmake --install . --component Documentation
 
 ## Component-Based Installation
 
-`target_install_package` supports logical component grouping using the **Component Prefix Pattern** (v6.0+), providing predictable component naming and clean installation control.
+`target_install_package` supports logical component grouping using the **Component Prefix Pattern**, providing predictable component naming and clean installation control.
 
 ### Component Prefix Pattern
 
@@ -705,32 +727,6 @@ target_link_libraries(my_game PRIVATE
 Note:
 - You can list multiple dependencies for a component using a semicolon-separated list inside quotes (as in the examples). CMake splits that list internally; the package generator reconstructs and preserves the full set.
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
-
-## More Examples
-
-### Example Directory
-
-These example projects live under [`examples/`](examples/) and can be built individually or via [`examples/build_all_examples.sh`](examples/build_all_examples.sh).
-
-| Example | Type | Focus |
-|---------|------|-------|
-| [basic-static](examples/basic-static/) | Static Library | Simple static library with FILE_SET headers |
-| [basic-shared](examples/basic-shared/) | Shared Library | Versioned shared library with runtime/development separation |
-| [basic-interface](examples/basic-interface/) | Interface Library | Header-only library packaging |
-| [multi-target](examples/multi-target/) | Multi-Library | Multiple related libraries in one package |
-| [multi-config](examples/multi-config/) | Multi-Config | Debug/Release variants in one package |
-| [components](examples/components/) | Component-Based | Component Prefix Pattern and selective installation |
-| [components-same-export](examples/components-same-export/) | Multi-Target Export | Shared export with per-target components |
-| [sdk](examples/sdk/) | SDK Package | Prebuilt shared/static libraries with an interface umbrella target |
-| [dependency-aggregation](examples/dependency-aggregation/) | Dependency Aggregation | Aggregating PUBLIC_DEPENDENCIES across one export |
-| [configure-files](examples/configure-files/) | Template Configuration | Build-time generated headers from templates |
-| [cxx-modules](examples/cxx-modules/) | C++20 Modules | Basic CXX_MODULES packaging |
-| [cxx-modules-partitions](examples/cxx-modules-partitions/) | C++20 Modules | Module partition hierarchies |
-| [cpack-basic](examples/cpack-basic/) | CPack Basics | Basic package generation with `export_cpack()` |
-| [cpack-signed](examples/cpack-signed/) | Signed Packages | GPG signing and checksum generation |
-| [custom-alias](examples/custom-alias/) | Custom Aliases | Custom exported alias names for consumers |
-| [multi-cpack](examples/multi-cpack/) | Multi-CPack | Separate CPack outputs from one source tree |
-| [rpath-example](examples/rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
 ### Game Engine with Modular Components
 

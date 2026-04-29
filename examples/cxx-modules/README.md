@@ -50,9 +50,9 @@ install/
 └── share/
     └── cmake/
         └── math_modules/
-            ├── math_modules-config.cmake
-            ├── math_modules-config-version.cmake
-            └── math_modules-targets.cmake
+            ├── math_modulesConfig.cmake
+            ├── math_modulesConfigVersion.cmake
+            └── math_modulesTargets.cmake
 ```
 
 ## Using the Installed Package
