@@ -424,7 +424,7 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 
 **See [examples/cpack-basic](examples/cpack-basic/) for a complete working example.**
 
-For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [docs/Container-Packaging.md](docs/Container-Packaging.md).
+For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [Container Packaging](docs/Container-Packaging.md).
 
 **📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
 
