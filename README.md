@@ -112,6 +112,7 @@ target_install_package(my_library
 - Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
 - Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
 - CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
+- Integrated [container image generation](docs/Container-Packaging.md) through CPack's External generator and `export_cpack(GENERATORS "CONTAINER")`
 - CPack signing for all platforms using GPG
 - Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
 - Component-based installation with runtime/development/custom separation
