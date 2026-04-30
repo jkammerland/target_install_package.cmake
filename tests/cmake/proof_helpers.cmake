@@ -105,6 +105,273 @@ function(_tip_proof_assert_file_not_contains path needle)
   endif()
 endfunction()
 
+function(_tip_proof_read_json path out_var)
+  _tip_proof_assert_exists("${path}")
+  file(READ "${path}" _tip_json_content)
+  set(${out_var}
+      "${_tip_json_content}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_proof_assert_json_path_string path expected)
+  set(_tip_json_path ${ARGN})
+  if(NOT _tip_json_path)
+    _tip_proof_fail("_tip_proof_assert_json_path_string requires at least one JSON path element")
+  endif()
+
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(
+    JSON
+    _tip_json_actual
+    ERROR_VARIABLE
+    _tip_json_error
+    GET
+    "${_tip_json_content}"
+    ${_tip_json_path})
+  if(_tip_json_error)
+    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
+  endif()
+  if(NOT "${_tip_json_actual}" STREQUAL "${expected}")
+    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}' to be '${expected}', got '${_tip_json_actual}'")
+  endif()
+endfunction()
+
+function(_tip_proof_assert_json_path_length path expected)
+  set(_tip_json_path ${ARGN})
+  if(NOT _tip_json_path)
+    _tip_proof_fail("_tip_proof_assert_json_path_length requires at least one JSON path element")
+  endif()
+
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(
+    JSON
+    _tip_json_length
+    ERROR_VARIABLE
+    _tip_json_error
+    LENGTH
+    "${_tip_json_content}"
+    ${_tip_json_path})
+  if(_tip_json_error)
+    _tip_proof_fail("Expected JSON array/object path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
+  endif()
+  if(NOT _tip_json_length EQUAL ${expected})
+    _tip_proof_fail("Expected JSON path '${_tip_json_path}' in '${path}' to have length ${expected}, got ${_tip_json_length}")
+  endif()
+endfunction()
+
+function(_tip_proof_find_spdx_document path name out_var)
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(JSON _tip_graph_length ERROR_VARIABLE _tip_json_error LENGTH "${_tip_json_content}" "@graph")
+  if(_tip_json_error)
+    _tip_proof_fail("Expected JSON graph in '${path}': ${_tip_json_error}")
+  endif()
+
+  math(EXPR _tip_last_index "${_tip_graph_length} - 1")
+  foreach(_tip_index RANGE 0 ${_tip_last_index})
+    string(
+      JSON
+      _tip_type
+      ERROR_VARIABLE
+      _tip_type_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${_tip_index}
+      "type")
+    if(_tip_type_error OR NOT "${_tip_type}" STREQUAL "SpdxDocument")
+      continue()
+    endif()
+
+    string(
+      JSON
+      _tip_name
+      ERROR_VARIABLE
+      _tip_name_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${_tip_index}
+      "name")
+    if(NOT _tip_name_error AND "${_tip_name}" STREQUAL "${name}")
+      set(${out_var}
+          "${_tip_index}"
+          PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  _tip_proof_fail("Expected SPDX document '${name}' in '${path}'")
+endfunction()
+
+function(_tip_proof_assert_root_element_names path document_index)
+  set(_tip_expected_names ${ARGN})
+  if(NOT _tip_expected_names)
+    _tip_proof_fail("_tip_proof_assert_root_element_names requires at least one expected root name")
+  endif()
+
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(JSON _tip_root_length ERROR_VARIABLE _tip_root_error LENGTH "${_tip_json_content}" "@graph" ${document_index} "rootElement")
+  if(_tip_root_error)
+    _tip_proof_fail("Expected rootElement array in '${path}': ${_tip_root_error}")
+  endif()
+
+  list(LENGTH _tip_expected_names _tip_expected_count)
+  if(NOT _tip_root_length EQUAL _tip_expected_count)
+    _tip_proof_fail("Expected ${_tip_expected_count} root elements in '${path}', got ${_tip_root_length}")
+  endif()
+
+  set(_tip_actual_names "")
+  math(EXPR _tip_last_index "${_tip_root_length} - 1")
+  foreach(_tip_index RANGE 0 ${_tip_last_index})
+    string(
+      JSON
+      _tip_name
+      ERROR_VARIABLE
+      _tip_name_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${document_index}
+      "rootElement"
+      ${_tip_index}
+      "name")
+    if(_tip_name_error)
+      _tip_proof_fail("Expected rootElement name in '${path}': ${_tip_name_error}")
+    endif()
+    list(APPEND _tip_actual_names "${_tip_name}")
+  endforeach()
+
+  set(_tip_sorted_expected ${_tip_expected_names})
+  set(_tip_sorted_actual ${_tip_actual_names})
+  list(SORT _tip_sorted_expected)
+  list(SORT _tip_sorted_actual)
+
+  if(NOT "${_tip_sorted_actual}" STREQUAL "${_tip_sorted_expected}")
+    _tip_proof_fail("Expected rootElement names '${_tip_sorted_expected}' in '${path}', got '${_tip_sorted_actual}'")
+  endif()
+endfunction()
+
+function(_tip_proof_find_root_element path document_index root_name out_var)
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(JSON _tip_root_length ERROR_VARIABLE _tip_root_error LENGTH "${_tip_json_content}" "@graph" ${document_index} "rootElement")
+  if(_tip_root_error)
+    _tip_proof_fail("Expected rootElement array in '${path}': ${_tip_root_error}")
+  endif()
+
+  math(EXPR _tip_last_index "${_tip_root_length} - 1")
+  foreach(_tip_index RANGE 0 ${_tip_last_index})
+    string(
+      JSON
+      _tip_name
+      ERROR_VARIABLE
+      _tip_name_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${document_index}
+      "rootElement"
+      ${_tip_index}
+      "name")
+    if(NOT _tip_name_error AND "${_tip_name}" STREQUAL "${root_name}")
+      set(${out_var}
+          "${_tip_index}"
+          PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  _tip_proof_fail("Expected root element '${root_name}' in '${path}'")
+endfunction()
+
+function(_tip_proof_assert_root_element_json_path_string path document_index root_name expected)
+  set(_tip_root_json_path ${ARGN})
+  if(NOT _tip_root_json_path)
+    _tip_proof_fail("_tip_proof_assert_root_element_json_path_string requires at least one root JSON path element")
+  endif()
+
+  _tip_proof_find_root_element("${path}" "${document_index}" "${root_name}" _tip_root_index)
+  _tip_proof_assert_json_path_string(
+    "${path}"
+    "${expected}"
+    "@graph"
+    ${document_index}
+    "rootElement"
+    ${_tip_root_index}
+    ${_tip_root_json_path})
+endfunction()
+
+function(_tip_proof_assert_root_element_json_path_absent path document_index root_name)
+  set(_tip_root_json_path ${ARGN})
+  if(NOT _tip_root_json_path)
+    _tip_proof_fail("_tip_proof_assert_root_element_json_path_absent requires at least one root JSON path element")
+  endif()
+
+  _tip_proof_find_root_element("${path}" "${document_index}" "${root_name}" _tip_root_index)
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(
+    JSON
+    _tip_json_actual
+    ERROR_VARIABLE
+    _tip_json_error
+    GET
+    "${_tip_json_content}"
+    "@graph"
+    ${document_index}
+    "rootElement"
+    ${_tip_root_index}
+    ${_tip_root_json_path})
+  if(NOT _tip_json_error)
+    _tip_proof_fail("Did not expect JSON path '${_tip_root_json_path}' on root element '${root_name}' in '${path}', got '${_tip_json_actual}'")
+  endif()
+endfunction()
+
+function(_tip_proof_assert_root_element path document_index root_name expected_version expected_homepage)
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(JSON _tip_root_length ERROR_VARIABLE _tip_root_error LENGTH "${_tip_json_content}" "@graph" ${document_index} "rootElement")
+  if(_tip_root_error)
+    _tip_proof_fail("Expected rootElement array in '${path}': ${_tip_root_error}")
+  endif()
+
+  math(EXPR _tip_last_index "${_tip_root_length} - 1")
+  foreach(_tip_index RANGE 0 ${_tip_last_index})
+    string(
+      JSON
+      _tip_name
+      ERROR_VARIABLE
+      _tip_name_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${document_index}
+      "rootElement"
+      ${_tip_index}
+      "name")
+    if(_tip_name_error OR NOT "${_tip_name}" STREQUAL "${root_name}")
+      continue()
+    endif()
+
+    _tip_proof_assert_json_path_string(
+      "${path}"
+      "${expected_version}"
+      "@graph"
+      ${document_index}
+      "rootElement"
+      ${_tip_index}
+      "software_packageVersion")
+    _tip_proof_assert_json_path_string(
+      "${path}"
+      "${expected_homepage}"
+      "@graph"
+      ${document_index}
+      "rootElement"
+      ${_tip_index}
+      "software_homePage")
+    return()
+  endforeach()
+
+  _tip_proof_fail("Expected root element '${root_name}' in '${path}'")
+endfunction()
+
 function(_tip_proof_append_toolchain_args out_var)
   set(_tip_args "")
 

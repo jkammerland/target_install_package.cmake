@@ -12,6 +12,8 @@
 | HEADERS | Header files | `include/` | `CMAKE_INSTALL_INCLUDEDIR` |
 | MODULES | C++20 module files | `include/` | `CMAKE_INSTALL_INCLUDEDIR` |
 | CONFIG | CMake config files | `share/cmake/<package>/` | `CMAKE_INSTALL_DATADIR` |
+| CPS | Common Package Specification metadata | CMake's platform-specific CPS default, or `CPS_DESTINATION` | `install(PACKAGE_INFO)` |
+| SBOM | SPDX SBOM metadata | CMake's platform-specific SBOM default, or `SBOM_DESTINATION` | `install(SBOM)` |
 | ADDITIONAL_FILES | User-specified files | `<prefix>` or custom | `ADDITIONAL_FILES_DESTINATION` |
 | SHARED_DATA | Documentation, examples, resources | `share/` | `CMAKE_INSTALL_DATADIR` |
 
@@ -31,6 +33,11 @@ Notes:
 - Libraries keep a `DEBUG_POSTFIX` by default, so Debug/Release can co-exist when layouts are shared.
 - For system packages (Debian packages, `DEB`, or RPM packages, `RPM`), set `TIP_INSTALL_LAYOUT=fhs` and `-DCMAKE_INSTALL_PREFIX=/usr`.
 - `tar.gz` packages (`TGZ`) are staged via `DESTDIR` to avoid writing to real system paths.
+- CPS metadata is generated only when `target_install_package(... CPS ...)` is used with CMake 4.3+.
+  When `CPS_DESTINATION` is omitted, CMake chooses a platform-specific default, commonly under a `cps/<package>` search path such as `lib*/cps/<package>` on Unix-like systems.
+  If you set `CPS_DESTINATION`, keep it under a path containing `/cps/` such as `share/cps/<package>`; CMake does not search normal `share/cmake/<package>` locations for `.cps` files.
+- SBOM metadata is generated only when `target_install_package(... SBOM ...)` is used with CMake 4.3+ and `CMAKE_EXPERIMENTAL_GENERATE_SBOM` is set to that CMake version's activation value.
+  When `SBOM_DESTINATION` is omitted, CMake chooses a platform-specific default.
 
 ## Platform-Specific Behavior
 
@@ -48,7 +55,15 @@ Notes:
 | Component | Contains | Purpose |
 |-----------|----------|---------|
 | Runtime | Executables, DLLs, shared libraries | Required at runtime |
-| Development | Headers, import libs, static libs, CMake configs | Required for building |
+| Development | Headers, import libs, static libs, CMake configs, CPS metadata by default | Required for building |
+
+CPS metadata is installed with the same component as the CMake config files: `Development` by default, or the first development component for the export when component prefixes are used.
+Set `CPS_COMPONENT` to place CPS metadata in a different install component.
+SBOM metadata is different: `install(SBOM)` does not expose a `COMPONENT`
+option, so SBOM files are available in full installs and follow CMake's
+default non-component behavior rather than this wrapper's `Development`
+component routing. For example, `cmake --install <build-dir> --component
+<COMPONENT>_Development` does not install the SBOM.
 
 ## Additional Files
 
@@ -77,5 +92,7 @@ For legal/compliance files, a common destination is `${CMAKE_INSTALL_DATADIR}/li
 - **Import libs in lib/**: Development artifacts, not runtime dependencies
 - **Headers in include/**: Standard include path for consumers
 - **Config files in share/cmake/**: Standard CMake package location
+- **CPS files in CMake's default CPS location**: `install(PACKAGE_INFO)` chooses a platform-specific destination unless `CPS_DESTINATION` is set; custom destinations should still be under a `/cps/` search path
+- **SBOM files in CMake's default SBOM location**: `install(SBOM)` chooses a platform-specific destination unless `SBOM_DESTINATION` is set
 - **Additional files flexible**: User controls destination
 - **Components separate runtime/dev**: Enables selective installation

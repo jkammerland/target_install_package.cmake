@@ -30,7 +30,7 @@ target_compile_features(media_dev_tools PUBLIC cxx_std_17)
 add_executable(asset_converter)
 target_sources(asset_converter PRIVATE src/asset_converter.cpp)
 
-# Install with new component prefix pattern (v6.0) - shared export demonstrates logical grouping All targets share EXPORT_NAME="MediaLib" to create unified package
+# Install with component prefix grouping. All targets share EXPORT_NAME="MediaLib" to create a unified package.
 target_install_package(
   media_core
   EXPORT_NAME
