@@ -80,6 +80,43 @@ docker load -i build/myapp-latest-docker-archive.tar
 docker run --rm myapp:latest
 ```
 
+## Deployment Customization
+
+The package step writes an image archive. Load that archive on any deployment host before another tool references the image:
+
+```bash
+podman load -i build/myapp-latest-oci-archive.tar
+# or
+docker load -i build/myapp-latest-docker-archive.tar
+```
+
+To use the generated image as a base for a downstream image, create a separate `Containerfile` or `Dockerfile` that starts from the generated image tag:
+
+```Dockerfile
+FROM myapp:latest
+COPY config/ /etc/myapp/
+ENV MYAPP_CONFIG=/etc/myapp/config.yml
+ENTRYPOINT ["/usr/local/bin/app"]
+```
+
+The generated image is `FROM scratch`, so it has no shell or package manager. Downstream images should prefer `COPY`, labels, environment, entrypoint, and runtime configuration; do not assume `RUN` commands are available unless you deliberately add the required tools.
+
+For Compose-style deployment, reference the loaded image by name and override runtime settings in YAML:
+
+```yaml
+services:
+  myapp:
+    image: myapp:latest
+    command: ["--config", "/etc/myapp/config.yml"]
+    volumes:
+      - ./config:/etc/myapp:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+```
+
+The minimal container example includes [podman-compose.yml](../examples/minimal-container/podman-compose.yml) and [podman-compose-test.yml](../examples/minimal-container/podman-compose-test.yml) showing command overrides, explicit entrypoints, restart policies, and multiple service instances.
+
 ## More Detail
 
 - [Minimal Container Packaging Internals](minimal-container-packaging.md) explains the CPack External flow, dependency collection, rootfs layout, limitations, and testing strategy.
