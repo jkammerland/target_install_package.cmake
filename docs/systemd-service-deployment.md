@@ -4,11 +4,14 @@
 
 Deploy containers created with CPack as systemd services using Podman Quadlet files.
 
+For image generation, archive loading, Compose usage, and downstream layering, start with [Container Packaging](Container-Packaging.md). This page focuses only on turning an already generated image into a systemd-managed Podman service.
+
 ## Prerequisites
 
 - Podman 4.4+ (for Quadlet support)
 - systemd with cgroups v2
 - Container image built and saved with the CPack `CONTAINER` generator
+- The image loaded into the local Podman image store on the host that will run the service
 
 ## Workflow
 
@@ -20,7 +23,7 @@ cmake --build build
 cmake --build build --target package
 ```
 
-CPack writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. When the package build uses `podman`, the image is also left in the local Podman image store as a side effect. If the package was built with Docker, or if you deploy on another host, load the archive into Podman before creating or starting the Quadlet service:
+CPack writes a top-level archive such as `build/myapp-1.0.0-oci-archive.tar`. When the package build uses `podman`, the image is also left in the build host's local Podman image store as a side effect. If the package was built with Docker, or if you deploy on another host, load the archive into Podman before creating or starting the Quadlet service:
 
 ```bash
 podman load -i build/myapp-1.0.0-oci-archive.tar
@@ -28,9 +31,7 @@ podman load -i build/myapp-1.0.0-oci-archive.tar
 
 ### 2. Generate Quadlet File
 
-Use the `container_to_quadlet.sh` script to generate a systemd service definition:
-
-The referenced image must exist in the local Podman image store before the service starts. Use `podman images <image>:<tag>` to check, or `podman load -i <archive>` to load a CPack archive.
+Use the `container_to_quadlet.sh` script to generate a systemd service definition. The script checks `podman image exists <image>:<tag>` and fails if the image is not already loaded locally. Use `podman images <image>:<tag>` to check, or `podman load -i <archive>` to load a CPack archive.
 
 ```bash
 # Basic usage
@@ -44,10 +45,13 @@ The referenced image must exist in the local Podman image store before the servi
   --port 8080:8080 \
   --volume /data:/data \
   --env TZ=UTC \
+  --exec "--config /data/config.yml" \
   --user 1000
 ```
 
-Use `--auto-update` only for images that Podman can update from a registry. It is not useful for an image loaded only from a local CPack archive.
+Generated `FROM scratch` images contain only the selected install components, copied runtime dependencies, and overlays. Use Quadlet runtime settings such as `--env`, `--volume`, `--port`, `--user`, and `--exec` for deployment-specific configuration instead of assuming the image contains a shell, users, certificates, or config files.
+
+Use `--auto-update` only for images that Podman can update from a registry. It is not useful for an image loaded only from a local CPack archive; push/pull the image through a registry first if you want `AutoUpdate=registry`.
 
 ### 3. Deploy Service
 
@@ -99,8 +103,8 @@ Wants=network-online.target
 [Container]
 Image=myapp:1.0.0
 ContainerName=myapp-service
-AutoUpdate=registry
 User=1000
+Exec=--config /data/config.yml
 Environment=TZ=UTC
 Volume=/data:/data
 PublishPort=8080:8080
@@ -126,6 +130,7 @@ WantedBy=multi-user.target default.target
 | `-e, --env` | Environment variable (repeatable) | (none) |
 | `-a, --auto-update` | Enable registry auto-update | disabled |
 | `-o, --output` | Output directory | Current directory |
+| `--exec` | Additional exec arguments for the container | (none) |
 
 ## Service Management
 
