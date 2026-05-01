@@ -43,6 +43,9 @@ target_install_package(cpack_lib_utils NAMESPACE cpack_lib::)
 target_install_package(mytool NAMESPACE cpack_lib:: COMPONENT "Tools")
 
 # Configure CPack with GPG signing support Note: CPack is automatically included by export_cpack
+set(GPG_KEYSERVER
+    "keyserver.ubuntu.com"
+    CACHE STRING "Keyserver shown in the example verification script")
 export_cpack(
   PACKAGE_NAME
   "MySignedLibrary"
@@ -59,15 +62,20 @@ export_cpack(
   "${GPG_PASSPHRASE_FILE}"
   SIGNING_METHOD
   "detached"
+  # Used in generated verification guidance; signing uses the local GPG keyring.
   GPG_KEYSERVER
-  "keyserver.ubuntu.com"
+  "${GPG_KEYSERVER}"
   GENERATE_CHECKSUMS
-  # AUTO-DETECTED: Components (Runtime, Development, Tools) AUTO-DETECTED: Generators (platform-specific)
+  GENERATORS
+  "TGZ;ZIP"
+  NO_DEFAULT_GENERATORS
+  # AUTO-DETECTED: Components (Runtime, Development, Tools)
   DEFAULT_COMPONENTS
   "Runtime"
   COMPONENT_GROUPS)
 
 # Create example verification script template for consumers This demonstrates how consumers could verify signed packages
+set(GENERATE_CHECKSUMS ON)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/verify_template.sh.in" "${CMAKE_BINARY_DIR}/verify.sh" @ONLY)
 
 # Make the script executable

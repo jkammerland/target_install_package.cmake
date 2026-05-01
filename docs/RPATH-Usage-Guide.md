@@ -10,10 +10,12 @@
 
 By default, `target_install_package` sets platform-appropriate RPATH entries:
 
-- **Linux**: `$ORIGIN/../lib:$ORIGIN/../lib64` - Look for libraries relative to the binary's location
+- **Linux**:
+  - Executables: layout-relative lookup from `CMAKE_INSTALL_BINDIR` to `CMAKE_INSTALL_LIBDIR`, plus `$ORIGIN` for same-directory runtime files
+  - Shared libraries: `$ORIGIN` so colocated shared-library dependencies resolve
 - **macOS**: 
-  - Executables: `@executable_path/../lib`
-  - Libraries: `@loader_path/../lib`
+  - Executables: layout-relative lookup from `CMAKE_INSTALL_BINDIR` to `CMAKE_INSTALL_LIBDIR`, plus `@executable_path`
+  - Shared libraries: `@loader_path`
 - **Windows**: No RPATH (uses different DLL discovery mechanisms)
 
 ### Target Types Supported
@@ -32,32 +34,36 @@ Interface libraries and static libraries are automatically excluded.
 # Library with automatic RPATH
 add_library(mylib SHARED src/mylib.cpp)
 target_install_package(mylib)
-# Result: Linux gets $ORIGIN/../lib:$ORIGIN/../lib64, macOS gets @loader_path/../lib
+# Result: Linux gets $ORIGIN, macOS gets @loader_path
 
 # Executable with automatic RPATH  
 add_executable(myapp src/main.cpp)
 target_link_libraries(myapp mylib)
 target_install_package(myapp)
-# Result: Linux gets $ORIGIN/../lib:$ORIGIN/../lib64, macOS gets @executable_path/../lib
+# Result: Linux gets the relative path from bin to lib/lib64 plus $ORIGIN for the default layout,
+# macOS gets @executable_path/../lib plus @executable_path
 ```
 
 **Installation Layout:**
 ```
 prefix/
-├── bin/myapp          # RPATH points to ../lib
-└── lib/libmylib.so    # RPATH points to ../lib (for dependencies)
+├── bin/myapp          # RPATH points to ../lib or ../lib64
+└── lib/libmylib.so    # RPATH points to its own directory for dependencies
 ```
 
 ### Custom RPATH Configuration
 
-For custom RPATH requirements, set `CMAKE_INSTALL_RPATH` before calling `target_install_package`:
+For custom RPATH requirements across new targets, set `CMAKE_INSTALL_RPATH` before creating those targets. CMake initializes each target's `INSTALL_RPATH` from the global variable at target creation time:
 
 ```cmake
 # Set custom global RPATH
 set(CMAKE_INSTALL_RPATH "/opt/myapp/lib;/usr/local/custom/lib")
+add_executable(myapp src/main.cpp)
 target_install_package(myapp)
 # Result: Uses custom RPATH instead of defaults
 ```
+
+For existing targets, set the target property directly before calling `target_install_package`.
 
 ### Per-Target Custom RPATH
 
@@ -118,20 +124,23 @@ target_install_package(complex_app VERSION 2.1.0)
 ### Linux
 
 ```cmake
-# Default RPATH: $ORIGIN/../lib:$ORIGIN/../lib64
+# Shared libraries default to same-directory lookup.
 target_install_package(mylib)
+
+# Executables default to layout-relative library lookup plus same-directory lookup.
+target_install_package(myapp)
 ```
 
 **How it works:**
 - `$ORIGIN` is replaced at runtime with the directory containing the binary
-- `../lib` looks in the lib directory parallel to bin
+- Executable RPATH entries are computed from the relative path between `CMAKE_INSTALL_BINDIR` and `CMAKE_INSTALL_LIBDIR`
 - Supports complex relative paths: `$ORIGIN/../../shared/libs`
 
 ### macOS
 
 ```cmake
-# Executable gets: @executable_path/../lib
-# Library gets: @loader_path/../lib  
+# Executable gets layout-relative @executable_path entries.
+# Library gets: @loader_path
 target_install_package(myapp)
 ```
 
@@ -183,22 +192,28 @@ target_install_package(myapp
     └── libmyplugin.so          # Can find mycore in same dir
 ```
 
-### Custom Installation Layout
+### Custom RPATH For Non-Standard Layouts
 
 ```cmake
-# Non-standard layout: libraries in subdirectories
+# Non-standard layout: libraries in subdirectories managed by custom install() rules
 set_target_properties(graphics_lib PROPERTIES 
   INSTALL_RPATH "$ORIGIN/../lib/graphics;$ORIGIN/../lib/core")
-target_install_package(graphics_lib LIBRARY DESTINATION lib/graphics)
+install(TARGETS graphics_lib
+  LIBRARY DESTINATION lib/graphics
+  RUNTIME DESTINATION bin)
 
 set_target_properties(core_lib PROPERTIES 
   INSTALL_RPATH "$ORIGIN")  # Look in same directory
-target_install_package(core_lib LIBRARY DESTINATION lib/core)
+install(TARGETS core_lib
+  LIBRARY DESTINATION lib/core
+  RUNTIME DESTINATION bin)
 
 set_target_properties(myapp PROPERTIES 
   INSTALL_RPATH "$ORIGIN/../lib/graphics;$ORIGIN/../lib/core")
 target_install_package(myapp)
 ```
+
+`target_install_package()` follows the standard `GNUInstallDirs` destinations; it does not accept per-call `LIBRARY DESTINATION` or `RUNTIME DESTINATION` arguments. Use normal CMake install rules for content that must live outside the package helper's standard layout, and set explicit `INSTALL_RPATH` values on targets that need to find that content.
 
 ### Development vs Production
 
@@ -216,7 +231,7 @@ Enable debug logging to see RPATH decisions:
 
 ```bash
 cmake -B build --log-level=DEBUG
-# Look for: "Set default INSTALL_RPATH for 'target': ..."
+# Look for: "Configured default INSTALL_RPATH for 'target': ..."
 ```
 
 ## Best Practices
@@ -235,7 +250,7 @@ set(CMAKE_INSTALL_RPATH "/usr/local/lib")
 
 ```cmake
 # Standard layout works with default RPATH
-install(TARGETS myapp DESTINATION bin)          # Gets $ORIGIN/../lib:$ORIGIN/../lib64
+install(TARGETS myapp DESTINATION bin)          # Gets the relative path to the install library dir plus $ORIGIN
 install(TARGETS mylib DESTINATION lib)          # Found by executables
 ```
 

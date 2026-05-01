@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.3.0)
+  list_file_include_guard(VERSION 7.0.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -74,6 +74,9 @@ function(target_configure_sources TARGET_NAME)
   set(oneValueArgs OUTPUT_DIR SUBSTITUTION_MODE FILE_SET TYPE)
   set(multiValueArgs BASE_DIRS FILES)
   cmake_parse_arguments(ARGS "${visibility_options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  if(ARGS_UNPARSED_ARGUMENTS)
+    project_log(FATAL_ERROR "target_configure_sources: Unknown arguments: ${ARGS_UNPARSED_ARGUMENTS}")
+  endif()
 
   # Validate target exists
   if(NOT TARGET "${TARGET_NAME}")
@@ -188,7 +191,24 @@ function(target_configure_sources TARGET_NAME)
     list(LENGTH CONFIGURED_FILES FILE_COUNT)
     project_log(DEBUG "  Successfully added ${FILE_COUNT} files to FILE_SET ${ARGS_FILE_SET}")
   else()
-    project_log(DEBUG "  Skipping FILE_SET for executable target ${TARGET_NAME}")
+    project_log(DEBUG "  Adding ${SCOPE} include directories for executable target ${TARGET_NAME}")
+    set(_tip_executable_include_dirs "")
+    foreach(_tip_base_dir IN LISTS ARGS_BASE_DIRS)
+      if(IS_ABSOLUTE "${_tip_base_dir}")
+        set(_tip_executable_base_dir "${_tip_base_dir}")
+      else()
+        cmake_path(
+          ABSOLUTE_PATH
+          _tip_base_dir
+          BASE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}"
+          NORMALIZE
+          OUTPUT_VARIABLE
+          _tip_executable_base_dir)
+      endif()
+      list(APPEND _tip_executable_include_dirs "$<BUILD_INTERFACE:${_tip_executable_base_dir}>")
+    endforeach()
+    target_include_directories(${TARGET_NAME} ${SCOPE} ${_tip_executable_include_dirs})
   endif()
 
   list(LENGTH CONFIGURED_FILES TOTAL_FILES)

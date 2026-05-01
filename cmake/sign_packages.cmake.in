@@ -1,10 +1,10 @@
-# Generated GPG package signing script
-# This script is executed by CPack after package generation
+# Generated GPG package signing script This script is executed by CPack after package generation
 
 cmake_minimum_required(VERSION 3.25)
 
 # Signing configuration (substituted by CMake configure_file)
 set(GPG_EXECUTABLE "@GPG_EXECUTABLE@")
+set(RPMSIGN_EXECUTABLE "@RPMSIGN_EXECUTABLE@")
 set(SIGNING_KEY "@ARG_SIGNING_KEY@")
 set(PASSPHRASE_FILE "@ARG_PASSPHRASE_FILE@")
 set(SIGNING_METHOD "@ARG_SIGNING_METHOD@")
@@ -14,26 +14,25 @@ set(PACKAGE_NAME "@ARG_PACKAGE_NAME@")
 set(PACKAGE_VERSION "@ARG_PACKAGE_VERSION@")
 set(PACKAGE_CONTACT "@ARG_PACKAGE_CONTACT@")
 
-# CPack provides these variables during post-build script execution
-# CPACK_PACKAGE_DIRECTORY - where packages are generated
-# CPACK_PACKAGE_FILES - list of generated package files
+# CPack provides these variables during post-build script execution CPACK_PACKAGE_DIRECTORY - where packages are generated CPACK_PACKAGE_FILES - list of generated package files
 
 message(STATUS "[GPG Signing] Starting package signing process...")
 message(STATUS "[GPG Signing] Package directory: ${CPACK_PACKAGE_DIRECTORY}")
 
 # Find all generated package files if CPACK_PACKAGE_FILES not available
 if(NOT CPACK_PACKAGE_FILES)
-  file(GLOB PACKAGE_FILES 
+  file(
+    GLOB
+    PACKAGE_FILES
     "${CPACK_PACKAGE_DIRECTORY}/*.tar.gz"
-    "${CPACK_PACKAGE_DIRECTORY}/*.tar.xz" 
+    "${CPACK_PACKAGE_DIRECTORY}/*.tar.xz"
     "${CPACK_PACKAGE_DIRECTORY}/*.tgz"
     "${CPACK_PACKAGE_DIRECTORY}/*.zip"
     "${CPACK_PACKAGE_DIRECTORY}/*.deb"
     "${CPACK_PACKAGE_DIRECTORY}/*.rpm"
     "${CPACK_PACKAGE_DIRECTORY}/*.msi"
     "${CPACK_PACKAGE_DIRECTORY}/*.dmg"
-    "${CPACK_PACKAGE_DIRECTORY}/*.pkg"
-  )
+    "${CPACK_PACKAGE_DIRECTORY}/*.pkg")
 else()
   set(PACKAGE_FILES ${CPACK_PACKAGE_FILES})
 endif()
@@ -46,55 +45,89 @@ endif()
 list(LENGTH PACKAGE_FILES package_count)
 message(STATUS "[GPG Signing] Found ${package_count} package(s) to sign")
 
+set(embedded_signature_count 0)
+
 # Sign each package file
 foreach(package_file ${PACKAGE_FILES})
   get_filename_component(package_name ${package_file} NAME)
   message(STATUS "[GPG Signing] Signing ${package_name}...")
-  
+
+  if(SIGNING_METHOD STREQUAL "embedded")
+    if(NOT package_file MATCHES "\\.rpm$")
+      message(FATAL_ERROR "[GPG Signing] SIGNING_METHOD 'embedded' only supports RPM packages, got ${package_name}")
+    endif()
+  endif()
+
+  if(SIGNING_METHOD STREQUAL "embedded" OR SIGNING_METHOD STREQUAL "both")
+    if(package_file MATCHES "\\.rpm$")
+      if(NOT RPMSIGN_EXECUTABLE)
+        message(FATAL_ERROR "[GPG Signing] rpmsign executable is required for embedded RPM signing")
+      endif()
+
+      execute_process(
+        COMMAND ${RPMSIGN_EXECUTABLE} --define "_gpg_name ${SIGNING_KEY}" --addsign "${package_file}"
+        RESULT_VARIABLE embedded_sign_result
+        OUTPUT_VARIABLE embedded_sign_output
+        ERROR_VARIABLE embedded_sign_error)
+
+      if(NOT embedded_sign_result EQUAL 0)
+        message(FATAL_ERROR "[GPG Signing] Failed to embed RPM signature in ${package_name}: ${embedded_sign_error}")
+      endif()
+
+      math(EXPR embedded_signature_count "${embedded_signature_count} + 1")
+      message(STATUS "[GPG Signing] Embedded RPM signature: ${package_name}")
+    endif()
+  endif()
+
   # Create detached signature
   if(SIGNING_METHOD STREQUAL "detached" OR SIGNING_METHOD STREQUAL "both")
     set(signature_file "${package_file}.sig")
-    
+
     # Prepare GPG command
     set(gpg_cmd ${GPG_EXECUTABLE} --batch --yes --detach-sign --armor)
-    
+
     # Add passphrase handling if file provided, or use pinentry-mode for passwordless keys
     if(PASSPHRASE_FILE AND EXISTS "${PASSPHRASE_FILE}")
       list(APPEND gpg_cmd --pinentry-mode loopback --passphrase-file "${PASSPHRASE_FILE}")
     else()
       # For passwordless keys or keys with empty passphrase, use pinentry-mode loopback
-      list(APPEND gpg_cmd --pinentry-mode loopback --passphrase "")
+      list(APPEND gpg_cmd --pinentry-mode loopback "--passphrase=")
     endif()
-    
+
     # Add signing key and output file
-    list(APPEND gpg_cmd --default-key "${SIGNING_KEY}" --output "${signature_file}" "${package_file}")
-    
+    list(
+      APPEND
+      gpg_cmd
+      --default-key
+      "${SIGNING_KEY}"
+      --output
+      "${signature_file}"
+      "${package_file}")
+
     # Execute signing
     execute_process(
       COMMAND ${gpg_cmd}
       RESULT_VARIABLE sign_result
       OUTPUT_VARIABLE sign_output
-      ERROR_VARIABLE sign_error
-    )
-    
+      ERROR_VARIABLE sign_error)
+
     if(NOT sign_result EQUAL 0)
       message(FATAL_ERROR "[GPG Signing] Failed to sign ${package_name}: ${sign_error}")
     endif()
-    
+
     message(STATUS "[GPG Signing] Created signature: ${package_name}.sig")
   endif()
-  
+
   # Generate checksums if requested
   if(GENERATE_CHECKSUMS)
     get_filename_component(package_basename "${package_file}" NAME)
-    
+
     # Generate SHA256
     execute_process(
       COMMAND ${CMAKE_COMMAND} -E sha256sum "${package_file}"
       OUTPUT_VARIABLE sha256_output
-      RESULT_VARIABLE sha256_result
-    )
-    
+      RESULT_VARIABLE sha256_result)
+
     if(sha256_result EQUAL 0)
       # Extract hash and normalize format for compatibility with sha256sum -c
       string(REGEX MATCH "^[a-f0-9]+" sha256_hash "${sha256_output}")
@@ -102,14 +135,13 @@ foreach(package_file ${PACKAGE_FILES})
       file(WRITE "${package_file}.sha256" "${sha256_hash}  ${package_basename}\n")
       message(STATUS "[GPG Signing] Created SHA256: ${package_name}.sha256 (${sha256_hash})")
     endif()
-    
+
     # Generate SHA512
     execute_process(
       COMMAND ${CMAKE_COMMAND} -E sha512sum "${package_file}"
       OUTPUT_VARIABLE sha512_output
-      RESULT_VARIABLE sha512_result  
-    )
-    
+      RESULT_VARIABLE sha512_result)
+
     if(sha512_result EQUAL 0)
       # Extract hash and normalize format for compatibility with sha512sum -c
       string(REGEX MATCH "^[a-f0-9]+" sha512_hash "${sha512_output}")
@@ -120,36 +152,40 @@ foreach(package_file ${PACKAGE_FILES})
   endif()
 endforeach()
 
-# Copy signatures and checksums to be alongside the packages  
-# Packages are in CPACK_PACKAGE_DIRECTORY, but signatures may be in subdirectories
+if(SIGNING_METHOD STREQUAL "embedded" AND embedded_signature_count EQUAL 0)
+  message(FATAL_ERROR "[GPG Signing] No RPM packages found for SIGNING_METHOD 'embedded'.")
+elseif(SIGNING_METHOD STREQUAL "both" AND embedded_signature_count EQUAL 0)
+  message(STATUS "[GPG Signing] No RPM packages found in this CPack generator pass; embedded RPM signing skipped.")
+endif()
+
+# Copy signatures and checksums to be alongside the packages Packages are in CPACK_PACKAGE_DIRECTORY, but signatures may be in subdirectories
 message(STATUS "[GPG Signing] Ensuring signatures are in package directory...")
 
 foreach(package_file ${PACKAGE_FILES})
   get_filename_component(package_name ${package_file} NAME)
-  
+
   # Target location is the same directory as the package (CPACK_PACKAGE_DIRECTORY)
   set(target_signature "${CPACK_PACKAGE_DIRECTORY}/${package_name}.sig")
   set(target_sha256 "${CPACK_PACKAGE_DIRECTORY}/${package_name}.sha256")
   set(target_sha512 "${CPACK_PACKAGE_DIRECTORY}/${package_name}.sha512")
-  
+
   # Always copy to ensure fresh signatures on rebuilds
   if(EXISTS "${package_file}.sig")
     file(COPY_FILE "${package_file}.sig" "${target_signature}")
     message(STATUS "[GPG Signing] Copied ${package_name}.sig to package directory")
   endif()
-  
+
   if(GENERATE_CHECKSUMS)
     if(EXISTS "${package_file}.sha256")
       file(COPY_FILE "${package_file}.sha256" "${target_sha256}")
       message(STATUS "[GPG Signing] Copied ${package_name}.sha256 to package directory")
     endif()
-    
+
     if(EXISTS "${package_file}.sha512")
-      file(COPY_FILE "${package_file}.sha512" "${target_sha512}")  
+      file(COPY_FILE "${package_file}.sha512" "${target_sha512}")
       message(STATUS "[GPG Signing] Copied ${package_name}.sha512 to package directory")
     endif()
   endif()
 endforeach()
-
 
 message(STATUS "[GPG Signing] Package signing completed successfully!")

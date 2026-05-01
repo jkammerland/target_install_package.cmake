@@ -20,6 +20,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [cxx-modules-partitions](cxx-modules-partitions/) | C++20 Modules | C++20 modules with partition hierarchies |
 | [cpack-basic](cpack-basic/) | CPack Basics | Basic packaging with CPack |
 | [cpack-signed](cpack-signed/) | Signed Packages | Signed packages with GPG |
+| [minimal-container](minimal-container/) | Minimal Container | CPack External generator producing a scratch container image |
 | [custom-alias](custom-alias/) | Custom Aliases | Custom exported target alias names |
 | [multi-cpack](multi-cpack/) | Multi-CPack | Multiple package configurations from one source tree |
 | [rpath-example](rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
@@ -77,7 +78,8 @@ Progress to more sophisticated packaging strategies:
 14. **[cxx-modules-partitions](cxx-modules-partitions/)** - Explore module partition hierarchies
 15. **[cpack-basic](cpack-basic/)** - Generate component packages with `export_cpack()`
 16. **[cpack-signed](cpack-signed/)** - Add GPG signatures and checksums to generated packages
-17. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
+17. **[minimal-container](minimal-container/)** - Build a minimal `FROM scratch` container image through `export_cpack(GENERATORS "CONTAINER")`
+18. **[multi-cpack](multi-cpack/)** - Handle one CPack package per build tree with split build directories
 
 ## 🔧 Common Build Commands
 
@@ -221,6 +223,11 @@ install/
 ### Signed Packages ([cpack-signed](cpack-signed/))
 - GPG signatures and checksum generation during `cpack`
 - Verification-template workflow for consumers
+
+### Minimal Container ([minimal-container](minimal-container/))
+- CPack External generator integration through `export_cpack(GENERATORS "CONTAINER")`
+- Selected component rootfs assembly and runtime dependency collection
+- Saved scratch image archive suitable for Podman or Docker
 
 ### Multi-CPack ([multi-cpack](multi-cpack/))
 - Separate build directories for multiple package outputs

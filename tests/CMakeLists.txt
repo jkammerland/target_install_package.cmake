@@ -153,6 +153,8 @@ set(_tip_layout_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_layout_matrix
 set(_tip_layout_test_root "${CMAKE_CURRENT_BINARY_DIR}/layout-matrix")
 set(_tip_component_test_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_component_dependencies_test.cmake")
 set(_tip_component_test_root "${CMAKE_CURRENT_BINARY_DIR}/component-dependencies")
+set(_tip_installed_consumer_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_installed_consumer_test.cmake")
+set(_tip_installed_consumer_test_root "${CMAKE_CURRENT_BINARY_DIR}/installed-consumer")
 get_filename_component(_tip_repo_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 set(_tip_layout_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_LAYOUT_TEST_ROOT=${_tip_layout_test_root}" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
@@ -180,27 +182,19 @@ enable_testing()
 add_test(NAME tests_main COMMAND tests)
 
 foreach(_tip_layout IN ITEMS fhs split_debug split_all)
-  add_test(
-    NAME "install_layout_${_tip_layout}"
-    COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" ${_tip_layout_test_common_args} -P "${_tip_layout_test_script}")
+  add_test(NAME "install_layout_${_tip_layout}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" "-DTIP_LAYOUT_TEST_CONFIG=Debug" ${_tip_layout_test_common_args} -P "${_tip_layout_test_script}")
   set_tests_properties("install_layout_${_tip_layout}" PROPERTIES LABELS "install-layout")
 endforeach()
 
 foreach(_tip_middle_config IN ITEMS RelWithDebInfo MinSizeRel)
   string(TOLOWER "${_tip_middle_config}" _tip_middle_config_lower)
-  add_test(
-    NAME "install_layout_fhs_${_tip_middle_config_lower}"
-    COMMAND
-      ${CMAKE_COMMAND}
-      "-DTIP_LAYOUT=fhs"
-      "-DTIP_LAYOUT_TEST_CONFIG=${_tip_middle_config}"
-      ${_tip_layout_test_common_args}
-      -P
-      "${_tip_layout_test_script}")
+  add_test(NAME "install_layout_fhs_${_tip_middle_config_lower}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
+                                                                         "${_tip_layout_test_script}")
   set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
 endforeach()
 
-set(_tip_component_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_COMPONENT_TEST_ROOT=${_tip_component_test_root}" "-DTIP_COMPONENT_TEST_CONFIG=Debug" "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
+set(_tip_component_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_COMPONENT_TEST_ROOT=${_tip_component_test_root}" "-DTIP_COMPONENT_TEST_CONFIG=Debug"
+                                    "-DTIP_CMAKE_GENERATOR=${CMAKE_GENERATOR}")
 
 if(CMAKE_MAKE_PROGRAM)
   list(APPEND _tip_component_test_common_args "-DTIP_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
@@ -223,6 +217,10 @@ endif()
 
 add_test(NAME component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_component_test_common_args} -P "${_tip_component_test_script}")
 set_tests_properties(component_dependencies PROPERTIES LABELS "component-dependencies")
+
+add_test(NAME installed_target_install_package_consumer COMMAND ${CMAKE_COMMAND} "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_MAIN_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                                                                "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
+set_tests_properties(installed_target_install_package_consumer PROPERTIES LABELS "consumer;install")
 
 option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known review findings" ON)
 set(target_install_package_PROOF_CONTAINER_RUNTIME
@@ -259,84 +257,71 @@ if(target_install_package_BUILD_PROOF_TESTS)
     list(APPEND _tip_proof_common_args "-DTIP_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
   endif()
 
-  add_test(
-    NAME proof_versioned_find_package
-    COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_versioned_find_package_test.cmake")
+  add_test(NAME proof_versioned_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_versioned_find_package_test.cmake")
   set_tests_properties(proof_versioned_find_package PROPERTIES LABELS "proof;review")
 
-  add_test(
-    NAME proof_component_find_package
-    COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_component_find_package_test.cmake")
+  add_test(NAME proof_component_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_component_find_package_test.cmake")
   set_tests_properties(proof_component_find_package PROPERTIES LABELS "proof;review")
 
-  add_test(
-    NAME proof_substitution_mode_variables
-    COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_substitution_mode_variables_test.cmake")
+  add_test(NAME proof_substitution_mode_variables COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_substitution_mode_variables_test.cmake")
   set_tests_properties(proof_substitution_mode_variables PROPERTIES LABELS "proof;review")
 
+  add_test(NAME proof_space_source_dir COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_space_source_dir_test.cmake")
+  set_tests_properties(proof_space_source_dir PROPERTIES LABELS "proof;review")
+
+  add_test(NAME proof_additional_targets_components COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_additional_targets_components_test.cmake")
+  set_tests_properties(proof_additional_targets_components PROPERTIES LABELS "proof;review")
+
+  add_test(NAME proof_executable_configure_sources COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_executable_configure_sources_test.cmake")
+  set_tests_properties(proof_executable_configure_sources PROPERTIES LABELS "proof;review")
+
+  add_test(NAME proof_additional_files_components COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_additional_files_components_test.cmake")
+  set_tests_properties(proof_additional_files_components PROPERTIES LABELS "proof;review")
+
+  add_test(NAME proof_unknown_arguments COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_unknown_arguments_test.cmake")
+  set_tests_properties(proof_unknown_arguments PROPERTIES LABELS "proof;review")
+
+  if(UNIX)
+    add_test(NAME proof_gpg_signing_methods COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_gpg_signing_methods_test.cmake")
+    set_tests_properties(proof_gpg_signing_methods PROPERTIES LABELS "proof;review;signing")
+  else()
+    message(STATUS "Skipping proof_gpg_signing_methods: POSIX shell shims are required")
+  endif()
+
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.3")
-    add_test(
-      NAME proof_cps_package_info
-      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_package_info_test.cmake")
+    add_test(NAME proof_cps_package_info COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_package_info_test.cmake")
     set_tests_properties(proof_cps_package_info PROPERTIES LABELS "proof;cps")
 
     if(NOT "${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" STREQUAL "")
-      add_test(
-        NAME proof_sbom_install
-        COMMAND
-          ${CMAKE_COMMAND}
-          ${_tip_proof_common_args}
-          "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}"
-          -P
-          "${_tip_proof_script_dir}/proof_sbom_install_test.cmake")
+      add_test(NAME proof_sbom_install COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
+                                               "${_tip_proof_script_dir}/proof_sbom_install_test.cmake")
       set_tests_properties(proof_sbom_install PROPERTIES LABELS "proof;sbom")
 
-      add_test(
-        NAME proof_sbom_subdirectory_scope
-        COMMAND
-          ${CMAKE_COMMAND}
-          ${_tip_proof_common_args}
-          "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}"
-          -P
-          "${_tip_proof_script_dir}/proof_sbom_subdirectory_scope_test.cmake")
+      add_test(NAME proof_sbom_subdirectory_scope COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
+                                                          "${_tip_proof_script_dir}/proof_sbom_subdirectory_scope_test.cmake")
       set_tests_properties(proof_sbom_subdirectory_scope PROPERTIES LABELS "proof;sbom")
 
-      add_test(
-        NAME proof_sbom_metadata_conflict
-        COMMAND
-          ${CMAKE_COMMAND}
-          ${_tip_proof_common_args}
-          "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}"
-          -P
-          "${_tip_proof_script_dir}/proof_sbom_metadata_conflict_test.cmake")
+      add_test(NAME proof_sbom_metadata_conflict COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
+                                                         "${_tip_proof_script_dir}/proof_sbom_metadata_conflict_test.cmake")
       set_tests_properties(proof_sbom_metadata_conflict PROPERTIES LABELS "proof;sbom")
     endif()
 
-    add_test(
-      NAME proof_sbom_missing_gate
-      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_missing_gate_test.cmake")
+    add_test(NAME proof_sbom_missing_gate COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_missing_gate_test.cmake")
     set_tests_properties(proof_sbom_missing_gate PROPERTIES LABELS "proof;sbom")
 
     if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
-      add_test(
-        NAME proof_cps_old_cmake_guard
-        COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
+      add_test(NAME proof_cps_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
       set_tests_properties(proof_cps_old_cmake_guard PROPERTIES LABELS "proof;cps")
 
-      add_test(
-        NAME proof_sbom_old_cmake_guard
-        COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_old_cmake_guard_test.cmake")
+      add_test(NAME proof_sbom_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                       "${_tip_proof_script_dir}/proof_sbom_old_cmake_guard_test.cmake")
       set_tests_properties(proof_sbom_old_cmake_guard PROPERTIES LABELS "proof;sbom")
     endif()
   else()
-    add_test(
-      NAME proof_cps_old_cmake_guard
-      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
+    add_test(NAME proof_cps_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_old_cmake_guard_test.cmake")
     set_tests_properties(proof_cps_old_cmake_guard PROPERTIES LABELS "proof;cps")
 
-    add_test(
-      NAME proof_sbom_old_cmake_guard
-      COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_old_cmake_guard_test.cmake")
+    add_test(NAME proof_sbom_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_old_cmake_guard_test.cmake")
     set_tests_properties(proof_sbom_old_cmake_guard PROPERTIES LABELS "proof;sbom")
   endif()
 
@@ -346,8 +331,7 @@ if(target_install_package_BUILD_PROOF_TESTS)
     execute_process(
       COMMAND "${_tip_bash}" -c "if (( BASH_VERSINFO[0] >= 4 )); then exit 0; else exit 1; fi"
       RESULT_VARIABLE _tip_bash_version_result
-      OUTPUT_QUIET
-      ERROR_QUIET)
+      OUTPUT_QUIET ERROR_QUIET)
     if(_tip_bash_version_result EQUAL 0)
       set(_tip_bash_supports_proofs TRUE)
     else()
@@ -365,25 +349,21 @@ if(target_install_package_BUILD_PROOF_TESTS)
   endif()
 
   if(_tip_shell_proofs_supported)
-    add_test(
-      NAME proof_build_minimal_container
-      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_build_minimal_container.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/build-minimal-container")
+    add_test(NAME proof_build_minimal_container COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_build_minimal_container.sh" "${_tip_repo_root}"
+                                                        "${_tip_proof_test_root}/build-minimal-container")
     set_tests_properties(proof_build_minimal_container PROPERTIES LABELS "proof;review;container")
 
-    add_test(
-      NAME proof_collect_runtime_deps
-      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_collect_runtime_deps.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/collect-runtime-deps")
+    add_test(NAME proof_collect_runtime_deps COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_collect_runtime_deps.sh" "${_tip_repo_root}"
+                                                     "${_tip_proof_test_root}/collect-runtime-deps")
     set_tests_properties(proof_collect_runtime_deps PROPERTIES LABELS "proof;review;container")
 
-    add_test(
-      NAME proof_external_container_package
-      COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_external_container_package.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/external-container-package")
+    add_test(NAME proof_external_container_package COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_external_container_package.sh" "${_tip_repo_root}"
+                                                           "${_tip_proof_test_root}/external-container-package")
     set_tests_properties(proof_external_container_package PROPERTIES LABELS "proof;review;container")
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-      add_test(
-        NAME proof_cpack_external_container_archive
-        COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_cpack_external_container_archive.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/cpack-external-container-archive")
+      add_test(NAME proof_cpack_external_container_archive COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_cpack_external_container_archive.sh" "${_tip_repo_root}"
+                                                                   "${_tip_proof_test_root}/cpack-external-container-archive")
       set_tests_properties(proof_cpack_external_container_archive PROPERTIES LABELS "proof;review;container")
     endif()
   endif()
@@ -396,8 +376,7 @@ if(target_install_package_BUILD_PROOF_TESTS)
     execute_process(
       COMMAND "${_tip_container_runtime}" info
       RESULT_VARIABLE _tip_container_runtime_info_result
-      OUTPUT_QUIET
-      ERROR_QUIET
+      OUTPUT_QUIET ERROR_QUIET
       TIMEOUT 10)
     if(_tip_container_runtime_info_result EQUAL 0)
       set(_tip_container_runtime_usable TRUE)
@@ -407,14 +386,8 @@ if(target_install_package_BUILD_PROOF_TESTS)
   endif()
 
   if(_tip_shell_proofs_supported AND _tip_container_runtime_usable)
-    add_test(
-      NAME proof_container_flow
-      COMMAND
-        "${_tip_bash}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_container_flow.sh"
-        "${_tip_repo_root}"
-        "${_tip_proof_test_root}/container-flow"
-        "${target_install_package_PROOF_CONTAINER_RUNTIME}")
+    add_test(NAME proof_container_flow COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_container_flow.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/container-flow"
+                                               "${target_install_package_PROOF_CONTAINER_RUNTIME}")
     set_tests_properties(proof_container_flow PROPERTIES LABELS "proof;review;container")
   endif()
 endif()

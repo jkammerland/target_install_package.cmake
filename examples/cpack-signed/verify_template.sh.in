@@ -9,7 +9,7 @@
 
 # Configuration from build - these would be provided by the package publisher
 DEFAULT_SIGNING_KEY="@GPG_SIGNING_KEY@"
-DEFAULT_KEYSERVER="keyserver.ubuntu.com"
+DEFAULT_KEYSERVER="@GPG_KEYSERVER@"
 GENERATE_CHECKSUMS="@GENERATE_CHECKSUMS@"
 
 # Default values
@@ -52,7 +52,7 @@ OPTIONS:
     --directory DIR          Directory to search for packages (default: current)
     --min-packages N         Minimum packages that must verify successfully (default: 1)
     --key-id KEYID          Expected GPG key ID for validation (default: from build)
-    --keyserver URL         Keyserver for key import (default: keyserver.ubuntu.com)
+    --keyserver URL         Keyserver for key import (default: from build)
     --verbose               Enable verbose output
     --help                  Show this help message
 
@@ -79,6 +79,13 @@ log() {
     if [ "$VERBOSE" = "true" ]; then
         echo "$@" >&2
     fi
+}
+
+checksums_enabled() {
+    case "$(printf '%s' "$GENERATE_CHECKSUMS" | tr '[:upper:]' '[:lower:]')" in
+        on|true|yes|1) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 error() {
@@ -266,24 +273,30 @@ verify_package() {
         return 1
     fi
     
-    # Verify checksums if available
-    if [ "$GENERATE_CHECKSUMS" = "TRUE" ]; then
-        if [ -f "$package.sha256" ]; then
-            if verify_checksum_file "$package" "$package.sha256" "sha256"; then
-                log "SHA256 checksum verified for $basename"
-            else
-                error "SHA256 checksum verification failed for $basename"
-                return 1
-            fi
+    # Verify checksums when the package was published with checksum files
+    if checksums_enabled; then
+        if [ ! -f "$package.sha256" ]; then
+            error "$basename.sha256 not found"
+            return 1
+        fi
+
+        if verify_checksum_file "$package" "$package.sha256" "sha256"; then
+            log "SHA256 checksum verified for $basename"
+        else
+            error "SHA256 checksum verification failed for $basename"
+            return 1
         fi
         
-        if [ -f "$package.sha512" ]; then
-            if verify_checksum_file "$package" "$package.sha512" "sha512"; then
-                log "SHA512 checksum verified for $basename"
-            else
-                error "SHA512 checksum verification failed for $basename"
-                return 1
-            fi
+        if [ ! -f "$package.sha512" ]; then
+            error "$basename.sha512 not found"
+            return 1
+        fi
+
+        if verify_checksum_file "$package" "$package.sha512" "sha512"; then
+            log "SHA512 checksum verified for $basename"
+        else
+            error "SHA512 checksum verification failed for $basename"
+            return 1
         fi
     fi
     

@@ -73,6 +73,7 @@ component routing. For example, `cmake --install <build-dir> --component
 target_install_package(mylib
   ADDITIONAL_FILES "docs/readme.md" "LICENSE"
   ADDITIONAL_FILES_DESTINATION "doc"  # Optional: defaults to root
+  ADDITIONAL_FILES_COMPONENTS Runtime Development
 )
 ```
 
@@ -82,6 +83,8 @@ target_install_package(mylib
 | Custom path | `<prefix>/<path>/` | `<prefix>/doc/readme.md` |
 
 For legal/compliance files, a common destination is `${CMAKE_INSTALL_DATADIR}/licenses/<package>`.
+
+`ADDITIONAL_FILES_COMPONENTS` is optional. When omitted, additional files are installed with the package's development component. Provide one or more components when a file must be included in runtime packages, documentation packages, or several component archives.
 
 `target_install_package()` does not define a built-in manifest format. `ADDITIONAL_FILES` is usually enough; for stricter packaging traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
