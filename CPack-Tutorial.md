@@ -223,9 +223,9 @@ add_executable(mytool src/tool.cpp)
 target_link_libraries(mytool PRIVATE mylib)
 
 # Install with automatic component detection and CMake config generation
-target_install_package(mylib NAMESPACE MyLib:: RUNTIME_COMPONENT "Runtime" DEVELOPMENT_COMPONENT "Development")
-target_install_package(mylib_utils NAMESPACE MyLib:: DEVELOPMENT_COMPONENT "Development")
-target_install_package(mytool NAMESPACE MyLib:: COMPONENT "Tools")
+target_install_package(mylib NAMESPACE MyLib::)
+target_install_package(mylib_utils EXPORT_NAME mylib NAMESPACE MyLib::)
+target_install_package(mytool EXPORT_NAME mylib NAMESPACE MyLib:: COMPONENT "Tools")
 
 # Configure CPack with smart defaults and auto-detection
 export_cpack(
@@ -290,18 +290,20 @@ target_link_libraries(game_editor PRIVATE graphics_engine audio_engine)
 # Install with dependencies automatically handled
 target_install_package(graphics_engine 
     NAMESPACE GameEngine::
+    EXPORT_NAME "GameEngine"
     PUBLIC_DEPENDENCIES "OpenGL REQUIRED" "glfw3 3.3 REQUIRED"
-    RUNTIME_COMPONENT "Runtime"
-    DEVELOPMENT_COMPONENT "SDK"
+    COMPONENT "Graphics"
 )
 
 target_install_package(audio_engine 
     NAMESPACE GameEngine::
-    DEVELOPMENT_COMPONENT "SDK"
+    EXPORT_NAME "GameEngine"
+    COMPONENT "Audio"
 )
 
 target_install_package(game_editor 
     NAMESPACE GameEngine::
+    EXPORT_NAME "GameEngine"
     COMPONENT "Tools"
 )
 
@@ -309,7 +311,7 @@ target_install_package(game_editor
 export_cpack(
     PACKAGE_NAME "GameEngine"
     PACKAGE_VENDOR "Game Studio"
-    DEFAULT_COMPONENTS "Runtime"
+    DEFAULT_COMPONENTS "Graphics;Audio;Tools"
     COMPONENT_GROUPS  # Enables group-based UI
 )
 
@@ -359,12 +361,11 @@ export_cpack(
     # GPG signing configuration
     GPG_SIGNING_KEY "packaging@enterprise.com"
     GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
-    SIGNING_METHOD "both"  # Both detached and embedded signatures
-    GENERATE_CHECKSUMS ON
-    GPG_KEYSERVER "keys.enterprise.com"
+    SIGNING_METHOD "both"  # Detached signatures for all packages, embedded signatures for RPM packages
+    GENERATE_CHECKSUMS
     
     # Component-specific configuration
-    COMPONENT_GROUPS ON
+    COMPONENT_GROUPS
     DEFAULT_COMPONENTS "Runtime"
     
     # Custom packaging
@@ -389,12 +390,10 @@ if(DEFINED ENV{CI})
     # CI environment - ephemeral test keys
     set(SIGNING_KEY "ci-test@yourproject.local")
     set(SIGNING_METHOD "detached")
-    set(KEYSERVER "")  # No keyserver for CI
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     # Production release - full security
     set(SIGNING_KEY "security@yourproject.com")
     set(SIGNING_METHOD "both")
-    set(KEYSERVER "keyserver.ubuntu.com")
 else()
     # Development - no signing
     set(SIGNING_KEY "")
@@ -407,8 +406,7 @@ export_cpack(
     # Conditional GPG configuration
     GPG_SIGNING_KEY "${SIGNING_KEY}"
     SIGNING_METHOD "${SIGNING_METHOD}"
-    GPG_KEYSERVER "${KEYSERVER}"
-    GENERATE_CHECKSUMS ON
+    GENERATE_CHECKSUMS
 )
 ```
 
@@ -429,10 +427,8 @@ export_cpack(
     
     # GPG signing configuration
     GPG_SIGNING_KEY "maintainer@acme.com"
-    GENERATE_CHECKSUMS ON
+    GENERATE_CHECKSUMS
 )
-
-include(CPack)
 ```
 
 **Generated Output:**
@@ -488,25 +484,28 @@ SIGNING_METHOD "embedded"
 SIGNING_METHOD "both"
 ```
 
+`detached` creates separate `.sig` files for every generated package. `embedded` uses native RPM signing with `rpmsign` and only supports RPM generators. `both` creates detached signatures for every package and embeds RPM signatures only for RPM packages. `rpmsign` is required for `embedded`, and for `both` only when an RPM generator is active.
+
+`GPG_PASSPHRASE_FILE` is used by detached GPG signatures. Embedded RPM signing is driven by `rpmsign`, so configure a noninteractive GPG agent for RPM signing in CI.
+
 #### GENERATE_CHECKSUMS
 **Purpose**: Creates cryptographic checksums alongside signatures.
 
 ```cmake
-GENERATE_CHECKSUMS ON  # Creates .sha256 and .sha512 files
+GENERATE_CHECKSUMS  # Creates .sha256 and .sha512 files
+GENERATE_CHECKSUMS ON
+GENERATE_CHECKSUMS OFF
 ```
 
 #### GPG_KEYSERVER
-**Purpose**: Specifies keyserver for public key distribution.
+**Purpose**: Provides a keyserver value for verification tooling that you generate around the package. Signing itself uses the local GPG keyring and does not fetch keys.
 
 ```cmake
-# Ubuntu's keyserver (default)
+# Ubuntu's keyserver
 GPG_KEYSERVER "keyserver.ubuntu.com"
 
-# Corporate keyservers
+# Corporate keyserver for verification scripts
 GPG_KEYSERVER "keys.corp.internal"
-
-# Multiple keyservers
-GPG_KEYSERVER "keyserver.ubuntu.com;keys.corp.internal"
 ```
 
 ### Complete Signing Example
@@ -528,8 +527,6 @@ target_link_libraries(secure_tool PRIVATE secure_core)
 # Install with automatic CMake config generation
 target_install_package(secure_core 
     NAMESPACE Secure::
-    RUNTIME_COMPONENT "Runtime"
-    DEVELOPMENT_COMPONENT "Development"
 )
 
 target_install_package(secure_tool 
@@ -548,7 +545,7 @@ export_cpack(
     GPG_SIGNING_KEY "security@securitycorp.com"
     GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
     SIGNING_METHOD "both"
-    GENERATE_CHECKSUMS ON
+    GENERATE_CHECKSUMS
     GPG_KEYSERVER "keyserver.ubuntu.com"
 )
 ```
@@ -657,7 +654,7 @@ export_cpack(
     PACKAGE_NAME "YourProject"
     GPG_SIGNING_KEY "${GPG_SIGNING_KEY}"
     GPG_PASSPHRASE_FILE "${GPG_PASSPHRASE_FILE}"
-    GENERATE_CHECKSUMS ON
+    GENERATE_CHECKSUMS
 )
 ```
 
@@ -683,7 +680,7 @@ export_cpack(
     
     # Corporate compliance requirements
     SIGNING_METHOD "both"
-    GENERATE_CHECKSUMS ON
+    GENERATE_CHECKSUMS
 )
 ```
 
@@ -693,12 +690,11 @@ export_cpack(
 export_cpack(
     PACKAGE_NAME "AirGappedLib"
     GPG_SIGNING_KEY "offline@secure.local"
-    
-    # No keyserver (manual key distribution)
-    GPG_KEYSERVER ""
-    
+
+    # Do not rely on keyserver fetches in verification scripts; distribute the public key manually.
+
     # Checksum-only verification for faster validation
-    GENERATE_CHECKSUMS ON
+    GENERATE_CHECKSUMS
 )
 ```
 
@@ -735,13 +731,49 @@ When multiple components are detected, packages are automatically split:
 # Linux output with components
 MyLib-1.0.0-Linux-Runtime.tar.gz      # Shared libraries
 MyLib-1.0.0-Linux-Development.tar.gz  # Headers + CMake configs + static libs
-MyLib-1.0.0-Linux-Tools.tar.gz        # Executables
+MyLib-1.0.0-Linux-TOOLS.tar.gz        # Executables
 
 # Corresponding DEB packages
 mylib-runtime_1.0.0_amd64.deb
 mylib-development_1.0.0_amd64.deb  
 mylib-tools_1.0.0_amd64.deb
 ```
+
+---
+
+## Migration Guide
+
+### Component Dependencies
+
+Version 7 uses exact `COMPONENT_DEPENDENCIES` pairs. If one component has multiple dependencies, repeat the component name:
+
+```cmake
+# Before
+COMPONENT_DEPENDENCIES graphics "OpenGL REQUIRED;glfw3 REQUIRED"
+
+# After
+COMPONENT_DEPENDENCIES
+    graphics "OpenGL REQUIRED"
+    graphics "glfw3 REQUIRED"
+```
+
+Bare one-to-one pairs still work:
+
+```cmake
+COMPONENT_DEPENDENCIES Core fmt Gui glfw
+```
+
+Option-bearing dependency expressions must be quoted. Ambiguous lists such as `COMPONENT_DEPENDENCIES Core OpenGL REQUIRED glfw3` now fail at configure time.
+
+### Signing
+
+`SIGNING_METHOD embedded` is RPM-only and fails for mixed or non-RPM generator lists. Use `SIGNING_METHOD both` when you want detached signatures for all packages plus embedded signatures for RPM packages.
+
+`GPG_PASSPHRASE_FILE` still applies to detached signatures. Embedded RPM signing relies on `rpmsign` and the configured GPG agent.
+
+### Checksums
+
+`GENERATE_CHECKSUMS`, `GENERATE_CHECKSUMS ON`, and `GENERATE_CHECKSUMS OFF` are accepted. Signed packages default to checksums when the option is omitted.
 
 ---
 

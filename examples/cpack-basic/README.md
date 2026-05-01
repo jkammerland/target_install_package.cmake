@@ -100,8 +100,8 @@ export_cpack(
 ### Universal Archive (TGZ/ZIP)
 
 - Cross-platform compatibility
-- Contains all components by default
-- Can be component-split with `-D CPACK_ARCHIVE_COMPONENT_INSTALL=ON`
+- Generates one archive per component when component install is enabled
+- Keeps runtime, development, and tool payloads inspectable independently
 
 ### Linux Packages (DEB/RPM)
 
@@ -168,13 +168,10 @@ install/
 ### Verify Package Contents
 
 ```bash
-# For TGZ packages
-tar -tzf MyLibrary-1.2.0-Linux.tar.gz
-
-# For component packages (if generated)
+# For component TGZ packages
 tar -tzf MyLibrary-1.2.0-Linux-Runtime.tar.gz
 tar -tzf MyLibrary-1.2.0-Linux-Development.tar.gz
-tar -tzf MyLibrary-1.2.0-Linux-Tools.tar.gz
+tar -tzf MyLibrary-1.2.0-Linux-TOOLS.tar.gz
 ```
 
 ### Test Package Installation
@@ -183,7 +180,8 @@ tar -tzf MyLibrary-1.2.0-Linux-Tools.tar.gz
 # Extract package to test location
 mkdir test-install
 cd test-install
-tar -xzf ../MyLibrary-1.2.0-Linux.tar.gz
+tar -xzf ../MyLibrary-1.2.0-Linux-Runtime.tar.gz
+tar -xzf ../MyLibrary-1.2.0-Linux-TOOLS.tar.gz
 
 # Verify the tool works
 ./bin/mytool --version

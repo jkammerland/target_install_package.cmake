@@ -45,7 +45,7 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
 
 >[!NOTE]
-> Config templates use `@EXPORT_NAME@` for CMake substitution, which it defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, you just have to share the same `EXPORT_NAME`.
+> Config templates use `@ARG_EXPORT_NAME@` for CMake substitution, which defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, share the same `EXPORT_NAME`.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
 `target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
@@ -73,8 +73,13 @@ target_install_package(my_library
     "docs/THIRD_PARTY_NOTICES.md"
   ADDITIONAL_FILES_DESTINATION
     "${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME}"
+  ADDITIONAL_FILES_COMPONENTS
+    Runtime
+    Development
 )
 ```
+
+`ADDITIONAL_FILES_COMPONENTS` is optional. If omitted, additional files are installed with the package's development component. Use it for files such as licenses or notices that must be present in runtime packages too.
 
 `target_install_package()` does not define a built-in manifest format. If you need stricter traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
@@ -176,7 +181,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v6.3.0
+  GIT_TAG v7.0.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -193,7 +198,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v6.3.0
+    GIT_TAG v7.0.0
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -473,8 +478,10 @@ install(TARGETS asset_converter
 # Install only runtime (engine + configs)
 cmake --install . --component Runtime
 
-# Install everything for developers (specify each logical component explicitly)
-cmake --install . --component Runtime --component Development --component Tools
+# Install everything for developers (install each selected component explicitly)
+cmake --install . --component Runtime
+cmake --install . --component Development
+cmake --install . --component Tools
 
 # Install full package without selecting components (installs every runtime + development file)
 cmake --install .
@@ -565,8 +572,10 @@ cmake --install . --component Core_Development
 cmake --install .
 
 # Install everything for developers
-cmake --install . --component Core --component Core_Development
-cmake --install . --component Tools --component Tools_Development
+cmake --install . --component Core
+cmake --install . --component Core_Development
+cmake --install . --component Tools
+cmake --install . --component Tools_Development
 
 # Install everything
 cmake --install .
@@ -686,7 +695,8 @@ target_install_package(engine_graphics
   NAMESPACE GameEngine::
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Always loaded
   COMPONENT_DEPENDENCIES
-    "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"  # Only when graphics requested
+    "graphics" "OpenGL 4.5 REQUIRED"  # Only when graphics requested
+    "graphics" "glfw3 3.3 REQUIRED"
 )
 
 target_install_package(engine_audio
@@ -725,7 +735,8 @@ target_link_libraries(my_game PRIVATE
 ```
 
 Note:
-- You can list multiple dependencies for a component using a semicolon-separated list inside quotes (as in the examples). CMake splits that list internally; the package generator reconstructs and preserves the full set.
+- Pass exact component/dependency pairs. Repeat the component key for multiple dependencies, for example `COMPONENT_DEPENDENCIES graphics "OpenGL REQUIRED" graphics "glfw3 REQUIRED"`.
+- Bare shorthand is allowed for one dependency per component, for example `COMPONENT_DEPENDENCIES Core fmt Gui glfw`. Quote dependency expressions when they include options. Ambiguous bare lists such as `COMPONENT_DEPENDENCIES graphics OpenGL REQUIRED glfw3 REQUIRED` are rejected because CMake cannot distinguish dependency arguments from the next component key.
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
 
 ### Game Engine with Modular Components
@@ -785,7 +796,8 @@ target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "graphics" "OpenGL 4.5 REQUIRED;glfw3 3.3 REQUIRED"
+    "graphics" "OpenGL 4.5 REQUIRED"
+    "graphics" "glfw3 3.3 REQUIRED"
   COMPONENT "Graphics"  # Creates Graphics and Graphics_Development
 )
 
@@ -821,13 +833,19 @@ install(FILES "configs/physics.json"
 cmake --install . --component Runtime
 
 # Graphics-enabled runtime
-cmake --install . --component Runtime --component Graphics
+cmake --install . --component Runtime
+cmake --install . --component Graphics
 
 # Full game development environment with all runtime components
-cmake --install . --component Runtime --component Graphics --component Physics --component Tools
+cmake --install . --component Runtime
+cmake --install . --component Graphics
+cmake --install . --component Physics
+cmake --install . --component Tools
 
 # Development files for Graphics and Physics
-cmake --install . --component Development --component Graphics_Development --component Physics_Development
+cmake --install . --component Development
+cmake --install . --component Graphics_Development
+cmake --install . --component Physics_Development
 
 # Install every component at once (no explicit selection)
 cmake --install .
@@ -884,6 +902,7 @@ endif()
 
 # Install with variant suffix
 target_install_package(my_library
+  EXPORT_NAME "my_library${VARIANT_SUFFIX}"
   NAMESPACE MyLib::
   CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/my_library${VARIANT_SUFFIX}"
   INCLUDE_DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/my_library${VARIANT_SUFFIX}"
@@ -909,6 +928,8 @@ cmake --install build-debug --prefix /usr/local
 find_package(my_library-debug-profiling REQUIRED)
 target_link_libraries(my_app PRIVATE MyLib::my_library)
 ```
+
+Changing only `CMAKE_CONFIG_DESTINATION` changes where the config file is installed, not the package name used by `find_package()`. Set `EXPORT_NAME` when the installed package should have a variant-specific name.
 
 ### Header-Only Libraries
 

@@ -65,7 +65,7 @@ macro(list_file_include_guard)
 
   # Create a sanitized name for properties
   string(MAKE_C_IDENTIFIER "${_LFG_ID}" _LFG_FILE_ID)
-  set(_LFG_VERSION "${LFG_VERSION}") # Keep full version string
+  string(REGEX REPLACE "^v?([0-9]+\\.[0-9]+\\.[0-9]+).*$" "\\1" _LFG_VERSION "${LFG_VERSION}")
 
   # Parse major and minor components for the current version
   string(REGEX REPLACE "^([0-9]+)\\.([0-9]+)\\.[0-9]+$" "\\1" _LFG_V_MAJOR "${_LFG_VERSION}")

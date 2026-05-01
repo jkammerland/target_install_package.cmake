@@ -32,9 +32,12 @@ cmake --build .
 cmake --install .
 
 # Or install specific components
-cmake --install . --component runtime1
-cmake --install . --component devel1
-cmake --install . --component tools
+cmake --install . --component Core
+cmake --install . --component Core_Development
+cmake --install . --component DevTools_Development
+cmake --install . --component Storage
+cmake --install . --component Storage_Development
+cmake --install . --component Tools
 ```
 ## Using the Installed Package
 

@@ -4,7 +4,7 @@ Demonstrates automatic RPATH configuration for relocatable installations.
 
 ## Features Tested
 
-- Automatic RPATH configuration (`$ORIGIN/../lib:$ORIGIN/../lib64` on Linux)
+- Automatic RPATH configuration computed from the install layout (`$ORIGIN/../lib64:$ORIGIN` or `$ORIGIN/../lib:$ORIGIN` on Linux)
 - Relocatable installations that work without `LD_LIBRARY_PATH`
 - `DISABLE_RPATH` parameter functionality
 - Prefix-agnostic relative `INSTALL_RPATH` entries that still work with `cmake --install --prefix`
@@ -25,12 +25,13 @@ cmake --install build
 ```bash
 # Check RPATH is set correctly
 readelf -d install/bin/rpath_demo | grep RUNPATH
-readelf -d install/lib64/libmylib.so | grep RUNPATH
+readelf -d install/lib*/libmylib.so | grep RUNPATH
 ```
 
 Expected output:
 ```
-0x000000000000001d (RUNPATH)    Library runpath: [$ORIGIN/../lib:$ORIGIN/../lib64]
+0x000000000000001d (RUNPATH)    Library runpath: [$ORIGIN/../lib64:$ORIGIN]  # or $ORIGIN/../lib:$ORIGIN
+0x000000000000001d (RUNPATH)    Library runpath: [$ORIGIN]
 ```
 
 ## DISABLE_RPATH Test

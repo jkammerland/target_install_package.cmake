@@ -4,7 +4,7 @@ This example demonstrates the GPG package signing functionality added to `export
 Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 
 **🎯 Complete GPG Integration**
-- **Multi-format signing**: Automatically signs TGZ, DEB, RPM, and all other CPack formats
+- **Multi-format signing**: Automatically signs TGZ, ZIP, and any other enabled CPack format
 - **Detached signatures**: Creates `.sig` files alongside packages
 - **Cryptographic checksums**: Generates SHA256 and SHA512 for integrity verification
 - **Example verification script**: Provides template for consumer verification
@@ -13,7 +13,7 @@ Also see the [cpack-tutorial](../../CPack-Tutorial.md).
 **More Features**
 - Environment variable integration (`$GPG_SIGNING_KEY`, `$GPG_PASSPHRASE_FILE`)
 - CMake preset support for streamlined workflows
-- Keyserver integration for public key distribution
+- Keyserver value included in verification guidance for public key distribution
 - Passphrase file support for CI/CD automation, **In real world, only use this if you have to. If you do, make sure the file is only readable by a very secure user and the filesystem is encrypted.**
 - Cross-platform compatibility (Linux, macOS, Windows)
 
@@ -29,7 +29,7 @@ export_cpack(
   GPG_SIGNING_KEY "${GPG_SIGNING_KEY}"           # From cache/environment
   GPG_PASSPHRASE_FILE "${GPG_PASSPHRASE_FILE}"   # For automated signing
   SIGNING_METHOD "detached"                      # Creates .sig files
-  GPG_KEYSERVER "keyserver.ubuntu.com"
+  GPG_KEYSERVER "keyserver.ubuntu.com"           # Used by verification guidance
   GENERATE_CHECKSUMS                             # SHA256/SHA512
   # Standard CPack options
   DEFAULT_COMPONENTS "Runtime"
@@ -50,11 +50,11 @@ cmake -B build \
 
 # 3. Build and package
 cmake --build build
-cpack --config build/CPackConfig.cmake
+cpack --config build/CPackConfig.cmake -B build/packages
 
 # 4. Verify results
-ls -la *.tar.gz* *.deb* *.rpm*
-./verify.sh  # Test verification script
+ls -la build/packages/*.tar.gz* build/packages/*.zip*
+build/verify.sh --directory build/packages --package-types "tar.gz,zip" --min-packages 6
 ```
 
 ### Using CMake Presets (Recommended)
@@ -80,13 +80,10 @@ Example package names for the current example version (`1.2.0`) are:
 **📦 Packages**
 - `MySignedLibrary-1.2.0-Linux-Development.tar.gz`
 - `MySignedLibrary-1.2.0-Linux-Runtime.tar.gz`
-- `MySignedLibrary-1.2.0-Linux-Tools.tar.gz`
-- `mysignedlibrary-development_1.2.0_amd64.deb`
-- `mysignedlibrary-runtime_1.2.0_amd64.deb`
-- `mysignedlibrary-tools_1.2.0_amd64.deb`
-- `mysignedlibrary-Development-1.2.0-1.x86_64.rpm`
-- `mysignedlibrary-Runtime-1.2.0-1.x86_64.rpm`
-- `mysignedlibrary-Tools-1.2.0-1.x86_64.rpm`
+- `MySignedLibrary-1.2.0-Linux-TOOLS.tar.gz`
+- `MySignedLibrary-1.2.0-Linux-Development.zip`
+- `MySignedLibrary-1.2.0-Linux-Runtime.zip`
+- `MySignedLibrary-1.2.0-Linux-TOOLS.zip`
 
 **🔐 Signatures**  
 - `*.sig` - GPG detached signatures for each package
@@ -107,7 +104,7 @@ Example package names for the current example version (`1.2.0`) are:
 **Optional:**
 - Passphrase file for automated signing (if key has passphrase)
 - GPG agent configured for passphrase caching
-- Keyserver access for public key distribution
+- Keyserver access when consumers fetch public keys during verification
 
 ## CMake Presets Integration
 
@@ -135,7 +132,7 @@ The signing workflow integrates with CMake presets for streamlined CI/CD:
     {
       "name": "signed-packages",
       "configurePreset": "signed-packages",
-      "generators": ["TGZ", "DEB", "RPM"],
+      "generators": ["TGZ", "ZIP"],
       "packageDirectory": "${sourceDir}/build-signed/packages"
     }
   ]
@@ -174,25 +171,22 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 ### Verification Example Output
 
 ```bash
-./verify.sh --package-types "tar.gz,deb,rpm" --min-packages 9 --verbose
+./verify.sh --package-types "tar.gz,zip" --min-packages 6 --verbose
 
 # 🔐 Example Package Verification Script
 # ⚠️  NOTICE: This is a demonstration template - customize for production use!
 #
 # ✓ MySignedLibrary-1.2.0-Linux-Development.tar.gz verified successfully
 # ✓ MySignedLibrary-1.2.0-Linux-Runtime.tar.gz verified successfully
-# ✓ MySignedLibrary-1.2.0-Linux-Tools.tar.gz verified successfully
-# ✓ mysignedlibrary-development_1.2.0_amd64.deb verified successfully
-# ✓ mysignedlibrary-runtime_1.2.0_amd64.deb verified successfully
-# ✓ mysignedlibrary-tools_1.2.0_amd64.deb verified successfully
-# ✓ mysignedlibrary-Development-1.2.0-1.x86_64.rpm verified successfully
-# ✓ mysignedlibrary-Runtime-1.2.0-1.x86_64.rpm verified successfully
-# ✓ mysignedlibrary-Tools-1.2.0-1.x86_64.rpm verified successfully
+# ✓ MySignedLibrary-1.2.0-Linux-TOOLS.tar.gz verified successfully
+# ✓ MySignedLibrary-1.2.0-Linux-Development.zip verified successfully
+# ✓ MySignedLibrary-1.2.0-Linux-Runtime.zip verified successfully
+# ✓ MySignedLibrary-1.2.0-Linux-TOOLS.zip verified successfully
 #
 # Verification Results:
-#   Total packages: 9
-#   Successfully verified: 9
-#   Required minimum: 9
+#   Total packages: 6
+#   Successfully verified: 6
+#   Required minimum: 6
 #
 # 🎉 Package verification successful!
 # 📝 Remember: This is an example script - adapt for your security requirements
@@ -200,6 +194,6 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 
 ## Summary
 
-- ✅ Signs all CPack package formats automatically
+- ✅ Signs all enabled CPack package formats automatically
 - ✅ Generates cryptographic checksums and signatures
 - ✅ Integrates with CI/CD via presets and environment variables

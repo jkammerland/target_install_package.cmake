@@ -4,6 +4,7 @@
 #include <string>
 
 // Core dependency - always available
+#include <engine/api.h>
 #include <mylib/dummy.h>
 
 // Data and utility libraries
@@ -20,6 +21,7 @@ import math;
 
 // Test function declarations
 bool test_core_libraries();
+bool test_game_engine_package();
 bool test_data_libraries();
 bool test_platform_detection();
 bool test_compiler_features();
@@ -40,6 +42,31 @@ bool test_core_libraries() {
     return true;
   } catch (const std::exception &e) {
     std::cout << "  ✗ Core libraries test failed: " << e.what() << "\n";
+    return false;
+  }
+}
+
+bool test_game_engine_package() {
+  try {
+    std::cout << "Testing game engine package...\n";
+
+    if (!engine::API::initializeEngine("examples-test.conf")) {
+      std::cout << "  ✗ GameEngine initialization failed\n";
+      return false;
+    }
+
+    engine::API::getEngine().setTargetFPS(144);
+    if (engine::API::getEngine().getTargetFPS() != 144) {
+      std::cout << "  ✗ GameEngine target FPS did not round-trip\n";
+      engine::API::shutdownEngine();
+      return false;
+    }
+
+    engine::API::shutdownEngine();
+    std::cout << "  ✓ GameEngine package verified\n";
+    return true;
+  } catch (const std::exception &e) {
+    std::cout << "  ✗ GameEngine package test failed: " << e.what() << "\n";
     return false;
   }
 }
@@ -196,6 +223,7 @@ int main() {
     }
 
     // Continue with remaining tests
+    all_passed &= test_game_engine_package();
     all_passed &= test_data_libraries();
     all_passed &= test_platform_detection();
     all_passed &= test_compiler_features();

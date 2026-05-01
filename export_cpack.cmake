@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 6.3.0)
+  list_file_include_guard(VERSION 7.0.0)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -405,8 +405,38 @@ function(_execute_deferred_cpack_config)
     set(_tip_cpack_config_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
 
+  set(_tip_cpack_parse_args "")
+  list(LENGTH args _tip_cpack_arg_count)
+  set(_tip_cpack_arg_index 0)
+  while(_tip_cpack_arg_index LESS _tip_cpack_arg_count)
+    list(GET args ${_tip_cpack_arg_index} _tip_cpack_arg)
+
+    if(_tip_cpack_arg STREQUAL "GENERATE_CHECKSUMS")
+      math(EXPR _tip_cpack_next_index "${_tip_cpack_arg_index} + 1")
+      if(_tip_cpack_next_index LESS _tip_cpack_arg_count)
+        list(GET args ${_tip_cpack_next_index} _tip_cpack_next_arg)
+        string(TOUPPER "${_tip_cpack_next_arg}" _tip_cpack_next_arg_upper)
+        if(_tip_cpack_next_arg_upper MATCHES "^(ON|TRUE|YES|1)$")
+          list(APPEND _tip_cpack_parse_args GENERATE_CHECKSUMS ON)
+          math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 2")
+          continue()
+        elseif(_tip_cpack_next_arg_upper MATCHES "^(OFF|FALSE|NO|0)$")
+          list(APPEND _tip_cpack_parse_args GENERATE_CHECKSUMS OFF)
+          math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 2")
+          continue()
+        endif()
+      endif()
+
+      list(APPEND _tip_cpack_parse_args GENERATE_CHECKSUMS ON)
+    else()
+      list(APPEND _tip_cpack_parse_args "${_tip_cpack_arg}")
+    endif()
+
+    math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 1")
+  endwhile()
+
   # Now parse and process the stored arguments
-  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS GENERATE_CHECKSUMS)
+  set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
   set(oneValueArgs
       PACKAGE_NAME
       PACKAGE_VERSION
@@ -421,13 +451,17 @@ function(_execute_deferred_cpack_config)
       GPG_PASSPHRASE_FILE
       SIGNING_METHOD
       GPG_KEYSERVER
+      GENERATE_CHECKSUMS
       CONTAINER_NAME
       CONTAINER_TAG
       CONTAINER_RUNTIME
       CONTAINER_ENTRYPOINT
       CONTAINER_ARCHIVE_FORMAT)
   set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS CONTAINER_COMPONENTS CONTAINER_ROOTFS_OVERLAYS ADDITIONAL_CPACK_VARS)
-  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${args})
+  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${_tip_cpack_parse_args})
+  if(ARG_UNPARSED_ARGUMENTS)
+    project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
+  endif()
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
@@ -508,6 +542,30 @@ function(_execute_deferred_cpack_config)
       list(APPEND ARG_GENERATORS "DEB" "RPM")
     elseif(APPLE)
       list(APPEND ARG_GENERATORS "DragNDrop")
+    endif()
+  endif()
+
+  set(_tip_signing_key_for_validation "${ARG_GPG_SIGNING_KEY}")
+  if(NOT _tip_signing_key_for_validation AND DEFINED ENV{GPG_SIGNING_KEY})
+    set(_tip_signing_key_for_validation "$ENV{GPG_SIGNING_KEY}")
+  endif()
+
+  set(_tip_generators_upper "")
+  set(_tip_has_rpm_generator FALSE)
+  set(_tip_has_non_rpm_generator FALSE)
+  foreach(_tip_generator IN LISTS ARG_GENERATORS)
+    string(TOUPPER "${_tip_generator}" _tip_generator_upper)
+    list(APPEND _tip_generators_upper "${_tip_generator_upper}")
+    if(_tip_generator_upper STREQUAL "RPM")
+      set(_tip_has_rpm_generator TRUE)
+    else()
+      set(_tip_has_non_rpm_generator TRUE)
+    endif()
+  endforeach()
+
+  if(_tip_signing_key_for_validation AND ARG_SIGNING_METHOD STREQUAL "embedded")
+    if(NOT _tip_has_rpm_generator OR _tip_has_non_rpm_generator)
+      project_log(FATAL_ERROR "SIGNING_METHOD 'embedded' only supports RPM generators. Use SIGNING_METHOD 'both' for mixed RPM and detached signatures.")
     endif()
   endif()
 
@@ -835,7 +893,7 @@ function(_execute_deferred_cpack_config)
     endif()
   endif()
 
-  if("RPM" IN_LIST ARG_GENERATORS)
+  if(_tip_has_rpm_generator)
     set(_tip_rpm_excluded_dirs "")
     foreach(relative_dir "" "${CMAKE_INSTALL_BINDIR}" "${CMAKE_INSTALL_INCLUDEDIR}" "${CMAKE_INSTALL_LIBDIR}" "${CMAKE_INSTALL_DATADIR}")
       if(relative_dir)
@@ -855,23 +913,35 @@ function(_execute_deferred_cpack_config)
   endif()
 
   # Configure GPG signing if requested (must be before variable application)
-  _configure_gpg_signing(
-    SIGNING_KEY
-    "${ARG_GPG_SIGNING_KEY}"
-    PASSPHRASE_FILE
-    "${ARG_GPG_PASSPHRASE_FILE}"
-    SIGNING_METHOD
-    "${ARG_SIGNING_METHOD}"
-    KEYSERVER
-    "${ARG_GPG_KEYSERVER}"
-    GENERATE_CHECKSUMS
-    ${ARG_GENERATE_CHECKSUMS}
-    PACKAGE_NAME
-    "${ARG_PACKAGE_NAME}"
-    PACKAGE_VERSION
-    "${ARG_PACKAGE_VERSION}"
-    PACKAGE_CONTACT
-    "${ARG_PACKAGE_CONTACT}")
+  set(_tip_gpg_requires_rpmsign FALSE)
+  if(ARG_SIGNING_METHOD STREQUAL "embedded")
+    set(_tip_gpg_requires_rpmsign TRUE)
+  elseif(ARG_SIGNING_METHOD STREQUAL "both" AND _tip_has_rpm_generator)
+    set(_tip_gpg_requires_rpmsign TRUE)
+  endif()
+
+  set(_tip_gpg_signing_args
+      SIGNING_KEY
+      "${ARG_GPG_SIGNING_KEY}"
+      PASSPHRASE_FILE
+      "${ARG_GPG_PASSPHRASE_FILE}"
+      SIGNING_METHOD
+      "${ARG_SIGNING_METHOD}"
+      KEYSERVER
+      "${ARG_GPG_KEYSERVER}"
+      PACKAGE_NAME
+      "${ARG_PACKAGE_NAME}"
+      PACKAGE_VERSION
+      "${ARG_PACKAGE_VERSION}"
+      PACKAGE_CONTACT
+      "${ARG_PACKAGE_CONTACT}")
+  if(DEFINED ARG_GENERATE_CHECKSUMS AND NOT "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
+    list(APPEND _tip_gpg_signing_args GENERATE_CHECKSUMS "${ARG_GENERATE_CHECKSUMS}")
+  endif()
+  if(_tip_gpg_requires_rpmsign)
+    list(APPEND _tip_gpg_signing_args REQUIRE_RPMSIGN)
+  endif()
+  _configure_gpg_signing(${_tip_gpg_signing_args})
 
   # Set all CPack variables from GLOBAL properties just before including CPack This avoids cache persistence between CMake runs
   get_property(all_cpack_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
@@ -921,21 +991,20 @@ endfunction(_execute_deferred_cpack_config)
 # Internal function to configure GPG signing for packages
 # ~~~
 function(_configure_gpg_signing)
-  set(options GENERATE_CHECKSUMS)
+  set(options REQUIRE_RPMSIGN)
   set(oneValueArgs
       SIGNING_KEY
       PASSPHRASE_FILE
       SIGNING_METHOD
       KEYSERVER
+      GENERATE_CHECKSUMS
       PACKAGE_NAME
       PACKAGE_VERSION
       PACKAGE_CONTACT)
   set(multiValueArgs)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-  # Skip if no signing key provided
-  if(NOT ARG_SIGNING_KEY)
-    return()
+  if(ARG_UNPARSED_ARGUMENTS)
+    project_log(FATAL_ERROR "Unknown arguments for GPG signing configuration: ${ARG_UNPARSED_ARGUMENTS}")
   endif()
 
   # Set defaults with environment variable fallbacks
@@ -947,8 +1016,18 @@ function(_configure_gpg_signing)
     set(ARG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}")
   endif()
 
+  # Skip if no signing key provided
+  if(NOT ARG_SIGNING_KEY)
+    return()
+  endif()
+
   if(NOT ARG_SIGNING_METHOD)
     set(ARG_SIGNING_METHOD "detached")
+  endif()
+  if(NOT ARG_SIGNING_METHOD STREQUAL "detached"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "embedded"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "both")
+    project_log(FATAL_ERROR "SIGNING_METHOD must be one of 'detached', 'embedded', or 'both', got: ${ARG_SIGNING_METHOD}")
   endif()
 
   if(NOT ARG_KEYSERVER)
@@ -956,8 +1035,17 @@ function(_configure_gpg_signing)
   endif()
 
   # Enable checksums and verification scripts by default if signing is enabled
-  if(NOT DEFINED ARG_GENERATE_CHECKSUMS)
+  if(NOT DEFINED ARG_GENERATE_CHECKSUMS OR "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
     set(ARG_GENERATE_CHECKSUMS ON)
+  else()
+    string(TOUPPER "${ARG_GENERATE_CHECKSUMS}" _tip_generate_checksums_upper)
+    if(_tip_generate_checksums_upper MATCHES "^(ON|TRUE|YES|1)$")
+      set(ARG_GENERATE_CHECKSUMS ON)
+    elseif(_tip_generate_checksums_upper MATCHES "^(OFF|FALSE|NO|0)$")
+      set(ARG_GENERATE_CHECKSUMS OFF)
+    else()
+      project_log(FATAL_ERROR "GENERATE_CHECKSUMS must be ON or OFF, got: ${ARG_GENERATE_CHECKSUMS}")
+    endif()
   endif()
 
   # Find GPG executable
@@ -967,6 +1055,22 @@ function(_configure_gpg_signing)
     DOC "GNU Privacy Guard")
   if(NOT GPG_EXECUTABLE)
     project_log(FATAL_ERROR "GPG executable not found. Install GPG to enable package signing.")
+  endif()
+
+  if(ARG_REQUIRE_RPMSIGN)
+    find_program(
+      RPMSIGN_EXECUTABLE
+      NAMES rpmsign
+      DOC "RPM signing tool")
+    if(NOT RPMSIGN_EXECUTABLE)
+      project_log(FATAL_ERROR "rpmsign executable not found. Install rpm-sign to enable embedded RPM signing.")
+    endif()
+  else()
+    set(RPMSIGN_EXECUTABLE "")
+  endif()
+
+  if(ARG_PASSPHRASE_FILE AND ARG_REQUIRE_RPMSIGN)
+    project_log(WARNING "GPG_PASSPHRASE_FILE is used for detached signatures only; embedded RPM signing uses rpmsign and the configured GPG agent.")
   endif()
 
   # Validate signing key exists

@@ -492,6 +492,7 @@ EXAMPLES=(
     "cxx-modules-partitions"
     "cpack-basic"
     "cpack-signed"
+    "minimal-container"
     "custom-alias"
     "multi-cpack"
     "rpath-example"

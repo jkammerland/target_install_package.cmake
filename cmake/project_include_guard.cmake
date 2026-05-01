@@ -1,3 +1,7 @@
+if(NOT COMMAND list_file_include_guard)
+  include("${CMAKE_CURRENT_LIST_DIR}/list_file_include_guard.cmake")
+endif()
+
 list_file_include_guard(VERSION 1.2.4)
 
 # ~~~
