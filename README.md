@@ -421,7 +421,7 @@ export_cpack(
 # No need for include(CPack) - export_cpack() does it automatically
 ```
 
-`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` packages the full license text.
+`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` sets CPack's license resource for generators that display or embed one. Install a license file explicitly, or use `ADDITIONAL_FILES`, when the license text must be present in the installed payload.
 
 **Generate packages:**
 ```bash
@@ -646,9 +646,8 @@ target_install_package(myproject_cli
 
 **Result**: Single package with logical component groups:
 - **Core**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) (runtime)
-- **Core_Development**: Headers from both Core libraries
+- **Core_Development**: Headers from both Core libraries + shared CMake config files
 - **Tools**: CLI executable (`myproject_cli`) (runtime)
-- **Development**: Shared CMake config files
 
 **Consumer usage:**
 ```cmake

@@ -149,7 +149,7 @@ This example includes an **example verification script template** (`verify_templ
 
 **Key considerations for production:**
 - Always verify the publisher's GPG key fingerprint through secure channels
-- Consider pinning specific key IDs rather than using email addresses  
+- Pin a full fingerprint or long key ID with `--key-id` rather than relying on email addresses
 - Validate that keyservers are appropriate for your security environment
 - Review and audit the verification script before deployment
 
@@ -171,7 +171,7 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 ### Verification Example Output
 
 ```bash
-./verify.sh --package-types "tar.gz,zip" --min-packages 6 --verbose
+./verify.sh --package-types "tar.gz,zip" --min-packages 6 --key-id <expected-fingerprint> --verbose
 
 # 🔐 Example Package Verification Script
 # ⚠️  NOTICE: This is a demonstration template - customize for production use!

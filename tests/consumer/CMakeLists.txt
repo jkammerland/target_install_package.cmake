@@ -26,4 +26,9 @@ target_install_package(consumer
     NAMESPACE Consumer::
     VERSION ${PROJECT_VERSION})
 
+export_cpack(
+    PACKAGE_NAME "consumer_test"
+    GENERATORS TGZ
+    NO_DEFAULT_GENERATORS)
+
 message(STATUS "✓ Consumer test configured successfully")

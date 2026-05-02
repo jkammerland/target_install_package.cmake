@@ -77,7 +77,7 @@ export_cpack(
 )
 ```
 
-`PACKAGE_LICENSE` supplies package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` installs the full license text into generated packages.
+`PACKAGE_LICENSE` supplies package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` sets CPack's license resource for generators that display or embed one. Install a license file explicitly, or use `ADDITIONAL_FILES`, when the license text must appear as a payload file in the installed tree.
 `<libdir>` below resolves to the platform-appropriate library directory, typically `lib` or `lib64`.
 
 ### Auto-Detected Settings
@@ -177,7 +177,7 @@ tar -tzf MyLibrary-1.2.0-Linux-TOOLS.tar.gz
 ### Test Package Installation
 
 ```bash
-# Extract package to test location
+# Extract runtime and tool packages to test location
 mkdir test-install
 cd test-install
 tar -xzf ../MyLibrary-1.2.0-Linux-Runtime.tar.gz
@@ -186,6 +186,9 @@ tar -xzf ../MyLibrary-1.2.0-Linux-TOOLS.tar.gz
 # Verify the tool works
 ./bin/mytool --version
 ./bin/mytool --help
+
+# Add development payload before testing find_package consumers
+tar -xzf ../MyLibrary-1.2.0-Linux-Development.tar.gz
 ```
 
 ### Consumer Project Test

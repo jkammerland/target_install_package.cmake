@@ -51,7 +51,7 @@ OPTIONS:
     --package-types TYPES    Comma-separated list: rpm,deb,tar.gz,zip,pkg,dmg,msi (default: all)
     --directory DIR          Directory to search for packages (default: current)
     --min-packages N         Minimum packages that must verify successfully (default: 1)
-    --key-id KEYID          Expected GPG key ID for validation (default: from build)
+    --key-id KEYID          Expected GPG key ID or fingerprint for validation (default: from build)
     --keyserver URL         Keyserver for key import (default: from build)
     --verbose               Enable verbose output
     --help                  Show this help message
@@ -69,7 +69,7 @@ EXIT CODES:
 
 SECURITY NOTES:
     - Always verify the publisher's GPG key fingerprint through a secure channel
-    - Consider pinning specific key IDs rather than using email addresses
+    - Pin the expected signing fingerprint or long key ID whenever possible
     - Validate that keyservers are trustworthy for your environment
     - This script is provided as an example - audit before production use
 EOF
@@ -250,11 +250,54 @@ import_key() {
     fi
 }
 
+normalize_key_id() {
+    printf '%s' "$1" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]'
+}
+
+signing_key_matches_signature() {
+    local expected="$1"
+    local actual_fingerprint="$2"
+    local expected_normalized
+    local actual_normalized
+
+    expected_normalized=$(normalize_key_id "$expected")
+    actual_normalized=$(normalize_key_id "$actual_fingerprint")
+
+    if [ -z "$expected_normalized" ]; then
+        return 0
+    fi
+
+    if [ -z "$actual_normalized" ]; then
+        return 1
+    fi
+
+    case "$actual_normalized" in
+        *"$expected_normalized")
+            return 0
+            ;;
+    esac
+
+    # Resolve emails, short IDs, or long IDs through the local keyring when
+    # possible, then compare the verified signing fingerprint to those keys.
+    local expected_fingerprint
+    while IFS= read -r expected_fingerprint; do
+        expected_fingerprint=$(normalize_key_id "$expected_fingerprint")
+        if [ -n "$expected_fingerprint" ] && [ "$actual_normalized" = "$expected_fingerprint" ]; then
+            return 0
+        fi
+    done <<EOF
+$(gpg --batch --with-colons --fingerprint --list-keys "$expected" 2>/dev/null | awk -F: '$1 == "fpr" { print $10 }')
+EOF
+
+    return 1
+}
+
 # Verify a single package
 verify_package() {
     local package="$1"
     local basename=$(basename "$package")
     local verified=false
+    local signer_fingerprint=""
     
     log "Verifying: $basename"
     
@@ -264,13 +307,37 @@ verify_package() {
         return 1
     fi
     
-    # Verify GPG signature
-    if gpg --verify "$package.sig" "$package" 2>/dev/null; then
+    # Verify GPG signature and capture machine-readable signer metadata.
+    local gpg_status_file
+    gpg_status_file=$(mktemp "${TMPDIR:-/tmp}/verify-gpg-status.XXXXXX") || {
+        error "Failed to create temporary GPG status file"
+        return 1
+    }
+
+    if gpg --status-fd 1 --verify "$package.sig" "$package" >"$gpg_status_file" 2>/dev/null; then
+        signer_fingerprint=$(awk '/^\[GNUPG:\] VALIDSIG / { print $3; exit }' "$gpg_status_file")
         log "GPG signature verified for $basename"
         verified=true
     else
+        rm -f "$gpg_status_file"
         error "GPG signature verification failed for $basename"
         return 1
+    fi
+
+    rm -f "$gpg_status_file"
+
+    if [ -n "$SIGNING_KEY" ]; then
+        if [ -z "$signer_fingerprint" ]; then
+            error "GPG signature for $basename did not report a signer fingerprint"
+            return 1
+        fi
+
+        if signing_key_matches_signature "$SIGNING_KEY" "$signer_fingerprint"; then
+            log "GPG signer matched expected key for $basename: $signer_fingerprint"
+        else
+            error "GPG signer mismatch for $basename: expected $SIGNING_KEY, got $signer_fingerprint"
+            return 1
+        fi
     fi
     
     # Verify checksums when the package was published with checksum files

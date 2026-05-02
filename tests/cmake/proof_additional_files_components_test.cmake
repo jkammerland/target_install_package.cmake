@@ -15,9 +15,16 @@ set(_tip_build_dir "${_tip_case_root}/build")
 set(_tip_runtime_prefix "${_tip_case_root}/runtime-install")
 set(_tip_notices_prefix "${_tip_case_root}/notices-install")
 set(_tip_development_prefix "${_tip_case_root}/development-install")
+set(_tip_package_dir "${_tip_case_root}/packages")
 
 file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_source_dir}/src")
+file(MAKE_DIRECTORY "${_tip_package_dir}")
+
+find_program(_tip_cpack cpack)
+if(NOT _tip_cpack)
+  _tip_proof_fail("cpack is required for additional files package proof")
+endif()
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
@@ -92,5 +99,67 @@ _tip_proof_run_step(
 _tip_proof_assert_exists("${_tip_runtime_prefix}/share/proof/NOTICE.txt")
 _tip_proof_assert_exists("${_tip_notices_prefix}/share/proof/NOTICE.txt")
 _tip_proof_assert_not_exists("${_tip_development_prefix}/share/proof/NOTICE.txt")
+
+_tip_proof_run_step(
+  NAME
+  "package"
+  COMMAND
+  "${_tip_cpack}"
+  -G
+  TGZ
+  --config
+  "${_tip_build_dir}/CPackConfig.cmake"
+  -B
+  "${_tip_package_dir}")
+
+file(GLOB _tip_runtime_archives "${_tip_package_dir}/*Runtime*.tar.gz" "${_tip_package_dir}/*RUNTIME*.tar.gz")
+file(GLOB _tip_notices_archives "${_tip_package_dir}/*Notices*.tar.gz" "${_tip_package_dir}/*NOTICES*.tar.gz")
+file(GLOB _tip_development_archives "${_tip_package_dir}/*Development*.tar.gz" "${_tip_package_dir}/*DEVELOPMENT*.tar.gz")
+
+list(LENGTH _tip_runtime_archives _tip_runtime_archive_count)
+if(NOT _tip_runtime_archive_count EQUAL 1)
+  _tip_proof_fail("Expected one runtime archive, found ${_tip_runtime_archive_count}: ${_tip_runtime_archives}")
+endif()
+
+list(LENGTH _tip_notices_archives _tip_notices_archive_count)
+if(NOT _tip_notices_archive_count EQUAL 1)
+  _tip_proof_fail("Expected one notices archive, found ${_tip_notices_archive_count}: ${_tip_notices_archives}")
+endif()
+
+list(LENGTH _tip_development_archives _tip_development_archive_count)
+if(NOT _tip_development_archive_count EQUAL 1)
+  _tip_proof_fail("Expected one development archive, found ${_tip_development_archive_count}: ${_tip_development_archives}")
+endif()
+
+list(GET _tip_runtime_archives 0 _tip_runtime_archive)
+list(GET _tip_notices_archives 0 _tip_notices_archive)
+list(GET _tip_development_archives 0 _tip_development_archive)
+
+foreach(_tip_archive_var runtime notices development)
+  set(_tip_archive "${_tip_${_tip_archive_var}_archive}")
+  execute_process(
+    COMMAND "${CMAKE_COMMAND}" -E tar tf "${_tip_archive}"
+    RESULT_VARIABLE _tip_tar_result
+    OUTPUT_VARIABLE _tip_tar_output
+    ERROR_VARIABLE _tip_tar_error)
+  if(NOT _tip_tar_result EQUAL 0)
+    _tip_proof_fail("Failed to list ${_tip_archive}: ${_tip_tar_error}")
+  endif()
+  set(_tip_${_tip_archive_var}_tar_output "${_tip_tar_output}")
+endforeach()
+
+foreach(_tip_archive_var runtime notices)
+  set(_tip_tar_output "${_tip_${_tip_archive_var}_tar_output}")
+  set(_tip_archive "${_tip_${_tip_archive_var}_archive}")
+  string(FIND "${_tip_tar_output}" "share/proof/NOTICE.txt" _tip_notice_index)
+  if(_tip_notice_index EQUAL -1)
+    _tip_proof_fail("Expected ${_tip_archive} to contain share/proof/NOTICE.txt")
+  endif()
+endforeach()
+
+string(FIND "${_tip_development_tar_output}" "share/proof/NOTICE.txt" _tip_development_notice_index)
+if(NOT _tip_development_notice_index EQUAL -1)
+  _tip_proof_fail("Did not expect ${_tip_development_archive} to contain share/proof/NOTICE.txt")
+endif()
 
 message(STATUS "[proof] Additional files components proof passed.")

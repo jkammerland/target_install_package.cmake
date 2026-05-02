@@ -6,7 +6,7 @@ This example demonstrates dependency aggregation in multi-target exports - how m
 
 - Multiple targets in one export with different dependencies
 - Automatic dependency aggregation in generated config files
-- Real external dependencies (fmt, spdlog, cxxopts)
+- Declared external package requirements (fmt, spdlog, cxxopts) without requiring those packages to build this example
 - Single find_package() for all targets
 
 ```cmake
@@ -80,12 +80,13 @@ find_package(mylib REQUIRED)
 # Create executable
 add_executable(my_app main.cpp)
 
-# Link with any combination of the installed targets
+# Link with any combination of the installed targets. The generated config
+# first calls find_dependency() for the declared packages.
 target_link_libraries(my_app PRIVATE 
-    MyLib::core_lib     # Brings fmt transitively
-    MyLib::logging_lib  # Brings spdlog transitively  
-    MyLib::utils_lib    # Brings cxxopts transitively
+    MyLib::core_lib
+    MyLib::logging_lib
+    MyLib::utils_lib
 )
 ```
 
-This example shows how target_install_package automatically aggregates dependencies from multiple targets into a single, unified package configuration.
+This example shows how target_install_package automatically aggregates declared package requirements from multiple targets into a single, unified package configuration. The dummy libraries do not link external imported targets, so the example remains buildable without installing fmt, spdlog, or cxxopts.

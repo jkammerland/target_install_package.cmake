@@ -284,8 +284,11 @@ if(target_install_package_BUILD_PROOF_TESTS)
   if(UNIX)
     add_test(NAME proof_gpg_signing_methods COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_gpg_signing_methods_test.cmake")
     set_tests_properties(proof_gpg_signing_methods PROPERTIES LABELS "proof;review;signing")
+
+    add_test(NAME proof_signed_verifier_key COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_signed_verifier_key_test.cmake")
+    set_tests_properties(proof_signed_verifier_key PROPERTIES LABELS "proof;review;signing")
   else()
-    message(STATUS "Skipping proof_gpg_signing_methods: POSIX shell shims are required")
+    message(STATUS "Skipping GPG signing proof tests: POSIX shell shims are required")
   endif()
 
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.3")

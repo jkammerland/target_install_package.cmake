@@ -489,7 +489,7 @@ SIGNING_METHOD "both"
 `GPG_PASSPHRASE_FILE` is used by detached GPG signatures. Embedded RPM signing is driven by `rpmsign`, so configure a noninteractive GPG agent for RPM signing in CI.
 
 #### GENERATE_CHECKSUMS
-**Purpose**: Creates cryptographic checksums alongside signatures.
+**Purpose**: Creates cryptographic checksums alongside generated packages. It can be used with signing or by itself.
 
 ```cmake
 GENERATE_CHECKSUMS  # Creates .sha256 and .sha512 files
@@ -773,7 +773,7 @@ Option-bearing dependency expressions must be quoted. Ambiguous lists such as `C
 
 ### Checksums
 
-`GENERATE_CHECKSUMS`, `GENERATE_CHECKSUMS ON`, and `GENERATE_CHECKSUMS OFF` are accepted. Signed packages default to checksums when the option is omitted.
+`GENERATE_CHECKSUMS`, `GENERATE_CHECKSUMS ON`, and `GENERATE_CHECKSUMS OFF` are accepted. Invalid values fail configure. Signed packages default to checksums when the option is omitted; unsigned packages generate checksums only when this option is enabled.
 
 ---
 
