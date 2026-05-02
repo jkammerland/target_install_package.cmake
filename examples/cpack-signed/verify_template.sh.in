@@ -265,6 +265,23 @@ is_supported_direct_key_id() {
     [ "$key_id_length" -eq 16 ] || [ "$key_id_length" -eq 40 ]
 }
 
+validate_signing_key_selector() {
+    local expected="$1"
+    local expected_normalized
+
+    expected_normalized=$(normalize_key_id "$expected")
+    if [ -z "$expected_normalized" ]; then
+        return 0
+    fi
+
+    if ! is_hex_key_id "$expected_normalized" || ! is_supported_direct_key_id "$expected_normalized"; then
+        error "Expected signing key must be a full fingerprint or 16-hex long key ID: $expected"
+        return 1
+    fi
+
+    return 0
+}
+
 signing_key_matches_signature() {
     local expected="$1"
     local actual_fingerprint="$2"
@@ -282,31 +299,15 @@ signing_key_matches_signature() {
         return 1
     fi
 
-    if is_hex_key_id "$expected_normalized"; then
-        if ! is_supported_direct_key_id "$expected_normalized"; then
-            return 1
-        fi
-
-        case "$actual_normalized" in
-            *"$expected_normalized")
-                return 0
-                ;;
-        esac
-
+    if ! is_hex_key_id "$expected_normalized" || ! is_supported_direct_key_id "$expected_normalized"; then
         return 1
     fi
 
-    # Resolve non-hex selectors, such as emails, through the local keyring when
-    # possible, then compare the verified signing fingerprint to those keys.
-    local expected_fingerprint
-    while IFS= read -r expected_fingerprint; do
-        expected_fingerprint=$(normalize_key_id "$expected_fingerprint")
-        if [ -n "$expected_fingerprint" ] && [ "$actual_normalized" = "$expected_fingerprint" ]; then
+    case "$actual_normalized" in
+        *"$expected_normalized")
             return 0
-        fi
-    done <<EOF
-$(gpg --batch --with-colons --fingerprint --list-keys "$expected" 2>/dev/null | awk -F: '$1 == "fpr" { print $10 }')
-EOF
+            ;;
+    esac
 
     return 1
 }
@@ -416,6 +417,10 @@ main() {
     echo "🔐 Example Package Verification Script"
     echo "⚠️  NOTICE: This is a demonstration template - customize for production use!"
     echo ""
+
+    if ! validate_signing_key_selector "$SIGNING_KEY"; then
+        exit 2
+    fi
     
     # Import key first
     import_key

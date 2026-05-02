@@ -186,11 +186,22 @@ foreach(_tip_layout IN ITEMS fhs split_debug split_all)
   set_tests_properties("install_layout_${_tip_layout}" PROPERTIES LABELS "install-layout")
 endforeach()
 
+foreach(_tip_layout IN ITEMS split_debug split_all)
+  add_test(NAME "install_layout_${_tip_layout}_release" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" "-DTIP_LAYOUT_TEST_CONFIG=Release" ${_tip_layout_test_common_args} -P
+                                                                  "${_tip_layout_test_script}")
+  set_tests_properties("install_layout_${_tip_layout}_release" PROPERTIES LABELS "install-layout")
+endforeach()
+
 foreach(_tip_middle_config IN ITEMS RelWithDebInfo MinSizeRel)
   string(TOLOWER "${_tip_middle_config}" _tip_middle_config_lower)
   add_test(NAME "install_layout_fhs_${_tip_middle_config_lower}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
                                                                          "${_tip_layout_test_script}")
-  set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
+  set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout")
+
+  add_test(NAME "install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=Release"
+                                                                                       "-DTIP_LAYOUT_CONSUMER_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
+                                                                                       "${_tip_layout_test_script}")
+  set_tests_properties("install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
 endforeach()
 
 set(_tip_component_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_COMPONENT_TEST_ROOT=${_tip_component_test_root}" "-DTIP_COMPONENT_TEST_CONFIG=Debug"

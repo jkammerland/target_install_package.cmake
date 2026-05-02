@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 7.0.0)
+project(target_install_package VERSION 7.0.1)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -32,6 +32,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ADDITIONAL_FILES
       ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in
       ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
+      ${CMAKE_CURRENT_LIST_DIR}/cmake/external_container_package.cmake
       ADDITIONAL_FILES_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake # The reason for the extra cmake dir is because this is the normal override location for the target.
       INCLUDE_ON_FIND_PACKAGE
@@ -52,6 +53,14 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
       COMPONENT
       "CMakeUtilities")
+
+    install(
+      PROGRAMS
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/build_minimal_container.sh
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/collect_runtime_deps.sh
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/container_to_quadlet.sh
+      DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake
+      COMPONENT CMakeUtilities_Development)
   endif()
 endif()
 

@@ -359,7 +359,7 @@ export_cpack(
     PACKAGE_HOMEPAGE_URL "https://enterprise.com/library"
     
     # GPG signing configuration
-    GPG_SIGNING_KEY "packaging@enterprise.com"
+    GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567"
     GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
     SIGNING_METHOD "both"  # Detached signatures for all packages, embedded signatures for RPM packages
     GENERATE_CHECKSUMS
@@ -388,11 +388,11 @@ export_cpack(
 # Conditional signing based on environment
 if(DEFINED ENV{CI})
     # CI environment - ephemeral test keys
-    set(SIGNING_KEY "ci-test@yourproject.local")
+    set(SIGNING_KEY "89ABCDEF0123456789ABCDEF0123456789ABCDEF")
     set(SIGNING_METHOD "detached")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     # Production release - full security
-    set(SIGNING_KEY "security@yourproject.com")
+    set(SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567")
     set(SIGNING_METHOD "both")
 else()
     # Development - no signing
@@ -426,7 +426,7 @@ export_cpack(
     PACKAGE_CONTACT "security@acme.com"
     
     # GPG signing configuration
-    GPG_SIGNING_KEY "maintainer@acme.com"
+    GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567"
     GENERATE_CHECKSUMS
 )
 ```
@@ -446,8 +446,8 @@ MySecureLib-1.0.0-Linux.tar.gz.sha512
 **Purpose**: Identifies which GPG key to use for signing packages.
 
 ```cmake
-# Email address (use this when your key UID is an email address; match `gpg --list-keys`)
-GPG_SIGNING_KEY "maintainer@example.com"
+# Full fingerprint, preferred for release builds and verification scripts
+GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567"
 
 # Or long key ID (16-character hex)
 GPG_SIGNING_KEY "A1B2C3D4E5F60718"
@@ -542,7 +542,7 @@ export_cpack(
     PACKAGE_HOMEPAGE_URL "https://securitycorp.com/secure-library"
     
     # GPG signing configuration
-    GPG_SIGNING_KEY "security@securitycorp.com"
+    GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567"
     GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase"
     SIGNING_METHOD "both"
     GENERATE_CHECKSUMS
@@ -642,11 +642,11 @@ gpg --armor --export-secret-keys security@yourproject.com > project-private-key.
 ```cmake
 # Test/CI configuration (ephemeral keys)
 if(DEFINED ENV{CI})
-    set(GPG_SIGNING_KEY "ci-test@yourproject.local")
+    set(GPG_SIGNING_KEY "89ABCDEF0123456789ABCDEF0123456789ABCDEF")
     set(GPG_PASSPHRASE_FILE "/tmp/ci_passphrase")
 else()
     # Production configuration
-    set(GPG_SIGNING_KEY "security@yourproject.com")
+    set(GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567")
     set(GPG_PASSPHRASE_FILE "${CMAKE_SOURCE_DIR}/.gpg_passphrase")
 endif()
 
@@ -675,7 +675,7 @@ echo "*.asc" >> .gitignore  # Private key backups
 ```cmake
 export_cpack(
     PACKAGE_NAME "CorporateLib"
-    GPG_SIGNING_KEY "build-system@corp.internal"
+    GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567"
     GPG_KEYSERVER "keys.corp.internal"
     
     # Corporate compliance requirements
@@ -689,7 +689,7 @@ export_cpack(
 # Configuration for disconnected networks
 export_cpack(
     PACKAGE_NAME "AirGappedLib"
-    GPG_SIGNING_KEY "offline@secure.local"
+    GPG_SIGNING_KEY "0123456789ABCDEF0123456789ABCDEF01234567"
 
     # Do not rely on keyserver fetches in verification scripts; distribute the public key manually.
 

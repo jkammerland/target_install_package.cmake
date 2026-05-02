@@ -183,7 +183,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.0
+  GIT_TAG v7.0.1
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -200,7 +200,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.0.0
+    GIT_TAG v7.0.1
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -645,7 +645,7 @@ target_install_package(myproject_cli
 ```
 
 **Result**: Single package with logical component groups:
-- **Core**: Runtime artifacts for Core targets
+- **Core**: Runtime component for Core targets; static-only Core targets may not add runtime files
 - **Core_Development**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) + headers from both Core libraries + shared CMake config files
 - **Tools**: CLI executable (`myproject_cli`) (runtime)
 

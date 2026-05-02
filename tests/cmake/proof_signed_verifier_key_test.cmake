@@ -129,9 +129,9 @@ _tip_proof_run_step(
   --min-packages
   1)
 
-_tip_proof_run_step(
+_tip_proof_expect_failure(
   NAME
-  "verifier-accepts-keyring-resolved-key-id"
+  "verifier-rejects-keyring-resolved-selector"
   COMMAND
   ${_tip_verifier_env}
   "${_tip_bash}"
@@ -143,7 +143,9 @@ _tip_proof_run_step(
   --key-id
   GOODKEY
   --min-packages
-  1)
+  1
+  EXPECT_CONTAINS
+  "full fingerprint or 16-hex long key ID")
 
 _tip_proof_expect_failure(
   NAME
@@ -179,7 +181,7 @@ _tip_proof_expect_failure(
   --min-packages
   1
   EXPECT_CONTAINS
-  "GPG signer mismatch")
+  "full fingerprint or 16-hex long key ID")
 
 file(WRITE "${_tip_package_dir}/proof-wrong.tar.gz" "package\n")
 file(WRITE "${_tip_package_dir}/proof-wrong.tar.gz.sig" "signature\n")

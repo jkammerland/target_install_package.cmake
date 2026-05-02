@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.0)
+  list_file_include_guard(VERSION 7.0.1)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -73,7 +73,7 @@ endif()
 #     [ENABLE_COMPONENT_INSTALL]
 #     [ARCHIVE_FORMAT <format>]
 #     [NO_DEFAULT_GENERATORS]
-#     [GPG_SIGNING_KEY <key_id_or_email>]
+#     [GPG_SIGNING_KEY <fingerprint_or_key_id>]
 #     [GPG_PASSPHRASE_FILE <path>]
 #     [SIGNING_METHOD <detached|embedded|both>]
 #     [GPG_KEYSERVER <keyserver_url>]

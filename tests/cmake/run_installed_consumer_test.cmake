@@ -41,6 +41,27 @@ _tip_proof_run_step(
   --component
   CMakeUtilities_Development)
 
+set(_tip_installed_helper_dir "${_tip_install_prefix}/share/cmake/target_install_package/cmake")
+foreach(_tip_installed_helper IN ITEMS generic-config.cmake.in sign_packages.cmake.in external_container_package.cmake collect_runtime_deps.sh build_minimal_container.sh)
+  _tip_proof_assert_exists("${_tip_installed_helper_dir}/${_tip_installed_helper}")
+endforeach()
+
+if(UNIX)
+  foreach(_tip_installed_program IN ITEMS collect_runtime_deps.sh build_minimal_container.sh)
+    _tip_proof_run_step(
+      NAME
+      "installed-helper-is-executable-${_tip_installed_program}"
+      COMMAND
+      "${CMAKE_COMMAND}"
+      -E
+      env
+      "TIP_HELPER=${_tip_installed_helper_dir}/${_tip_installed_program}"
+      sh
+      -c
+      "test -x \"$TIP_HELPER\"")
+  endforeach()
+endif()
+
 set(_tip_consumer_configure_command "${CMAKE_COMMAND}" -S "${TIP_REPO_ROOT}/tests/consumer" -B "${_tip_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
                                     "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}" ${_tip_toolchain_args})
 
