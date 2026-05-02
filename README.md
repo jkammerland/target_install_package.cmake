@@ -37,14 +37,16 @@ This project requires several CMake helper projects, inlined under the `cmake/` 
 | [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
 
 
->[!NOTE]
+> [!NOTE]
 > The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
+
+> [!TIP]
 > With CMake 4.3+, it can also generate opt-in Common Package Specification (`.cps`) metadata via `CPS` and an opt-in SPDX SBOM via `SBOM` when CMake's SBOM experiment is explicitly activated.
 
 ### Template Override System 
 The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
 
->[!NOTE]
+> [!NOTE]
 > Config templates use `@ARG_EXPORT_NAME@` for CMake substitution, which defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, share the same `EXPORT_NAME`.
 
 ### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
@@ -56,7 +58,7 @@ The template-resolution algorithm is documented in [Config Template Resolution](
 
 See [Default Installation Directories](docs/default_install_dirs.md#install-layout-policy) for full behavior and packaging notes.
 
->[!NOTE]
+> [!NOTE]
 > `target_install_package()` uses standard CMake installation directories via
 > [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html):
 > executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`,
