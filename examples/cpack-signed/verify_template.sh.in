@@ -322,6 +322,7 @@ verify_package() {
     local basename=$(basename "$package")
     local verified=false
     local signer_fingerprint=""
+    local primary_fingerprint=""
     
     log "Verifying: $basename"
     
@@ -348,6 +349,7 @@ verify_package() {
         fi
 
         signer_fingerprint=$(awk '/^\[GNUPG:\] VALIDSIG / { print $3; exit }' "$gpg_status_file")
+        primary_fingerprint=$(awk '/^\[GNUPG:\] VALIDSIG / { if (length($NF) == 40 && $NF ~ /^[0-9A-Fa-f]+$/) print $NF; exit }' "$gpg_status_file")
         log "GPG signature verified for $basename"
         verified=true
     else
@@ -364,10 +366,10 @@ verify_package() {
             return 1
         fi
 
-        if signing_key_matches_signature "$SIGNING_KEY" "$signer_fingerprint"; then
-            log "GPG signer matched expected key for $basename: $signer_fingerprint"
+        if signing_key_matches_signature "$SIGNING_KEY" "$signer_fingerprint" || signing_key_matches_signature "$SIGNING_KEY" "$primary_fingerprint"; then
+            log "GPG signer matched expected key for $basename: signer=$signer_fingerprint primary=${primary_fingerprint:-unknown}"
         else
-            error "GPG signer mismatch for $basename: expected $SIGNING_KEY, got $signer_fingerprint"
+            error "GPG signer mismatch for $basename: expected $SIGNING_KEY, got signer=$signer_fingerprint primary=${primary_fingerprint:-unknown}"
             return 1
         fi
     fi

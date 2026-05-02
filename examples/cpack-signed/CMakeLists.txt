@@ -46,6 +46,24 @@ target_install_package(mytool NAMESPACE cpack_lib:: COMPONENT "Tools")
 set(GPG_KEYSERVER
     "keyserver.ubuntu.com"
     CACHE STRING "Keyserver shown in the example verification script")
+option(ENABLE_SIGNED_PACKAGES "Require GPG signing for this example package" OFF)
+
+set(_cpack_signing_args GENERATE_CHECKSUMS)
+if(ENABLE_SIGNED_PACKAGES OR GPG_SIGNING_KEY OR DEFINED ENV{GPG_SIGNING_KEY})
+  list(
+    APPEND
+    _cpack_signing_args
+    GPG_SIGNING_KEY
+    "${GPG_SIGNING_KEY}"
+    GPG_PASSPHRASE_FILE
+    "${GPG_PASSPHRASE_FILE}"
+    SIGNING_METHOD
+    "detached"
+    # Used in generated verification guidance; signing uses the local GPG keyring.
+    GPG_KEYSERVER
+    "${GPG_KEYSERVER}")
+endif()
+
 export_cpack(
   PACKAGE_NAME
   "MySignedLibrary"
@@ -55,17 +73,7 @@ export_cpack(
   "support@example.com"
   PACKAGE_HOMEPAGE_URL
   "https://example.com/cpack_lib"
-  # GPG Signing configuration (uses environment variables or cache variables)
-  GPG_SIGNING_KEY
-  "${GPG_SIGNING_KEY}"
-  GPG_PASSPHRASE_FILE
-  "${GPG_PASSPHRASE_FILE}"
-  SIGNING_METHOD
-  "detached"
-  # Used in generated verification guidance; signing uses the local GPG keyring.
-  GPG_KEYSERVER
-  "${GPG_KEYSERVER}"
-  GENERATE_CHECKSUMS
+  ${_cpack_signing_args}
   GENERATORS
   "TGZ;ZIP"
   NO_DEFAULT_GENERATORS

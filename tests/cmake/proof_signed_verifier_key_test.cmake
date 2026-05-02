@@ -20,6 +20,7 @@ set(_tip_package_dir "${_tip_case_root}/packages")
 set(_tip_expired_package_dir "${_tip_case_root}/expired-packages")
 set(_tip_verifier_dir "${_tip_case_root}/verifier")
 set(_tip_good_fingerprint "AAAABBBBCCCCDDDDEEEEFFFF1111222233334444")
+set(_tip_good_subkey_fingerprint "1234567890ABCDEF1234567890ABCDEF12345678")
 set(_tip_other_fingerprint "9999888877776666555544443333222211110000")
 
 file(REMOVE_RECURSE "${_tip_case_root}")
@@ -63,14 +64,15 @@ file(
   "fi\n"
   "if [ \"$verify_signature\" = true ]; then\n"
   "  if [ \"$status_fd\" != '1' ]; then exit 0; fi\n"
-  "  actual_fingerprint='${_tip_good_fingerprint}'\n"
+  "  actual_fingerprint='${_tip_good_subkey_fingerprint}'\n"
+  "  primary_fingerprint='${_tip_good_fingerprint}'\n"
   "  case \"$last_arg\" in\n"
-  "    *wrong*) actual_fingerprint='${_tip_other_fingerprint}' ;;\n"
+  "    *wrong*) actual_fingerprint='${_tip_other_fingerprint}'; primary_fingerprint='${_tip_other_fingerprint}' ;;\n"
   "  esac\n"
   "  case \"$last_arg\" in\n"
   "    *expired*) printf '[GNUPG:] EXPKEYSIG %s Expired Key\\n' \"$actual_fingerprint\" ;;\n"
   "  esac\n"
-  "  printf '[GNUPG:] VALIDSIG %s 2026-01-01 0 4 0 1 10 00 %s\\n' \"$actual_fingerprint\" \"$actual_fingerprint\"\n"
+  "  printf '[GNUPG:] VALIDSIG %s 2026-01-01 0 4 0 1 10 00 %s\\n' \"$actual_fingerprint\" \"$primary_fingerprint\"\n"
   "  exit 0\n"
   "fi\n"
   "exit 0\n")
@@ -115,7 +117,7 @@ set(_tip_verifier_env "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_bin_dir}:$ENV{
 
 _tip_proof_run_step(
   NAME
-  "verifier-accepts-expected-long-key-id"
+  "verifier-accepts-expected-primary-long-key-id"
   COMMAND
   ${_tip_verifier_env}
   "${_tip_bash}"
@@ -126,6 +128,22 @@ _tip_proof_run_step(
   tar.gz
   --key-id
   1111222233334444
+  --min-packages
+  1)
+
+_tip_proof_run_step(
+  NAME
+  "verifier-accepts-expected-signing-subkey-long-key-id"
+  COMMAND
+  ${_tip_verifier_env}
+  "${_tip_bash}"
+  "${_tip_verifier_dir}/verify.sh"
+  --directory
+  "${_tip_package_dir}"
+  --package-types
+  tar.gz
+  --key-id
+  90ABCDEF12345678
   --min-packages
   1)
 

@@ -132,4 +132,83 @@ if(_tip_development_config_index EQUAL -1)
   _tip_proof_fail("Expected ${_tip_consumer_development_archive} to contain share/cmake/consumer/consumerConfig.cmake")
 endif()
 
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  set(_tip_container_consumer_build_dir "${TIP_CONSUMER_TEST_ROOT}/container-consumer-build")
+  set(_tip_container_package_dir "${TIP_CONSUMER_TEST_ROOT}/container-packages")
+  set(_tip_fake_bin_dir "${TIP_CONSUMER_TEST_ROOT}/fake-bin")
+  file(MAKE_DIRECTORY "${_tip_container_package_dir}")
+  file(MAKE_DIRECTORY "${_tip_fake_bin_dir}")
+
+  file(
+    WRITE
+    "${_tip_fake_bin_dir}/podman"
+    "#!/bin/sh\n"
+    "printf '%s\\n' \"$@\" >> \"${TIP_CONSUMER_TEST_ROOT}/podman.log\"\n"
+    "case \"$1\" in\n"
+    "  build) exit 0 ;;\n"
+    "  save)\n"
+    "    out=''\n"
+    "    prev=''\n"
+    "    for arg in \"$@\"; do\n"
+    "      if [ \"$prev\" = '-o' ]; then out=\"$arg\"; fi\n"
+    "      prev=\"$arg\"\n"
+    "    done\n"
+    "    if [ -z \"$out\" ]; then echo 'missing -o' >&2; exit 1; fi\n"
+    "    mkdir -p \"$(dirname \"$out\")\"\n"
+    "    printf 'container archive\\n' > \"$out\"\n"
+    "    exit 0 ;;\n"
+    "  images) printf '1 MB\\n'; exit 0 ;;\n"
+    "esac\n"
+    "exit 0\n")
+  file(
+    CHMOD
+    "${_tip_fake_bin_dir}/podman"
+    PERMISSIONS
+    OWNER_READ
+    OWNER_WRITE
+    OWNER_EXECUTE
+    GROUP_READ
+    GROUP_EXECUTE
+    WORLD_READ
+    WORLD_EXECUTE)
+
+  set(_tip_container_consumer_configure_command
+      "${CMAKE_COMMAND}"
+      -S
+      "${TIP_REPO_ROOT}/tests/consumer"
+      -B
+      "${_tip_container_consumer_build_dir}"
+      "-DCMAKE_BUILD_TYPE=Release"
+      "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}"
+      "-DTIP_CONSUMER_ENABLE_CONTAINER=ON"
+      ${_tip_toolchain_args})
+
+  _tip_proof_run_step(NAME "container-consumer-configure" COMMAND ${_tip_container_consumer_configure_command})
+  _tip_proof_run_step(NAME "container-consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_container_consumer_build_dir}" --config Release)
+  _tip_proof_run_step(
+    NAME
+    "container-consumer-package"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    -E
+    env
+    "PATH=${_tip_fake_bin_dir}:$ENV{PATH}"
+    "${CMAKE_CPACK_COMMAND}"
+    -G
+    External
+    -C
+    Release
+    --config
+    "${_tip_container_consumer_build_dir}/CPackConfig.cmake"
+    -B
+    "${_tip_container_package_dir}")
+
+  file(GLOB _tip_container_archives "${_tip_container_package_dir}/*oci-archive.tar")
+  list(LENGTH _tip_container_archives _tip_container_archive_count)
+  if(NOT _tip_container_archive_count EQUAL 1)
+    _tip_proof_fail("Expected one installed-consumer container archive, found ${_tip_container_archive_count}: ${_tip_container_archives}")
+  endif()
+  _tip_proof_assert_file_contains("${TIP_CONSUMER_TEST_ROOT}/podman.log" "save")
+endif()
+
 message(STATUS "[consumer] Installed target_install_package consumer proof passed.")

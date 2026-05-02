@@ -399,13 +399,20 @@ else()
     set(SIGNING_KEY "")
 endif()
 
+set(SIGNING_ARGS "")
+if(SIGNING_KEY)
+    list(APPEND SIGNING_ARGS
+        GPG_SIGNING_KEY "${SIGNING_KEY}"
+        SIGNING_METHOD "${SIGNING_METHOD}"
+    )
+endif()
+
 export_cpack(
     PACKAGE_NAME "FlexiblePackage"
     PACKAGE_VENDOR "Your Company"
     
     # Conditional GPG configuration
-    GPG_SIGNING_KEY "${SIGNING_KEY}"
-    SIGNING_METHOD "${SIGNING_METHOD}"
+    ${SIGNING_ARGS}
     GENERATE_CHECKSUMS
 )
 ```
@@ -486,6 +493,8 @@ SIGNING_METHOD "both"
 
 `detached` creates separate `.sig` files for every generated package. `embedded` uses native RPM signing with `rpmsign` and only supports RPM generators. `both` creates detached signatures for every package and embeds RPM signatures only for RPM packages. `rpmsign` is required for `embedded`, and for `both` only when an RPM generator is active.
 
+Explicit `SIGNING_METHOD` values require `GPG_SIGNING_KEY` or the `GPG_SIGNING_KEY` environment variable. Leave `SIGNING_METHOD` out when a development build should remain unsigned.
+
 `GPG_PASSPHRASE_FILE` is used by detached GPG signatures. Embedded RPM signing is driven by `rpmsign`, so configure a noninteractive GPG agent for RPM signing in CI.
 
 #### GENERATE_CHECKSUMS
@@ -554,11 +563,14 @@ export_cpack(
 
 **Manual Verification:**
 ```bash
-# Import public key
-gpg --keyserver keyserver.ubuntu.com --recv-keys security@securitycorp.com
+EXPECTED_SIGNING_FINGERPRINT="0123456789ABCDEF0123456789ABCDEF01234567"
 
-# Verify GPG signature
-gpg --verify SecureLibrary-2.1.0-Linux.tar.gz.sig SecureLibrary-2.1.0-Linux.tar.gz
+# Import public key
+gpg --keyserver keyserver.ubuntu.com --recv-keys "$EXPECTED_SIGNING_FINGERPRINT"
+
+# Verify GPG signature and confirm the pinned signing or primary fingerprint
+gpg --status-fd 1 --verify SecureLibrary-2.1.0-Linux.tar.gz.sig SecureLibrary-2.1.0-Linux.tar.gz > verify.status
+grep -E "^\[GNUPG:\] VALIDSIG .*${EXPECTED_SIGNING_FINGERPRINT}" verify.status
 
 # Verify checksums
 sha256sum -c SecureLibrary-2.1.0-Linux.tar.gz.sha256
@@ -768,6 +780,8 @@ Option-bearing dependency expressions must be quoted. Ambiguous lists such as `C
 ### Signing
 
 `SIGNING_METHOD embedded` is RPM-only and fails for mixed or non-RPM generator lists. Use `SIGNING_METHOD both` when you want detached signatures for all packages plus embedded signatures for RPM packages.
+
+Explicit `SIGNING_METHOD` values now require `GPG_SIGNING_KEY` or the `GPG_SIGNING_KEY` environment variable. If a development build should be unsigned, omit `SIGNING_METHOD` or guard the signing arguments behind a release/CI option.
 
 `GPG_PASSPHRASE_FILE` still applies to detached signatures. Embedded RPM signing relies on `rpmsign` and the configured GPG agent.
 

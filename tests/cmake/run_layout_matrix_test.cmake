@@ -141,6 +141,36 @@ endif()
 string(TOLOWER "${TIP_LAYOUT_INSTALL_CONFIG}" _install_config_lower)
 string(TOLOWER "${TIP_LAYOUT_CONSUMER_CONFIG}" _consumer_config_lower)
 
+if(TIP_LAYOUT STREQUAL "fhs")
+  set(_layout_suffix "fhs")
+elseif(TIP_LAYOUT STREQUAL "split_debug")
+  set(_layout_suffix "sd")
+elseif(TIP_LAYOUT STREQUAL "split_all")
+  set(_layout_suffix "sa")
+endif()
+
+function(_tip_config_suffix config out_var)
+  string(TOLOWER "${config}" _config_lower)
+  if(_config_lower STREQUAL "debug")
+    set(_suffix "dbg")
+  elseif(_config_lower STREQUAL "release")
+    set(_suffix "rel")
+  elseif(_config_lower STREQUAL "relwithdebinfo")
+    set(_suffix "rwdi")
+  elseif(_config_lower STREQUAL "minsizerel")
+    set(_suffix "msr")
+  else()
+    string(REGEX REPLACE "[^a-z0-9]" "" _suffix "${_config_lower}")
+  endif()
+
+  set(${out_var}
+      "${_suffix}"
+      PARENT_SCOPE)
+endfunction()
+
+_tip_config_suffix("${TIP_LAYOUT_INSTALL_CONFIG}" _install_config_suffix)
+_tip_config_suffix("${TIP_LAYOUT_CONSUMER_CONFIG}" _consumer_config_suffix)
+
 if(WIN32)
   set(_tip_executable_suffix ".exe")
 else()
@@ -148,11 +178,11 @@ else()
 endif()
 
 set(_fixture_source_dir "${TIP_REPO_ROOT}/tests/layout-matrix")
-set(_case_root "${TIP_LAYOUT_TEST_ROOT}/${TIP_LAYOUT}-${_install_config_lower}-consumer-${_consumer_config_lower}")
-set(_build_dir "${_case_root}/build")
-set(_runtime_prefix "${_case_root}/runtime")
-set(_development_prefix "${_case_root}/development")
-set(_full_prefix "${_case_root}/full")
+set(_case_root "${TIP_LAYOUT_TEST_ROOT}/${_layout_suffix}-${_install_config_suffix}-${_consumer_config_suffix}")
+set(_build_dir "${_case_root}/b")
+set(_runtime_prefix "${_case_root}/r")
+set(_development_prefix "${_case_root}/d")
+set(_full_prefix "${_case_root}/f")
 
 file(REMOVE_RECURSE "${_case_root}")
 file(MAKE_DIRECTORY "${_case_root}")
@@ -318,8 +348,8 @@ set(_installed_runner_candidates
 _tip_find_existing_path(_installed_runner ${_installed_runner_candidates})
 _tip_run_step(NAME "run-installed-layout-runner" COMMAND "${_installed_runner}")
 
-set(_consumer_dir "${_case_root}/consumer")
-set(_consumer_build_dir "${_consumer_dir}/build")
+set(_consumer_dir "${_case_root}/c")
+set(_consumer_build_dir "${_consumer_dir}/b")
 file(MAKE_DIRECTORY "${_consumer_dir}")
 
 file(
