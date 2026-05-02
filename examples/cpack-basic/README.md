@@ -177,15 +177,17 @@ tar -tzf MyLibrary-1.2.0-Linux-TOOLS.tar.gz
 ### Test Package Installation
 
 ```bash
-# Extract runtime and tool packages to test location
+# Extract runtime and tool packages to test location.
+# Archive entries preserve the configured install prefix.
 mkdir test-install
 cd test-install
 tar -xzf ../MyLibrary-1.2.0-Linux-Runtime.tar.gz
 tar -xzf ../MyLibrary-1.2.0-Linux-TOOLS.tar.gz
+package_prefix="$(dirname "$(dirname "$(find . -path '*/bin/mytool' -type f -print -quit)")")"
 
 # Verify the tool works
-./bin/mytool --version
-./bin/mytool --help
+"$package_prefix/bin/mytool" --version
+"$package_prefix/bin/mytool" --help
 
 # Add development payload before testing find_package consumers
 tar -xzf ../MyLibrary-1.2.0-Linux-Development.tar.gz
@@ -200,8 +202,8 @@ Create a simple consumer to test the package:
 cmake_minimum_required(VERSION 3.25)
 project(consumer)
 
-# Point to package installation
-list(APPEND CMAKE_PREFIX_PATH "/path/to/test-install")
+# Point to the extracted package prefix that contains bin/, include/, and share/
+list(APPEND CMAKE_PREFIX_PATH "/path/to/test-install/<extracted-prefix>")
 
 find_package(cpack_lib REQUIRED)
 find_package(cpack_lib_utils REQUIRED)

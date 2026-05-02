@@ -1074,6 +1074,10 @@ function(_configure_gpg_signing)
     project_log(FATAL_ERROR "SIGNING_METHOD must be one of 'detached', 'embedded', or 'both', got: ${ARG_SIGNING_METHOD}")
   endif()
 
+  if(ARG_SIGNING_METHOD AND NOT ARG_SIGNING_KEY)
+    project_log(FATAL_ERROR "SIGNING_METHOD '${ARG_SIGNING_METHOD}' requires GPG_SIGNING_KEY or the GPG_SIGNING_KEY environment variable.")
+  endif()
+
   if(NOT ARG_SIGNING_KEY AND NOT ARG_GENERATE_CHECKSUMS)
     return()
   endif()
@@ -1084,9 +1088,6 @@ function(_configure_gpg_signing)
     else()
       set(ARG_SIGNING_METHOD "none")
     endif()
-  elseif(NOT ARG_SIGNING_KEY)
-    project_log(WARNING "SIGNING_METHOD '${ARG_SIGNING_METHOD}' was provided without a signing key; only requested checksum generation will run.")
-    set(ARG_SIGNING_METHOD "none")
   endif()
 
   if(NOT ARG_SIGNING_METHOD STREQUAL "detached"

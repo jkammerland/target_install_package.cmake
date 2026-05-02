@@ -104,15 +104,16 @@ install/
 ├── lib64/
 │   ├── libmedia_core.so.1.0.0           # Core
 │   ├── libmedia_core.so.1                # Core
-│   ├── libmedia_core.so                  # Core_Development (dev symlink)
+│   ├── libmedia_core.so                  # Core
 │   └── libmedia_dev_tools.a              # Core_Development
 └── share/
     └── cmake/
         └── MediaLib/                      # Core_Development (shared config files)
-            ├── MediaLib.cmake
-            ├── MediaLib-noconfig.cmake  
+            ├── MediaLibTargets.cmake
+            ├── MediaLibTargets-noconfig.cmake
             ├── MediaLibConfig.cmake
-            └── MediaLibConfigVersion.cmake
+            ├── MediaLibConfigVersion.cmake
+            └── MediaLib-config-version.cmake
 ```
 
 #### Component-Specific Installation Examples
@@ -147,7 +148,6 @@ install/share/cmake/MediaLib/MediaLibConfig.cmake
 **Core_Development**: Contains development files for the Core logical group
 - Headers from both `media_core` and `media_dev_tools`
 - Static libraries: `libmedia_dev_tools.a`
-- Development symlinks for shared libraries
 - Shared CMake configuration files for the `MediaLib` export
 
 ### Tools Logical Group

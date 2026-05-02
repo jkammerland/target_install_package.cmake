@@ -51,7 +51,7 @@ OPTIONS:
     --package-types TYPES    Comma-separated list: rpm,deb,tar.gz,zip,pkg,dmg,msi (default: all)
     --directory DIR          Directory to search for packages (default: current)
     --min-packages N         Minimum packages that must verify successfully (default: 1)
-    --key-id KEYID          Expected GPG key ID or fingerprint for validation (default: from build)
+    --key-id KEYID          Expected full fingerprint or 16-hex long key ID (default: from build)
     --keyserver URL         Keyserver for key import (default: from build)
     --verbose               Enable verbose output
     --help                  Show this help message
@@ -69,7 +69,7 @@ EXIT CODES:
 
 SECURITY NOTES:
     - Always verify the publisher's GPG key fingerprint through a secure channel
-    - Pin the expected signing fingerprint or long key ID whenever possible
+    - Pin the expected signing fingerprint or 16-hex long key ID whenever possible
     - Validate that keyservers are trustworthy for your environment
     - This script is provided as an example - audit before production use
 EOF
@@ -254,6 +254,17 @@ normalize_key_id() {
     printf '%s' "$1" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]'
 }
 
+is_hex_key_id() {
+    [[ "$1" =~ ^[0-9A-F]+$ ]]
+}
+
+is_supported_direct_key_id() {
+    local key_id="$1"
+    local key_id_length=${#key_id}
+
+    [ "$key_id_length" -eq 16 ] || [ "$key_id_length" -eq 40 ]
+}
+
 signing_key_matches_signature() {
     local expected="$1"
     local actual_fingerprint="$2"
@@ -271,13 +282,21 @@ signing_key_matches_signature() {
         return 1
     fi
 
-    case "$actual_normalized" in
-        *"$expected_normalized")
-            return 0
-            ;;
-    esac
+    if is_hex_key_id "$expected_normalized"; then
+        if ! is_supported_direct_key_id "$expected_normalized"; then
+            return 1
+        fi
 
-    # Resolve emails, short IDs, or long IDs through the local keyring when
+        case "$actual_normalized" in
+            *"$expected_normalized")
+                return 0
+                ;;
+        esac
+
+        return 1
+    fi
+
+    # Resolve non-hex selectors, such as emails, through the local keyring when
     # possible, then compare the verified signing fingerprint to those keys.
     local expected_fingerprint
     while IFS= read -r expected_fingerprint; do
@@ -290,6 +309,10 @@ $(gpg --batch --with-colons --fingerprint --list-keys "$expected" 2>/dev/null | 
 EOF
 
     return 1
+}
+
+gpg_status_failure_reason() {
+    awk '/^\[GNUPG:\] (EXPKEYSIG|EXPSIG|REVKEYSIG|KEYEXPIRED|KEYREVOKED|BADSIG|ERRSIG) / { sub("^\\[GNUPG:\\] ", ""); print; exit }' "$1"
 }
 
 # Verify a single package
@@ -315,6 +338,14 @@ verify_package() {
     }
 
     if gpg --status-fd 1 --verify "$package.sig" "$package" >"$gpg_status_file" 2>/dev/null; then
+        local status_failure
+        status_failure=$(gpg_status_failure_reason "$gpg_status_file")
+        if [ -n "$status_failure" ]; then
+            rm -f "$gpg_status_file"
+            error "GPG signature status rejected for $basename: $status_failure"
+            return 1
+        fi
+
         signer_fingerprint=$(awk '/^\[GNUPG:\] VALIDSIG / { print $3; exit }' "$gpg_status_file")
         log "GPG signature verified for $basename"
         verified=true
@@ -379,6 +410,7 @@ verify_package() {
 main() {
     local packages
     local verified_count=0
+    local failed_count=0
     local total_count=0
     
     echo "🔐 Example Package Verification Script"
@@ -412,6 +444,8 @@ main() {
     for package in $packages; do
         if verify_package "$package"; then
             verified_count=$((verified_count + 1))
+        else
+            failed_count=$((failed_count + 1))
         fi
     done
     
@@ -420,9 +454,10 @@ main() {
     echo "Verification Results:"
     echo "  Total packages: $total_count"
     echo "  Successfully verified: $verified_count"
+    echo "  Failed verification: $failed_count"
     echo "  Required minimum: $MIN_PACKAGES"
     
-    if [ $verified_count -ge $MIN_PACKAGES ]; then
+    if [ "$failed_count" -eq 0 ] && [ "$verified_count" -ge "$MIN_PACKAGES" ]; then
         success "Verification completed successfully ($verified_count/$total_count packages verified)"
         echo ""
         echo "🎉 Package verification successful!"

@@ -149,7 +149,7 @@ This example includes an **example verification script template** (`verify_templ
 
 **Key considerations for production:**
 - Always verify the publisher's GPG key fingerprint through secure channels
-- Pin a full fingerprint or long key ID with `--key-id` rather than relying on email addresses
+- Pin a full fingerprint or 16-hex long key ID with `--key-id` rather than relying on email addresses
 - Validate that keyservers are appropriate for your security environment
 - Review and audit the verification script before deployment
 

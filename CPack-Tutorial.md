@@ -449,8 +449,8 @@ MySecureLib-1.0.0-Linux.tar.gz.sha512
 # Email address (use this when your key UID is an email address; match `gpg --list-keys`)
 GPG_SIGNING_KEY "maintainer@example.com"
 
-# Or key ID (8-character hex)
-GPG_SIGNING_KEY "A1B2C3D4"
+# Or long key ID (16-character hex)
+GPG_SIGNING_KEY "A1B2C3D4E5F60718"
 
 # Environment variable fallback
 GPG_SIGNING_KEY "$ENV{GPG_SIGNING_KEY}"

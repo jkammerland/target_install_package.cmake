@@ -17,6 +17,7 @@ endif()
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/signed-verifier-key")
 set(_tip_fake_bin_dir "${_tip_case_root}/fake-bin")
 set(_tip_package_dir "${_tip_case_root}/packages")
+set(_tip_expired_package_dir "${_tip_case_root}/expired-packages")
 set(_tip_verifier_dir "${_tip_case_root}/verifier")
 set(_tip_good_fingerprint "AAAABBBBCCCCDDDDEEEEFFFF1111222233334444")
 set(_tip_other_fingerprint "9999888877776666555544443333222211110000")
@@ -24,6 +25,7 @@ set(_tip_other_fingerprint "9999888877776666555544443333222211110000")
 file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_fake_bin_dir}")
 file(MAKE_DIRECTORY "${_tip_package_dir}")
+file(MAKE_DIRECTORY "${_tip_expired_package_dir}")
 file(MAKE_DIRECTORY "${_tip_verifier_dir}")
 
 file(
@@ -32,12 +34,22 @@ file(
   "list_keys=false\n"
   "recv_keys=false\n"
   "verify_signature=false\n"
+  "status_fd=''\n"
+  "status_fd_next=false\n"
   "last_arg=''\n"
   "for arg in \"$@\"; do\n"
+  "  if [ \"$status_fd_next\" = true ]; then\n"
+  "    status_fd=\"$arg\"\n"
+  "    status_fd_next=false\n"
+  "    last_arg=\"$arg\"\n"
+  "    continue\n"
+  "  fi\n"
   "  case \"$arg\" in\n"
   "    --list-keys) list_keys=true ;;\n"
   "    --recv-keys) recv_keys=true ;;\n"
   "    --verify) verify_signature=true ;;\n"
+  "    --status-fd) status_fd_next=true ;;\n"
+  "    --status-fd=*) status_fd=$(printf '%s' \"$arg\" | sed 's/^--status-fd=//') ;;\n"
   "  esac\n"
   "  last_arg=\"$arg\"\n"
   "done\n"
@@ -50,7 +62,15 @@ file(
   "  exit 0\n"
   "fi\n"
   "if [ \"$verify_signature\" = true ]; then\n"
-  "  printf '[GNUPG:] VALIDSIG ${_tip_good_fingerprint} 2026-01-01 0 4 0 1 10 00 ${_tip_good_fingerprint}\\n'\n"
+  "  if [ \"$status_fd\" != '1' ]; then exit 0; fi\n"
+  "  actual_fingerprint='${_tip_good_fingerprint}'\n"
+  "  case \"$last_arg\" in\n"
+  "    *wrong*) actual_fingerprint='${_tip_other_fingerprint}' ;;\n"
+  "  esac\n"
+  "  case \"$last_arg\" in\n"
+  "    *expired*) printf '[GNUPG:] EXPKEYSIG %s Expired Key\\n' \"$actual_fingerprint\" ;;\n"
+  "  esac\n"
+  "  printf '[GNUPG:] VALIDSIG %s 2026-01-01 0 4 0 1 10 00 %s\\n' \"$actual_fingerprint\" \"$actual_fingerprint\"\n"
   "  exit 0\n"
   "fi\n"
   "exit 0\n")
@@ -88,12 +108,14 @@ file(
 
 file(WRITE "${_tip_package_dir}/proof.tar.gz" "package\n")
 file(WRITE "${_tip_package_dir}/proof.tar.gz.sig" "signature\n")
+file(WRITE "${_tip_expired_package_dir}/expired.tar.gz" "package\n")
+file(WRITE "${_tip_expired_package_dir}/expired.tar.gz.sig" "signature\n")
 
 set(_tip_verifier_env "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_bin_dir}:$ENV{PATH}")
 
 _tip_proof_run_step(
   NAME
-  "verifier-accepts-expected-fingerprint-suffix"
+  "verifier-accepts-expected-long-key-id"
   COMMAND
   ${_tip_verifier_env}
   "${_tip_bash}"
@@ -103,7 +125,7 @@ _tip_proof_run_step(
   --package-types
   tar.gz
   --key-id
-  33334444
+  1111222233334444
   --min-packages
   1)
 
@@ -135,10 +157,67 @@ _tip_proof_expect_failure(
   --package-types
   tar.gz
   --key-id
-  99994444
+  9999888877776666
   --min-packages
   1
   EXPECT_CONTAINS
   "GPG signer mismatch")
+
+_tip_proof_expect_failure(
+  NAME
+  "verifier-rejects-short-fingerprint-suffix"
+  COMMAND
+  ${_tip_verifier_env}
+  "${_tip_bash}"
+  "${_tip_verifier_dir}/verify.sh"
+  --directory
+  "${_tip_package_dir}"
+  --package-types
+  tar.gz
+  --key-id
+  33334444
+  --min-packages
+  1
+  EXPECT_CONTAINS
+  "GPG signer mismatch")
+
+file(WRITE "${_tip_package_dir}/proof-wrong.tar.gz" "package\n")
+file(WRITE "${_tip_package_dir}/proof-wrong.tar.gz.sig" "signature\n")
+
+_tip_proof_expect_failure(
+  NAME
+  "verifier-rejects-any-mismatch-even-after-minimum-success"
+  COMMAND
+  ${_tip_verifier_env}
+  "${_tip_bash}"
+  "${_tip_verifier_dir}/verify.sh"
+  --directory
+  "${_tip_package_dir}"
+  --package-types
+  tar.gz
+  --key-id
+  1111222233334444
+  --min-packages
+  1
+  EXPECT_CONTAINS
+  "GPG signer mismatch")
+
+_tip_proof_expect_failure(
+  NAME
+  "verifier-rejects-expired-signature-status"
+  COMMAND
+  ${_tip_verifier_env}
+  "${_tip_bash}"
+  "${_tip_verifier_dir}/verify.sh"
+  --directory
+  "${_tip_expired_package_dir}"
+  --package-types
+  tar.gz
+  --key-id
+  1111222233334444
+  --min-packages
+  1
+  EXPECT_CONTAINS
+  "EXPKEYSIG")
 
 message(STATUS "[proof] Signed verifier key proof passed.")

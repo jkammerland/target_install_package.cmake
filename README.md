@@ -645,8 +645,8 @@ target_install_package(myproject_cli
 ```
 
 **Result**: Single package with logical component groups:
-- **Core**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) (runtime)
-- **Core_Development**: Headers from both Core libraries + shared CMake config files
+- **Core**: Runtime artifacts for Core targets
+- **Core_Development**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) + headers from both Core libraries + shared CMake config files
 - **Tools**: CLI executable (`myproject_cli`) (runtime)
 
 **Consumer usage:**

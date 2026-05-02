@@ -26,6 +26,8 @@ set(_tip_invalid_signing_method_source_dir "${_tip_case_root}/invalid-signing-me
 set(_tip_invalid_signing_method_build_dir "${_tip_case_root}/invalid-signing-method-build")
 set(_tip_invalid_checksums_source_dir "${_tip_case_root}/invalid-checksums-source")
 set(_tip_invalid_checksums_build_dir "${_tip_case_root}/invalid-checksums-build")
+set(_tip_explicit_sign_no_key_source_dir "${_tip_case_root}/explicit-sign-no-key-source")
+set(_tip_explicit_sign_no_key_build_dir "${_tip_case_root}/explicit-sign-no-key-build")
 set(_tip_fake_bin_dir "${_tip_case_root}/fake-bin")
 set(_tip_fake_gpg_only_bin_dir "${_tip_case_root}/fake-gpg-only-bin")
 set(_tip_tgz_package_dir "${_tip_case_root}/packages-tgz")
@@ -43,6 +45,7 @@ file(MAKE_DIRECTORY "${_tip_checksums_off_source_dir}")
 file(MAKE_DIRECTORY "${_tip_checksums_only_source_dir}")
 file(MAKE_DIRECTORY "${_tip_invalid_signing_method_source_dir}")
 file(MAKE_DIRECTORY "${_tip_invalid_checksums_source_dir}")
+file(MAKE_DIRECTORY "${_tip_explicit_sign_no_key_source_dir}")
 file(MAKE_DIRECTORY "${_tip_fake_bin_dir}")
 file(MAKE_DIRECTORY "${_tip_fake_gpg_only_bin_dir}")
 file(MAKE_DIRECTORY "${_tip_tgz_package_dir}")
@@ -227,6 +230,7 @@ _tip_proof_assert_file_contains("${_tip_checksums_only_build_dir}/sign_packages.
 
 set(_tip_checksums_only_package "${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz")
 file(WRITE "${_tip_checksums_only_package}" "tgz\n")
+file(WRITE "${_tip_checksums_only_package}.sig" "stale signature\n")
 
 _tip_proof_run_step(
   NAME
@@ -240,6 +244,29 @@ _tip_proof_run_step(
 _tip_proof_assert_not_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sig")
 _tip_proof_assert_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sha256")
 _tip_proof_assert_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sha512")
+
+file(
+  WRITE "${_tip_explicit_sign_no_key_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n"
+  "project(proof_explicit_sign_no_key VERSION 1.0.0 LANGUAGES NONE)\n"
+  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+  "add_library(proof_explicit_sign_no_key_lib INTERFACE)\n"
+  "target_install_package(proof_explicit_sign_no_key_lib)\n"
+  "export_cpack(PACKAGE_NAME ProofExplicitSignNoKey GENERATORS TGZ SIGNING_METHOD detached GENERATE_CHECKSUMS ON)\n")
+
+set(_tip_explicit_sign_no_key_configure_command
+    "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_explicit_sign_no_key_source_dir}" -B "${_tip_explicit_sign_no_key_build_dir}"
+    "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+
+_tip_proof_expect_failure(
+  NAME
+  "explicit-signing-method-requires-key"
+  COMMAND
+  ${_tip_explicit_sign_no_key_configure_command}
+  EXPECT_CONTAINS
+  "SIGNING_METHOD 'detached'"
+  "requires GPG_SIGNING_KEY")
 
 file(
   WRITE "${_tip_invalid_signing_method_source_dir}/CMakeLists.txt"

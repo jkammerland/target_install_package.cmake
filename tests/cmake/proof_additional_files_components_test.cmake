@@ -21,9 +21,8 @@ file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_source_dir}/src")
 file(MAKE_DIRECTORY "${_tip_package_dir}")
 
-find_program(_tip_cpack cpack)
-if(NOT _tip_cpack)
-  _tip_proof_fail("cpack is required for additional files package proof")
+if(NOT CMAKE_CPACK_COMMAND)
+  _tip_proof_fail("CMAKE_CPACK_COMMAND is required for additional files package proof")
 endif()
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
@@ -104,9 +103,11 @@ _tip_proof_run_step(
   NAME
   "package"
   COMMAND
-  "${_tip_cpack}"
+  "${CMAKE_CPACK_COMMAND}"
   -G
   TGZ
+  -C
+  Release
   --config
   "${_tip_build_dir}/CPackConfig.cmake"
   -B

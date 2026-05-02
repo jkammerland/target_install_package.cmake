@@ -52,7 +52,7 @@ cmake --install .
 After installation, check the generated config file:
 
 ```bash
-cat install/share/cmake/mylib/mylib-config.cmake
+cat install/share/cmake/mylib/mylibConfig.cmake
 ```
 
 You should see all dependencies aggregated:
