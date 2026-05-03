@@ -492,6 +492,11 @@ cmake --install .
 cmake --install . --component Documentation
 ```
 
+Manual install components such as `Documentation` and the plain `install(TARGETS asset_converter ... COMPONENT Tools)` rule above are available to raw
+`cmake --install --component <name>`. They are not auto-discovered by `export_cpack()`. For CPack output, list manual-only components explicitly, for example
+`export_cpack(COMPONENTS Runtime Development Tools Documentation)`, or install tool targets through `target_install_package(... COMPONENT Tools)` when you want auto-detected
+components and package metadata.
+
 ## Component-Based Installation
 
 `target_install_package` supports component-based installs with runtime components and one shared SDK component per export.

@@ -108,7 +108,8 @@ export_cpack(
 ### Linux Packages (DEB/RPM)
 
 - Native package management integration
-- Component dependency metadata can be mapped by generator-specific settings
+- This example records CPack component metadata only
+- Generated DEB/RPM component packages do not automatically depend on each other unless generator-specific dependency settings are added
 - Component-based installation support
 
 ### Windows Installer (WIX)
@@ -139,7 +140,9 @@ install/
 cmake --install . --component Development
 
 # Result: Headers, static libs, shared-library namelinks, CMake configs.
-# For manual component installs of shared libraries, install Runtime too before consuming.
+# This also includes the mytool CMake package metadata because mytool is wrapped
+# with target_install_package(... COMPONENT Tools). For manual component installs
+# of shared libraries or tools, install the matching runtime components too before consuming.
 install/
 ├── include/
 │   └── cpack_lib/
@@ -151,7 +154,8 @@ install/
 └── share/
     └── cmake/
         ├── cpack_lib/
-        └── cpack_lib_utils/
+        ├── cpack_lib_utils/
+        └── mytool/
 ```
 
 ### Tools Package

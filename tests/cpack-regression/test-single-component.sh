@@ -56,14 +56,25 @@ echo "Generating packages..."
 
 # Verify that only TGZ packages are generated because the fixture requested only TGZ.
 echo "Verifying generated packages..."
-if (cd "${BUILD_DIR}" && ls SimpleLib-*.tar.gz 1> /dev/null 2>&1); then
-  echo "✅ Single component package generated"
-  echo "Generated files:"
-  (cd "${BUILD_DIR}" && ls -la SimpleLib-*.tar.gz)
-else
-  echo "❌ Single component package failed"
+shopt -s nullglob
+archives=("${BUILD_DIR}"/SimpleLib-*.tar.gz)
+shopt -u nullglob
+
+if (( ${#archives[@]} != 1 )); then
+  echo "❌ Expected exactly one single-component TGZ package, found ${#archives[@]}"
+  printf '  %s\n' "${archives[@]}"
   exit 1
 fi
+
+archive_name="$(basename "${archives[0]}")"
+case "${archive_name}" in
+  *-Development.tar.gz|*-Runtime.tar.gz|*-Tools.tar.gz)
+    echo "❌ Implicit single-component package should be monolithic, got component archive: ${archive_name}"
+    exit 1
+    ;;
+esac
+
+echo "✅ Single component package generated: ${archive_name}"
 
 # Verify no unexpected packages were created
 shopt -s nullglob

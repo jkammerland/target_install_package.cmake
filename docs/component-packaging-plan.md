@@ -1,6 +1,6 @@
 # Component Packaging Plan
 
-This plan records the v7 component contract and the fixes needed to make the implementation match it.
+This document records the v7 component packaging contract implemented by this branch.
 
 ## Contract
 
@@ -14,7 +14,7 @@ This plan records the v7 component contract and the fixes needed to make the imp
 - CMake package components are dependency gates/found flags, not target-visibility or install-payload selectors.
 - Separate `EXPORT_NAME`s are the escape hatch for independently installable SDK subsets.
 
-## Implementation Plan
+## Implemented Validation Points
 
 1. Make runtime component registration payload-aware.
    - Register runtime components only for targets with runtime artifacts.

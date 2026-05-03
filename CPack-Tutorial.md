@@ -318,7 +318,8 @@ target_install_package(game_editor
 export_cpack(
     PACKAGE_NAME "GameEngine"
     PACKAGE_VENDOR "Game Studio"
-    DEFAULT_COMPONENTS "Graphics;Audio;Tools"
+    # Runtime defaults only. audio_engine is static, so its SDK payload is in Development.
+    DEFAULT_COMPONENTS "Graphics;Tools"
     COMPONENT_GROUPS  # Enables group-based UI
 )
 
