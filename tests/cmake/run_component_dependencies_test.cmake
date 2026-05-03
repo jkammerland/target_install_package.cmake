@@ -135,6 +135,9 @@ int main() {
 
   if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
     list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
+    if(TIP_CMAKE_GENERATOR MATCHES "Multi-Config|Visual Studio|Xcode")
+      list(APPEND _consumer_configure_command "-DCMAKE_CONFIGURATION_TYPES=${TIP_COMPONENT_TEST_CONFIG}")
+    endif()
   endif()
   if(DEFINED TIP_CMAKE_MAKE_PROGRAM AND NOT TIP_CMAKE_MAKE_PROGRAM STREQUAL "")
     list(APPEND _consumer_configure_command "-DCMAKE_MAKE_PROGRAM=${TIP_CMAKE_MAKE_PROGRAM}")
@@ -214,6 +217,9 @@ set(_configure_command
 
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _configure_command -G "${TIP_CMAKE_GENERATOR}")
+  if(TIP_CMAKE_GENERATOR MATCHES "Multi-Config|Visual Studio|Xcode")
+    list(APPEND _configure_command "-DCMAKE_CONFIGURATION_TYPES=${TIP_COMPONENT_TEST_CONFIG}")
+  endif()
 endif()
 if(DEFINED TIP_CMAKE_MAKE_PROGRAM AND NOT TIP_CMAKE_MAKE_PROGRAM STREQUAL "")
   list(APPEND _configure_command "-DCMAKE_MAKE_PROGRAM=${TIP_CMAKE_MAKE_PROGRAM}")

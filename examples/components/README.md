@@ -15,13 +15,12 @@ This example demonstrates the **Component Prefix Pattern** for logical component
 ```
 MediaLib Package (shared export with Component Prefix Pattern):
 ├── Core             → libmedia_core.so (shared library runtime files) 
-├── Core_Development → headers + libmedia_dev_tools.a (development files from both Core targets)
+├── Core_Development → headers + libmedia_dev_tools.a + MediaLib CMake config files
 ├── Tools            → asset_converter (executable runtime)
-├── Tools_Development → (empty - executables typically have no dev files)
-└── Development      → MediaLib CMake config files (shared across all targets)
+└── Tools_Development → (empty - executables typically have no dev files)
 ```
 
-The Component Prefix Pattern creates predictable component names: `{COMPONENT}` for runtime, `{COMPONENT}_Development` for development.
+The Component Prefix Pattern creates predictable component names: `{COMPONENT}` for runtime, `{COMPONENT}_Development` for development. Shared CMake config files are installed with the first development component for the export, which is `Core_Development` in this example.
 
 ## Building and Installing
 
@@ -74,7 +73,7 @@ cmake --install . --component Tools
 
 ```bash
 # Install shared CMake config files (needed for find_package)
-cmake --install . --component Development
+cmake --install . --component Core_Development
 ```
 
 #### Deployment Scenarios
@@ -87,8 +86,7 @@ cmake --install . --component Tools
 # Full development setup (runtime + development + cmake configs)  
 cmake --install . --component Core
 cmake --install . --component Core_Development
-cmake --install . --component Tools  
-cmake --install . --component Development
+cmake --install . --component Tools
 ```
 
 ### Step 3: Verify Installation
@@ -106,15 +104,16 @@ install/
 ├── lib64/
 │   ├── libmedia_core.so.1.0.0           # Core
 │   ├── libmedia_core.so.1                # Core
-│   ├── libmedia_core.so                  # Core (dev symlink)
+│   ├── libmedia_core.so                  # Core
 │   └── libmedia_dev_tools.a              # Core_Development
 └── share/
     └── cmake/
-        └── MediaLib/                      # Development (shared)
-            ├── MediaLib.cmake
-            ├── MediaLib-noconfig.cmake  
+        └── MediaLib/                      # Core_Development (shared config files)
+            ├── MediaLibTargets.cmake
+            ├── MediaLibTargets-noconfig.cmake
             ├── MediaLibConfig.cmake
-            └── MediaLibConfigVersion.cmake
+            ├── MediaLibConfigVersion.cmake
+            └── MediaLib-config-version.cmake
 ```
 
 #### Component-Specific Installation Examples
@@ -134,6 +133,7 @@ install/bin/asset_converter
 install/include/media/core.h
 install/include/media/dev_tools.h  
 install/lib64/libmedia_dev_tools.a
+install/share/cmake/MediaLib/MediaLibConfig.cmake
 ```
 
 ## Component Details
@@ -148,8 +148,7 @@ install/lib64/libmedia_dev_tools.a
 **Core_Development**: Contains development files for the Core logical group
 - Headers from both `media_core` and `media_dev_tools`
 - Static libraries: `libmedia_dev_tools.a`
-- Development symlinks for shared libraries
-- No CMake config files (those are shared)
+- Shared CMake configuration files for the `MediaLib` export
 
 ### Tools Logical Group
 
@@ -159,13 +158,6 @@ install/lib64/libmedia_dev_tools.a
 
 **Tools_Development**: Typically empty for executable-only logical groups
 - Executables rarely have development artifacts
-
-### Shared Components
-
-**Development**: Contains shared files across all logical groups
-- CMake configuration files for `MediaLib` package
-- Required for `find_package(MediaLib)` to work
-- Independent of specific logical groups
 
 ## Using the Installed Package
 

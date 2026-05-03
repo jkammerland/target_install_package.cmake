@@ -16,7 +16,11 @@ set(PACKAGE_CONTACT "@ARG_PACKAGE_CONTACT@")
 
 # CPack provides these variables during post-build script execution CPACK_PACKAGE_DIRECTORY - where packages are generated CPACK_PACKAGE_FILES - list of generated package files
 
-message(STATUS "[GPG Signing] Starting package signing process...")
+if(SIGNING_METHOD STREQUAL "none")
+  message(STATUS "[GPG Signing] Starting package checksum process...")
+else()
+  message(STATUS "[GPG Signing] Starting package signing process...")
+endif()
 message(STATUS "[GPG Signing] Package directory: ${CPACK_PACKAGE_DIRECTORY}")
 
 # Find all generated package files if CPACK_PACKAGE_FILES not available
@@ -38,19 +42,57 @@ else()
 endif()
 
 if(NOT PACKAGE_FILES)
-  message(WARNING "[GPG Signing] No package files found to sign")
+  if(SIGNING_METHOD STREQUAL "none")
+    message(WARNING "[GPG Signing] No package files found to process")
+  else()
+    message(WARNING "[GPG Signing] No package files found to sign")
+  endif()
   return()
 endif()
 
 list(LENGTH PACKAGE_FILES package_count)
-message(STATUS "[GPG Signing] Found ${package_count} package(s) to sign")
+if(SIGNING_METHOD STREQUAL "none")
+  message(STATUS "[GPG Signing] Found ${package_count} package(s) to process")
+else()
+  message(STATUS "[GPG Signing] Found ${package_count} package(s) to sign")
+endif()
 
 set(embedded_signature_count 0)
 
 # Sign each package file
 foreach(package_file ${PACKAGE_FILES})
   get_filename_component(package_name ${package_file} NAME)
-  message(STATUS "[GPG Signing] Signing ${package_name}...")
+  set(target_signature "${CPACK_PACKAGE_DIRECTORY}/${package_name}.sig")
+  set(target_sha256 "${CPACK_PACKAGE_DIRECTORY}/${package_name}.sha256")
+  set(target_sha512 "${CPACK_PACKAGE_DIRECTORY}/${package_name}.sha512")
+
+  if(SIGNING_METHOD STREQUAL "none")
+    message(STATUS "[GPG Signing] Processing ${package_name}...")
+  else()
+    message(STATUS "[GPG Signing] Signing ${package_name}...")
+  endif()
+
+  if(NOT SIGNING_METHOD STREQUAL "detached" AND NOT SIGNING_METHOD STREQUAL "both")
+    set(stale_signature_files "${package_file}.sig" "${target_signature}")
+    list(REMOVE_DUPLICATES stale_signature_files)
+    foreach(stale_signature_file IN LISTS stale_signature_files)
+      if(EXISTS "${stale_signature_file}")
+        file(REMOVE "${stale_signature_file}")
+        message(STATUS "[GPG Signing] Removed stale detached signature: ${stale_signature_file}")
+      endif()
+    endforeach()
+  endif()
+
+  if(NOT GENERATE_CHECKSUMS)
+    set(stale_checksum_files "${package_file}.sha256" "${target_sha256}" "${package_file}.sha512" "${target_sha512}")
+    list(REMOVE_DUPLICATES stale_checksum_files)
+    foreach(stale_checksum_file IN LISTS stale_checksum_files)
+      if(EXISTS "${stale_checksum_file}")
+        file(REMOVE "${stale_checksum_file}")
+        message(STATUS "[GPG Signing] Removed stale checksum: ${stale_checksum_file}")
+      endif()
+    endforeach()
+  endif()
 
   if(SIGNING_METHOD STREQUAL "embedded")
     if(NOT package_file MATCHES "\\.rpm$")
@@ -158,8 +200,9 @@ elseif(SIGNING_METHOD STREQUAL "both" AND embedded_signature_count EQUAL 0)
   message(STATUS "[GPG Signing] No RPM packages found in this CPack generator pass; embedded RPM signing skipped.")
 endif()
 
-# Copy signatures and checksums to be alongside the packages Packages are in CPACK_PACKAGE_DIRECTORY, but signatures may be in subdirectories
-message(STATUS "[GPG Signing] Ensuring signatures are in package directory...")
+# Copy signatures and checksums to be alongside the packages. Packages are in
+# CPACK_PACKAGE_DIRECTORY, but post-build paths may be in subdirectories.
+message(STATUS "[GPG Signing] Ensuring generated verification files are in package directory...")
 
 foreach(package_file ${PACKAGE_FILES})
   get_filename_component(package_name ${package_file} NAME)
@@ -188,4 +231,8 @@ foreach(package_file ${PACKAGE_FILES})
   endif()
 endforeach()
 
-message(STATUS "[GPG Signing] Package signing completed successfully!")
+if(SIGNING_METHOD STREQUAL "none")
+  message(STATUS "[GPG Signing] Package checksum generation completed successfully!")
+else()
+  message(STATUS "[GPG Signing] Package signing completed successfully!")
+endif()

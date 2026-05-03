@@ -6,7 +6,8 @@
 
 1. If `CONFIG_TEMPLATE` is provided, use it.
 2. If `CONFIG_TEMPLATE` is provided but the path does not exist, fail configuration with a fatal error.
-3. If `CONFIG_TEMPLATE` is not provided, fall back to `${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in`.
+3. If `CONFIG_TEMPLATE` is not provided, fall back to the packaged `generic-config.cmake.in`.
+   Installed packages look beside `target_install_package.cmake`; source-tree usage looks in the repository `cmake/` directory.
 4. If the fallback template does not exist, fail configuration with a fatal error.
 
 Notes:

@@ -186,11 +186,22 @@ foreach(_tip_layout IN ITEMS fhs split_debug split_all)
   set_tests_properties("install_layout_${_tip_layout}" PROPERTIES LABELS "install-layout")
 endforeach()
 
+foreach(_tip_layout IN ITEMS split_debug split_all)
+  add_test(NAME "install_layout_${_tip_layout}_release" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" "-DTIP_LAYOUT_TEST_CONFIG=Release" ${_tip_layout_test_common_args} -P
+                                                                  "${_tip_layout_test_script}")
+  set_tests_properties("install_layout_${_tip_layout}_release" PROPERTIES LABELS "install-layout")
+endforeach()
+
 foreach(_tip_middle_config IN ITEMS RelWithDebInfo MinSizeRel)
   string(TOLOWER "${_tip_middle_config}" _tip_middle_config_lower)
   add_test(NAME "install_layout_fhs_${_tip_middle_config_lower}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
                                                                          "${_tip_layout_test_script}")
-  set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
+  set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout")
+
+  add_test(NAME "install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=Release"
+                                                                                       "-DTIP_LAYOUT_CONSUMER_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
+                                                                                       "${_tip_layout_test_script}")
+  set_tests_properties("install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
 endforeach()
 
 set(_tip_component_test_common_args "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_COMPONENT_TEST_ROOT=${_tip_component_test_root}" "-DTIP_COMPONENT_TEST_CONFIG=Debug"
@@ -218,7 +229,13 @@ endif()
 add_test(NAME component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_component_test_common_args} -P "${_tip_component_test_script}")
 set_tests_properties(component_dependencies PROPERTIES LABELS "component-dependencies")
 
+set(_tip_installed_consumer_main_install_config "$<CONFIG>")
+if(NOT CMAKE_CONFIGURATION_TYPES)
+  set(_tip_installed_consumer_main_install_config "${CMAKE_BUILD_TYPE}")
+endif()
+
 add_test(NAME installed_target_install_package_consumer COMMAND ${CMAKE_COMMAND} "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_MAIN_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                                                                "-DTIP_MAIN_INSTALL_CONFIG=${_tip_installed_consumer_main_install_config}"
                                                                 "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
 set_tests_properties(installed_target_install_package_consumer PROPERTIES LABELS "consumer;install")
 
@@ -284,8 +301,16 @@ if(target_install_package_BUILD_PROOF_TESTS)
   if(UNIX)
     add_test(NAME proof_gpg_signing_methods COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_gpg_signing_methods_test.cmake")
     set_tests_properties(proof_gpg_signing_methods PROPERTIES LABELS "proof;review;signing")
+
+    find_program(_tip_bash_for_verifier_proof bash)
+    if(_tip_bash_for_verifier_proof)
+      add_test(NAME proof_signed_verifier_key COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_signed_verifier_key_test.cmake")
+      set_tests_properties(proof_signed_verifier_key PROPERTIES LABELS "proof;review;signing")
+    else()
+      message(STATUS "Skipping proof_signed_verifier_key: bash is required")
+    endif()
   else()
-    message(STATUS "Skipping proof_gpg_signing_methods: POSIX shell shims are required")
+    message(STATUS "Skipping GPG signing proof tests: POSIX shell shims are required")
   endif()
 
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.3")

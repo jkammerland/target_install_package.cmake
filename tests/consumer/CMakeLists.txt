@@ -22,8 +22,31 @@ add_executable(consumer main.cpp)
 target_compile_features(consumer PUBLIC cxx_std_17)
 
 # Test using target_install_package on our consumer executable
-target_install_package(consumer 
+target_install_package(consumer
     NAMESPACE Consumer::
     VERSION ${PROJECT_VERSION})
+
+option(TIP_CONSUMER_ENABLE_CONTAINER "Enable CONTAINER packaging in the installed consumer proof" OFF)
+option(TIP_CONSUMER_ENABLE_CHECKSUMS "Enable checksum generation in the installed consumer proof" OFF)
+set(_tip_consumer_cpack_generators TGZ)
+set(_tip_consumer_container_args "")
+set(_tip_consumer_checksum_args "")
+if(TIP_CONSUMER_ENABLE_CONTAINER)
+    set(_tip_consumer_cpack_generators CONTAINER)
+    list(APPEND _tip_consumer_container_args
+        CONTAINER_RUNTIME podman
+        CONTAINER_ENTRYPOINT /usr/local/bin/consumer
+        CONTAINER_ARCHIVE_FORMAT oci-archive)
+endif()
+if(TIP_CONSUMER_ENABLE_CHECKSUMS)
+    list(APPEND _tip_consumer_checksum_args GENERATE_CHECKSUMS)
+endif()
+
+export_cpack(
+    PACKAGE_NAME "consumer_test"
+    GENERATORS ${_tip_consumer_cpack_generators}
+    NO_DEFAULT_GENERATORS
+    ${_tip_consumer_checksum_args}
+    ${_tip_consumer_container_args})
 
 message(STATUS "✓ Consumer test configured successfully")

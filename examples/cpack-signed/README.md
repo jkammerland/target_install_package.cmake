@@ -45,7 +45,7 @@ chmod 600 .gpg_passphrase # Only user can read, nothing else
 
 # 2. Configure with signing
 cmake -B build \
-  -DGPG_SIGNING_KEY="your-key-id-or-email" \
+  -DGPG_SIGNING_KEY="0123456789ABCDEF0123456789ABCDEF01234567" \
   -DGPG_PASSPHRASE_FILE="${PWD}/.gpg_passphrase"
 
 # 3. Build and package
@@ -54,13 +54,13 @@ cpack --config build/CPackConfig.cmake -B build/packages
 
 # 4. Verify results
 ls -la build/packages/*.tar.gz* build/packages/*.zip*
-build/verify.sh --directory build/packages --package-types "tar.gz,zip" --min-packages 6
+build/verify.sh --directory build/packages --package-types "tar.gz,zip" --key-id 0123456789ABCDEF0123456789ABCDEF01234567 --min-packages 6
 ```
 
 ### Using CMake Presets (Recommended)
 ```bash
 # 1. Set environment variables
-export GPG_SIGNING_KEY="maintainer@example.com"
+export GPG_SIGNING_KEY="0123456789ABCDEF0123456789ABCDEF01234567"
 export GPG_PASSPHRASE_FILE="$HOME/.gpg_passphrase"
 
 # 2. Use the preset workflow
@@ -149,7 +149,7 @@ This example includes an **example verification script template** (`verify_templ
 
 **Key considerations for production:**
 - Always verify the publisher's GPG key fingerprint through secure channels
-- Consider pinning specific key IDs rather than using email addresses  
+- Pin a full fingerprint or 16-hex long key ID with `--key-id` rather than relying on email addresses
 - Validate that keyservers are appropriate for your security environment
 - Review and audit the verification script before deployment
 
@@ -161,7 +161,7 @@ cmake --build build
 
 # 2. Test with generated packages
 cd build
-./verify.sh --verbose
+./verify.sh --key-id 0123456789ABCDEF0123456789ABCDEF01234567 --verbose
 
 # 3. Customize the template for your needs
 cp ../verify_template.sh.in my_custom_verify.sh.in
@@ -171,7 +171,7 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 ### Verification Example Output
 
 ```bash
-./verify.sh --package-types "tar.gz,zip" --min-packages 6 --verbose
+./verify.sh --package-types "tar.gz,zip" --min-packages 6 --key-id <expected-fingerprint> --verbose
 
 # 🔐 Example Package Verification Script
 # ⚠️  NOTICE: This is a demonstration template - customize for production use!
@@ -186,6 +186,7 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 # Verification Results:
 #   Total packages: 6
 #   Successfully verified: 6
+#   Failed verification: 0
 #   Required minimum: 6
 #
 # 🎉 Package verification successful!

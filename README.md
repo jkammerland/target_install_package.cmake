@@ -183,7 +183,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.0
+  GIT_TAG v7.0.1
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -200,7 +200,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.0.0
+    GIT_TAG v7.0.1
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -421,7 +421,7 @@ export_cpack(
 # No need for include(CPack) - export_cpack() does it automatically
 ```
 
-`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` packages the full license text.
+`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` sets CPack's license resource for generators that display or embed one. Install a license file explicitly, or use `ADDITIONAL_FILES`, when the license text must be present in the installed payload.
 
 **Generate packages:**
 ```bash
@@ -645,10 +645,9 @@ target_install_package(myproject_cli
 ```
 
 **Result**: Single package with logical component groups:
-- **Core**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) (runtime)
-- **Core_Development**: Headers from both Core libraries
+- **Core**: Runtime component for Core targets; static-only Core targets may not add runtime files
+- **Core_Development**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) + headers from both Core libraries + shared CMake config files
 - **Tools**: CLI executable (`myproject_cli`) (runtime)
-- **Development**: Shared CMake config files
 
 **Consumer usage:**
 ```cmake

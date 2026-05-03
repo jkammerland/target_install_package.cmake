@@ -132,7 +132,44 @@ endif()
 if(NOT DEFINED TIP_LAYOUT_TEST_CONFIG OR TIP_LAYOUT_TEST_CONFIG STREQUAL "")
   set(TIP_LAYOUT_TEST_CONFIG "Debug")
 endif()
-string(TOLOWER "${TIP_LAYOUT_TEST_CONFIG}" _install_config_lower)
+if(NOT DEFINED TIP_LAYOUT_INSTALL_CONFIG OR TIP_LAYOUT_INSTALL_CONFIG STREQUAL "")
+  set(TIP_LAYOUT_INSTALL_CONFIG "${TIP_LAYOUT_TEST_CONFIG}")
+endif()
+if(NOT DEFINED TIP_LAYOUT_CONSUMER_CONFIG OR TIP_LAYOUT_CONSUMER_CONFIG STREQUAL "")
+  set(TIP_LAYOUT_CONSUMER_CONFIG "${TIP_LAYOUT_TEST_CONFIG}")
+endif()
+string(TOLOWER "${TIP_LAYOUT_INSTALL_CONFIG}" _install_config_lower)
+string(TOLOWER "${TIP_LAYOUT_CONSUMER_CONFIG}" _consumer_config_lower)
+
+if(TIP_LAYOUT STREQUAL "fhs")
+  set(_layout_suffix "fhs")
+elseif(TIP_LAYOUT STREQUAL "split_debug")
+  set(_layout_suffix "sd")
+elseif(TIP_LAYOUT STREQUAL "split_all")
+  set(_layout_suffix "sa")
+endif()
+
+function(_tip_config_suffix config out_var)
+  string(TOLOWER "${config}" _config_lower)
+  if(_config_lower STREQUAL "debug")
+    set(_suffix "dbg")
+  elseif(_config_lower STREQUAL "release")
+    set(_suffix "rel")
+  elseif(_config_lower STREQUAL "relwithdebinfo")
+    set(_suffix "rwdi")
+  elseif(_config_lower STREQUAL "minsizerel")
+    set(_suffix "msr")
+  else()
+    string(REGEX REPLACE "[^a-z0-9]" "" _suffix "${_config_lower}")
+  endif()
+
+  set(${out_var}
+      "${_suffix}"
+      PARENT_SCOPE)
+endfunction()
+
+_tip_config_suffix("${TIP_LAYOUT_INSTALL_CONFIG}" _install_config_suffix)
+_tip_config_suffix("${TIP_LAYOUT_CONSUMER_CONFIG}" _consumer_config_suffix)
 
 if(WIN32)
   set(_tip_executable_suffix ".exe")
@@ -141,19 +178,23 @@ else()
 endif()
 
 set(_fixture_source_dir "${TIP_REPO_ROOT}/tests/layout-matrix")
-set(_case_root "${TIP_LAYOUT_TEST_ROOT}/${TIP_LAYOUT}-${_install_config_lower}")
-set(_build_dir "${_case_root}/build")
-set(_runtime_prefix "${_case_root}/runtime")
-set(_development_prefix "${_case_root}/development")
-set(_full_prefix "${_case_root}/full")
+set(_case_root "${TIP_LAYOUT_TEST_ROOT}/${_layout_suffix}-${_install_config_suffix}-${_consumer_config_suffix}")
+set(_build_dir "${_case_root}/b")
+set(_runtime_prefix "${_case_root}/r")
+set(_development_prefix "${_case_root}/d")
+set(_full_prefix "${_case_root}/f")
 
 file(REMOVE_RECURSE "${_case_root}")
 file(MAKE_DIRECTORY "${_case_root}")
 
-set(_configure_command "${CMAKE_COMMAND}" -S "${_fixture_source_dir}" -B "${_build_dir}" "-DTIP_REPO_ROOT=${TIP_REPO_ROOT}" "-DTIP_LAYOUT=${TIP_LAYOUT}" "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_TEST_CONFIG}")
+set(_configure_command "${CMAKE_COMMAND}" -S "${_fixture_source_dir}" -B "${_build_dir}" "-DTIP_REPO_ROOT=${TIP_REPO_ROOT}" "-DTIP_LAYOUT=${TIP_LAYOUT}"
+                       "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_INSTALL_CONFIG}")
 
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _configure_command -G "${TIP_CMAKE_GENERATOR}")
+  if(TIP_CMAKE_GENERATOR MATCHES "Multi-Config|Visual Studio|Xcode")
+    list(APPEND _configure_command "-DCMAKE_CONFIGURATION_TYPES=${TIP_LAYOUT_INSTALL_CONFIG}")
+  endif()
 endif()
 if(DEFINED TIP_CMAKE_MAKE_PROGRAM AND NOT TIP_CMAKE_MAKE_PROGRAM STREQUAL "")
   list(APPEND _configure_command "-DCMAKE_MAKE_PROGRAM=${TIP_CMAKE_MAKE_PROGRAM}")
@@ -183,7 +224,7 @@ _tip_run_step(
   --build
   "${_build_dir}"
   --config
-  "${TIP_LAYOUT_TEST_CONFIG}")
+  "${TIP_LAYOUT_INSTALL_CONFIG}")
 _tip_run_step(
   NAME
   "install-runtime"
@@ -192,7 +233,7 @@ _tip_run_step(
   --install
   "${_build_dir}"
   --config
-  "${TIP_LAYOUT_TEST_CONFIG}"
+  "${TIP_LAYOUT_INSTALL_CONFIG}"
   --prefix
   "${_runtime_prefix}"
   --component
@@ -205,7 +246,7 @@ _tip_run_step(
   --install
   "${_build_dir}"
   --config
-  "${TIP_LAYOUT_TEST_CONFIG}"
+  "${TIP_LAYOUT_INSTALL_CONFIG}"
   --prefix
   "${_development_prefix}"
   --component
@@ -218,7 +259,7 @@ _tip_run_step(
   --install
   "${_build_dir}"
   --config
-  "${TIP_LAYOUT_TEST_CONFIG}"
+  "${TIP_LAYOUT_INSTALL_CONFIG}"
   --prefix
   "${_full_prefix}")
 
@@ -307,8 +348,8 @@ set(_installed_runner_candidates
 _tip_find_existing_path(_installed_runner ${_installed_runner_candidates})
 _tip_run_step(NAME "run-installed-layout-runner" COMMAND "${_installed_runner}")
 
-set(_consumer_dir "${_case_root}/consumer")
-set(_consumer_build_dir "${_consumer_dir}/build")
+set(_consumer_dir "${_case_root}/c")
+set(_consumer_build_dir "${_consumer_dir}/b")
 file(MAKE_DIRECTORY "${_consumer_dir}")
 
 file(
@@ -359,9 +400,12 @@ set(_consumer_configure_command
     -B
     "${_consumer_build_dir}"
     "-DCMAKE_PREFIX_PATH=${_full_prefix}"
-    "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_TEST_CONFIG}")
+    "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_CONSUMER_CONFIG}")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
+  if(TIP_CMAKE_GENERATOR MATCHES "Multi-Config|Visual Studio|Xcode")
+    list(APPEND _consumer_configure_command "-DCMAKE_CONFIGURATION_TYPES=${TIP_LAYOUT_CONSUMER_CONFIG}")
+  endif()
 endif()
 if(DEFINED TIP_CMAKE_MAKE_PROGRAM AND NOT TIP_CMAKE_MAKE_PROGRAM STREQUAL "")
   list(APPEND _consumer_configure_command "-DCMAKE_MAKE_PROGRAM=${TIP_CMAKE_MAKE_PROGRAM}")
@@ -391,13 +435,13 @@ _tip_run_step(
   --build
   "${_consumer_build_dir}"
   --config
-  "${TIP_LAYOUT_TEST_CONFIG}")
+  "${TIP_LAYOUT_CONSUMER_CONFIG}")
 
 set(_consumer_executable_candidates
     "${_consumer_build_dir}/layout_matrix_consumer${_tip_executable_suffix}"
-    "${_consumer_build_dir}/${TIP_LAYOUT_TEST_CONFIG}/layout_matrix_consumer${_tip_executable_suffix}"
+    "${_consumer_build_dir}/${TIP_LAYOUT_CONSUMER_CONFIG}/layout_matrix_consumer${_tip_executable_suffix}"
     "${_consumer_build_dir}/layout_matrix_consumer"
-    "${_consumer_build_dir}/${TIP_LAYOUT_TEST_CONFIG}/layout_matrix_consumer")
+    "${_consumer_build_dir}/${TIP_LAYOUT_CONSUMER_CONFIG}/layout_matrix_consumer")
 _tip_find_existing_path(_consumer_executable ${_consumer_executable_candidates})
 
 if(WIN32)
@@ -422,4 +466,4 @@ else()
   _tip_run_step(NAME "consumer-run" COMMAND "${_consumer_executable}")
 endif()
 
-message(STATUS "[layout-matrix] Layout '${TIP_LAYOUT}' assertions passed.")
+message(STATUS "[layout-matrix] Layout '${TIP_LAYOUT}' assertions passed for install config '${TIP_LAYOUT_INSTALL_CONFIG}' and consumer config '${TIP_LAYOUT_CONSUMER_CONFIG}'.")

@@ -5,7 +5,7 @@ project(dependency_aggregation_example VERSION 2.1.0)
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/load_target_install_package.cmake)
 
-# Core library - dummy implementation with fmt dependency
+# Core library - dummy implementation with declared fmt package metadata
 add_library(core_lib SHARED)
 target_sources(core_lib PRIVATE src/dummy.cpp)
 target_sources(core_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/dummy.h")
@@ -16,14 +16,14 @@ if(WIN32)
   set_target_properties(core_lib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-# Logging library - dummy implementation with spdlog dependency
+# Logging library - dummy implementation with declared spdlog package metadata
 add_library(logging_lib STATIC)
 target_sources(logging_lib PRIVATE src/dummy.cpp)
 target_sources(logging_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/dummy.h")
 target_compile_features(logging_lib PUBLIC cxx_std_17)
 # target_link_libraries(logging_lib PRIVATE spdlog::spdlog)
 
-# Utilities library - dummy implementation with cxxopts dependency
+# Utilities library - dummy implementation with declared cxxopts package metadata
 add_library(utils_lib STATIC)
 target_sources(utils_lib PRIVATE src/dummy.cpp)
 target_sources(utils_lib PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/mylib/dummy.h")

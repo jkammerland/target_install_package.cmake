@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.0)
+  list_file_include_guard(VERSION 7.0.1)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -73,7 +73,7 @@ endif()
 #     [ENABLE_COMPONENT_INSTALL]
 #     [ARCHIVE_FORMAT <format>]
 #     [NO_DEFAULT_GENERATORS]
-#     [GPG_SIGNING_KEY <key_id_or_email>]
+#     [GPG_SIGNING_KEY <fingerprint_or_key_id>]
 #     [GPG_PASSPHRASE_FILE <path>]
 #     [SIGNING_METHOD <detached|embedded|both>]
 #     [GPG_KEYSERVER <keyserver_url>]
@@ -96,7 +96,7 @@ endif()
 #   PACKAGE_DESCRIPTION     - Package description (default: ${PROJECT_DESCRIPTION})
 #   PACKAGE_HOMEPAGE_URL    - Project homepage URL (default: ${PROJECT_HOMEPAGE_URL})
 #   PACKAGE_LICENSE         - Package license identifier for package metadata such as RPM License: (default: Unknown)
-#   LICENSE_FILE            - Path to packaged license text/resource file (default: auto-detected)
+#   LICENSE_FILE            - Path to CPack's license resource file (default: auto-detected)
 #   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
@@ -165,6 +165,20 @@ endif()
 #     CONTAINER_RUNTIME "podman"    # Explicit runtime; defaults to podman
 #   )
 # ~~~
+function(_tip_find_export_cpack_resource_file file_name out_var)
+  set(_tip_resource_candidates "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${file_name}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${file_name}")
+  foreach(_tip_resource_candidate IN LISTS _tip_resource_candidates)
+    if(EXISTS "${_tip_resource_candidate}")
+      set(${out_var}
+          "${_tip_resource_candidate}"
+          PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  project_log(FATAL_ERROR "Package resource '${file_name}' not found. Checked: ${_tip_resource_candidates}")
+endfunction()
+
 function(export_cpack)
   # Check if export_cpack has already been called (not deferred execution)
   get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
@@ -405,6 +419,36 @@ function(_execute_deferred_cpack_config)
     set(_tip_cpack_config_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
 
+  set(_tip_cpack_keyword_names
+      PACKAGE_NAME
+      PACKAGE_VERSION
+      PACKAGE_VENDOR
+      PACKAGE_CONTACT
+      PACKAGE_DESCRIPTION
+      PACKAGE_HOMEPAGE_URL
+      PACKAGE_LICENSE
+      LICENSE_FILE
+      GENERATORS
+      COMPONENTS
+      COMPONENT_GROUPS
+      DEFAULT_COMPONENTS
+      ENABLE_COMPONENT_INSTALL
+      ARCHIVE_FORMAT
+      NO_DEFAULT_GENERATORS
+      GPG_SIGNING_KEY
+      GPG_PASSPHRASE_FILE
+      SIGNING_METHOD
+      GPG_KEYSERVER
+      GENERATE_CHECKSUMS
+      CONTAINER_NAME
+      CONTAINER_TAG
+      CONTAINER_RUNTIME
+      CONTAINER_ENTRYPOINT
+      CONTAINER_ARCHIVE_FORMAT
+      CONTAINER_COMPONENTS
+      CONTAINER_ROOTFS_OVERLAYS
+      ADDITIONAL_CPACK_VARS)
+
   set(_tip_cpack_parse_args "")
   list(LENGTH args _tip_cpack_arg_count)
   set(_tip_cpack_arg_index 0)
@@ -424,6 +468,8 @@ function(_execute_deferred_cpack_config)
           list(APPEND _tip_cpack_parse_args GENERATE_CHECKSUMS OFF)
           math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 2")
           continue()
+        elseif(NOT _tip_cpack_next_arg IN_LIST _tip_cpack_keyword_names)
+          project_log(FATAL_ERROR "GENERATE_CHECKSUMS must be ON or OFF when a value is provided, got: ${_tip_cpack_next_arg}")
         endif()
       endif()
 
@@ -632,7 +678,8 @@ function(_execute_deferred_cpack_config)
     list(APPEND ARG_GENERATORS "External")
 
     # Configure External generator for container building
-    _tip_store_cpack_var(CPACK_EXTERNAL_PACKAGE_SCRIPT "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/external_container_package.cmake")
+    _tip_find_export_cpack_resource_file("external_container_package.cmake" _tip_external_container_package_script)
+    _tip_store_cpack_var(CPACK_EXTERNAL_PACKAGE_SCRIPT "${_tip_external_container_package_script}")
     _tip_store_cpack_var(CPACK_EXTERNAL_ENABLE_STAGING ON)
     _tip_store_cpack_var(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
 
@@ -863,7 +910,7 @@ function(_execute_deferred_cpack_config)
     if(ARG_PACKAGE_LICENSE)
       _tip_store_cpack_var(CPACK_RPM_PACKAGE_LICENSE "${ARG_PACKAGE_LICENSE}")
     elseif(ARG_LICENSE_FILE)
-      project_log(VERBOSE "PACKAGE_LICENSE not set; RPM License metadata will remain 'Unknown' while LICENSE_FILE is used for packaged license text")
+      project_log(VERBOSE "PACKAGE_LICENSE not set; RPM License metadata will remain 'Unknown' while LICENSE_FILE is used as CPack's license resource")
     endif()
 
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_ARCHITECTURE "${_TIP_RPM_PACKAGE_ARCHITECTURE}")
@@ -1016,27 +1063,14 @@ function(_configure_gpg_signing)
     set(ARG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}")
   endif()
 
-  # Skip if no signing key provided
-  if(NOT ARG_SIGNING_KEY)
-    return()
-  endif()
-
-  if(NOT ARG_SIGNING_METHOD)
-    set(ARG_SIGNING_METHOD "detached")
-  endif()
-  if(NOT ARG_SIGNING_METHOD STREQUAL "detached"
-     AND NOT ARG_SIGNING_METHOD STREQUAL "embedded"
-     AND NOT ARG_SIGNING_METHOD STREQUAL "both")
-    project_log(FATAL_ERROR "SIGNING_METHOD must be one of 'detached', 'embedded', or 'both', got: ${ARG_SIGNING_METHOD}")
-  endif()
-
-  if(NOT ARG_KEYSERVER)
-    set(ARG_KEYSERVER "keyserver.ubuntu.com")
-  endif()
-
-  # Enable checksums and verification scripts by default if signing is enabled
+  # Enable checksums by default when signing is enabled. Without signing, only
+  # configure the post-build script when checksums were explicitly requested.
   if(NOT DEFINED ARG_GENERATE_CHECKSUMS OR "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
-    set(ARG_GENERATE_CHECKSUMS ON)
+    if(ARG_SIGNING_KEY)
+      set(ARG_GENERATE_CHECKSUMS ON)
+    else()
+      set(ARG_GENERATE_CHECKSUMS OFF)
+    endif()
   else()
     string(TOUPPER "${ARG_GENERATE_CHECKSUMS}" _tip_generate_checksums_upper)
     if(_tip_generate_checksums_upper MATCHES "^(ON|TRUE|YES|1)$")
@@ -1048,16 +1082,54 @@ function(_configure_gpg_signing)
     endif()
   endif()
 
-  # Find GPG executable
-  find_program(
-    GPG_EXECUTABLE
-    NAMES gpg2 gpg
-    DOC "GNU Privacy Guard")
-  if(NOT GPG_EXECUTABLE)
-    project_log(FATAL_ERROR "GPG executable not found. Install GPG to enable package signing.")
+  if(ARG_SIGNING_METHOD
+     AND NOT ARG_SIGNING_METHOD STREQUAL "detached"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "embedded"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "both")
+    project_log(FATAL_ERROR "SIGNING_METHOD must be one of 'detached', 'embedded', or 'both', got: ${ARG_SIGNING_METHOD}")
   endif()
 
-  if(ARG_REQUIRE_RPMSIGN)
+  if(ARG_SIGNING_METHOD AND NOT ARG_SIGNING_KEY)
+    project_log(FATAL_ERROR "SIGNING_METHOD '${ARG_SIGNING_METHOD}' requires GPG_SIGNING_KEY or the GPG_SIGNING_KEY environment variable.")
+  endif()
+
+  if(NOT ARG_SIGNING_KEY AND NOT ARG_GENERATE_CHECKSUMS)
+    return()
+  endif()
+
+  if(NOT ARG_SIGNING_METHOD)
+    if(ARG_SIGNING_KEY)
+      set(ARG_SIGNING_METHOD "detached")
+    else()
+      set(ARG_SIGNING_METHOD "none")
+    endif()
+  endif()
+
+  if(NOT ARG_SIGNING_METHOD STREQUAL "detached"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "embedded"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "both"
+     AND NOT ARG_SIGNING_METHOD STREQUAL "none")
+    project_log(FATAL_ERROR "SIGNING_METHOD must be one of 'detached', 'embedded', or 'both', got: ${ARG_SIGNING_METHOD}")
+  endif()
+
+  if(NOT ARG_KEYSERVER)
+    set(ARG_KEYSERVER "keyserver.ubuntu.com")
+  endif()
+
+  # Find GPG executable
+  if(ARG_SIGNING_KEY)
+    find_program(
+      GPG_EXECUTABLE
+      NAMES gpg2 gpg
+      DOC "GNU Privacy Guard")
+    if(NOT GPG_EXECUTABLE)
+      project_log(FATAL_ERROR "GPG executable not found. Install GPG to enable package signing.")
+    endif()
+  else()
+    set(GPG_EXECUTABLE "")
+  endif()
+
+  if(ARG_SIGNING_KEY AND ARG_REQUIRE_RPMSIGN)
     find_program(
       RPMSIGN_EXECUTABLE
       NAMES rpmsign
@@ -1069,30 +1141,39 @@ function(_configure_gpg_signing)
     set(RPMSIGN_EXECUTABLE "")
   endif()
 
-  if(ARG_PASSPHRASE_FILE AND ARG_REQUIRE_RPMSIGN)
+  if(ARG_SIGNING_KEY AND ARG_PASSPHRASE_FILE AND ARG_REQUIRE_RPMSIGN)
     project_log(WARNING "GPG_PASSPHRASE_FILE is used for detached signatures only; embedded RPM signing uses rpmsign and the configured GPG agent.")
   endif()
 
   # Validate signing key exists
-  execute_process(
-    COMMAND ${GPG_EXECUTABLE} --list-secret-keys "${ARG_SIGNING_KEY}"
-    RESULT_VARIABLE gpg_result
-    OUTPUT_QUIET ERROR_QUIET)
+  if(ARG_SIGNING_KEY)
+    execute_process(
+      COMMAND ${GPG_EXECUTABLE} --list-secret-keys "${ARG_SIGNING_KEY}"
+      RESULT_VARIABLE gpg_result
+      OUTPUT_QUIET ERROR_QUIET)
 
-  if(NOT gpg_result EQUAL 0)
-    project_log(FATAL_ERROR "GPG signing key '${ARG_SIGNING_KEY}' not found in keyring or no private key available.")
+    if(NOT gpg_result EQUAL 0)
+      project_log(FATAL_ERROR "GPG signing key '${ARG_SIGNING_KEY}' not found in keyring or no private key available.")
+    endif()
   endif()
 
   # Generate signing script
-  configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/sign_packages.cmake.in" "${CMAKE_BINARY_DIR}/sign_packages.cmake" @ONLY)
+  _tip_find_export_cpack_resource_file("sign_packages.cmake.in" _tip_sign_packages_template)
+  configure_file("${_tip_sign_packages_template}" "${CMAKE_BINARY_DIR}/sign_packages.cmake" @ONLY)
 
   # Set CPack post-build script
   _tip_store_cpack_var(CPACK_POST_BUILD_SCRIPTS "${CMAKE_BINARY_DIR}/sign_packages.cmake")
 
-  project_log(STATUS "GPG package signing configured:")
-  project_log(STATUS "  Signing key: ${ARG_SIGNING_KEY}")
-  project_log(STATUS "  Signing method: ${ARG_SIGNING_METHOD}")
-  project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
-  project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
+  if(ARG_SIGNING_KEY)
+    project_log(STATUS "GPG package signing configured:")
+    project_log(STATUS "  Signing key: ${ARG_SIGNING_KEY}")
+    project_log(STATUS "  Signing method: ${ARG_SIGNING_METHOD}")
+    project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
+    project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
+  else()
+    project_log(STATUS "CPack checksum generation configured:")
+    project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
+    project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
+  endif()
 
 endfunction(_configure_gpg_signing)

@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.0)
+  list_file_include_guard(VERSION 7.0.1)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -194,6 +194,20 @@ function(target_install_package TARGET_NAME)
   # The actual finalization happens at the end of the configuration (CMAKE_SOURCE_DIR)
   # ~~~
 endfunction(target_install_package)
+
+function(_tip_find_target_install_package_resource_file file_name out_var)
+  set(_tip_resource_candidates "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${file_name}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${file_name}")
+  foreach(_tip_resource_candidate IN LISTS _tip_resource_candidates)
+    if(EXISTS "${_tip_resource_candidate}")
+      set(${out_var}
+          "${_tip_resource_candidate}"
+          PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  project_log(FATAL_ERROR "Package resource '${file_name}' not found. Checked: ${_tip_resource_candidates}")
+endfunction()
 
 function(_tip_resolve_absolute_paths RESULT_VAR BASE_DIR)
   set(_tip_resolved_paths "")
@@ -2080,14 +2094,10 @@ function(finalize_package)
     endif()
   endif()
 
-  # Fallback to generic template in script's cmake dir
+  # Fallback to the packaged generic template.
   if(NOT CONFIG_TEMPLATE_TO_USE)
-    if(EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-      set(CONFIG_TEMPLATE_TO_USE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
-      project_log(DEBUG "  Using generic config template from script's relative cmake/ dir: ${CONFIG_TEMPLATE_TO_USE}")
-    else()
-      project_log(FATAL_ERROR "No config template found. Generic template expected at ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in but not found.")
-    endif()
+    _tip_find_target_install_package_resource_file("generic-config.cmake.in" CONFIG_TEMPLATE_TO_USE)
+    project_log(DEBUG "  Using generic config template: ${CONFIG_TEMPLATE_TO_USE}")
   endif()
 
   # Prepare CMake files to include on find_package
@@ -2280,6 +2290,7 @@ function(_validate_config_template_placeholders template_path export_name includ
 
     string(APPEND error_msg "\n\nTo fix this, add the missing placeholders to your template file.")
     string(APPEND error_msg "\nRefer to the generic template for guidance:")
+    string(APPEND error_msg "\n  ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/generic-config.cmake.in")
     string(APPEND error_msg "\n  ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/generic-config.cmake.in")
 
     project_log(FATAL_ERROR "${error_msg}")

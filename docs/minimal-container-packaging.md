@@ -36,7 +36,7 @@ Top-level archive: <name>-<tag>-<archive-format>.tar
 
 ## Internal Scripts
 
-`cmake/external_container_package.cmake` is the CPack script. It selects `CONTAINER_COMPONENTS`, validates staged component directories, merges components into one rootfs, applies overlays, calls the shell scripts, and publishes the saved archive through `CPACK_EXTERNAL_BUILT_PACKAGES`.
+`cmake/external_container_package.cmake` is the CPack script in the source tree; installed packages keep it beside `export_cpack.cmake` under `share/cmake/target_install_package/`. It selects `CONTAINER_COMPONENTS`, validates staged component directories, merges components into one rootfs, applies overlays, calls the shell scripts, and publishes the saved archive through `CPACK_EXTERNAL_BUILT_PACKAGES`.
 
 `cmake/collect_runtime_deps.sh` resolves the rootfs path, finds ELF files, runs `ldd`, fails on missing dependencies, copies host dependencies into their absolute runtime paths under the rootfs, and skips dependencies already present in the staged rootfs.
 
