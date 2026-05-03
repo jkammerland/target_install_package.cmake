@@ -2201,10 +2201,12 @@ function(finalize_package)
 
       get_filename_component(file_name "${cmake_file}" NAME)
 
-      install(
-        FILES "${SRC_CMAKE_FILE}"
-        DESTINATION "${CMAKE_CONFIG_DESTINATION}"
-        ${CONFIG_COMPONENT_ARGS})
+      foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)
+        install(
+          FILES "${SRC_CMAKE_FILE}"
+          DESTINATION "${CMAKE_CONFIG_DESTINATION}"
+          COMPONENT "${_tip_config_component}")
+      endforeach()
 
       string(APPEND PACKAGE_INCLUDE_ON_FIND_PACKAGE "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
     endforeach()

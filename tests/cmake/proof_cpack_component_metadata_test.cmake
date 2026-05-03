@@ -31,11 +31,13 @@ file(
   "add_library(proof_storage STATIC src/storage.cpp)\n"
   "target_link_libraries(proof_storage PUBLIC proof_core)\n"
   "target_compile_features(proof_storage PUBLIC cxx_std_17)\n"
-  "target_install_package(proof_core EXPORT_NAME proof_cpack_component_pkg NAMESPACE Proof:: COMPONENT Core)\n"
+  "target_install_package(proof_core EXPORT_NAME proof_cpack_component_pkg NAMESPACE Proof:: COMPONENT Core INCLUDE_ON_FIND_PACKAGE cmake/proof-extra.cmake)\n"
   "target_install_package(proof_storage EXPORT_NAME proof_cpack_component_pkg NAMESPACE Proof:: COMPONENT Storage)\n")
 
+file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/cmake")
 file(WRITE "${_tip_fixture_source_dir}/src/core.cpp" "int proof_core_value() { return 41; }\n")
 file(WRITE "${_tip_fixture_source_dir}/src/storage.cpp" "int proof_core_value(); int proof_storage_value() { return proof_core_value() + 1; }\n")
+file(WRITE "${_tip_fixture_source_dir}/cmake/proof-extra.cmake" "set(proof_cpack_component_pkg_EXTRA_INCLUDED TRUE)\n")
 
 set(_tip_fixture_configure_command "${CMAKE_COMMAND}" -S "${_tip_fixture_source_dir}" -B "${_tip_fixture_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
@@ -64,7 +66,10 @@ _tip_proof_run_step(
   Storage_Development)
 
 set(_tip_config_file "${_tip_install_prefix}/share/cmake/proof_cpack_component_pkg/proof_cpack_component_pkgConfig.cmake")
+set(_tip_extra_file "${_tip_install_prefix}/share/cmake/proof_cpack_component_pkg/proof-extra.cmake")
 _tip_proof_assert_exists("${_tip_config_file}")
+_tip_proof_assert_exists("${_tip_extra_file}")
+_tip_proof_assert_file_contains("${_tip_config_file}" "proof-extra.cmake")
 
 set(_tip_cpack_config_file "${_tip_fixture_build_dir}/CPackConfig.cmake")
 _tip_proof_assert_exists("${_tip_cpack_config_file}")
