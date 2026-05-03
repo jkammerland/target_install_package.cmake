@@ -210,7 +210,7 @@ cmake_minimum_required(VERSION 3.25)
 project(MyProject VERSION 1.2.0 DESCRIPTION "My awesome library package")
 
 # Include target_install_package() and export_cpack()
-include(cmake/load_target_install_package.cmake)  # or find_package(target_install_package 7.0.1 CONFIG REQUIRED)
+include(cmake/load_target_install_package.cmake)  # or find_package(target_install_package 7.0.2 CONFIG REQUIRED)
 
 # Create targets (same as before)
 add_library(mylib SHARED src/mylib.cpp)
@@ -523,7 +523,7 @@ GPG_KEYSERVER "keys.corp.internal"
 cmake_minimum_required(VERSION 3.25)
 project(SecureLibrary VERSION 2.1.0)
 
-include(cmake/load_target_install_package.cmake)  # or find_package(target_install_package 7.0.1 CONFIG REQUIRED)
+include(cmake/load_target_install_package.cmake)  # or find_package(target_install_package 7.0.2 CONFIG REQUIRED)
 
 # Create library targets
 add_library(secure_core SHARED src/core.cpp)
