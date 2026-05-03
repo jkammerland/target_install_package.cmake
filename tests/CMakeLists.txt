@@ -229,7 +229,13 @@ endif()
 add_test(NAME component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_component_test_common_args} -P "${_tip_component_test_script}")
 set_tests_properties(component_dependencies PROPERTIES LABELS "component-dependencies")
 
+set(_tip_installed_consumer_main_install_config "$<CONFIG>")
+if(NOT CMAKE_CONFIGURATION_TYPES)
+  set(_tip_installed_consumer_main_install_config "${CMAKE_BUILD_TYPE}")
+endif()
+
 add_test(NAME installed_target_install_package_consumer COMMAND ${CMAKE_COMMAND} "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_MAIN_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                                                                "-DTIP_MAIN_INSTALL_CONFIG=${_tip_installed_consumer_main_install_config}"
                                                                 "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
 set_tests_properties(installed_target_install_package_consumer PROPERTIES LABELS "consumer;install")
 

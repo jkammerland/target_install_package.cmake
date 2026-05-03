@@ -27,19 +27,17 @@ endif()
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
+set(_tip_main_install_command "${CMAKE_COMMAND}" --install "${TIP_MAIN_BUILD_DIR}")
+if(DEFINED TIP_MAIN_INSTALL_CONFIG AND NOT TIP_MAIN_INSTALL_CONFIG STREQUAL "")
+  list(APPEND _tip_main_install_command --config "${TIP_MAIN_INSTALL_CONFIG}")
+endif()
+list(APPEND _tip_main_install_command --prefix "${_tip_install_prefix}" --component CMakeUtilities_Development)
+
 _tip_proof_run_step(
   NAME
   "install-target-install-package"
   COMMAND
-  "${CMAKE_COMMAND}"
-  --install
-  "${TIP_MAIN_BUILD_DIR}"
-  --config
-  Release
-  --prefix
-  "${_tip_install_prefix}"
-  --component
-  CMakeUtilities_Development)
+  ${_tip_main_install_command})
 
 set(_tip_installed_helper_dir "${_tip_install_prefix}/share/cmake/target_install_package/cmake")
 foreach(_tip_installed_helper IN ITEMS generic-config.cmake.in sign_packages.cmake.in external_container_package.cmake collect_runtime_deps.sh build_minimal_container.sh)
