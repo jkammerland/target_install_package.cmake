@@ -1184,6 +1184,29 @@ function(target_prepare_package TARGET_NAME)
 endfunction(target_prepare_package)
 
 # ~~~
+# Helper: Determine whether a target contributes runtime payload through this wrapper.
+#
+# Runtime components are reserved for artifacts a consumer may need at execution time.
+# Static, interface, and object targets contribute SDK/config payload only.
+# ~~~
+function(_tip_target_has_runtime_payload OUT_VAR TARGET_NAME)
+  set(_tip_has_runtime_payload FALSE)
+
+  if(TARGET "${TARGET_NAME}")
+    get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
+    if(_tip_target_type STREQUAL "EXECUTABLE"
+       OR _tip_target_type STREQUAL "SHARED_LIBRARY"
+       OR _tip_target_type STREQUAL "MODULE_LIBRARY")
+      set(_tip_has_runtime_payload TRUE)
+    endif()
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_has_runtime_payload}"
+      PARENT_SCOPE)
+endfunction()
+
+# ~~~
 # Helper: Collect component information from all targets in an export.
 #
 # This internal helper function gathers component assignments across all targets
@@ -1206,22 +1229,26 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Prefer the canonical component names stored by target_prepare_package().
-    if(TARGET_RUNTIME_COMP)
-      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
-    else()
-      set(RUNTIME_COMPONENT_NAME "Runtime")
-    endif()
-
     if(TARGET_DEV_COMP)
       set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
     else()
       set(DEV_COMPONENT_NAME "Development")
     endif()
 
-    list(APPEND ALL_RUNTIME_COMPONENTS ${RUNTIME_COMPONENT_NAME})
+    _tip_target_has_runtime_payload(_tip_has_runtime_payload "${TARGET_NAME}")
+    if(_tip_has_runtime_payload)
+      # Prefer the canonical component names stored by target_prepare_package().
+      if(TARGET_RUNTIME_COMP)
+        set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
+      else()
+        set(RUNTIME_COMPONENT_NAME "Runtime")
+      endif()
+
+      list(APPEND ALL_RUNTIME_COMPONENTS ${RUNTIME_COMPONENT_NAME})
+      list(APPEND COMPONENT_TARGET_MAP "${RUNTIME_COMPONENT_NAME}:${TARGET_NAME}")
+    endif()
+
     list(APPEND ALL_DEVELOPMENT_COMPONENTS ${DEV_COMPONENT_NAME})
-    list(APPEND COMPONENT_TARGET_MAP "${RUNTIME_COMPONENT_NAME}:${TARGET_NAME}")
     list(APPEND COMPONENT_TARGET_MAP "${DEV_COMPONENT_NAME}:${TARGET_NAME}")
   endforeach()
 
@@ -1506,6 +1533,19 @@ function(finalize_package)
       list(REMOVE_DUPLICATES detected_components)
       set_property(GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS" "${detected_components}")
     endif()
+
+    if(ALL_RUNTIME_COMPONENTS)
+      get_property(_tip_detected_runtime_components GLOBAL PROPERTY "_TIP_DETECTED_RUNTIME_COMPONENTS")
+      foreach(component ${ALL_RUNTIME_COMPONENTS})
+        if(NOT component IN_LIST _tip_detected_runtime_components)
+          list(APPEND _tip_detected_runtime_components "${component}")
+        endif()
+      endforeach()
+      if(_tip_detected_runtime_components)
+        list(REMOVE_DUPLICATES _tip_detected_runtime_components)
+        set_property(GLOBAL PROPERTY "_TIP_DETECTED_RUNTIME_COMPONENTS" "${_tip_detected_runtime_components}")
+      endif()
+    endif()
   else()
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
   endif()
@@ -1533,6 +1573,7 @@ function(finalize_package)
   set(_tip_cps_default_target_names "")
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
   set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
+  set(_tip_exported_alias_names "")
 
   # Install each target separately with its own components
   foreach(TARGET_NAME ${TARGETS})
@@ -1551,6 +1592,11 @@ function(finalize_package)
     if("${TARGET_ALIAS_NAME}" STREQUAL "")
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
+
+    if(TARGET_ALIAS_NAME IN_LIST _tip_exported_alias_names)
+      project_log(FATAL_ERROR "Duplicate exported target name '${TARGET_ALIAS_NAME}' in export '${ARG_EXPORT_NAME}'. Use unique ALIAS_NAME values for each target.")
+    endif()
+    list(APPEND _tip_exported_alias_names "${TARGET_ALIAS_NAME}")
     list(APPEND _tip_cps_exported_target_names "${TARGET_ALIAS_NAME}")
 
     get_target_property(_tip_cps_target_type ${TARGET_NAME} TYPE)
@@ -2098,6 +2144,13 @@ function(finalize_package)
   # Prepare component dependencies content for template substitution
   set(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "")
   set(_tip_find_package_components ${ALL_UNIQUE_COMPONENTS} ${COMPONENT_DEPENDENCY_COMPONENTS})
+  foreach(TARGET_NAME IN LISTS TARGETS)
+    get_property(_tip_target_component_explicit GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT_EXPLICIT")
+    if(_tip_target_component_explicit)
+      get_property(_tip_target_runtime_component GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
+      list(APPEND _tip_find_package_components "${_tip_target_runtime_component}")
+    endif()
+  endforeach()
   if(_tip_find_package_components)
     list(REMOVE_DUPLICATES _tip_find_package_components)
     set(_tip_known_find_components "")

@@ -502,7 +502,9 @@ The component model uses predictable names:
 - **Without `COMPONENT`**: runtime files go to `Runtime`; SDK files go to `Development`.
 - **With `COMPONENT`**: runtime files go to the named component, such as `Core`; SDK files still go to `Development`.
 
-The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components; package-manager installs receive those through CPack component dependencies.
+The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. Static, interface, and header-only targets are SDK-only and do not create empty runtime components. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components. CPack records those component relationships as metadata; archive packages do not enforce them, and native package enforcement depends on generator-specific CPack settings.
+
+The detailed v7 component contract is captured in [Component Packaging Plan](docs/component-packaging-plan.md).
 
 ```cmake
 add_library(my_library SHARED)
@@ -697,22 +699,22 @@ target_install_package(engine_graphics
   NAMESPACE GameEngine::
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Always loaded
   COMPONENT_DEPENDENCIES
-    "graphics" "OpenGL 4.5 REQUIRED"  # Only when graphics requested
-    "graphics" "glfw3 3.3 REQUIRED"
+    "Graphics" "OpenGL 4.5 REQUIRED"  # Only when Graphics requested
+    "Graphics" "glfw3 3.3 REQUIRED"
 )
 
 target_install_package(engine_audio
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "audio" "portaudio 19.7 REQUIRED"  # Only when audio requested
+    "Audio" "portaudio 19.7 REQUIRED"  # Only when Audio requested
 )
 
 target_install_package(engine_network
   EXPORT_NAME "game_engine" 
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "networking" "Boost 1.79 REQUIRED COMPONENTS system network"
+    "Networking" "Boost 1.79 REQUIRED COMPONENTS system network"
 )
 ```
 
@@ -722,13 +724,13 @@ target_install_package(engine_network
 find_package(game_engine REQUIRED)
 
 # Loads fmt + OpenGL + glfw3 
-find_package(game_engine REQUIRED COMPONENTS graphics)
+find_package(game_engine REQUIRED COMPONENTS Graphics)
 
 # Loads fmt + OpenGL + glfw3 + portaudio
-find_package(game_engine REQUIRED COMPONENTS graphics audio)
+find_package(game_engine REQUIRED COMPONENTS Graphics Audio)
 
 # Loads all dependencies
-find_package(game_engine REQUIRED COMPONENTS graphics audio networking)
+find_package(game_engine REQUIRED COMPONENTS Graphics Audio Networking)
 
 target_link_libraries(my_game PRIVATE 
   GameEngine::engine_graphics
@@ -737,8 +739,9 @@ target_link_libraries(my_game PRIVATE
 ```
 
 Note:
-- Pass exact component/dependency pairs. Repeat the component key for multiple dependencies, for example `COMPONENT_DEPENDENCIES graphics "OpenGL REQUIRED" graphics "glfw3 REQUIRED"`.
-- Bare shorthand is allowed for one dependency per component, for example `COMPONENT_DEPENDENCIES Core fmt Gui glfw`. Quote dependency expressions when they include options. Ambiguous bare lists such as `COMPONENT_DEPENDENCIES graphics OpenGL REQUIRED glfw3 REQUIRED` are rejected because CMake cannot distinguish dependency arguments from the next component key.
+- Pass exact component/dependency pairs. Repeat the component key for multiple dependencies, for example `COMPONENT_DEPENDENCIES Graphics "OpenGL REQUIRED" Graphics "glfw3 REQUIRED"`.
+- Component keys are case-sensitive CMake package component names. They may match install component names, but they only affect `find_package(... COMPONENTS ...)` dependency checks and found flags; they do not select installed files or hide exported targets.
+- Bare shorthand is allowed for one dependency per component, for example `COMPONENT_DEPENDENCIES Core fmt Gui glfw`. Quote dependency expressions when they include options. Ambiguous bare lists such as `COMPONENT_DEPENDENCIES Graphics OpenGL REQUIRED glfw3 REQUIRED` are rejected because CMake cannot distinguish dependency arguments from the next component key.
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
 - Optional `find_package(... OPTIONAL_COMPONENTS <name>)` requests probe that component's dependencies without making the whole package fail. Required component requests still use `find_dependency()` and fail when a required dependency is unavailable.
 
@@ -799,8 +802,8 @@ target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "graphics" "OpenGL 4.5 REQUIRED"
-    "graphics" "glfw3 3.3 REQUIRED"
+    "Graphics" "OpenGL 4.5 REQUIRED"
+    "Graphics" "glfw3 3.3 REQUIRED"
   COMPONENT "Graphics"  # Runtime files: Graphics; SDK files: Development
 )
 
@@ -808,7 +811,7 @@ target_install_package(engine_physics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "physics" "Bullet3 3.24 REQUIRED"
+    "Physics" "Bullet3 3.24 REQUIRED"
   COMPONENT "Physics"  # Runtime files: Physics; SDK files: Development
 )
 

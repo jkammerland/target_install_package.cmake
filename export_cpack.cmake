@@ -100,7 +100,8 @@ endif()
 #   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
-#   DEFAULT_COMPONENTS      - Components installed by default (default: Runtime)
+#   DEFAULT_COMPONENTS      - Components selected by default in installers that honor CPack DISABLED metadata.
+#                             Defaults to detected runtime-payload components, or Development when no runtime payload exists.
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
@@ -109,23 +110,23 @@ endif()
 #   CONTAINER_RUNTIME       - Explicit runtime command for container build/save (default: podman)
 #   CONTAINER_ENTRYPOINT    - Entrypoint path inside the container rootfs. If omitted, exactly one executable must be discoverable.
 #   CONTAINER_ARCHIVE_FORMAT - Archive format for saved image (default: oci-archive for podman, docker-archive for docker)
-#   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS, or declared runtime components when the implicit Runtime default is not declared)
+#   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS)
 #   CONTAINER_ROOTFS_OVERLAYS - Directories whose contents are merged into the rootfs after components
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
 #                             Can override any auto-detected settings including architecture
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
-#   - Auto-detects components registered by target_install_package()
+#   - Registers runtime components only for targets with runtime payloads
 #   - Sets platform-appropriate default generators (TGZ/ZIP on all, DEB/RPM on Linux, WIX on Windows)
-#   - Configures component dependencies and descriptions automatically
+#   - Records CPack component metadata; native package dependency enforcement is generator-specific
 #   - Handles both single-component and multi-component packages
 #   - Integrates with existing CMake project metadata
 #
 # Auto-detected components and their typical usage:
-#   - Runtime or named COMPONENT values: Shared libraries and executables needed at runtime
+#   - Runtime or named COMPONENT values: shared libraries, modules, and executables needed at runtime
 #   - Development: Headers, static/import libraries, namelinks, CMake config files, and CPS metadata by default
-#   - Component Dependencies: Development automatically depends on the runtime components registered for the same export
+#   - Component dependencies: Development records dependencies on runtime components registered for the same export
 #
 # Examples:
 #   # Basic usage with auto-detection (CPack is automatically included)
@@ -394,6 +395,15 @@ function(_configure_logical_component_groups component_list)
     if(dependencies)
       list(REMOVE_ITEM dependencies "${component}")
       list(REMOVE_DUPLICATES dependencies)
+      set(_tip_filtered_dependencies "")
+      foreach(_tip_dependency IN LISTS dependencies)
+        if(_tip_dependency IN_LIST component_list)
+          list(APPEND _tip_filtered_dependencies "${_tip_dependency}")
+        else()
+          project_log(DEBUG "Skipping dependency '${_tip_dependency}' for component '${component}' because it is not in CPACK_COMPONENTS_ALL")
+        endif()
+      endforeach()
+      set(dependencies ${_tip_filtered_dependencies})
     endif()
     if(dependencies)
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
@@ -559,6 +569,11 @@ function(_execute_deferred_cpack_config)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+  set(_tip_components_explicit FALSE)
+  set(_tip_components_keyword "COMPONENTS")
+  if(_tip_components_keyword IN_LIST _tip_cpack_parse_args)
+    set(_tip_components_explicit TRUE)
+  endif()
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
@@ -621,8 +636,24 @@ function(_execute_deferred_cpack_config)
   set(_tip_default_components_explicit TRUE)
   if(NOT ARG_DEFAULT_COMPONENTS)
     set(_tip_default_components_explicit FALSE)
-    set(ARG_DEFAULT_COMPONENTS "Runtime")
+    set(ARG_DEFAULT_COMPONENTS "")
+    get_property(_tip_detected_runtime_components GLOBAL PROPERTY "_TIP_DETECTED_RUNTIME_COMPONENTS")
+    foreach(_tip_default_component_candidate IN LISTS _tip_detected_runtime_components)
+      if(_tip_default_component_candidate IN_LIST ARG_COMPONENTS)
+        list(APPEND ARG_DEFAULT_COMPONENTS "${_tip_default_component_candidate}")
+      endif()
+    endforeach()
+    if(NOT ARG_DEFAULT_COMPONENTS AND "Development" IN_LIST ARG_COMPONENTS)
+      set(ARG_DEFAULT_COMPONENTS "Development")
+    elseif(NOT ARG_DEFAULT_COMPONENTS)
+      set(ARG_DEFAULT_COMPONENTS ${ARG_COMPONENTS})
+    endif()
   endif()
+  foreach(_tip_default_component IN LISTS ARG_DEFAULT_COMPONENTS)
+    if(NOT _tip_default_component IN_LIST ARG_COMPONENTS)
+      project_log(FATAL_ERROR "DEFAULT_COMPONENTS contains unknown component '${_tip_default_component}'. Known components: ${ARG_COMPONENTS}")
+    endif()
+  endforeach()
 
   # Auto-detect generators based on platform if not specified
   if(NOT ARG_GENERATORS AND NOT ARG_NO_DEFAULT_GENERATORS)
@@ -797,24 +828,6 @@ function(_execute_deferred_cpack_config)
       set(container_components ${ARG_CONTAINER_COMPONENTS})
     else()
       set(container_components ${ARG_DEFAULT_COMPONENTS})
-      set(_tip_container_default_components_valid TRUE)
-      foreach(container_component IN LISTS container_components)
-        if(NOT container_component IN_LIST ARG_COMPONENTS)
-          set(_tip_container_default_components_valid FALSE)
-        endif()
-      endforeach()
-      if(NOT _tip_container_default_components_valid AND NOT _tip_default_components_explicit)
-        set(container_components "")
-        foreach(container_component_candidate IN LISTS ARG_COMPONENTS)
-          if(container_component_candidate STREQUAL "Development" OR container_component_candidate MATCHES "_Development$")
-            continue()
-          endif()
-          list(APPEND container_components "${container_component_candidate}")
-        endforeach()
-        if(container_components)
-          project_log(VERBOSE "Container components defaulted to declared runtime components: ${container_components}")
-        endif()
-      endif()
     endif()
     if(NOT container_components)
       project_log(FATAL_ERROR "CONTAINER_COMPONENTS resolved to an empty list. Set CONTAINER_COMPONENTS or DEFAULT_COMPONENTS explicitly.")
@@ -855,9 +868,11 @@ function(_execute_deferred_cpack_config)
   if(ARG_COMPONENTS)
     _tip_store_cpack_var(CPACK_COMPONENTS_ALL "${ARG_COMPONENTS}")
 
-    # Enable component installation if more than one component or explicitly requested
+    # Enable component installation if more than one component, explicit components were requested, or explicitly requested.
     list(LENGTH ARG_COMPONENTS component_count)
-    if(component_count GREATER 1 OR ARG_ENABLE_COMPONENT_INSTALL)
+    if(component_count GREATER 1
+       OR ARG_ENABLE_COMPONENT_INSTALL
+       OR _tip_components_explicit)
       _tip_store_cpack_var(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
       _tip_store_cpack_var(CPACK_DEB_COMPONENT_INSTALL ON)
       _tip_store_cpack_var(CPACK_RPM_COMPONENT_INSTALL ON)
@@ -866,9 +881,16 @@ function(_execute_deferred_cpack_config)
       endif()
     endif()
 
-    # Set default components
+    # Mark non-default components as unselected by default for installers that honor CPack component metadata.
     if(ARG_DEFAULT_COMPONENTS)
-      _tip_store_cpack_var(CPACK_COMPONENTS_DEFAULT "${ARG_DEFAULT_COMPONENTS}")
+      foreach(component ${ARG_COMPONENTS})
+        string(TOUPPER ${component} component_upper)
+        if(component IN_LIST ARG_DEFAULT_COMPONENTS)
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISABLED FALSE)
+        else()
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISABLED TRUE)
+        endif()
+      endforeach()
     endif()
 
     # Configure component grouping (auto-detect logical groups from component naming)

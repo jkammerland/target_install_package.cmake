@@ -58,7 +58,7 @@ target_install_package(
   COMPONENT
   Tools) # Runtime files: Tools; SDK files: Development
 
-# export_cpack auto-detects Core, Tools, and Development. The Development component depends on the runtime components for package-manager installs.
+# export_cpack auto-detects Core, Tools, and Development. The Development component records dependencies on runtime components.
 export_cpack(
   PACKAGE_NAME
   "MediaLibrary"

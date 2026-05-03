@@ -188,7 +188,7 @@ endforeach()
 
 foreach(_tip_layout IN ITEMS split_debug split_all)
   add_test(NAME "install_layout_${_tip_layout}_release" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=${_tip_layout}" "-DTIP_LAYOUT_TEST_CONFIG=Release" ${_tip_layout_test_common_args} -P
-                                                                  "${_tip_layout_test_script}")
+                                                                "${_tip_layout_test_script}")
   set_tests_properties("install_layout_${_tip_layout}_release" PROPERTIES LABELS "install-layout")
 endforeach()
 
@@ -198,9 +198,9 @@ foreach(_tip_middle_config IN ITEMS RelWithDebInfo MinSizeRel)
                                                                          "${_tip_layout_test_script}")
   set_tests_properties("install_layout_fhs_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout")
 
-  add_test(NAME "install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}" COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=Release"
-                                                                                       "-DTIP_LAYOUT_CONSUMER_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
-                                                                                       "${_tip_layout_test_script}")
+  add_test(NAME "install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}"
+           COMMAND ${CMAKE_COMMAND} "-DTIP_LAYOUT=fhs" "-DTIP_LAYOUT_TEST_CONFIG=Release" "-DTIP_LAYOUT_CONSUMER_CONFIG=${_tip_middle_config}" ${_tip_layout_test_common_args} -P
+                   "${_tip_layout_test_script}")
   set_tests_properties("install_layout_fhs_release_consumed_by_${_tip_middle_config_lower}" PROPERTIES LABELS "install-layout;import-config-mapping")
 endforeach()
 
@@ -234,9 +234,9 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
   set(_tip_installed_consumer_main_install_config "${CMAKE_BUILD_TYPE}")
 endif()
 
-add_test(NAME installed_target_install_package_consumer COMMAND ${CMAKE_COMMAND} "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_MAIN_BUILD_DIR=${CMAKE_BINARY_DIR}"
-                                                                "-DTIP_MAIN_INSTALL_CONFIG=${_tip_installed_consumer_main_install_config}"
-                                                                "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
+add_test(NAME installed_target_install_package_consumer
+         COMMAND ${CMAKE_COMMAND} "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_MAIN_BUILD_DIR=${CMAKE_BINARY_DIR}" "-DTIP_MAIN_INSTALL_CONFIG=${_tip_installed_consumer_main_install_config}"
+                 "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
 set_tests_properties(installed_target_install_package_consumer PROPERTIES LABELS "consumer;install")
 
 option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known review findings" ON)
@@ -283,6 +283,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_cpack_component_metadata COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_component_metadata_test.cmake")
   set_tests_properties(proof_cpack_component_metadata PROPERTIES LABELS "proof;review;cpack")
 
+  add_test(NAME proof_cpack_single_component_filter COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_single_component_filter_test.cmake")
+  set_tests_properties(proof_cpack_single_component_filter PROPERTIES LABELS "proof;review;cpack")
+
   add_test(NAME proof_namelink_component COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_namelink_component_test.cmake")
   set_tests_properties(proof_namelink_component PROPERTIES LABELS "proof;review")
 
@@ -303,6 +306,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
 
   add_test(NAME proof_unknown_arguments COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_unknown_arguments_test.cmake")
   set_tests_properties(proof_unknown_arguments PROPERTIES LABELS "proof;review")
+
+  add_test(NAME proof_export_alias_conflict COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_export_alias_conflict_test.cmake")
+  set_tests_properties(proof_export_alias_conflict PROPERTIES LABELS "proof;review")
 
   if(UNIX)
     add_test(NAME proof_gpg_signing_methods COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_gpg_signing_methods_test.cmake")

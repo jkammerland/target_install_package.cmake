@@ -92,8 +92,10 @@ export_cpack(
   - Windows: `TGZ`, `ZIP`, `WIX` (if available)
   - macOS: `TGZ`, `DragNDrop`
 
-- **Component Dependencies**: Automatically configured
-  - `Development` depends on `Runtime` and `Tools`
+- **Component Relationships**: Recorded in CPack metadata
+  - `Development` records dependencies on the runtime components in the export
+  - Archive packages remain independent payload slices
+  - Native package enforcement depends on generator-specific CPack settings
 
 ## Package Types Generated
 
@@ -106,7 +108,7 @@ export_cpack(
 ### Linux Packages (DEB/RPM)
 
 - Native package management integration
-- Automatic dependency handling
+- Component dependency metadata can be mapped by generator-specific settings
 - Component-based installation support
 
 ### Windows Installer (WIX)
@@ -172,7 +174,7 @@ install/
 # For component TGZ packages
 tar -tzf MyLibrary-1.2.0-Linux-Runtime.tar.gz
 tar -tzf MyLibrary-1.2.0-Linux-Development.tar.gz
-tar -tzf MyLibrary-1.2.0-Linux-TOOLS.tar.gz
+tar -tzf MyLibrary-1.2.0-Linux-Tools.tar.gz
 ```
 
 ### Test Package Installation
@@ -183,7 +185,7 @@ tar -tzf MyLibrary-1.2.0-Linux-TOOLS.tar.gz
 mkdir test-install
 cd test-install
 tar -xzf ../MyLibrary-1.2.0-Linux-Runtime.tar.gz
-tar -xzf ../MyLibrary-1.2.0-Linux-TOOLS.tar.gz
+tar -xzf ../MyLibrary-1.2.0-Linux-Tools.tar.gz
 package_prefix="$(dirname "$(dirname "$(find . -path '*/bin/mytool' -type f -print -quit)")")"
 
 # Verify the tool works
@@ -191,7 +193,7 @@ package_prefix="$(dirname "$(dirname "$(find . -path '*/bin/mytool' -type f -pri
 "$package_prefix/bin/mytool" --help
 
 # Add development payload before testing find_package consumers.
-# Runtime was extracted above; package-manager installs get that dependency automatically.
+# Runtime was extracted above; component archives do not fetch dependency archives.
 tar -xzf ../MyLibrary-1.2.0-Linux-Development.tar.gz
 ```
 

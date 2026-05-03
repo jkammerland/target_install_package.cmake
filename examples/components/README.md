@@ -19,7 +19,7 @@ MediaLib package:
 └── Development  - headers, libmedia_dev_tools.a, namelinks, and MediaLib CMake config files
 ```
 
-`COMPONENT` does not create a second SDK component. It only names runtime files. The `Development` component carries SDK files for the whole export. For shared-library consumers, install `Development` plus the runtime components, or use package-manager packages that honor the generated component dependencies.
+`COMPONENT` does not create a second SDK component. It only names runtime files. The `Development` component carries SDK files for the whole export. Static and interface targets are SDK-only, so they do not create empty runtime packages. For shared-library consumers, install `Development` plus the runtime components, or use native packages configured to honor CPack component dependency metadata.
 
 ## Building and Installing
 
@@ -105,7 +105,7 @@ target_link_libraries(my_app PRIVATE
 )
 ```
 
-The consumer does not need to know about install components. Components only control which files are installed into a prefix or package.
+The consumer does not need to know about install components. Install components only control which files are installed into a prefix or package.
 
 ## Asset Converter Tool
 

@@ -88,7 +88,9 @@ install(TARGETS mylib
             COMPONENT Runtime
             NAMELINK_COMPONENT Development
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}  # Windows DLLs
-    COMPONENT Runtime
+            COMPONENT Runtime
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}  # Windows import libs
+            COMPONENT Development
 )
 
 # Install static library (Development component)
@@ -191,13 +193,16 @@ set(CPACK_COMPONENT_DEVELOPMENT_DEPENDS Runtime)
 set(CPACK_COMPONENT_TOOLS_DESCRIPTION "Command-line tools and utilities")
 set(CPACK_COMPONENT_TOOLS_DISPLAY_NAME "Tools")
 
-# Set default components
-set(CPACK_COMPONENTS_DEFAULT Runtime)
+# Select Runtime by default in installers that support component metadata
+set(CPACK_COMPONENT_DEVELOPMENT_DISABLED TRUE)
+set(CPACK_COMPONENT_TOOLS_DISABLED TRUE)
 
 include(CPack)
 ```
 
 **Total Lines of CMake Code: ~85 lines** for packaging setup.
+
+`CPACK_COMPONENT_DEVELOPMENT_DEPENDS` is CPack component metadata. Raw `cmake --install --component` installs and component archives such as `TGZ`/`ZIP` do not follow it automatically. Native packages can enforce the relationship only through generator-specific settings, for example Debian component dependency settings for `DEB` or explicit `Requires` metadata for `RPM`.
 
 ---
 
@@ -289,7 +294,7 @@ target_sources(audio_engine PUBLIC FILE_SET HEADERS BASE_DIRS include FILES incl
 add_executable(game_editor tools/editor.cpp)
 target_link_libraries(game_editor PRIVATE graphics_engine audio_engine)
 
-# Install with dependencies automatically handled
+# Install targets and generate CMake package dependency calls
 target_install_package(graphics_engine 
     NAMESPACE GameEngine::
     EXPORT_NAME "GameEngine"
@@ -745,13 +750,15 @@ When multiple components are detected, packages are automatically split:
 # Linux output with components
 MyLib-1.0.0-Linux-Runtime.tar.gz      # Shared libraries
 MyLib-1.0.0-Linux-Development.tar.gz  # Headers + CMake configs + static libs
-MyLib-1.0.0-Linux-TOOLS.tar.gz        # Executables
+MyLib-1.0.0-Linux-Tools.tar.gz        # Executables
 
 # Corresponding DEB packages
 mylib-runtime_1.0.0_amd64.deb
 mylib-development_1.0.0_amd64.deb  
 mylib-tools_1.0.0_amd64.deb
 ```
+
+The split package output is a payload split. Extract archive components together when a development prefix needs shared-library targets, for example `Runtime` plus `Development`. Native package dependency enforcement is generator-specific; `export_cpack()` records component relationships but does not invent generic RPM `Requires` metadata.
 
 ---
 
@@ -763,12 +770,12 @@ Version 7 uses exact `COMPONENT_DEPENDENCIES` pairs. If one component has multip
 
 ```cmake
 # Before
-COMPONENT_DEPENDENCIES graphics "OpenGL REQUIRED;glfw3 REQUIRED"
+COMPONENT_DEPENDENCIES Graphics "OpenGL REQUIRED;glfw3 REQUIRED"
 
 # After
 COMPONENT_DEPENDENCIES
-    graphics "OpenGL REQUIRED"
-    graphics "glfw3 REQUIRED"
+    Graphics "OpenGL REQUIRED"
+    Graphics "glfw3 REQUIRED"
 ```
 
 Bare one-to-one pairs still work:
