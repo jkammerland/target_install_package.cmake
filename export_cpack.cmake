@@ -165,6 +165,20 @@ endif()
 #     CONTAINER_RUNTIME "podman"    # Explicit runtime; defaults to podman
 #   )
 # ~~~
+function(_tip_find_export_cpack_resource_file file_name out_var)
+  set(_tip_resource_candidates "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${file_name}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${file_name}")
+  foreach(_tip_resource_candidate IN LISTS _tip_resource_candidates)
+    if(EXISTS "${_tip_resource_candidate}")
+      set(${out_var}
+          "${_tip_resource_candidate}"
+          PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  project_log(FATAL_ERROR "Package resource '${file_name}' not found. Checked: ${_tip_resource_candidates}")
+endfunction()
+
 function(export_cpack)
   # Check if export_cpack has already been called (not deferred execution)
   get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
@@ -664,7 +678,8 @@ function(_execute_deferred_cpack_config)
     list(APPEND ARG_GENERATORS "External")
 
     # Configure External generator for container building
-    _tip_store_cpack_var(CPACK_EXTERNAL_PACKAGE_SCRIPT "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/external_container_package.cmake")
+    _tip_find_export_cpack_resource_file("external_container_package.cmake" _tip_external_container_package_script)
+    _tip_store_cpack_var(CPACK_EXTERNAL_PACKAGE_SCRIPT "${_tip_external_container_package_script}")
     _tip_store_cpack_var(CPACK_EXTERNAL_ENABLE_STAGING ON)
     _tip_store_cpack_var(CPACK_EXTERNAL_USER_ENABLE_MINIMAL_CONTAINER ON)
 
@@ -1143,7 +1158,8 @@ function(_configure_gpg_signing)
   endif()
 
   # Generate signing script
-  configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/sign_packages.cmake.in" "${CMAKE_BINARY_DIR}/sign_packages.cmake" @ONLY)
+  _tip_find_export_cpack_resource_file("sign_packages.cmake.in" _tip_sign_packages_template)
+  configure_file("${_tip_sign_packages_template}" "${CMAKE_BINARY_DIR}/sign_packages.cmake" @ONLY)
 
   # Set CPack post-build script
   _tip_store_cpack_var(CPACK_POST_BUILD_SCRIPTS "${CMAKE_BINARY_DIR}/sign_packages.cmake")

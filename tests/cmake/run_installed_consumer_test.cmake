@@ -39,10 +39,12 @@ _tip_proof_run_step(
   COMMAND
   ${_tip_main_install_command})
 
-set(_tip_installed_helper_dir "${_tip_install_prefix}/share/cmake/target_install_package/cmake")
-foreach(_tip_installed_helper IN ITEMS generic-config.cmake.in sign_packages.cmake.in external_container_package.cmake collect_runtime_deps.sh build_minimal_container.sh)
+set(_tip_installed_helper_dir "${_tip_install_prefix}/share/cmake/target_install_package")
+foreach(_tip_installed_helper IN ITEMS generic-config.cmake.in sign_packages.cmake.in external_container_package.cmake collect_runtime_deps.sh build_minimal_container.sh container_to_quadlet.sh)
   _tip_proof_assert_exists("${_tip_installed_helper_dir}/${_tip_installed_helper}")
 endforeach()
+_tip_proof_assert_not_exists("${_tip_installed_helper_dir}/cmake/generic-config.cmake.in")
+_tip_proof_assert_not_exists("${_tip_installed_helper_dir}/cmake/external_container_package.cmake")
 
 if(UNIX)
   foreach(_tip_installed_program IN ITEMS collect_runtime_deps.sh build_minimal_container.sh)
@@ -61,7 +63,7 @@ if(UNIX)
 endif()
 
 set(_tip_consumer_configure_command "${CMAKE_COMMAND}" -S "${TIP_REPO_ROOT}/tests/consumer" -B "${_tip_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
-                                    "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}" ${_tip_toolchain_args})
+                                    "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}" "-DTIP_CONSUMER_ENABLE_CHECKSUMS=ON" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "consumer-configure" COMMAND ${_tip_consumer_configure_command})
 _tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config Release)
@@ -103,6 +105,8 @@ endif()
 
 list(GET _tip_consumer_runtime_archives 0 _tip_consumer_runtime_archive)
 list(GET _tip_consumer_development_archives 0 _tip_consumer_development_archive)
+_tip_proof_assert_exists("${_tip_consumer_runtime_archive}.sha256")
+_tip_proof_assert_exists("${_tip_consumer_development_archive}.sha256")
 
 execute_process(
   COMMAND "${CMAKE_COMMAND}" -E tar tf "${_tip_consumer_runtime_archive}"

@@ -34,7 +34,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
       ${CMAKE_CURRENT_LIST_DIR}/cmake/external_container_package.cmake
       ADDITIONAL_FILES_DESTINATION
-      ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake # The reason for the extra cmake dir is because this is the normal override location for the target.
+      ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
       INCLUDE_ON_FIND_PACKAGE
       ${CMAKE_CURRENT_LIST_DIR}/cmake/list_file_include_guard.cmake
       ${CMAKE_CURRENT_LIST_DIR}/cmake/project_include_guard.cmake
@@ -59,7 +59,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
         ${CMAKE_CURRENT_LIST_DIR}/cmake/build_minimal_container.sh
         ${CMAKE_CURRENT_LIST_DIR}/cmake/collect_runtime_deps.sh
         ${CMAKE_CURRENT_LIST_DIR}/cmake/container_to_quadlet.sh
-      DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}/cmake
+      DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
       COMPONENT CMakeUtilities_Development)
   endif()
 endif()
