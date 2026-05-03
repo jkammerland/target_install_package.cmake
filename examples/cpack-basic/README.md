@@ -95,7 +95,7 @@ export_cpack(
 - **Component Relationships**: Recorded in CPack metadata
   - `Development` records dependencies on the runtime components in the export
   - Archive packages remain independent payload slices
-  - Native package enforcement depends on generator-specific CPack settings
+  - DEB and RPM component packages translate those relationships to native package metadata
 
 ## Package Types Generated
 
@@ -108,8 +108,8 @@ export_cpack(
 ### Linux Packages (DEB/RPM)
 
 - Native package management integration
-- This example records CPack component metadata only
-- Generated DEB/RPM component packages do not automatically depend on each other unless generator-specific dependency settings are added
+- Generated DEB component packages use native `Depends`
+- Generated RPM component packages use native `Requires`
 - Component-based installation support
 
 ### Windows Installer (WIX)

@@ -119,7 +119,7 @@ endif()
 #   - Automatically detects components from previous target_install_package calls
 #   - Registers runtime components only for targets with runtime payloads
 #   - Sets platform-appropriate default generators (TGZ/ZIP on all, DEB/RPM on Linux, WIX on Windows)
-#   - Records CPack component metadata; native package dependency enforcement is generator-specific
+#   - Records CPack component metadata and maps component dependencies to DEB Depends/RPM Requires when component packaging is enabled
 #   - Handles both single-component and multi-component packages
 #   - Integrates with existing CMake project metadata
 #
@@ -238,6 +238,26 @@ function(_tip_store_cpack_var var_name var_value)
   endif()
 endfunction()
 
+function(_tip_cpack_var_is_stored OUT_VAR var_name)
+  get_property(all_vars GLOBAL PROPERTY "_TIP_CPACK_ALL_VARS")
+  if(var_name IN_LIST all_vars)
+    set(${OUT_VAR}
+        TRUE
+        PARENT_SCOPE)
+  else()
+    set(${OUT_VAR}
+        FALSE
+        PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(_tip_read_cpack_var var_name OUT_VAR)
+  get_property(current_value GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}")
+  set(${OUT_VAR}
+      "${current_value}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_append_cpack_list_var_unique var_name)
   get_property(current_value GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}")
   set(updated_value "${current_value}")
@@ -249,6 +269,29 @@ function(_tip_append_cpack_list_var_unique var_name)
       list(APPEND updated_value "${item}")
     endif()
   endforeach()
+  _tip_store_cpack_var("${var_name}" "${updated_value}")
+endfunction()
+
+function(_tip_append_cpack_comma_var_unique var_name)
+  get_property(current_value GLOBAL PROPERTY "_TIP_CPACK_VAR_${var_name}")
+  string(REPLACE "," ";" current_items "${current_value}")
+
+  set(updated_items "")
+  foreach(item IN LISTS current_items)
+    string(STRIP "${item}" item)
+    if(item AND NOT item IN_LIST updated_items)
+      list(APPEND updated_items "${item}")
+    endif()
+  endforeach()
+
+  foreach(item ${ARGN})
+    string(STRIP "${item}" item)
+    if(item AND NOT item IN_LIST updated_items)
+      list(APPEND updated_items "${item}")
+    endif()
+  endforeach()
+
+  list(JOIN updated_items ", " updated_value)
   _tip_store_cpack_var("${var_name}" "${updated_value}")
 endfunction()
 
@@ -280,6 +323,110 @@ function(_tip_component_list_has_cpack_dependencies OUT_VAR)
   set(${OUT_VAR}
       "${_tip_has_dependencies}"
       PARENT_SCOPE)
+endfunction()
+
+function(_tip_component_list_has_stored_cpack_dependencies OUT_VAR)
+  set(_tip_has_dependencies FALSE)
+  foreach(_tip_component IN LISTS ARGN)
+    string(TOUPPER "${_tip_component}" _tip_component_upper)
+    _tip_read_cpack_var("CPACK_COMPONENT_${_tip_component_upper}_DEPENDS" _tip_component_dependencies)
+    if(_tip_component_dependencies)
+      set(_tip_has_dependencies TRUE)
+      break()
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_has_dependencies}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_get_rpm_component_package_name COMPONENT_NAME PACKAGE_NAME OUT_VAR)
+  string(TOUPPER "${COMPONENT_NAME}" _tip_component_upper)
+
+  _tip_cpack_var_is_stored(_tip_has_rpm_package_name CPACK_RPM_PACKAGE_NAME)
+  if(_tip_has_rpm_package_name)
+    _tip_read_cpack_var(CPACK_RPM_PACKAGE_NAME _tip_rpm_package_name)
+  else()
+    string(TOLOWER "${PACKAGE_NAME}" _tip_rpm_package_name)
+  endif()
+
+  _tip_read_cpack_var(CPACK_RPM_MAIN_COMPONENT _tip_rpm_main_component)
+  string(TOUPPER "${_tip_rpm_main_component}" _tip_rpm_main_component_upper)
+  if(_tip_rpm_main_component AND _tip_rpm_main_component_upper STREQUAL _tip_component_upper)
+    set(_tip_component_package_name "${_tip_rpm_package_name}")
+  else()
+    set(_tip_component_package_name "${_tip_rpm_package_name}-${COMPONENT_NAME}")
+    foreach(_tip_package_name_var IN ITEMS "CPACK_RPM_${COMPONENT_NAME}_PACKAGE_NAME" "CPACK_RPM_${_tip_component_upper}_PACKAGE_NAME")
+      _tip_cpack_var_is_stored(_tip_has_package_name "${_tip_package_name_var}")
+      if(_tip_has_package_name)
+        _tip_read_cpack_var("${_tip_package_name_var}" _tip_component_package_name)
+        break()
+      endif()
+    endforeach()
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_component_package_name}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_configure_native_component_dependencies component_list package_name enable_deb enable_rpm)
+  _tip_component_list_has_stored_cpack_dependencies(_tip_has_component_dependencies ${component_list})
+  if(NOT _tip_has_component_dependencies)
+    return()
+  endif()
+
+  _tip_read_cpack_var(CPACK_COMPONENTS_GROUPING _tip_components_grouping)
+  if(_tip_components_grouping STREQUAL "ALL_COMPONENTS_IN_ONE")
+    return()
+  endif()
+
+  _tip_read_cpack_var(CPACK_DEB_COMPONENT_INSTALL _tip_deb_component_install)
+  if(enable_deb AND _tip_deb_component_install)
+    _tip_store_cpack_var(CPACK_DEBIAN_ENABLE_COMPONENT_DEPENDS ON)
+  endif()
+
+  _tip_read_cpack_var(CPACK_RPM_COMPONENT_INSTALL _tip_rpm_component_install)
+  if(NOT enable_rpm OR NOT _tip_rpm_component_install)
+    return()
+  endif()
+
+  foreach(_tip_component IN LISTS component_list)
+    string(TOUPPER "${_tip_component}" _tip_component_upper)
+    _tip_read_cpack_var("CPACK_COMPONENT_${_tip_component_upper}_DEPENDS" _tip_component_dependencies)
+    if(NOT _tip_component_dependencies)
+      continue()
+    endif()
+
+    set(_tip_rpm_requires "")
+    foreach(_tip_dependency IN LISTS _tip_component_dependencies)
+      if(_tip_dependency IN_LIST component_list)
+        _tip_get_rpm_component_package_name("${_tip_dependency}" "${package_name}" _tip_dependency_package_name)
+        list(APPEND _tip_rpm_requires "${_tip_dependency_package_name}")
+      endif()
+    endforeach()
+
+    if(_tip_rpm_requires)
+      set(_tip_requires_var "CPACK_RPM_${_tip_component_upper}_PACKAGE_REQUIRES")
+      _tip_cpack_var_is_stored(_tip_has_exact_requires "CPACK_RPM_${_tip_component}_PACKAGE_REQUIRES")
+      if(_tip_has_exact_requires)
+        set(_tip_requires_var "CPACK_RPM_${_tip_component}_PACKAGE_REQUIRES")
+      else()
+        _tip_cpack_var_is_stored(_tip_has_upper_requires "${_tip_requires_var}")
+        if(NOT _tip_has_upper_requires)
+          _tip_cpack_var_is_stored(_tip_has_global_requires CPACK_RPM_PACKAGE_REQUIRES)
+          if(_tip_has_global_requires)
+            _tip_read_cpack_var(CPACK_RPM_PACKAGE_REQUIRES _tip_global_requires)
+            _tip_store_cpack_var("${_tip_requires_var}" "${_tip_global_requires}")
+          endif()
+        endif()
+      endif()
+
+      _tip_append_cpack_comma_var_unique("${_tip_requires_var}" ${_tip_rpm_requires})
+      project_log(DEBUG "Set RPM package Requires for component '${_tip_component}': ${_tip_rpm_requires}")
+    endif()
+  endforeach()
 endfunction()
 
 # Helper function to determine if component groups should be auto-enabled for legacy split SDK component names.
@@ -679,12 +826,16 @@ function(_execute_deferred_cpack_config)
   endif()
 
   set(_tip_generators_upper "")
+  set(_tip_has_deb_generator FALSE)
   set(_tip_has_rpm_generator FALSE)
   set(_tip_has_non_rpm_generator FALSE)
   foreach(_tip_generator IN LISTS ARG_GENERATORS)
     string(TOUPPER "${_tip_generator}" _tip_generator_upper)
     list(APPEND _tip_generators_upper "${_tip_generator_upper}")
-    if(_tip_generator_upper STREQUAL "RPM")
+    if(_tip_generator_upper STREQUAL "DEB")
+      set(_tip_has_deb_generator TRUE)
+      set(_tip_has_non_rpm_generator TRUE)
+    elseif(_tip_generator_upper STREQUAL "RPM")
       set(_tip_has_rpm_generator TRUE)
     else()
       set(_tip_has_non_rpm_generator TRUE)
@@ -1020,6 +1171,10 @@ function(_execute_deferred_cpack_config)
         _tip_store_cpack_var("${var_name}" "${var_value}")
       endforeach()
     endif()
+  endif()
+
+  if(ARG_COMPONENTS)
+    _tip_configure_native_component_dependencies("${ARG_COMPONENTS}" "${ARG_PACKAGE_NAME}" "${_tip_has_deb_generator}" "${_tip_has_rpm_generator}")
   endif()
 
   if(_tip_has_rpm_generator)
