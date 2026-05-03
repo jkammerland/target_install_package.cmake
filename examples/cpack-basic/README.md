@@ -93,7 +93,8 @@ export_cpack(
   - macOS: `TGZ`, `DragNDrop`
 
 - **Component Relationships**: Recorded in CPack metadata
-  - `Development` records dependencies on the runtime components in the export
+  - `Development` aggregates SDK/config payload from wrapped targets
+  - `Development` records dependencies on the runtime components those targets registered (`Runtime` and `Tools` here)
   - Archive packages remain independent payload slices
   - DEB and RPM component packages translate those relationships to native package metadata
 
@@ -109,7 +110,7 @@ export_cpack(
 
 - Native package management integration
 - Generated DEB component packages use native `Depends`
-- Generated RPM component packages use native `Requires`
+- Generated RPM component packages use same-build native `Requires`
 - Component-based installation support
 
 ### Windows Installer (WIX)

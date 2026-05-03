@@ -507,7 +507,7 @@ The component model uses predictable names:
 - **Without `COMPONENT`**: runtime files go to `Runtime`; SDK files go to `Development`.
 - **With `COMPONENT`**: runtime files go to the named component, such as `Core`; SDK files still go to `Development`.
 
-The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. Static, interface, and header-only targets are SDK-only and do not create empty runtime components. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components. CPack records those component relationships as metadata; archive packages do not enforce them, and native package enforcement depends on generator-specific CPack settings.
+The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. Static, interface, and header-only targets are SDK-only and do not create empty runtime components. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components. CPack records those component relationships as metadata; archive packages do not enforce them. When `export_cpack()` generates component DEB/RPM packages, those relationships are translated to native DEB `Depends` and same-build RPM `Requires` metadata.
 
 The detailed v7 component contract is captured in [Component Packaging Plan](docs/component-packaging-plan.md).
 
@@ -590,7 +590,11 @@ cmake --install . --component Development
 cmake --install .
 ```
 
-Migrating from the older split-SDK naming is straightforward: replace `<Component>_Development` installs or package names with `Development`. Runtime component names from `COMPONENT`, such as `Core` and `Tools`, are unchanged.
+Migrating from the older split-SDK naming is straightforward:
+- Replace `<Component>_Development` installs or package names with `Development`.
+- Do not list static/interface/header-only component names in `DEFAULT_COMPONENTS`; those targets install SDK payload to `Development`.
+- If a named component must remain packageable by itself, add real runtime payload to that component or list a manual install component explicitly in `export_cpack(COMPONENTS ...)`.
+- Runtime component names from `COMPONENT`, such as `Core` and `Tools`, are unchanged.
 
 ## Multi-Target Exports
 
@@ -634,14 +638,14 @@ target_sources(myproject_cli PRIVATE src/cli.cpp)
 target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT Core                             # Runtime files: Core; SDK files: Development
+  COMPONENT Core                             # Static target: SDK files go to Development
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Shared by all targets
 )
 
 target_install_package(myproject_utils
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT Core                             # Shares Core logical group
+  COMPONENT Core                             # Static target: no empty Core runtime package
   PUBLIC_DEPENDENCIES "spdlog 1.15.3 REQUIRED"  # Additional dependency
 )
 
@@ -652,8 +656,8 @@ target_install_package(myproject_cli
 )
 ```
 
-**Result**: Single package with logical component groups:
-- **Core**: Runtime component for Core targets; static-only Core targets may not add runtime files
+**Result**: Single package with predictable components:
+- **Core**: Emitted only if a Core target contributes runtime payload; these static Core targets do not create an empty Core runtime package
 - **Tools**: CLI executable (`myproject_cli`) (runtime)
 - **Development**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) + headers from exported libraries + shared CMake config files
 

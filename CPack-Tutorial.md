@@ -759,7 +759,7 @@ mylib-development_1.0.0_amd64.deb
 mylib-tools_1.0.0_amd64.deb
 ```
 
-The split package output is a payload split. Extract archive components together when a development prefix needs shared-library targets, for example `Runtime` plus `Development`. Native package dependency enforcement is generator-specific; `export_cpack()` records component relationships but does not invent generic RPM `Requires` metadata.
+The split package output is a payload split. Extract archive components together when a development prefix needs shared-library targets, for example `Runtime` plus `Development`. Raw `cmake --install --component <name>` installs exactly the requested component, and archive packages do not enforce dependencies. Generated component DEB/RPM packages do get native package-manager metadata: DEB `Depends` and same-build RPM `Requires`.
 
 ---
 
@@ -786,6 +786,15 @@ COMPONENT_DEPENDENCIES Core fmt Gui glfw
 ```
 
 Option-bearing dependency expressions must be quoted. Ambiguous lists such as `COMPONENT_DEPENDENCIES Core OpenGL REQUIRED glfw3` now fail at configure time.
+
+### Component Packaging
+
+Version 7 uses one shared SDK component per export:
+
+- Replace `<Component>_Development` install or package names with `Development`.
+- Do not list static/interface/header-only component names in `DEFAULT_COMPONENTS`; SDK-only targets install to `Development`.
+- A named runtime component is emitted only when an executable, shared library, module library, Windows DLL, or manual install rule contributes payload to that component.
+- Raw component installs and archive packages remain payload selections; install or extract the matching runtime components when consuming shared-library SDK files.
 
 ### Signing
 

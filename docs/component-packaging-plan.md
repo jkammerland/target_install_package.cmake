@@ -10,7 +10,8 @@ This document records the v7 component packaging contract implemented by this br
 - Static libraries, interface libraries, and header-only targets are SDK-only unless another target registered through this wrapper puts runtime payload in the same component. Standalone manual install components need explicit `export_cpack(COMPONENTS ...)` inclusion.
 - Raw `cmake --install --component <name>` installs exactly that component and does not resolve dependencies.
 - Archive component packages are payload archives and do not enforce dependencies.
-- Native package-manager dependency behavior is generator-specific. `export_cpack()` should not promise generic DEB/RPM dependency solving unless it implements and tests the generator-specific metadata.
+- Generated component DEB/RPM packages translate CPack component relationships to native metadata: DEB `Depends` and same-build RPM `Requires`.
+- Other native package-manager dependency behavior remains generator-specific and should be documented with generator-specific tests before being promised.
 - CMake package components are dependency gates/found flags, not target-visibility or install-payload selectors.
 - Separate `EXPORT_NAME`s are the escape hatch for independently installable SDK subsets.
 
@@ -43,8 +44,7 @@ This document records the v7 component packaging contract implemented by this br
 6. Audit docs and examples.
    - Distinguish raw component installs, archive extraction, and native package-manager installs.
    - State that shared-library consumers need runtime components plus `Development` for raw installs.
-   - Do not claim generic RPM dependency generation.
-   - Keep DEB/RPM dependency mapping as a separate constrained follow-up unless implemented and tested.
+   - Document the constrained DEB/RPM component dependency bridge and keep other generator behavior scoped.
 
 7. Validate and review.
    - Run focused proof tests.
@@ -56,5 +56,5 @@ This document records the v7 component packaging contract implemented by this br
 
 - Do not restore generated `<Component>_Development` components.
 - Do not duplicate shared-library runtime files into `Development`.
-- Do not implement a generic RPM `Requires` mapper without a stable package-name policy and tests.
+- Do not implement dependency metadata for package generators beyond the tested DEB/RPM component bridge.
 - Do not make `find_package(... COMPONENTS ...)` hide exported targets.

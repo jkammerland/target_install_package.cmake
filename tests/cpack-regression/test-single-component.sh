@@ -63,10 +63,17 @@ shopt -u nullglob
 if (( ${#archives[@]} != 1 )); then
   echo "❌ Expected exactly one single-component TGZ package, found ${#archives[@]}"
   printf '  %s\n' "${archives[@]}"
+  find "${BUILD_DIR}" -maxdepth 1 -type f -exec basename {} \; | sed 's/^/  /' | sort
   exit 1
 fi
 
 archive_name="$(basename "${archives[0]}")"
+if [[ "${archive_name}" != "SimpleLib-1.0.0-Linux.tar.gz" ]]; then
+  echo "❌ Expected exact archive basename SimpleLib-1.0.0-Linux.tar.gz, got ${archive_name}"
+  find "${BUILD_DIR}" -maxdepth 1 -type f -exec basename {} \; | sed 's/^/  /' | sort
+  exit 1
+fi
+
 case "${archive_name}" in
   *-Development.tar.gz|*-Runtime.tar.gz|*-Tools.tar.gz)
     echo "❌ Implicit single-component package should be monolithic, got component archive: ${archive_name}"

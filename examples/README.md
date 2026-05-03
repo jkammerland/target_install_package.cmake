@@ -124,10 +124,10 @@ cmake --install .
 ### Component-Based Installation
 
 ```bash
-# Install the default runtime component
+# Runtime-producing examples
 cmake --install . --component Runtime
 
-# Install only development components
+# Static/interface/header-only examples
 cmake --install . --component Development
 
 # Install logical component groups (see components example)

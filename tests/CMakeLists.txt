@@ -283,6 +283,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_cpack_component_metadata COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_component_metadata_test.cmake")
   set_tests_properties(proof_cpack_component_metadata PROPERTIES LABELS "proof;review;cpack")
 
+  add_test(NAME proof_cpack_native_component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_native_component_dependencies_test.cmake")
+  set_tests_properties(proof_cpack_native_component_dependencies PROPERTIES LABELS "proof;review;cpack")
+
   add_test(NAME proof_cpack_single_component_filter COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_single_component_filter_test.cmake")
   set_tests_properties(proof_cpack_single_component_filter PROPERTIES LABELS "proof;review;cpack")
 
