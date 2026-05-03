@@ -280,6 +280,12 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_component_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_component_find_package_test.cmake")
   set_tests_properties(proof_component_find_package PROPERTIES LABELS "proof;review")
 
+  add_test(NAME proof_cpack_component_metadata COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_component_metadata_test.cmake")
+  set_tests_properties(proof_cpack_component_metadata PROPERTIES LABELS "proof;review;cpack")
+
+  add_test(NAME proof_namelink_component COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_namelink_component_test.cmake")
+  set_tests_properties(proof_namelink_component PROPERTIES LABELS "proof;review")
+
   add_test(NAME proof_substitution_mode_variables COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_substitution_mode_variables_test.cmake")
   set_tests_properties(proof_substitution_mode_variables PROPERTIES LABELS "proof;review")
 

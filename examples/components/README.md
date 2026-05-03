@@ -17,10 +17,10 @@ MediaLib Package (shared export with Component Prefix Pattern):
 ├── Core             → libmedia_core.so (shared library runtime files) 
 ├── Core_Development → headers + libmedia_dev_tools.a + MediaLib CMake config files
 ├── Tools            → asset_converter (executable runtime)
-└── Tools_Development → (empty - executables typically have no dev files)
+└── Tools_Development → MediaLib CMake config files
 ```
 
-The Component Prefix Pattern creates predictable component names: `{COMPONENT}` for runtime, `{COMPONENT}_Development` for development. Shared CMake config files are installed with the first development component for the export, which is `Core_Development` in this example.
+The Component Prefix Pattern creates predictable component names: `{COMPONENT}` for runtime, `{COMPONENT}_Development` for development. Shared CMake config files are installed with each development component for the export, so both `Core_Development` and `Tools_Development` carry the package entry point.
 
 ## Building and Installing
 
@@ -66,7 +66,8 @@ cmake --install . --component Core_Development
 # Install only Tools runtime (executable)
 cmake --install . --component Tools
 
-# Tools typically have no development component (Tools_Development would be empty)
+# Tools_Development carries shared CMake package metadata for the export
+cmake --install . --component Tools_Development
 ```
 
 #### Install CMake Configuration
@@ -74,6 +75,7 @@ cmake --install . --component Tools
 ```bash
 # Install shared CMake config files (needed for find_package)
 cmake --install . --component Core_Development
+cmake --install . --component Tools_Development
 ```
 
 #### Deployment Scenarios
@@ -104,11 +106,11 @@ install/
 ├── lib64/
 │   ├── libmedia_core.so.1.0.0           # Core
 │   ├── libmedia_core.so.1                # Core
-│   ├── libmedia_core.so                  # Core
+│   ├── libmedia_core.so                  # Core_Development
 │   └── libmedia_dev_tools.a              # Core_Development
 └── share/
     └── cmake/
-        └── MediaLib/                      # Core_Development (shared config files)
+        └── MediaLib/                      # *_Development (shared config files)
             ├── MediaLibTargets.cmake
             ├── MediaLibTargets-noconfig.cmake
             ├── MediaLibConfig.cmake

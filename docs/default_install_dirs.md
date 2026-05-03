@@ -54,10 +54,14 @@ Notes:
 
 | Component | Contains | Purpose |
 |-----------|----------|---------|
-| Runtime | Executables, DLLs, shared libraries | Required at runtime |
-| Development | Headers, import libs, static libs, CMake configs, CPS metadata by default | Required for building |
+| Runtime | Executables, DLLs, shared libraries, shared-library SONAME links | Required at runtime |
+| Development | Headers, import libs, static libs, shared-library namelinks, CMake configs, CPS metadata by default | Required for building |
 
-CPS metadata is installed with the same component as the CMake config files: `Development` by default, or the first development component for the export when component prefixes are used.
+CMake config and export files are installed with every development component for the export: `Development` by default, or each `<COMPONENT>_Development` component when component prefixes are used.
+When a single export contains several component groups, `export_cpack()` makes each development component depend on the other target components in that export so package-manager installs receive a complete importable target set.
+Direct `cmake --install --component <name>` installs only the named component; run a full install or install the related runtime/development components when manually assembling a partial tree from a shared export.
+
+CPS metadata is installed with `Development` by default, or the first development component for the export when component prefixes are used.
 Set `CPS_COMPONENT` to place CPS metadata in a different install component.
 SBOM metadata is different: `install(SBOM)` does not expose a `COMPONENT`
 option, so SBOM files are available in full installs and follow CMake's

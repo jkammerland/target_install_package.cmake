@@ -553,7 +553,7 @@ target_install_package(level_editor
 - **Core**: `libengine_core.so` (runtime)
 - **Core_Development**: Headers from both targets + `libengine_tools.a` + shared CMake config files
 - **Tools**: `level_editor` executable (runtime)
-- **Tools_Development**: Headers for tools + development-only assets
+- **Tools_Development**: Headers for tools + development-only assets + shared CMake config files
 
 ### Installing Specific Components
 
@@ -567,8 +567,9 @@ cmake --install . --component Core_Development
 # Install Tools logical group - runtime only
 cmake --install . --component Tools
 
-# Shared CMake config files live with the first development component
+# Shared CMake config files are installed with every development component
 cmake --install . --component Core_Development
+cmake --install . --component Tools_Development
 
 # Install all runtime + development files (no component filtering)
 cmake --install .
@@ -739,6 +740,7 @@ Note:
 - Pass exact component/dependency pairs. Repeat the component key for multiple dependencies, for example `COMPONENT_DEPENDENCIES graphics "OpenGL REQUIRED" graphics "glfw3 REQUIRED"`.
 - Bare shorthand is allowed for one dependency per component, for example `COMPONENT_DEPENDENCIES Core fmt Gui glfw`. Quote dependency expressions when they include options. Ambiguous bare lists such as `COMPONENT_DEPENDENCIES graphics OpenGL REQUIRED glfw3 REQUIRED` are rejected because CMake cannot distinguish dependency arguments from the next component key.
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
+- Optional `find_package(... OPTIONAL_COMPONENTS <name>)` requests probe that component's dependencies without making the whole package fail. Required component requests still use `find_dependency()` and fail when a required dependency is unavailable.
 
 ### Game Engine with Modular Components
 

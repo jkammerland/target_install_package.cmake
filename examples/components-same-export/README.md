@@ -39,6 +39,9 @@ cmake --install . --component Storage
 cmake --install . --component Storage_Development
 cmake --install . --component Tools
 ```
+
+Each development component installs the shared `engine2` CMake package metadata. When packaged through `export_cpack()`, development components for the same export depend on the other target components in that export so package-manager installs produce a complete importable target set.
+
 ## Using the Installed Package
 
 Create a consumer project:

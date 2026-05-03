@@ -333,6 +333,59 @@ function(_tip_component_dependency_property_name OUT_VAR EXPORT_PROPERTY_PREFIX 
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_cpack_component_dependency_property_name OUT_VAR COMPONENT_NAME)
+  string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
+  set(${OUT_VAR}
+      "_TIP_CPACK_COMPONENT_DEPENDENCY_${_tip_component_hash}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_append_cpack_component_dependencies COMPONENT_NAME)
+  set(_tip_dependencies ${ARGN})
+  if(NOT _tip_dependencies)
+    return()
+  endif()
+
+  list(REMOVE_ITEM _tip_dependencies "${COMPONENT_NAME}")
+  list(REMOVE_DUPLICATES _tip_dependencies)
+  if(NOT _tip_dependencies)
+    return()
+  endif()
+
+  _tip_cpack_component_dependency_property_name(_tip_component_dependency_property "${COMPONENT_NAME}")
+  get_property(_tip_existing_dependencies GLOBAL PROPERTY "${_tip_component_dependency_property}")
+  set(_tip_updated_dependencies ${_tip_existing_dependencies} ${_tip_dependencies})
+  list(REMOVE_ITEM _tip_updated_dependencies "${COMPONENT_NAME}")
+  list(REMOVE_DUPLICATES _tip_updated_dependencies)
+  set_property(GLOBAL PROPERTY "${_tip_component_dependency_property}" "${_tip_updated_dependencies}")
+endfunction()
+
+function(_tip_find_package_expression_without_required OUT_VAR DEPENDENCY_EXPRESSION)
+  separate_arguments(_tip_dependency_args UNIX_COMMAND "${DEPENDENCY_EXPRESSION}")
+  set(_tip_optional_dependency_args "")
+
+  foreach(_tip_dependency_arg IN LISTS _tip_dependency_args)
+    string(TOUPPER "${_tip_dependency_arg}" _tip_dependency_arg_upper)
+    if(_tip_dependency_arg_upper STREQUAL "REQUIRED")
+      continue()
+    endif()
+    list(APPEND _tip_optional_dependency_args "${_tip_dependency_arg}")
+  endforeach()
+
+  string(JOIN " " _tip_optional_dependency_expression ${_tip_optional_dependency_args})
+  set(${OUT_VAR}
+      "${_tip_optional_dependency_expression}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_find_package_expression_package_name OUT_VAR DEPENDENCY_EXPRESSION)
+  separate_arguments(_tip_dependency_args UNIX_COMMAND "${DEPENDENCY_EXPRESSION}")
+  list(GET _tip_dependency_args 0 _tip_dependency_package_name)
+  set(${OUT_VAR}
+      "${_tip_dependency_package_name}"
+      PARENT_SCOPE)
+endfunction()
+
 # ~~~
 # Prepare a CMake installation target for packaging.
 #
@@ -1468,6 +1521,14 @@ function(finalize_package)
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
   endif()
 
+  set(_tip_export_target_components ${ALL_RUNTIME_COMPONENTS} ${ALL_DEVELOPMENT_COMPONENTS})
+  if(_tip_export_target_components)
+    list(REMOVE_DUPLICATES _tip_export_target_components)
+    foreach(_tip_development_component IN LISTS ALL_DEVELOPMENT_COMPONENTS)
+      _tip_append_cpack_component_dependencies("${_tip_development_component}" ${_tip_export_target_components})
+    endforeach()
+  endif()
+
   # Apply DEBUG_POSTFIX only to library targets if specified
   if(DEBUG_POSTFIX)
     foreach(TARGET_NAME ${TARGETS})
@@ -1539,6 +1600,14 @@ function(finalize_package)
       _build_component_args(TARGET_DEV_COMPONENT "" "Development")
     endif()
 
+    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
+      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT ${TARGET_DEV_COMP})
+    elseif(TARGET_COMP)
+      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT "${TARGET_COMP}_Development")
+    else()
+      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT Development)
+    endif()
+
     # Set the export name for the target if different from target name
     if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
       set_property(TARGET ${TARGET_NAME} PROPERTY EXPORT_NAME ${TARGET_ALIAS_NAME})
@@ -1582,6 +1651,7 @@ function(finalize_package)
       DESTINATION
       "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}"
       ${TARGET_RUNTIME_COMPONENT_ARGS}
+      ${TARGET_NAMELINK_COMPONENT_ARGS}
       ARCHIVE
       DESTINATION
       "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}"
@@ -1790,22 +1860,26 @@ function(finalize_package)
     endif()
   endforeach()
 
-  # Set up component args for config files using the first development component
+  # Install CMake package metadata with every development component for this export. A selected SDK/development package must carry the config entry point.
+  set(CONFIG_COMPONENTS "")
   if(ALL_DEVELOPMENT_COMPONENTS)
-    list(GET ALL_DEVELOPMENT_COMPONENTS 0 FIRST_DEV_COMPONENT)
-    set(CONFIG_COMPONENT_ARGS COMPONENT ${FIRST_DEV_COMPONENT})
+    set(CONFIG_COMPONENTS ${ALL_DEVELOPMENT_COMPONENTS})
   else()
-    # Fallback to generic Development component
-    _build_component_args(CONFIG_COMPONENT "" "Development")
+    set(CONFIG_COMPONENTS Development)
   endif()
+  list(REMOVE_DUPLICATES CONFIG_COMPONENTS)
+  list(GET CONFIG_COMPONENTS 0 FIRST_CONFIG_COMPONENT)
+  set(CONFIG_COMPONENT_ARGS COMPONENT ${FIRST_CONFIG_COMPONENT})
 
   # Install targets export file with config component CMake automatically handles configuration-specific exports
-  install(
-    EXPORT ${ARG_EXPORT_NAME}
-    FILE ${ARG_EXPORT_NAME}Targets.cmake
-    NAMESPACE ${NAMESPACE}
-    DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    ${CONFIG_COMPONENT_ARGS})
+  foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)
+    install(
+      EXPORT ${ARG_EXPORT_NAME}
+      FILE ${ARG_EXPORT_NAME}Targets.cmake
+      NAMESPACE ${NAMESPACE}
+      DESTINATION ${CMAKE_CONFIG_DESTINATION}
+      COMPONENT "${_tip_config_component}")
+  endforeach()
 
   if(SBOM_ENABLED)
     set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${SBOM_EXPERIMENTAL_VALUE}")
@@ -2062,7 +2136,16 @@ function(finalize_package)
 
       set(_tip_component_dep_list ${component_deps})
       foreach(component_dep IN LISTS _tip_component_dep_list)
-        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  find_dependency(${component_dep})\n")
+        _tip_find_package_expression_package_name(_tip_component_dep_package_name "${component_dep}")
+        _tip_find_package_expression_without_required(_tip_component_dep_optional_expression "${component_dep}")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  if(${ARG_EXPORT_NAME}_FIND_REQUIRED_${component_name})\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    find_dependency(${component_dep})\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  else()\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    find_package(${_tip_component_dep_optional_expression} QUIET)\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    if(NOT ${_tip_component_dep_package_name}_FOUND)\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "      set(${ARG_EXPORT_NAME}_${component_name}_FOUND FALSE)\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    endif()\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  endif()\n")
       endforeach()
 
       string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "endif()\n")
@@ -2140,10 +2223,12 @@ function(finalize_package)
     PATH_VARS CMAKE_INSTALL_PREFIX)
 
   # Install config files using correct filename with config component
-  install(
-    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}"
-    DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    ${CONFIG_COMPONENT_ARGS})
+  foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)
+    install(
+      FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}"
+      DESTINATION ${CMAKE_CONFIG_DESTINATION}
+      COMPONENT "${_tip_config_component}")
+  endforeach()
 
   # Log package status with component information
   if(ALL_UNIQUE_COMPONENTS)

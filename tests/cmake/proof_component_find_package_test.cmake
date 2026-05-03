@@ -19,6 +19,13 @@ set(_tip_bad_template_source_dir "${_tip_case_root}/bad-template-src")
 set(_tip_bad_template_build_dir "${_tip_case_root}/bad-template-build")
 set(_tip_valid_bare_deps_source_dir "${_tip_case_root}/valid-bare-deps-src")
 set(_tip_valid_bare_deps_build_dir "${_tip_case_root}/valid-bare-deps-build")
+set(_tip_optional_deps_source_dir "${_tip_case_root}/optional-deps-src")
+set(_tip_optional_deps_build_dir "${_tip_case_root}/optional-deps-build")
+set(_tip_optional_deps_install_prefix "${_tip_case_root}/optional-deps-install")
+set(_tip_optional_consumer_source_dir "${_tip_case_root}/optional-consumer-src")
+set(_tip_optional_consumer_build_dir "${_tip_case_root}/optional-consumer-build")
+set(_tip_required_consumer_source_dir "${_tip_case_root}/required-consumer-src")
+set(_tip_required_consumer_build_dir "${_tip_case_root}/required-consumer-build")
 set(_tip_ambiguous_deps_source_dir "${_tip_case_root}/ambiguous-deps-src")
 set(_tip_ambiguous_deps_build_dir "${_tip_case_root}/ambiguous-deps-build")
 set(_tip_legacy_semicolon_deps_source_dir "${_tip_case_root}/legacy-semicolon-deps-src")
@@ -29,6 +36,9 @@ file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/src")
 file(MAKE_DIRECTORY "${_tip_consumer_source_dir}")
 file(MAKE_DIRECTORY "${_tip_bad_template_source_dir}/src")
 file(MAKE_DIRECTORY "${_tip_valid_bare_deps_source_dir}/src")
+file(MAKE_DIRECTORY "${_tip_optional_deps_source_dir}")
+file(MAKE_DIRECTORY "${_tip_optional_consumer_source_dir}")
+file(MAKE_DIRECTORY "${_tip_required_consumer_source_dir}")
 file(MAKE_DIRECTORY "${_tip_ambiguous_deps_source_dir}/src")
 file(MAKE_DIRECTORY "${_tip_legacy_semicolon_deps_source_dir}/src")
 
@@ -130,6 +140,45 @@ _tip_proof_assert_file_contains("${_tip_valid_bare_deps_build_dir}/proof_valid_b
 _tip_proof_assert_file_contains("${_tip_valid_bare_deps_build_dir}/proof_valid_bare_deps_pkgConfig.cmake" "find_dependency(glfw3 CONFIG REQUIRED)")
 _tip_proof_assert_file_contains("${_tip_valid_bare_deps_build_dir}/proof_valid_bare_deps_pkgConfig.cmake" "if(\"Optional\" IN_LIST proof_valid_bare_deps_pkg_FIND_COMPONENTS)")
 _tip_proof_assert_file_contains("${_tip_valid_bare_deps_build_dir}/proof_valid_bare_deps_pkgConfig.cmake" "if(\"Config\" IN_LIST proof_valid_bare_deps_pkg_FIND_COMPONENTS)")
+
+file(
+  WRITE "${_tip_optional_deps_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_component_optional_deps VERSION 1.0.0 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(proof_optional_deps_lib INTERFACE)\n"
+  "target_install_package(proof_optional_deps_lib EXPORT_NAME proof_optional_deps_pkg COMPONENT_DEPENDENCIES Gui \"DefinitelyMissingTipPkgForOptionalComponents REQUIRED\")\n")
+
+set(_tip_optional_deps_configure_command "${CMAKE_COMMAND}" -S "${_tip_optional_deps_source_dir}" -B "${_tip_optional_deps_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+
+_tip_proof_run_step(NAME "optional-component-dependencies-configure" COMMAND ${_tip_optional_deps_configure_command})
+_tip_proof_run_step(
+  NAME
+  "optional-component-dependencies-install"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --install
+  "${_tip_optional_deps_build_dir}"
+  --config
+  Release
+  --prefix
+  "${_tip_optional_deps_install_prefix}")
+_tip_proof_assert_file_contains("${_tip_optional_deps_install_prefix}/share/cmake/proof_optional_deps_pkg/proof_optional_deps_pkgConfig.cmake"
+                                "find_package(DefinitelyMissingTipPkgForOptionalComponents QUIET)")
+
+file(
+  WRITE "${_tip_optional_consumer_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_optional_component_consumer LANGUAGES CXX)\n"
+  "find_package(proof_optional_deps_pkg CONFIG REQUIRED OPTIONAL_COMPONENTS Gui PATHS \"${_tip_optional_deps_install_prefix}\" NO_DEFAULT_PATH)\n" "if(proof_optional_deps_pkg_Gui_FOUND)\n"
+  "  message(FATAL_ERROR \"Optional Gui component should be marked missing when its dependency is absent\")\n" "endif()\n")
+
+set(_tip_optional_consumer_configure_command "${CMAKE_COMMAND}" -S "${_tip_optional_consumer_source_dir}" -B "${_tip_optional_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+_tip_proof_run_step(NAME "optional-component-consumer-configure" COMMAND ${_tip_optional_consumer_configure_command})
+
+file(WRITE "${_tip_required_consumer_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 3.25)\n" "project(proof_required_component_consumer LANGUAGES CXX)\n"
+     "find_package(proof_optional_deps_pkg CONFIG REQUIRED COMPONENTS Gui PATHS \"${_tip_optional_deps_install_prefix}\" NO_DEFAULT_PATH)\n")
+
+set(_tip_required_consumer_configure_command "${CMAKE_COMMAND}" -S "${_tip_required_consumer_source_dir}" -B "${_tip_required_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+_tip_proof_expect_failure(NAME "required-component-consumer-configure" COMMAND ${_tip_required_consumer_configure_command} EXPECT_CONTAINS "DefinitelyMissingTipPkgForOptionalComponents")
 
 file(
   WRITE "${_tip_ambiguous_deps_source_dir}/CMakeLists.txt"

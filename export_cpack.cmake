@@ -179,6 +179,21 @@ function(_tip_find_export_cpack_resource_file file_name out_var)
   project_log(FATAL_ERROR "Package resource '${file_name}' not found. Checked: ${_tip_resource_candidates}")
 endfunction()
 
+function(_tip_finalize_registered_exports_for_cpack)
+  if(NOT COMMAND _auto_finalize_single_export)
+    return()
+  endif()
+
+  get_property(_tip_registered_exports GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS")
+  foreach(_tip_export_name IN LISTS _tip_registered_exports)
+    get_property(_tip_export_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${_tip_export_name}_FINALIZED")
+    if(NOT _tip_export_finalized)
+      project_log(DEBUG "Finalizing export '${_tip_export_name}' before CPack configuration")
+      _auto_finalize_single_export("${_tip_export_name}")
+    endif()
+  endforeach()
+endfunction()
+
 function(export_cpack)
   # Check if export_cpack has already been called (not deferred execution)
   get_property(cpack_config_stored GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED")
@@ -235,6 +250,36 @@ function(_tip_append_cpack_list_var_unique var_name)
     endif()
   endforeach()
   _tip_store_cpack_var("${var_name}" "${updated_value}")
+endfunction()
+
+function(_tip_cpack_component_dependency_property_name OUT_VAR COMPONENT_NAME)
+  string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
+  set(${OUT_VAR}
+      "_TIP_CPACK_COMPONENT_DEPENDENCY_${_tip_component_hash}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_get_cpack_component_dependencies COMPONENT_NAME OUT_VAR)
+  _tip_cpack_component_dependency_property_name(_tip_component_dependency_property "${COMPONENT_NAME}")
+  get_property(_tip_component_dependencies GLOBAL PROPERTY "${_tip_component_dependency_property}")
+  set(${OUT_VAR}
+      "${_tip_component_dependencies}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_component_list_has_cpack_dependencies OUT_VAR)
+  set(_tip_has_dependencies FALSE)
+  foreach(_tip_component IN LISTS ARGN)
+    _tip_get_cpack_component_dependencies("${_tip_component}" _tip_component_dependencies)
+    if(_tip_component_dependencies)
+      set(_tip_has_dependencies TRUE)
+      break()
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_has_dependencies}"
+      PARENT_SCOPE)
 endfunction()
 
 # Helper function to determine if component groups should be auto-enabled Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development)
@@ -312,6 +357,7 @@ function(_configure_logical_component_groups component_list)
   # Configure component group assignments and dependencies
   foreach(component ${component_list})
     string(TOUPPER "${component}" component_upper)
+    set(dependencies "")
 
     if(component MATCHES "^(.+)_Development$")
       # NEW SCHEME: COMPONENT_Development pattern
@@ -321,7 +367,6 @@ function(_configure_logical_component_groups component_list)
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
 
       # Set up dependencies: Development components depend on Runtime components within same group PLUS the global Runtime component if it exists and is different
-      set(dependencies "")
       if("${group_name}" IN_LIST component_list)
         list(APPEND dependencies "${group_name}")
       endif()
@@ -329,25 +374,32 @@ function(_configure_logical_component_groups component_list)
       if("Runtime" IN_LIST component_list AND NOT group_name STREQUAL "Runtime")
         list(APPEND dependencies "Runtime")
       endif()
-      if(dependencies)
-        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
-        project_log(DEBUG "Set dependency: ${component} depends on ${dependencies}")
-      endif()
     elseif("${component}_Development" IN_LIST component_list)
       # NEW SCHEME: Runtime component (has corresponding _Development component)
       string(TOUPPER "${component}" group_upper)
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
       # Custom runtime components should depend on global Runtime if it exists and is different
       if("Runtime" IN_LIST component_list AND NOT component STREQUAL "Runtime")
-        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "Runtime")
-        project_log(DEBUG "Set dependency: ${component} depends on Runtime")
+        list(APPEND dependencies "Runtime")
       endif()
     else()
       # Traditional component - set up classic Runtime/Development dependency
       if(component STREQUAL "Development" AND "Runtime" IN_LIST component_list)
-        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "Runtime")
-        project_log(DEBUG "Set traditional dependency: Development depends on Runtime")
+        list(APPEND dependencies "Runtime")
       endif()
+    endif()
+
+    _tip_get_cpack_component_dependencies("${component}" _tip_export_component_dependencies)
+    if(_tip_export_component_dependencies)
+      list(APPEND dependencies ${_tip_export_component_dependencies})
+    endif()
+    if(dependencies)
+      list(REMOVE_ITEM dependencies "${component}")
+      list(REMOVE_DUPLICATES dependencies)
+    endif()
+    if(dependencies)
+      _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
+      project_log(DEBUG "Set dependency: ${component} depends on ${dependencies}")
     endif()
   endforeach()
 
@@ -414,6 +466,7 @@ function(_execute_deferred_cpack_config)
   if(NOT args)
     return()
   endif()
+  _tip_finalize_registered_exports_for_cpack()
   get_property(_tip_cpack_config_source_dir GLOBAL PROPERTY "_TIP_CPACK_CONFIG_SOURCE_DIR")
   if(NOT _tip_cpack_config_source_dir)
     set(_tip_cpack_config_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -822,8 +875,13 @@ function(_execute_deferred_cpack_config)
 
     # Configure component grouping (auto-detect logical groups from component naming)
     _should_auto_enable_component_groups("${ARG_COMPONENTS}")
-    if(ARG_COMPONENT_GROUPS OR _ENABLE_GROUPS)
-      _tip_store_cpack_var(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
+    _tip_component_list_has_cpack_dependencies(_tip_has_export_component_dependencies ${ARG_COMPONENTS})
+    if(ARG_COMPONENT_GROUPS
+       OR _ENABLE_GROUPS
+       OR _tip_has_export_component_dependencies)
+      if(ARG_COMPONENT_GROUPS OR _ENABLE_GROUPS)
+        _tip_store_cpack_var(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
+      endif()
 
       # Auto-detect logical groups from component naming patterns
       _configure_logical_component_groups("${ARG_COMPONENTS}")
