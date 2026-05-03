@@ -93,9 +93,10 @@ export_cpack(
   - macOS: `TGZ`, `DragNDrop`
 
 - **Component Relationships**: Recorded in CPack metadata
-  - `Development` records dependencies on the runtime components in the export
+  - `Development` aggregates SDK/config payload from wrapped targets
+  - `Development` records dependencies on the runtime components those targets registered (`Runtime` and `Tools` here)
   - Archive packages remain independent payload slices
-  - Native package enforcement depends on generator-specific CPack settings
+  - DEB and RPM component packages translate those relationships to native package metadata
 
 ## Package Types Generated
 
@@ -108,7 +109,8 @@ export_cpack(
 ### Linux Packages (DEB/RPM)
 
 - Native package management integration
-- Component dependency metadata can be mapped by generator-specific settings
+- Generated DEB component packages use native `Depends`
+- Generated RPM component packages use same-build native `Requires`
 - Component-based installation support
 
 ### Windows Installer (WIX)
@@ -139,7 +141,9 @@ install/
 cmake --install . --component Development
 
 # Result: Headers, static libs, shared-library namelinks, CMake configs.
-# For manual component installs of shared libraries, install Runtime too before consuming.
+# This also includes the mytool CMake package metadata because mytool is wrapped
+# with target_install_package(... COMPONENT Tools). For manual component installs
+# of shared libraries or tools, install the matching runtime components too before consuming.
 install/
 ├── include/
 │   └── cpack_lib/
@@ -151,7 +155,8 @@ install/
 └── share/
     └── cmake/
         ├── cpack_lib/
-        └── cpack_lib_utils/
+        ├── cpack_lib_utils/
+        └── mytool/
 ```
 
 ### Tools Package

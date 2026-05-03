@@ -134,6 +134,153 @@ rewrite_example_repo_paths() {
   mv -f "${tmp}" "${cmakelists}"
 }
 
+find_one_artifact() {
+  local pattern="${1:?}"
+  local matches=()
+  shopt -s nullglob
+  matches=( ${pattern} )
+  shopt -u nullglob
+  if [[ "${#matches[@]}" -ne 1 ]]; then
+    ci_die "Expected exactly one artifact matching '${pattern}', found ${#matches[@]}"
+  fi
+  printf '%s\n' "${matches[0]}"
+}
+
+assert_artifact_count() {
+  local context="${1:?}"
+  local expected_count="${2:?}"
+  shift 2
+  local artifacts=("$@")
+  if (( ${#artifacts[@]} != expected_count )); then
+    printf '%s\n' "${artifacts[@]}" >&2
+    ci_die "Expected ${expected_count} ${context}, found ${#artifacts[@]}"
+  fi
+}
+
+deb_control_field() {
+  local deb="${1:?}"
+  local field="${2:?}"
+  local control=""
+  local member=""
+
+  if ci_has_cmd dpkg-deb; then
+    dpkg-deb -f "${deb}" "${field}"
+    return 0
+  fi
+
+  ci_require_cmd ar
+  member="$(ar t "${deb}" | awk '/^control\.tar/ { print; exit }')"
+  [[ -n "${member}" ]] || ci_die "No control archive found in ${deb}"
+
+  case "${member}" in
+    *.gz) control="$(ar p "${deb}" "${member}" | tar -xzO -f - ./control)" ;;
+    *.xz) control="$(ar p "${deb}" "${member}" | tar -xJO -f - ./control)" ;;
+    *.zst) control="$(ar p "${deb}" "${member}" | tar --zstd -xO -f - ./control)" ;;
+    *.bz2) control="$(ar p "${deb}" "${member}" | tar -xjO -f - ./control)" ;;
+    *) control="$(ar p "${deb}" "${member}" | tar -xO -f - ./control)" ;;
+  esac
+
+  awk -v field="${field}" '
+    BEGIN { prefix = field ":" }
+    index($0, prefix) == 1 {
+      print substr($0, length(prefix) + 2)
+      found = 1
+      next
+    }
+    found && /^[[:space:]]/ {
+      sub(/^[[:space:]]+/, "")
+      print
+      next
+    }
+    found { exit }
+  ' <<<"${control}"
+}
+
+trim_value() {
+  local value="${1-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "${value}"
+}
+
+assert_deb_dependency() {
+  local depends="${1-}"
+  local expected="${2:?}"
+  local context="${3:?}"
+  local token
+  local dependencies=()
+
+  IFS=',' read -r -a dependencies <<<"${depends}"
+  for token in "${dependencies[@]}"; do
+    token="$(trim_value "${token}")"
+    if [[ "${token}" == "${expected}" ]]; then
+      return 0
+    fi
+  done
+
+  ci_die "${context} did not contain exact dependency '${expected}'. Actual value: ${depends}"
+}
+
+assert_rpm_requirement() {
+  local value="${1-}"
+  local expected="${2:?}"
+  local context="${3:?}"
+  local line
+
+  while IFS= read -r line; do
+    line="$(trim_value "${line}")"
+    if [[ "${line}" == "${expected}" ]]; then
+      return 0
+    fi
+  done <<<"${value}"
+
+  ci_die "${context} did not contain exact requirement '${expected}'. Actual value: ${value}"
+}
+
+verify_native_component_dependencies() {
+  if ! ci_is_linux; then
+    return 0
+  fi
+
+  ci_log "==> Verify native component package dependencies"
+
+  shopt -s nullglob
+  local deb_artifacts=(mylibrary-*.deb)
+  local rpm_artifacts=(mylibrary-*.rpm)
+  shopt -u nullglob
+  assert_artifact_count "DEB component packages" 3 "${deb_artifacts[@]}"
+  assert_artifact_count "RPM component packages" 3 "${rpm_artifacts[@]}"
+
+  local development_deb runtime_deb tools_deb
+  development_deb="$(find_one_artifact "mylibrary-development_*.deb")"
+  runtime_deb="$(find_one_artifact "mylibrary-runtime_*.deb")"
+  tools_deb="$(find_one_artifact "mylibrary-tools_*.deb")"
+
+  local development_deb_depends runtime_deb_name runtime_deb_version tools_deb_name tools_deb_version
+  development_deb_depends="$(deb_control_field "${development_deb}" "Depends")"
+  runtime_deb_name="$(deb_control_field "${runtime_deb}" "Package")"
+  runtime_deb_version="$(deb_control_field "${runtime_deb}" "Version")"
+  tools_deb_name="$(deb_control_field "${tools_deb}" "Package")"
+  tools_deb_version="$(deb_control_field "${tools_deb}" "Version")"
+  assert_deb_dependency "${development_deb_depends}" "${runtime_deb_name} (= ${runtime_deb_version})" "Development DEB Depends"
+  assert_deb_dependency "${development_deb_depends}" "${tools_deb_name} (= ${tools_deb_version})" "Development DEB Depends"
+
+  ci_require_cmd rpm
+  local development_rpm runtime_rpm tools_rpm
+  development_rpm="$(find_one_artifact "mylibrary-Development-*.rpm")"
+  runtime_rpm="$(find_one_artifact "mylibrary-Runtime-*.rpm")"
+  tools_rpm="$(find_one_artifact "mylibrary-Tools-*.rpm")"
+
+  local development_rpm_requires runtime_rpm_name runtime_rpm_version_release tools_rpm_name tools_rpm_version_release
+  development_rpm_requires="$(rpm -qp --requires "${development_rpm}")"
+  runtime_rpm_name="$(rpm -qp --queryformat '%{NAME}\n' "${runtime_rpm}")"
+  runtime_rpm_version_release="$(rpm -qp --queryformat '%{VERSION}-%{RELEASE}\n' "${runtime_rpm}")"
+  tools_rpm_name="$(rpm -qp --queryformat '%{NAME}\n' "${tools_rpm}")"
+  tools_rpm_version_release="$(rpm -qp --queryformat '%{VERSION}-%{RELEASE}\n' "${tools_rpm}")"
+  assert_rpm_requirement "${development_rpm_requires}" "${runtime_rpm_name} = ${runtime_rpm_version_release}" "Development RPM Requires"
+  assert_rpm_requirement "${development_rpm_requires}" "${tools_rpm_name} = ${tools_rpm_version_release}" "Development RPM Requires"
+}
+
 run_basic() {
   ci_log "==> Generate test GPG key"
   mkdir -p "${ci_root}/build/ci-deps"
@@ -172,6 +319,8 @@ run_basic() {
 
   ci_log "==> Generate packages (cpack)"
   (cd "${build_dir}" && cpack --verbose)
+
+  (cd "${build_dir}" && verify_native_component_dependencies)
 
   ci_log "==> Generated artifacts"
   (cd "${build_dir}" && ls -la *.tar.gz *.zip *.deb *.rpm *.dmg 2>/dev/null || true)

@@ -68,12 +68,29 @@ _tip_proof_run_step(
   -B
   "${_tip_package_dir}")
 
-file(GLOB _tip_archives "${_tip_package_dir}/*.tar.gz")
-list(LENGTH _tip_archives _tip_archive_count)
-if(NOT _tip_archive_count EQUAL 1)
-  _tip_proof_fail("Expected exactly one Development archive, got ${_tip_archive_count}: ${_tip_archives}")
+file(GLOB _tip_development_archives "${_tip_package_dir}/*-Development.tar.gz")
+list(LENGTH _tip_development_archives _tip_development_archive_count)
+if(NOT _tip_development_archive_count EQUAL 1)
+  _tip_proof_fail("Expected exactly one Development archive, got ${_tip_development_archive_count}: ${_tip_development_archives}")
 endif()
-list(GET _tip_archives 0 _tip_archive)
+list(GET _tip_development_archives 0 _tip_archive)
+get_filename_component(_tip_archive_name "${_tip_archive}" NAME)
+file(READ "${_tip_cpack_config_file}" _tip_cpack_config_content)
+string(REGEX MATCH "set\\(CPACK_SYSTEM_NAME \"([^\"]*)\"\\)" _tip_system_name_match "${_tip_cpack_config_content}")
+if(NOT _tip_system_name_match)
+  _tip_proof_fail("Expected CPackConfig.cmake to define CPACK_SYSTEM_NAME")
+endif()
+set(_tip_expected_archive_name "SingleFilter-1.0.0-${CMAKE_MATCH_1}-Development.tar.gz")
+if(NOT _tip_archive_name STREQUAL _tip_expected_archive_name)
+  _tip_proof_fail("Expected Development archive basename '${_tip_expected_archive_name}', got '${_tip_archive_name}'")
+endif()
+
+file(GLOB _tip_all_archives "${_tip_package_dir}/*.tar.gz")
+foreach(_tip_candidate_archive IN LISTS _tip_all_archives)
+  if(NOT "${_tip_candidate_archive}" STREQUAL "${_tip_archive}")
+    _tip_proof_fail("Explicit Development-only package produced unexpected archive: ${_tip_candidate_archive}")
+  endif()
+endforeach()
 
 execute_process(
   COMMAND "${CMAKE_COMMAND}" -E tar tf "${_tip_archive}"
