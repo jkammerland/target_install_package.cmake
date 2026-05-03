@@ -272,10 +272,10 @@ run_components() {
   (cd "${build_dir}" && cpack --verbose)
 
   (cd "${build_dir}" && ls -la MediaLibrary-*.tar.gz MediaLibrary-*.deb 2>/dev/null || true)
-  if (cd "${build_dir}" && ls MediaLibrary-*-CORE.tar.gz 1>/dev/null 2>&1); then
-    ci_log "✓ Components example produced CORE group package"
+  if (cd "${build_dir}" && ls MediaLibrary-*-Core.tar.gz 1>/dev/null 2>&1); then
+    ci_log "✓ Components example produced Core component package"
   else
-    ci_die "Components example did not produce expected CORE group package"
+    ci_die "Components example did not produce expected Core component package"
   fi
 }
 
