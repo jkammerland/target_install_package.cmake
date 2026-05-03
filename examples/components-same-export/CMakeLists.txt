@@ -53,7 +53,7 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  "Core") # Creates Core + Core_Development
+  "Core") # Runtime files: Core; SDK files: Development
 
 target_install_package(
   media_dev_tools2
@@ -62,7 +62,7 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  "DevTools") # Creates DevTools + DevTools_Development
+  "DevTools") # Static-only target: SDK files in Development
 
 target_install_package(
   storage
@@ -71,7 +71,7 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  "Storage") # Creates Storage + Storage_Development
+  "Storage") # Runtime files: Storage; SDK files: Development
 
 target_install_package(
   asset_converter2
@@ -80,4 +80,4 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  "Tools") # Creates Tools + Tools_Development
+  "Tools") # Runtime files: Tools; SDK files: Development

@@ -132,8 +132,8 @@ cmake --install . --component Development
 
 # Install logical component groups (see components example)
 cmake --install . --component Core
-cmake --install . --component Core_Development
 cmake --install . --component Tools
+cmake --install . --component Development
 ```
 
 ## 📁 Installation Structure

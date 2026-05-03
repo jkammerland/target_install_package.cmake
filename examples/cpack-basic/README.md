@@ -93,7 +93,7 @@ export_cpack(
   - macOS: `TGZ`, `DragNDrop`
 
 - **Component Dependencies**: Automatically configured
-  - `Development` depends on `Runtime`
+  - `Development` depends on `Runtime` and `Tools`
 
 ## Package Types Generated
 
@@ -127,23 +127,24 @@ cmake --install . --component Runtime
 install/
 └── <libdir>/
     ├── libcpack_lib.so.1.2.0
-    ├── libcpack_lib.so.1
-    └── libcpack_lib.so
+    └── libcpack_lib.so.1
 ```
 
 ### Development Package (Developers)
 
 ```bash
-# Install development files
+# Install SDK files
 cmake --install . --component Development
 
-# Result: Headers, static libs, CMake configs
+# Result: Headers, static libs, shared-library namelinks, CMake configs.
+# For manual component installs of shared libraries, install Runtime too before consuming.
 install/
 ├── include/
 │   └── cpack_lib/
 │       ├── core.h
 │       └── utils.h
 ├── <libdir>/
+│   ├── libcpack_lib.so
 │   └── libcpack_lib_utils.a
 └── share/
     └── cmake/
@@ -189,7 +190,8 @@ package_prefix="$(dirname "$(dirname "$(find . -path '*/bin/mytool' -type f -pri
 "$package_prefix/bin/mytool" --version
 "$package_prefix/bin/mytool" --help
 
-# Add development payload before testing find_package consumers
+# Add development payload before testing find_package consumers.
+# Runtime was extracted above; package-manager installs get that dependency automatically.
 tar -xzf ../MyLibrary-1.2.0-Linux-Development.tar.gz
 ```
 

@@ -92,7 +92,7 @@ _tip_proof_run_step(
   --prefix
   "${_tip_development_install_prefix}"
   --component
-  Core_Development)
+  Development)
 
 if(NOT EXISTS "${_tip_development_namelink_after_dev_install}" AND NOT IS_SYMLINK "${_tip_development_namelink_after_dev_install}")
   _tip_proof_fail("Expected development namelink to exist: ${_tip_development_namelink_after_dev_install}")

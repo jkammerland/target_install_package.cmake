@@ -85,6 +85,8 @@ include(GNUInstallDirs)
 # Install shared library (Runtime component)
 install(TARGETS mylib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT Runtime
+            NAMELINK_COMPONENT Development
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}  # Windows DLLs
     COMPONENT Runtime
 )

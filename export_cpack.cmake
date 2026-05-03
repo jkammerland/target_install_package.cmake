@@ -116,17 +116,16 @@ endif()
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
-#   - Auto-detects logical component groups from naming patterns (e.g., Core and Core_Development → Core group)
+#   - Auto-detects components registered by target_install_package()
 #   - Sets platform-appropriate default generators (TGZ/ZIP on all, DEB/RPM on Linux, WIX on Windows)
 #   - Configures component dependencies and descriptions automatically
 #   - Handles both single-component and multi-component packages
 #   - Integrates with existing CMake project metadata
 #
 # Auto-detected components and their typical usage:
-#   - Runtime/PREFIX: Shared libraries, executables needed at runtime (when COMPONENT is PREFIX)
-#   - Development/PREFIX_Development: Headers, static libraries, CMake config files
-#   - Logical Groups: Auto-created from prefixes (e.g., Core + Core_Development → Core group)
-#   - Component Dependencies: *_Development automatically depends on corresponding runtime component
+#   - Runtime or named COMPONENT values: Shared libraries and executables needed at runtime
+#   - Development: Headers, static/import libraries, namelinks, CMake config files, and CPS metadata by default
+#   - Component Dependencies: Development automatically depends on the runtime components registered for the same export
 #
 # Examples:
 #   # Basic usage with auto-detection (CPack is automatically included)
@@ -282,12 +281,11 @@ function(_tip_component_list_has_cpack_dependencies OUT_VAR)
       PARENT_SCOPE)
 endfunction()
 
-# Helper function to determine if component groups should be auto-enabled Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development)
+# Helper function to determine if component groups should be auto-enabled for legacy split SDK component names.
 function(_should_auto_enable_component_groups component_list)
   foreach(component ${component_list})
-    # NEW SCHEME: Check if component follows COMPONENT_Development pattern
+    # Legacy compatibility: explicit COMPONENT_Development names can still be grouped when supplied directly to export_cpack().
     if(component MATCHES "^(.+)_Development$")
-      # Found at least one new-style development component - enable grouping
       set(_ENABLE_GROUPS
           TRUE
           PARENT_SCOPE)
@@ -308,7 +306,7 @@ function(_configure_logical_component_groups component_list)
   # Parse components to extract logical groups and categorize components
   foreach(component ${component_list})
     if(component MATCHES "^(.+)_Development$")
-      # NEW SCHEME: Component follows COMPONENT_Development pattern
+      # Legacy split SDK component pattern.
       set(group_name "${CMAKE_MATCH_1}")
       set(component_type "Development")
 
@@ -334,7 +332,7 @@ function(_configure_logical_component_groups component_list)
       # Traditional standalone Development component
       list(APPEND development_components "${component}")
     else()
-      # NEW SCHEME: Component without _Development suffix is runtime component Only add to runtime if there's a corresponding _Development component
+      # Legacy split SDK runtime component. Only add to runtime if there is a matching explicit _Development component.
       if("${component}_Development" IN_LIST component_list)
         list(APPEND runtime_components "${component}")
         if(NOT component IN_LIST logical_groups)
@@ -360,13 +358,13 @@ function(_configure_logical_component_groups component_list)
     set(dependencies "")
 
     if(component MATCHES "^(.+)_Development$")
-      # NEW SCHEME: COMPONENT_Development pattern
+      # Legacy split SDK component pattern.
       set(group_name "${CMAKE_MATCH_1}")
       string(TOUPPER "${group_name}" group_upper)
 
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
 
-      # Set up dependencies: Development components depend on Runtime components within same group PLUS the global Runtime component if it exists and is different
+      # Legacy dependency setup: split development components depend on their runtime component and global Runtime when present.
       if("${group_name}" IN_LIST component_list)
         list(APPEND dependencies "${group_name}")
       endif()
@@ -375,7 +373,7 @@ function(_configure_logical_component_groups component_list)
         list(APPEND dependencies "Runtime")
       endif()
     elseif("${component}_Development" IN_LIST component_list)
-      # NEW SCHEME: Runtime component (has corresponding _Development component)
+      # Legacy split SDK runtime component.
       string(TOUPPER "${component}" group_upper)
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
       # Custom runtime components should depend on global Runtime if it exists and is different
@@ -887,17 +885,18 @@ function(_execute_deferred_cpack_config)
       _configure_logical_component_groups("${ARG_COMPONENTS}")
     endif()
 
-    # Set component descriptions (enhanced for prefix patterns)
+    # Set component descriptions.
+    get_property(_tip_detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
 
       if(component MATCHES "^(.+)_Development$")
-        # NEW SCHEME: COMPONENT_Development pattern
+        # Legacy split SDK component pattern.
         set(group_name "${CMAKE_MATCH_1}")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
       elseif("${component}_Development" IN_LIST ARG_COMPONENTS)
-        # NEW SCHEME: Runtime component (has corresponding _Development component)
+        # Legacy split SDK runtime component.
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} runtime libraries and executables")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component} Runtime")
       elseif(component STREQUAL "Runtime")
@@ -912,6 +911,9 @@ function(_execute_deferred_cpack_config)
       elseif(component STREQUAL "Documentation")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Documentation and examples")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Documentation")
+      elseif(component IN_LIST _tip_detected_components)
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} runtime libraries and executables")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component} Runtime")
       else()
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} component")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component}")
@@ -1121,8 +1123,7 @@ function(_configure_gpg_signing)
     set(ARG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}")
   endif()
 
-  # Enable checksums by default when signing is enabled. Without signing, only
-  # configure the post-build script when checksums were explicitly requested.
+  # Enable checksums by default when signing is enabled. Without signing, only configure the post-build script when checksums were explicitly requested.
   if(NOT DEFINED ARG_GENERATE_CHECKSUMS OR "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
     if(ARG_SIGNING_KEY)
       set(ARG_GENERATE_CHECKSUMS ON)
@@ -1199,7 +1200,9 @@ function(_configure_gpg_signing)
     set(RPMSIGN_EXECUTABLE "")
   endif()
 
-  if(ARG_SIGNING_KEY AND ARG_PASSPHRASE_FILE AND ARG_REQUIRE_RPMSIGN)
+  if(ARG_SIGNING_KEY
+     AND ARG_PASSPHRASE_FILE
+     AND ARG_REQUIRE_RPMSIGN)
     project_log(WARNING "GPG_PASSPHRASE_FILE is used for detached signatures only; embedded RPM signing uses rpmsign and the configured GPG agent.")
   endif()
 

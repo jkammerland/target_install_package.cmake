@@ -52,7 +52,7 @@ _tip_proof_run_step(
   Release)
 _tip_proof_run_step(
   NAME
-  "fixture-install-core-development"
+  "fixture-install-development"
   COMMAND
   "${CMAKE_COMMAND}"
   --install
@@ -62,7 +62,7 @@ _tip_proof_run_step(
   --prefix
   "${_tip_install_prefix}"
   --component
-  Core_Development)
+  Development)
 
 file(
   WRITE "${_tip_consumer_source_dir}/CMakeLists.txt"

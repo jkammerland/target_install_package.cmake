@@ -53,7 +53,7 @@ _tip_proof_run_step(
   Release)
 _tip_proof_run_step(
   NAME
-  "fixture-install-storage-development"
+  "fixture-install-development"
   COMMAND
   "${CMAKE_COMMAND}"
   --install
@@ -63,7 +63,7 @@ _tip_proof_run_step(
   --prefix
   "${_tip_install_prefix}"
   --component
-  Storage_Development)
+  Development)
 
 set(_tip_config_file "${_tip_install_prefix}/share/cmake/proof_cpack_component_pkg/proof_cpack_component_pkgConfig.cmake")
 set(_tip_extra_file "${_tip_install_prefix}/share/cmake/proof_cpack_component_pkg/proof-extra.cmake")
@@ -71,26 +71,43 @@ _tip_proof_assert_exists("${_tip_config_file}")
 _tip_proof_assert_exists("${_tip_extra_file}")
 _tip_proof_assert_file_contains("${_tip_config_file}" "proof-extra.cmake")
 
+file(GLOB _tip_core_libraries "${_tip_install_prefix}/lib*/*proof_core*")
+if(NOT _tip_core_libraries)
+  _tip_proof_fail("Expected the unified Development component to install proof_core development artifacts")
+endif()
+
+file(GLOB _tip_storage_libraries "${_tip_install_prefix}/lib*/*proof_storage*")
+if(NOT _tip_storage_libraries)
+  _tip_proof_fail("Expected the unified Development component to install proof_storage development artifacts")
+endif()
+
 set(_tip_cpack_config_file "${_tip_fixture_build_dir}/CPackConfig.cmake")
 _tip_proof_assert_exists("${_tip_cpack_config_file}")
 file(READ "${_tip_cpack_config_file}" _tip_cpack_config_content)
 
-foreach(_tip_expected_component IN ITEMS Core Core_Development Storage Storage_Development)
+foreach(_tip_expected_component IN ITEMS Core Storage Development)
   string(FIND "${_tip_cpack_config_content}" "${_tip_expected_component}" _tip_component_index)
   if(_tip_component_index EQUAL -1)
     _tip_proof_fail("Expected CPackConfig.cmake to contain auto-detected component '${_tip_expected_component}'")
   endif()
 endforeach()
 
-string(REGEX MATCH "set\\(CPACK_COMPONENT_STORAGE_DEVELOPMENT_DEPENDS \"([^\"]*)\"\\)" _tip_storage_dep_match "${_tip_cpack_config_content}")
-if(NOT _tip_storage_dep_match)
-  _tip_proof_fail("Expected Storage_Development CPack dependency declaration")
+foreach(_tip_unexpected_component IN ITEMS Core_Development Storage_Development)
+  string(FIND "${_tip_cpack_config_content}" "${_tip_unexpected_component}" _tip_component_index)
+  if(NOT _tip_component_index EQUAL -1)
+    _tip_proof_fail("Did not expect CPackConfig.cmake to contain legacy split SDK component '${_tip_unexpected_component}'")
+  endif()
+endforeach()
+
+string(REGEX MATCH "set\\(CPACK_COMPONENT_DEVELOPMENT_DEPENDS \"([^\"]*)\"\\)" _tip_development_dep_match "${_tip_cpack_config_content}")
+if(NOT _tip_development_dep_match)
+  _tip_proof_fail("Expected Development CPack dependency declaration")
 endif()
 
-set(_tip_storage_dependencies "${CMAKE_MATCH_1}")
-foreach(_tip_expected_dependency IN ITEMS Storage Core Core_Development)
-  if(NOT "${_tip_expected_dependency}" IN_LIST _tip_storage_dependencies)
-    _tip_proof_fail("Expected Storage_Development to depend on '${_tip_expected_dependency}', got: ${_tip_storage_dependencies}")
+set(_tip_development_dependencies "${CMAKE_MATCH_1}")
+foreach(_tip_expected_dependency IN ITEMS Core Storage)
+  if(NOT "${_tip_expected_dependency}" IN_LIST _tip_development_dependencies)
+    _tip_proof_fail("Expected Development to depend on '${_tip_expected_dependency}', got: ${_tip_development_dependencies}")
   endif()
 endforeach()
 

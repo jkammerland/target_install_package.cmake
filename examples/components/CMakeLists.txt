@@ -30,7 +30,7 @@ target_compile_features(media_dev_tools PUBLIC cxx_std_17)
 add_executable(asset_converter)
 target_sources(asset_converter PRIVATE src/asset_converter.cpp)
 
-# Install with component prefix grouping. All targets share EXPORT_NAME="MediaLib" to create a unified package.
+# Install with logical runtime components. All targets share EXPORT_NAME="MediaLib" to create a unified package and one Development SDK component.
 target_install_package(
   media_core
   EXPORT_NAME
@@ -38,7 +38,7 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  Core) # Creates: Core (runtime), Core_Development (development)
+  Core) # Runtime files: Core; SDK files: Development
 
 target_install_package(
   media_dev_tools
@@ -47,7 +47,7 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  Core) # Creates: Core (runtime), Core_Development (development) - same logical group as media_core
+  Core) # Same Core runtime group as media_core; SDK files: Development
 
 target_install_package(
   asset_converter
@@ -56,10 +56,9 @@ target_install_package(
   NAMESPACE
   Media::
   COMPONENT
-  Tools) # Creates: Tools (runtime), Tools_Development (development)
+  Tools) # Runtime files: Tools; SDK files: Development
 
-# Use enhanced export_cpack with auto-detection of logical groups Components will auto-detected as: Core, Core_Development, Tools, Tools_Development Logical groups will be auto-created: Core (contains
-# Core and Core_Development), Tools (contains Tools and Tools_Development) Component dependencies will be auto-set: *_Development depends on corresponding runtime component
+# export_cpack auto-detects Core, Tools, and Development. The Development component depends on the runtime components for package-manager installs.
 export_cpack(
   PACKAGE_NAME
   "MediaLibrary"

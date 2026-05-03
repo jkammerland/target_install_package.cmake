@@ -114,7 +114,7 @@ endif()
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
-#   COMPONENT                    - Component prefix for installation. Creates `${COMPONENT}` for runtime and `${COMPONENT}_Development` for development files.
+#   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
@@ -151,10 +151,10 @@ endif()
 #   # Basic installation
 #   target_install_package(my_library)
 #
-#   # Custom version and component prefix
+#   # Custom version and runtime component
 #   target_install_package(my_library
 #     VERSION 1.2.3
-#     COMPONENT "Core")  # Creates Core and Core_Development components
+#     COMPONENT "Core")  # Creates Core runtime files and installs SDK files in Development
 #
 #   # Multi-config with default debug postfix "d", e.g if debug then -> my_libraryd.so
 #   target_install_package(my_library
@@ -457,11 +457,8 @@ endfunction()
 function(target_prepare_package TARGET_NAME)
   # Check for deprecated parameters BEFORE parsing
   if("RUNTIME_COMPONENT" IN_LIST ARGN OR "DEVELOPMENT_COMPONENT" IN_LIST ARGN)
-    message(
-      FATAL_ERROR
-        "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
-        "Use COMPONENT instead - it will automatically create '{COMPONENT}' for runtime files and '{COMPONENT}_Development' for development files. "
-        "This provides cleaner, more consistent component naming.")
+    message(FATAL_ERROR "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
+                        "Use COMPONENT instead to name runtime files. Development files are installed in the shared Development component.")
   endif()
 
   # Parse function arguments
@@ -818,7 +815,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
-  # Store per-target component configuration Component logic: if COMPONENT is set, use it; otherwise use default Runtime/Development
+  # Store per-target component configuration. COMPONENT names runtime files only; SDK files are always part of the shared Development component.
   get_property(
     _tip_existing_alias_name_set GLOBAL
     PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME"
@@ -859,11 +856,10 @@ function(target_prepare_package TARGET_NAME)
 
   if(ARG_COMPONENT)
     set(RUNTIME_COMPONENT_NAME "${ARG_COMPONENT}")
-    set(DEVELOPMENT_COMPONENT_NAME "${ARG_COMPONENT}_Development")
   else()
     set(RUNTIME_COMPONENT_NAME "Runtime")
-    set(DEVELOPMENT_COMPONENT_NAME "Development")
   endif()
+  set(DEVELOPMENT_COMPONENT_NAME "Development")
 
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${RUNTIME_COMPONENT_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
@@ -1045,7 +1041,7 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
 
-  # For config files, use the first target's development component as default
+  # For config files, use the shared development component for the export.
   get_property(EXISTING_CONFIG_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   if(NOT EXISTING_CONFIG_COMPONENT)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
@@ -1207,23 +1203,19 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
   set(COMPONENT_TARGET_MAP "")
 
   foreach(TARGET_NAME ${TARGETS})
-    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Determine actual component names Priority: explicit components > prefix pattern > defaults
-
-    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Explicit components specified (deprecated mode) - should be caught by validation
+    # Prefer the canonical component names stored by target_prepare_package().
+    if(TARGET_RUNTIME_COMP)
       set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
-      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
-    elseif(TARGET_COMP)
-      # NEW SCHEME: COMPONENT -> runtime, COMPONENT_Development -> development files
-      set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}")
-      set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
     else()
-      # Default components: Runtime, Development
       set(RUNTIME_COMPONENT_NAME "Runtime")
+    endif()
+
+    if(TARGET_DEV_COMP)
+      set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
+    else()
       set(DEV_COMPONENT_NAME "Development")
     endif()
 
@@ -1257,16 +1249,14 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
 endfunction(_collect_export_components)
 
 # ~~~
-# Helper: Build CMake component arguments for install() commands using prefix pattern.
+# Helper: Build CMake component arguments for install() commands.
 #
-# This internal helper function generates component names using the Component Prefix Pattern:
-# - If COMPONENT_PREFIX is provided: "${COMPONENT_PREFIX}_${COMPONENT_TYPE}"
-# - If no prefix: "${COMPONENT_TYPE}" only
-# - Always single install (no dual install complexity)
+# This internal helper returns one COMPONENT argument for the requested component
+# name. COMPONENT_PREFIX is kept only for older internal callers.
 #
 # Parameters:
 #   VAR_PREFIX - Variable name prefix for the output arguments
-#   COMPONENT_PREFIX - Optional prefix for component names (e.g., "Core", "GUI")
+#   COMPONENT_PREFIX - Optional runtime component name (e.g., "Core", "GUI")
 #   COMPONENT_TYPE - Component type: "Runtime" or "Development"
 #
 # Returns via parent scope:
@@ -1283,9 +1273,8 @@ function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
     return()
   endif()
 
-  # Generate component name using prefix pattern
-  if(COMPONENT_PREFIX)
-    set(COMPONENT_NAME "${COMPONENT_PREFIX}_${COMPONENT_TYPE}")
+  if(COMPONENT_PREFIX AND COMPONENT_TYPE STREQUAL "Runtime")
+    set(COMPONENT_NAME "${COMPONENT_PREFIX}")
   else()
     set(COMPONENT_NAME "${COMPONENT_TYPE}")
   endif()
@@ -1549,7 +1538,6 @@ function(finalize_package)
   foreach(TARGET_NAME ${TARGETS})
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
-    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
     get_property(TARGET_ALIAS_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
     get_property(TARGET_ALIAS_NAME_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT")
 
@@ -1576,34 +1564,20 @@ function(finalize_package)
       list(APPEND _tip_cps_default_target_names "${TARGET_ALIAS_NAME}")
     endif()
 
-    # Build component args for this target Priority: explicit components > prefix pattern > defaults
-
-    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Explicit runtime component specified (traditional mode)
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
-    elseif(TARGET_COMP)
-      # NEW SCHEME: COMPONENT name directly for runtime files
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_COMP})
+    if(TARGET_RUNTIME_COMP)
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT "${TARGET_RUNTIME_COMP}")
     else()
-      # Default: Runtime
       _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
     endif()
 
-    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
-      # Explicit development component specified (traditional mode)
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
-    elseif(TARGET_COMP)
-      # NEW SCHEME: COMPONENT_Development for development files
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT "${TARGET_COMP}_Development")
+    if(TARGET_DEV_COMP)
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT "${TARGET_DEV_COMP}")
     else()
-      # Default: Development
       _build_component_args(TARGET_DEV_COMPONENT "" "Development")
     endif()
 
-    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
-      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT ${TARGET_DEV_COMP})
-    elseif(TARGET_COMP)
-      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT "${TARGET_COMP}_Development")
+    if(TARGET_DEV_COMP)
+      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT "${TARGET_DEV_COMP}")
     else()
       set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT Development)
     endif()
@@ -1860,7 +1834,7 @@ function(finalize_package)
     endif()
   endforeach()
 
-  # Install CMake package metadata with every development component for this export. A selected SDK/development package must carry the config entry point.
+  # Install CMake package metadata with the shared SDK component for this export.
   set(CONFIG_COMPONENTS "")
   if(ALL_DEVELOPMENT_COMPONENTS)
     set(CONFIG_COMPONENTS ${ALL_DEVELOPMENT_COMPONENTS})

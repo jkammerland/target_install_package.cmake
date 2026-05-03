@@ -31,13 +31,9 @@ set(_tip_main_install_command "${CMAKE_COMMAND}" --install "${TIP_MAIN_BUILD_DIR
 if(DEFINED TIP_MAIN_INSTALL_CONFIG AND NOT TIP_MAIN_INSTALL_CONFIG STREQUAL "")
   list(APPEND _tip_main_install_command --config "${TIP_MAIN_INSTALL_CONFIG}")
 endif()
-list(APPEND _tip_main_install_command --prefix "${_tip_install_prefix}" --component CMakeUtilities_Development)
+list(APPEND _tip_main_install_command --prefix "${_tip_install_prefix}" --component Development)
 
-_tip_proof_run_step(
-  NAME
-  "install-target-install-package"
-  COMMAND
-  ${_tip_main_install_command})
+_tip_proof_run_step(NAME "install-target-install-package" COMMAND ${_tip_main_install_command})
 
 set(_tip_installed_helper_dir "${_tip_install_prefix}/share/cmake/target_install_package")
 foreach(_tip_installed_helper IN ITEMS generic-config.cmake.in sign_packages.cmake.in external_container_package.cmake collect_runtime_deps.sh build_minimal_container.sh container_to_quadlet.sh)
@@ -62,12 +58,30 @@ if(UNIX)
   endforeach()
 endif()
 
-set(_tip_consumer_configure_command "${CMAKE_COMMAND}" -S "${TIP_REPO_ROOT}/tests/consumer" -B "${_tip_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
-                                    "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}" "-DTIP_CONSUMER_ENABLE_CHECKSUMS=ON" ${_tip_toolchain_args})
+set(_tip_consumer_configure_command "${CMAKE_COMMAND}" -S "${TIP_REPO_ROOT}/tests/consumer" -B "${_tip_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}"
+                                    "-DTIP_CONSUMER_ENABLE_CHECKSUMS=ON" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "consumer-configure" COMMAND ${_tip_consumer_configure_command})
-_tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config Release)
-_tip_proof_run_step(NAME "consumer-install" COMMAND "${CMAKE_COMMAND}" --install "${_tip_consumer_build_dir}" --config Release --prefix "${_tip_consumer_install_prefix}")
+_tip_proof_run_step(
+  NAME
+  "consumer-build"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${_tip_consumer_build_dir}"
+  --config
+  Release)
+_tip_proof_run_step(
+  NAME
+  "consumer-install"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --install
+  "${_tip_consumer_build_dir}"
+  --config
+  Release
+  --prefix
+  "${_tip_consumer_install_prefix}")
 
 if(WIN32)
   set(_tip_consumer_executable "${_tip_consumer_install_prefix}/bin/consumer.exe")
@@ -142,8 +156,7 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
   file(MAKE_DIRECTORY "${_tip_fake_bin_dir}")
 
   file(
-    WRITE
-    "${_tip_fake_bin_dir}/podman"
+    WRITE "${_tip_fake_bin_dir}/podman"
     "#!/bin/sh\n"
     "printf '%s\\n' \"$@\" >> \"${TIP_CONSUMER_TEST_ROOT}/podman.log\"\n"
     "case \"$1\" in\n"
@@ -174,19 +187,19 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
     WORLD_READ
     WORLD_EXECUTE)
 
-  set(_tip_container_consumer_configure_command
-      "${CMAKE_COMMAND}"
-      -S
-      "${TIP_REPO_ROOT}/tests/consumer"
-      -B
-      "${_tip_container_consumer_build_dir}"
-      "-DCMAKE_BUILD_TYPE=Release"
-      "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}"
-      "-DTIP_CONSUMER_ENABLE_CONTAINER=ON"
-      ${_tip_toolchain_args})
+  set(_tip_container_consumer_configure_command "${CMAKE_COMMAND}" -S "${TIP_REPO_ROOT}/tests/consumer" -B "${_tip_container_consumer_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
+                                                "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}" "-DTIP_CONSUMER_ENABLE_CONTAINER=ON" ${_tip_toolchain_args})
 
   _tip_proof_run_step(NAME "container-consumer-configure" COMMAND ${_tip_container_consumer_configure_command})
-  _tip_proof_run_step(NAME "container-consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_container_consumer_build_dir}" --config Release)
+  _tip_proof_run_step(
+    NAME
+    "container-consumer-build"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    --build
+    "${_tip_container_consumer_build_dir}"
+    --config
+    Release)
   _tip_proof_run_step(
     NAME
     "container-consumer-package"

@@ -98,7 +98,7 @@ target_install_package(my_library
    - [CPack Package Generation](#cpack-package-generation)
    - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands)
 4. [Component-Based Installation](#component-based-installation)
-   - [Component Prefix Pattern](#component-prefix-pattern)
+   - [Component Model](#component-model)
    - [Logical Component Grouping](#logical-component-grouping)
    - [Installing Specific Components](#installing-specific-components)
 5. [Multi-Target Exports](#multi-target-exports)
@@ -494,13 +494,15 @@ cmake --install . --component Documentation
 
 ## Component-Based Installation
 
-`target_install_package` supports logical component grouping using the **Component Prefix Pattern**, providing predictable component naming and clean installation control.
+`target_install_package` supports component-based installs with runtime components and one shared SDK component per export.
 
-### Component Prefix Pattern
+### Component Model
 
-The Component Prefix Pattern creates logical component groups with predictable naming:
-- **Without COMPONENT**: Creates `Runtime` and `Development` components (traditional)
-- **With COMPONENT**: Creates `{COMPONENT}` (runtime) and `{COMPONENT}_Development` (development) components
+The component model uses predictable names:
+- **Without `COMPONENT`**: runtime files go to `Runtime`; SDK files go to `Development`.
+- **With `COMPONENT`**: runtime files go to the named component, such as `Core`; SDK files still go to `Development`.
+
+The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components; package-manager installs receive those through CPack component dependencies.
 
 ```cmake
 add_library(my_library SHARED)
@@ -511,10 +513,10 @@ target_sources(my_library PUBLIC
   FILES "include/my_library/api.h"
 )
 
-# Traditional: Creates Runtime and Development components
+# Default components: Runtime and Development
 target_install_package(my_library)
 
-# Logical grouping: Creates Core (runtime) and Core_Development (development) components  
+# Named runtime component: Core runtime files and Development SDK files
 target_install_package(my_library COMPONENT Core)
 ```
 
@@ -536,7 +538,7 @@ target_sources(engine_tools PUBLIC FILE_SET HEADERS BASE_DIRS include FILES incl
 target_install_package(engine_core
   EXPORT_NAME "GameEngine"
   NAMESPACE Engine::
-  COMPONENT Core)              # Creates: Core (runtime), Core_Development (development)
+  COMPONENT Core)              # Runtime files: Core; SDK files: Development
 
 target_install_package(engine_tools  
   EXPORT_NAME "GameEngine"
@@ -546,14 +548,13 @@ target_install_package(engine_tools
 target_install_package(level_editor
   EXPORT_NAME "GameEngine" 
   NAMESPACE Engine::
-  COMPONENT Tools)             # Creates: Tools (runtime), Tools_Development (development)
+  COMPONENT Tools)             # Runtime files: Tools; SDK files: Development
 ```
 
 **Result**: Single `GameEngine` package with logical component groups:
 - **Core**: `libengine_core.so` (runtime)
-- **Core_Development**: Headers from both targets + `libengine_tools.a` + shared CMake config files
 - **Tools**: `level_editor` executable (runtime)
-- **Tools_Development**: Headers for tools + development-only assets + shared CMake config files
+- **Development**: Headers from all exported libraries + static/import libraries + namelinks + shared CMake config files
 
 ### Installing Specific Components
 
@@ -561,29 +562,28 @@ target_install_package(level_editor
 # Install Core logical group - runtime only (deployment)
 cmake --install . --component Core
 
-# Install Core logical group - development files
-cmake --install . --component Core_Development  
+# Install SDK files for the export
+cmake --install . --component Development
 
 # Install Tools logical group - runtime only
 cmake --install . --component Tools
 
-# Shared CMake config files are installed with every development component
-cmake --install . --component Core_Development
-cmake --install . --component Tools_Development
+# Shared CMake config files are installed with the Development component
+cmake --install . --component Development
 
 # Install all runtime + development files (no component filtering)
 cmake --install .
 
 # Install everything for developers
 cmake --install . --component Core
-cmake --install . --component Core_Development
 cmake --install . --component Tools
-cmake --install . --component Tools_Development
+cmake --install . --component Development
 
 # Install everything
 cmake --install .
 ```
 
+Migrating from the older split-SDK naming is straightforward: replace `<Component>_Development` installs or package names with `Development`. Runtime component names from `COMPONENT`, such as `Core` and `Tools`, are unchanged.
 
 ## Multi-Target Exports
 
@@ -627,7 +627,7 @@ target_sources(myproject_cli PRIVATE src/cli.cpp)
 target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT Core                             # Creates: Core (runtime), Core_Development (development)
+  COMPONENT Core                             # Runtime files: Core; SDK files: Development
   PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Shared by all targets
 )
 
@@ -641,14 +641,14 @@ target_install_package(myproject_utils
 target_install_package(myproject_cli
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
-  COMPONENT Tools                            # Creates: Tools (runtime), Tools_Development (development)
+  COMPONENT Tools                            # Runtime files: Tools; SDK files: Development
 )
 ```
 
 **Result**: Single package with logical component groups:
 - **Core**: Runtime component for Core targets; static-only Core targets may not add runtime files
-- **Core_Development**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) + headers from both Core libraries + shared CMake config files
 - **Tools**: CLI executable (`myproject_cli`) (runtime)
+- **Development**: Static libraries (`libmyproject_core.a`, `libmyproject_utils.a`) + headers from exported libraries + shared CMake config files
 
 **Consumer usage:**
 ```cmake
@@ -801,7 +801,7 @@ target_install_package(engine_graphics
   COMPONENT_DEPENDENCIES
     "graphics" "OpenGL 4.5 REQUIRED"
     "graphics" "glfw3 3.3 REQUIRED"
-  COMPONENT "Graphics"  # Creates Graphics and Graphics_Development
+  COMPONENT "Graphics"  # Runtime files: Graphics; SDK files: Development
 )
 
 target_install_package(engine_physics
@@ -809,7 +809,7 @@ target_install_package(engine_physics
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
     "physics" "Bullet3 3.24 REQUIRED"
-  COMPONENT "Physics"  # Creates Physics and Physics_Development
+  COMPONENT "Physics"  # Runtime files: Physics; SDK files: Development
 )
 
 target_install_package(level_editor
@@ -839,16 +839,15 @@ cmake --install . --component Runtime
 cmake --install . --component Runtime
 cmake --install . --component Graphics
 
-# Full game development environment with all runtime components
+# Full game development environment with all runtime components and the SDK
 cmake --install . --component Runtime
 cmake --install . --component Graphics
 cmake --install . --component Physics
 cmake --install . --component Tools
-
-# Development files for Graphics and Physics
 cmake --install . --component Development
-cmake --install . --component Graphics_Development
-cmake --install . --component Physics_Development
+
+# Development files for the complete game_engine export
+cmake --install . --component Development
 
 # Install every component at once (no explicit selection)
 cmake --install .
