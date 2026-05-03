@@ -80,10 +80,10 @@ Example package names for the current example version (`1.2.0`) are:
 **📦 Packages**
 - `MySignedLibrary-1.2.0-Linux-Development.tar.gz`
 - `MySignedLibrary-1.2.0-Linux-Runtime.tar.gz`
-- `MySignedLibrary-1.2.0-Linux-TOOLS.tar.gz`
+- `MySignedLibrary-1.2.0-Linux-Tools.tar.gz`
 - `MySignedLibrary-1.2.0-Linux-Development.zip`
 - `MySignedLibrary-1.2.0-Linux-Runtime.zip`
-- `MySignedLibrary-1.2.0-Linux-TOOLS.zip`
+- `MySignedLibrary-1.2.0-Linux-Tools.zip`
 
 **🔐 Signatures**  
 - `*.sig` - GPG detached signatures for each package
@@ -178,10 +178,10 @@ cp ../verify_template.sh.in my_custom_verify.sh.in
 #
 # ✓ MySignedLibrary-1.2.0-Linux-Development.tar.gz verified successfully
 # ✓ MySignedLibrary-1.2.0-Linux-Runtime.tar.gz verified successfully
-# ✓ MySignedLibrary-1.2.0-Linux-TOOLS.tar.gz verified successfully
+# ✓ MySignedLibrary-1.2.0-Linux-Tools.tar.gz verified successfully
 # ✓ MySignedLibrary-1.2.0-Linux-Development.zip verified successfully
 # ✓ MySignedLibrary-1.2.0-Linux-Runtime.zip verified successfully
-# ✓ MySignedLibrary-1.2.0-Linux-TOOLS.zip verified successfully
+# ✓ MySignedLibrary-1.2.0-Linux-Tools.zip verified successfully
 #
 # Verification Results:
 #   Total packages: 6

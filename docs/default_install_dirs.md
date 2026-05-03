@@ -54,16 +54,22 @@ Notes:
 
 | Component | Contains | Purpose |
 |-----------|----------|---------|
-| Runtime | Executables, DLLs, shared libraries | Required at runtime |
-| Development | Headers, import libs, static libs, CMake configs, CPS metadata by default | Required for building |
+| Runtime | Executables, DLLs, shared libraries, shared-library SONAME links | Required at runtime |
+| Development | Headers, import libs, static libs, shared-library namelinks, CMake configs, CPS metadata by default | Required for building |
 
-CPS metadata is installed with the same component as the CMake config files: `Development` by default, or the first development component for the export when component prefixes are used.
+CMake config and export files are installed with the shared `Development` component for the export. When `COMPONENT <name>` is used, only runtime files move to `<name>`; headers, static/import libraries, shared-library namelinks, CMake metadata, include-on-find helpers, and CPS metadata by default stay in `Development`.
+`export_cpack()` records dependencies from each development component to the runtime components registered by exports using that development component.
+Direct `cmake --install --component <name>` installs only the named component and does not follow CPack dependencies; run a full install or install `Development` plus the related runtime components when manually assembling a partial tree from a shared export.
+Component archives such as `TGZ` and `ZIP` are payload slices and do not install dependency archives automatically. Native package managers can enforce component dependencies only when the selected CPack generator is configured to translate that metadata, such as Debian component dependency settings for `DEB` or explicit `Requires` metadata for `RPM`.
+Static-only and interface-only targets do not contribute runtime payloads, so their named runtime component is not auto-registered unless other runtime targets share that component. Standalone manual `install(... COMPONENT <name>)` rules are not auto-discovered by `export_cpack()`; list those components explicitly with `export_cpack(COMPONENTS ...)` when they must appear in generated packages.
+
+CPS metadata is installed with `Development` by default.
 Set `CPS_COMPONENT` to place CPS metadata in a different install component.
 SBOM metadata is different: `install(SBOM)` does not expose a `COMPONENT`
 option, so SBOM files are available in full installs and follow CMake's
 default non-component behavior rather than this wrapper's `Development`
 component routing. For example, `cmake --install <build-dir> --component
-<COMPONENT>_Development` does not install the SBOM.
+Development` does not install the SBOM.
 
 ## Additional Files
 

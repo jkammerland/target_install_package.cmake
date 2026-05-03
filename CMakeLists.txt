@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(target_install_package VERSION 7.0.1)
+project(target_install_package VERSION 7.0.2)
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -50,17 +50,12 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
       # Override include destination to put modules in the cmake dir
       INCLUDE_DESTINATION
-      ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
-      COMPONENT
-      "CMakeUtilities")
+      ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME})
 
     install(
-      PROGRAMS
-        ${CMAKE_CURRENT_LIST_DIR}/cmake/build_minimal_container.sh
-        ${CMAKE_CURRENT_LIST_DIR}/cmake/collect_runtime_deps.sh
-        ${CMAKE_CURRENT_LIST_DIR}/cmake/container_to_quadlet.sh
+      PROGRAMS ${CMAKE_CURRENT_LIST_DIR}/cmake/build_minimal_container.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/collect_runtime_deps.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/container_to_quadlet.sh
       DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
-      COMPONENT CMakeUtilities_Development)
+      COMPONENT Development)
   endif()
 endif()
 

@@ -31,14 +31,15 @@ cmake --build .
 # Install all components
 cmake --install .
 
-# Or install specific components
+# Or install runtime components plus the SDK. DevTools is static-only, so its payload is in Development.
 cmake --install . --component Core
-cmake --install . --component Core_Development
-cmake --install . --component DevTools_Development
 cmake --install . --component Storage
-cmake --install . --component Storage_Development
 cmake --install . --component Tools
+cmake --install . --component Development
 ```
+
+The `Development` component installs SDK files for the shared `engine2` export, including CMake package metadata. When packaged through `export_cpack()`, `Development` records dependencies on the runtime components in that export. Raw `cmake --install --component` and component archives do not follow those dependencies automatically, so install or extract `Development` plus the runtime components you need. Native packages enforce the relationship only when their CPack generator is configured to translate component dependency metadata.
+
 ## Using the Installed Package
 
 Create a consumer project:

@@ -33,12 +33,11 @@ Notes:
 Interaction with CPack
 ----------------------
 
-- `export_cpack()` also uses deferred execution, and it expects all exports to be finalized by the time it runs.
-- When both utilities are used, the order is: prepare targets → finalize packages (auto/explicit) → configure CPack (auto).
+- `export_cpack()` also uses deferred execution and forces any registered, unfinalized exports to finalize before it reads auto-detected components.
+- When both utilities are used, the effective order is: prepare targets → finalize pending packages (explicit, auto, or CPack-forced) → configure CPack (auto).
 
 Troubleshooting
 ---------------
 
 - If an export appears incomplete, ensure all contributing targets were configured before the end of the top-level configure step, or call `finalize_package()` explicitly.
 - In superbuilds, the automatic finalization still runs at the superproject’s `CMAKE_SOURCE_DIR`, which is typically desirable due to global target scope.
-

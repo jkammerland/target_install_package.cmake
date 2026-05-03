@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.1)
+  list_file_include_guard(VERSION 7.0.2)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -100,7 +100,8 @@ endif()
 #   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
-#   DEFAULT_COMPONENTS      - Components installed by default (default: Runtime)
+#   DEFAULT_COMPONENTS      - Components selected by default in installers that honor CPack DISABLED metadata.
+#                             Defaults to detected runtime-payload components, or Development when no runtime payload exists.
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
@@ -109,24 +110,23 @@ endif()
 #   CONTAINER_RUNTIME       - Explicit runtime command for container build/save (default: podman)
 #   CONTAINER_ENTRYPOINT    - Entrypoint path inside the container rootfs. If omitted, exactly one executable must be discoverable.
 #   CONTAINER_ARCHIVE_FORMAT - Archive format for saved image (default: oci-archive for podman, docker-archive for docker)
-#   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS, or declared runtime components when the implicit Runtime default is not declared)
+#   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS)
 #   CONTAINER_ROOTFS_OVERLAYS - Directories whose contents are merged into the rootfs after components
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
 #                             Can override any auto-detected settings including architecture
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
-#   - Auto-detects logical component groups from naming patterns (e.g., Core and Core_Development → Core group)
+#   - Registers runtime components only for targets with runtime payloads
 #   - Sets platform-appropriate default generators (TGZ/ZIP on all, DEB/RPM on Linux, WIX on Windows)
-#   - Configures component dependencies and descriptions automatically
+#   - Records CPack component metadata; native package dependency enforcement is generator-specific
 #   - Handles both single-component and multi-component packages
 #   - Integrates with existing CMake project metadata
 #
 # Auto-detected components and their typical usage:
-#   - Runtime/PREFIX: Shared libraries, executables needed at runtime (when COMPONENT is PREFIX)
-#   - Development/PREFIX_Development: Headers, static libraries, CMake config files
-#   - Logical Groups: Auto-created from prefixes (e.g., Core + Core_Development → Core group)
-#   - Component Dependencies: *_Development automatically depends on corresponding runtime component
+#   - Runtime or named COMPONENT values: shared libraries, modules, and executables needed at runtime
+#   - Development: Headers, static/import libraries, namelinks, CMake config files, and CPS metadata by default
+#   - Component dependencies: Development records dependencies on runtime components registered for the same export
 #
 # Examples:
 #   # Basic usage with auto-detection (CPack is automatically included)
@@ -177,6 +177,21 @@ function(_tip_find_export_cpack_resource_file file_name out_var)
   endforeach()
 
   project_log(FATAL_ERROR "Package resource '${file_name}' not found. Checked: ${_tip_resource_candidates}")
+endfunction()
+
+function(_tip_finalize_registered_exports_for_cpack)
+  if(NOT COMMAND _auto_finalize_single_export)
+    return()
+  endif()
+
+  get_property(_tip_registered_exports GLOBAL PROPERTY "_CMAKE_PACKAGE_REGISTERED_EXPORTS")
+  foreach(_tip_export_name IN LISTS _tip_registered_exports)
+    get_property(_tip_export_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${_tip_export_name}_FINALIZED")
+    if(NOT _tip_export_finalized)
+      project_log(DEBUG "Finalizing export '${_tip_export_name}' before CPack configuration")
+      _auto_finalize_single_export("${_tip_export_name}")
+    endif()
+  endforeach()
 endfunction()
 
 function(export_cpack)
@@ -237,12 +252,41 @@ function(_tip_append_cpack_list_var_unique var_name)
   _tip_store_cpack_var("${var_name}" "${updated_value}")
 endfunction()
 
-# Helper function to determine if component groups should be auto-enabled Auto-enable when we detect logical component prefixes (e.g., Core/Core_Development)
+function(_tip_cpack_component_dependency_property_name OUT_VAR COMPONENT_NAME)
+  string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
+  set(${OUT_VAR}
+      "_TIP_CPACK_COMPONENT_DEPENDENCY_${_tip_component_hash}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_get_cpack_component_dependencies COMPONENT_NAME OUT_VAR)
+  _tip_cpack_component_dependency_property_name(_tip_component_dependency_property "${COMPONENT_NAME}")
+  get_property(_tip_component_dependencies GLOBAL PROPERTY "${_tip_component_dependency_property}")
+  set(${OUT_VAR}
+      "${_tip_component_dependencies}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_component_list_has_cpack_dependencies OUT_VAR)
+  set(_tip_has_dependencies FALSE)
+  foreach(_tip_component IN LISTS ARGN)
+    _tip_get_cpack_component_dependencies("${_tip_component}" _tip_component_dependencies)
+    if(_tip_component_dependencies)
+      set(_tip_has_dependencies TRUE)
+      break()
+    endif()
+  endforeach()
+
+  set(${OUT_VAR}
+      "${_tip_has_dependencies}"
+      PARENT_SCOPE)
+endfunction()
+
+# Helper function to determine if component groups should be auto-enabled for legacy split SDK component names.
 function(_should_auto_enable_component_groups component_list)
   foreach(component ${component_list})
-    # NEW SCHEME: Check if component follows COMPONENT_Development pattern
+    # Legacy compatibility: explicit COMPONENT_Development names can still be grouped when supplied directly to export_cpack().
     if(component MATCHES "^(.+)_Development$")
-      # Found at least one new-style development component - enable grouping
       set(_ENABLE_GROUPS
           TRUE
           PARENT_SCOPE)
@@ -263,7 +307,7 @@ function(_configure_logical_component_groups component_list)
   # Parse components to extract logical groups and categorize components
   foreach(component ${component_list})
     if(component MATCHES "^(.+)_Development$")
-      # NEW SCHEME: Component follows COMPONENT_Development pattern
+      # Legacy split SDK component pattern.
       set(group_name "${CMAKE_MATCH_1}")
       set(component_type "Development")
 
@@ -289,7 +333,7 @@ function(_configure_logical_component_groups component_list)
       # Traditional standalone Development component
       list(APPEND development_components "${component}")
     else()
-      # NEW SCHEME: Component without _Development suffix is runtime component Only add to runtime if there's a corresponding _Development component
+      # Legacy split SDK runtime component. Only add to runtime if there is a matching explicit _Development component.
       if("${component}_Development" IN_LIST component_list)
         list(APPEND runtime_components "${component}")
         if(NOT component IN_LIST logical_groups)
@@ -312,16 +356,16 @@ function(_configure_logical_component_groups component_list)
   # Configure component group assignments and dependencies
   foreach(component ${component_list})
     string(TOUPPER "${component}" component_upper)
+    set(dependencies "")
 
     if(component MATCHES "^(.+)_Development$")
-      # NEW SCHEME: COMPONENT_Development pattern
+      # Legacy split SDK component pattern.
       set(group_name "${CMAKE_MATCH_1}")
       string(TOUPPER "${group_name}" group_upper)
 
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
 
-      # Set up dependencies: Development components depend on Runtime components within same group PLUS the global Runtime component if it exists and is different
-      set(dependencies "")
+      # Legacy dependency setup: split development components depend on their runtime component and global Runtime when present.
       if("${group_name}" IN_LIST component_list)
         list(APPEND dependencies "${group_name}")
       endif()
@@ -329,25 +373,41 @@ function(_configure_logical_component_groups component_list)
       if("Runtime" IN_LIST component_list AND NOT group_name STREQUAL "Runtime")
         list(APPEND dependencies "Runtime")
       endif()
-      if(dependencies)
-        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
-        project_log(DEBUG "Set dependency: ${component} depends on ${dependencies}")
-      endif()
     elseif("${component}_Development" IN_LIST component_list)
-      # NEW SCHEME: Runtime component (has corresponding _Development component)
+      # Legacy split SDK runtime component.
       string(TOUPPER "${component}" group_upper)
       _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_GROUP "${group_upper}")
       # Custom runtime components should depend on global Runtime if it exists and is different
       if("Runtime" IN_LIST component_list AND NOT component STREQUAL "Runtime")
-        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "Runtime")
-        project_log(DEBUG "Set dependency: ${component} depends on Runtime")
+        list(APPEND dependencies "Runtime")
       endif()
     else()
       # Traditional component - set up classic Runtime/Development dependency
       if(component STREQUAL "Development" AND "Runtime" IN_LIST component_list)
-        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "Runtime")
-        project_log(DEBUG "Set traditional dependency: Development depends on Runtime")
+        list(APPEND dependencies "Runtime")
       endif()
+    endif()
+
+    _tip_get_cpack_component_dependencies("${component}" _tip_export_component_dependencies)
+    if(_tip_export_component_dependencies)
+      list(APPEND dependencies ${_tip_export_component_dependencies})
+    endif()
+    if(dependencies)
+      list(REMOVE_ITEM dependencies "${component}")
+      list(REMOVE_DUPLICATES dependencies)
+      set(_tip_filtered_dependencies "")
+      foreach(_tip_dependency IN LISTS dependencies)
+        if(_tip_dependency IN_LIST component_list)
+          list(APPEND _tip_filtered_dependencies "${_tip_dependency}")
+        else()
+          project_log(DEBUG "Skipping dependency '${_tip_dependency}' for component '${component}' because it is not in CPACK_COMPONENTS_ALL")
+        endif()
+      endforeach()
+      set(dependencies ${_tip_filtered_dependencies})
+    endif()
+    if(dependencies)
+      _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DEPENDS "${dependencies}")
+      project_log(DEBUG "Set dependency: ${component} depends on ${dependencies}")
     endif()
   endforeach()
 
@@ -414,6 +474,7 @@ function(_execute_deferred_cpack_config)
   if(NOT args)
     return()
   endif()
+  _tip_finalize_registered_exports_for_cpack()
   get_property(_tip_cpack_config_source_dir GLOBAL PROPERTY "_TIP_CPACK_CONFIG_SOURCE_DIR")
   if(NOT _tip_cpack_config_source_dir)
     set(_tip_cpack_config_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -508,6 +569,11 @@ function(_execute_deferred_cpack_config)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+  set(_tip_components_explicit FALSE)
+  set(_tip_components_keyword "COMPONENTS")
+  if(_tip_components_keyword IN_LIST _tip_cpack_parse_args)
+    set(_tip_components_explicit TRUE)
+  endif()
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
@@ -570,8 +636,24 @@ function(_execute_deferred_cpack_config)
   set(_tip_default_components_explicit TRUE)
   if(NOT ARG_DEFAULT_COMPONENTS)
     set(_tip_default_components_explicit FALSE)
-    set(ARG_DEFAULT_COMPONENTS "Runtime")
+    set(ARG_DEFAULT_COMPONENTS "")
+    get_property(_tip_detected_runtime_components GLOBAL PROPERTY "_TIP_DETECTED_RUNTIME_COMPONENTS")
+    foreach(_tip_default_component_candidate IN LISTS _tip_detected_runtime_components)
+      if(_tip_default_component_candidate IN_LIST ARG_COMPONENTS)
+        list(APPEND ARG_DEFAULT_COMPONENTS "${_tip_default_component_candidate}")
+      endif()
+    endforeach()
+    if(NOT ARG_DEFAULT_COMPONENTS AND "Development" IN_LIST ARG_COMPONENTS)
+      set(ARG_DEFAULT_COMPONENTS "Development")
+    elseif(NOT ARG_DEFAULT_COMPONENTS)
+      set(ARG_DEFAULT_COMPONENTS ${ARG_COMPONENTS})
+    endif()
   endif()
+  foreach(_tip_default_component IN LISTS ARG_DEFAULT_COMPONENTS)
+    if(NOT _tip_default_component IN_LIST ARG_COMPONENTS)
+      project_log(FATAL_ERROR "DEFAULT_COMPONENTS contains unknown component '${_tip_default_component}'. Known components: ${ARG_COMPONENTS}")
+    endif()
+  endforeach()
 
   # Auto-detect generators based on platform if not specified
   if(NOT ARG_GENERATORS AND NOT ARG_NO_DEFAULT_GENERATORS)
@@ -746,24 +828,6 @@ function(_execute_deferred_cpack_config)
       set(container_components ${ARG_CONTAINER_COMPONENTS})
     else()
       set(container_components ${ARG_DEFAULT_COMPONENTS})
-      set(_tip_container_default_components_valid TRUE)
-      foreach(container_component IN LISTS container_components)
-        if(NOT container_component IN_LIST ARG_COMPONENTS)
-          set(_tip_container_default_components_valid FALSE)
-        endif()
-      endforeach()
-      if(NOT _tip_container_default_components_valid AND NOT _tip_default_components_explicit)
-        set(container_components "")
-        foreach(container_component_candidate IN LISTS ARG_COMPONENTS)
-          if(container_component_candidate STREQUAL "Development" OR container_component_candidate MATCHES "_Development$")
-            continue()
-          endif()
-          list(APPEND container_components "${container_component_candidate}")
-        endforeach()
-        if(container_components)
-          project_log(VERBOSE "Container components defaulted to declared runtime components: ${container_components}")
-        endif()
-      endif()
     endif()
     if(NOT container_components)
       project_log(FATAL_ERROR "CONTAINER_COMPONENTS resolved to an empty list. Set CONTAINER_COMPONENTS or DEFAULT_COMPONENTS explicitly.")
@@ -804,9 +868,11 @@ function(_execute_deferred_cpack_config)
   if(ARG_COMPONENTS)
     _tip_store_cpack_var(CPACK_COMPONENTS_ALL "${ARG_COMPONENTS}")
 
-    # Enable component installation if more than one component or explicitly requested
+    # Enable component installation if more than one component, explicit components were requested, or explicitly requested.
     list(LENGTH ARG_COMPONENTS component_count)
-    if(component_count GREATER 1 OR ARG_ENABLE_COMPONENT_INSTALL)
+    if(component_count GREATER 1
+       OR ARG_ENABLE_COMPONENT_INSTALL
+       OR _tip_components_explicit)
       _tip_store_cpack_var(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
       _tip_store_cpack_var(CPACK_DEB_COMPONENT_INSTALL ON)
       _tip_store_cpack_var(CPACK_RPM_COMPONENT_INSTALL ON)
@@ -815,31 +881,44 @@ function(_execute_deferred_cpack_config)
       endif()
     endif()
 
-    # Set default components
+    # Mark non-default components as unselected by default for installers that honor CPack component metadata.
     if(ARG_DEFAULT_COMPONENTS)
-      _tip_store_cpack_var(CPACK_COMPONENTS_DEFAULT "${ARG_DEFAULT_COMPONENTS}")
+      foreach(component ${ARG_COMPONENTS})
+        string(TOUPPER ${component} component_upper)
+        if(component IN_LIST ARG_DEFAULT_COMPONENTS)
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISABLED FALSE)
+        else()
+          _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISABLED TRUE)
+        endif()
+      endforeach()
     endif()
 
     # Configure component grouping (auto-detect logical groups from component naming)
     _should_auto_enable_component_groups("${ARG_COMPONENTS}")
-    if(ARG_COMPONENT_GROUPS OR _ENABLE_GROUPS)
-      _tip_store_cpack_var(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
+    _tip_component_list_has_cpack_dependencies(_tip_has_export_component_dependencies ${ARG_COMPONENTS})
+    if(ARG_COMPONENT_GROUPS
+       OR _ENABLE_GROUPS
+       OR _tip_has_export_component_dependencies)
+      if(ARG_COMPONENT_GROUPS OR _ENABLE_GROUPS)
+        _tip_store_cpack_var(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
+      endif()
 
       # Auto-detect logical groups from component naming patterns
       _configure_logical_component_groups("${ARG_COMPONENTS}")
     endif()
 
-    # Set component descriptions (enhanced for prefix patterns)
+    # Set component descriptions.
+    get_property(_tip_detected_components GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS")
     foreach(component ${ARG_COMPONENTS})
       string(TOUPPER ${component} component_upper)
 
       if(component MATCHES "^(.+)_Development$")
-        # NEW SCHEME: COMPONENT_Development pattern
+        # Legacy split SDK component pattern.
         set(group_name "${CMAKE_MATCH_1}")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${group_name} headers, static libraries, and development files")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${group_name} Development")
       elseif("${component}_Development" IN_LIST ARG_COMPONENTS)
-        # NEW SCHEME: Runtime component (has corresponding _Development component)
+        # Legacy split SDK runtime component.
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} runtime libraries and executables")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component} Runtime")
       elseif(component STREQUAL "Runtime")
@@ -854,6 +933,9 @@ function(_execute_deferred_cpack_config)
       elseif(component STREQUAL "Documentation")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "Documentation and examples")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "Documentation")
+      elseif(component IN_LIST _tip_detected_components)
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} runtime libraries and executables")
+        _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component} Runtime")
       else()
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DESCRIPTION "${component} component")
         _tip_store_cpack_var(CPACK_COMPONENT_${component_upper}_DISPLAY_NAME "${component}")
@@ -1063,8 +1145,7 @@ function(_configure_gpg_signing)
     set(ARG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}")
   endif()
 
-  # Enable checksums by default when signing is enabled. Without signing, only
-  # configure the post-build script when checksums were explicitly requested.
+  # Enable checksums by default when signing is enabled. Without signing, only configure the post-build script when checksums were explicitly requested.
   if(NOT DEFINED ARG_GENERATE_CHECKSUMS OR "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
     if(ARG_SIGNING_KEY)
       set(ARG_GENERATE_CHECKSUMS ON)
@@ -1141,7 +1222,9 @@ function(_configure_gpg_signing)
     set(RPMSIGN_EXECUTABLE "")
   endif()
 
-  if(ARG_SIGNING_KEY AND ARG_PASSPHRASE_FILE AND ARG_REQUIRE_RPMSIGN)
+  if(ARG_SIGNING_KEY
+     AND ARG_PASSPHRASE_FILE
+     AND ARG_REQUIRE_RPMSIGN)
     project_log(WARNING "GPG_PASSPHRASE_FILE is used for detached signatures only; embedded RPM signing uses rpmsign and the configured GPG agent.")
   endif()
 

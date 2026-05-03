@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.1)
+  list_file_include_guard(VERSION 7.0.2)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -114,7 +114,7 @@ endif()
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
-#   COMPONENT                    - Component prefix for installation. Creates `${COMPONENT}` for runtime and `${COMPONENT}_Development` for development files.
+#   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
 #   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
@@ -151,10 +151,10 @@ endif()
 #   # Basic installation
 #   target_install_package(my_library)
 #
-#   # Custom version and component prefix
+#   # Custom version and runtime component
 #   target_install_package(my_library
 #     VERSION 1.2.3
-#     COMPONENT "Core")  # Creates Core and Core_Development components
+#     COMPONENT "Core")  # Creates Core runtime files and installs SDK files in Development
 #
 #   # Multi-config with default debug postfix "d", e.g if debug then -> my_libraryd.so
 #   target_install_package(my_library
@@ -333,6 +333,59 @@ function(_tip_component_dependency_property_name OUT_VAR EXPORT_PROPERTY_PREFIX 
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_cpack_component_dependency_property_name OUT_VAR COMPONENT_NAME)
+  string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
+  set(${OUT_VAR}
+      "_TIP_CPACK_COMPONENT_DEPENDENCY_${_tip_component_hash}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_append_cpack_component_dependencies COMPONENT_NAME)
+  set(_tip_dependencies ${ARGN})
+  if(NOT _tip_dependencies)
+    return()
+  endif()
+
+  list(REMOVE_ITEM _tip_dependencies "${COMPONENT_NAME}")
+  list(REMOVE_DUPLICATES _tip_dependencies)
+  if(NOT _tip_dependencies)
+    return()
+  endif()
+
+  _tip_cpack_component_dependency_property_name(_tip_component_dependency_property "${COMPONENT_NAME}")
+  get_property(_tip_existing_dependencies GLOBAL PROPERTY "${_tip_component_dependency_property}")
+  set(_tip_updated_dependencies ${_tip_existing_dependencies} ${_tip_dependencies})
+  list(REMOVE_ITEM _tip_updated_dependencies "${COMPONENT_NAME}")
+  list(REMOVE_DUPLICATES _tip_updated_dependencies)
+  set_property(GLOBAL PROPERTY "${_tip_component_dependency_property}" "${_tip_updated_dependencies}")
+endfunction()
+
+function(_tip_find_package_expression_without_required OUT_VAR DEPENDENCY_EXPRESSION)
+  separate_arguments(_tip_dependency_args UNIX_COMMAND "${DEPENDENCY_EXPRESSION}")
+  set(_tip_optional_dependency_args "")
+
+  foreach(_tip_dependency_arg IN LISTS _tip_dependency_args)
+    string(TOUPPER "${_tip_dependency_arg}" _tip_dependency_arg_upper)
+    if(_tip_dependency_arg_upper STREQUAL "REQUIRED")
+      continue()
+    endif()
+    list(APPEND _tip_optional_dependency_args "${_tip_dependency_arg}")
+  endforeach()
+
+  string(JOIN " " _tip_optional_dependency_expression ${_tip_optional_dependency_args})
+  set(${OUT_VAR}
+      "${_tip_optional_dependency_expression}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_find_package_expression_package_name OUT_VAR DEPENDENCY_EXPRESSION)
+  separate_arguments(_tip_dependency_args UNIX_COMMAND "${DEPENDENCY_EXPRESSION}")
+  list(GET _tip_dependency_args 0 _tip_dependency_package_name)
+  set(${OUT_VAR}
+      "${_tip_dependency_package_name}"
+      PARENT_SCOPE)
+endfunction()
+
 # ~~~
 # Prepare a CMake installation target for packaging.
 #
@@ -404,11 +457,8 @@ endfunction()
 function(target_prepare_package TARGET_NAME)
   # Check for deprecated parameters BEFORE parsing
   if("RUNTIME_COMPONENT" IN_LIST ARGN OR "DEVELOPMENT_COMPONENT" IN_LIST ARGN)
-    message(
-      FATAL_ERROR
-        "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
-        "Use COMPONENT instead - it will automatically create '{COMPONENT}' for runtime files and '{COMPONENT}_Development' for development files. "
-        "This provides cleaner, more consistent component naming.")
+    message(FATAL_ERROR "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
+                        "Use COMPONENT instead to name runtime files. Development files are installed in the shared Development component.")
   endif()
 
   # Parse function arguments
@@ -765,7 +815,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
   list(REMOVE_DUPLICATES EXISTING_TARGETS)
 
-  # Store per-target component configuration Component logic: if COMPONENT is set, use it; otherwise use default Runtime/Development
+  # Store per-target component configuration. COMPONENT names runtime files only; SDK files are always part of the shared Development component.
   get_property(
     _tip_existing_alias_name_set GLOBAL
     PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME"
@@ -806,11 +856,10 @@ function(target_prepare_package TARGET_NAME)
 
   if(ARG_COMPONENT)
     set(RUNTIME_COMPONENT_NAME "${ARG_COMPONENT}")
-    set(DEVELOPMENT_COMPONENT_NAME "${ARG_COMPONENT}_Development")
   else()
     set(RUNTIME_COMPONENT_NAME "Runtime")
-    set(DEVELOPMENT_COMPONENT_NAME "Development")
   endif()
+  set(DEVELOPMENT_COMPONENT_NAME "Development")
 
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT" "${RUNTIME_COMPONENT_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
@@ -992,7 +1041,7 @@ function(target_prepare_package TARGET_NAME)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_BINARY_DIR" "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
 
-  # For config files, use the first target's development component as default
+  # For config files, use the shared development component for the export.
   get_property(EXISTING_CONFIG_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   if(NOT EXISTING_CONFIG_COMPONENT)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT" "${DEVELOPMENT_COMPONENT_NAME}")
@@ -1135,6 +1184,29 @@ function(target_prepare_package TARGET_NAME)
 endfunction(target_prepare_package)
 
 # ~~~
+# Helper: Determine whether a target contributes runtime payload through this wrapper.
+#
+# Runtime components are reserved for artifacts a consumer may need at execution time.
+# Static, interface, and object targets contribute SDK/config payload only.
+# ~~~
+function(_tip_target_has_runtime_payload OUT_VAR TARGET_NAME)
+  set(_tip_has_runtime_payload FALSE)
+
+  if(TARGET "${TARGET_NAME}")
+    get_target_property(_tip_target_type "${TARGET_NAME}" TYPE)
+    if(_tip_target_type STREQUAL "EXECUTABLE"
+       OR _tip_target_type STREQUAL "SHARED_LIBRARY"
+       OR _tip_target_type STREQUAL "MODULE_LIBRARY")
+      set(_tip_has_runtime_payload TRUE)
+    endif()
+  endif()
+
+  set(${OUT_VAR}
+      "${_tip_has_runtime_payload}"
+      PARENT_SCOPE)
+endfunction()
+
+# ~~~
 # Helper: Collect component information from all targets in an export.
 #
 # This internal helper function gathers component assignments across all targets
@@ -1154,29 +1226,29 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
   set(COMPONENT_TARGET_MAP "")
 
   foreach(TARGET_NAME ${TARGETS})
-    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
 
-    # Determine actual component names Priority: explicit components > prefix pattern > defaults
-
-    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Explicit components specified (deprecated mode) - should be caught by validation
-      set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
+    if(TARGET_DEV_COMP)
       set(DEV_COMPONENT_NAME "${TARGET_DEV_COMP}")
-    elseif(TARGET_COMP)
-      # NEW SCHEME: COMPONENT -> runtime, COMPONENT_Development -> development files
-      set(RUNTIME_COMPONENT_NAME "${TARGET_COMP}")
-      set(DEV_COMPONENT_NAME "${TARGET_COMP}_Development")
     else()
-      # Default components: Runtime, Development
-      set(RUNTIME_COMPONENT_NAME "Runtime")
       set(DEV_COMPONENT_NAME "Development")
     endif()
 
-    list(APPEND ALL_RUNTIME_COMPONENTS ${RUNTIME_COMPONENT_NAME})
+    _tip_target_has_runtime_payload(_tip_has_runtime_payload "${TARGET_NAME}")
+    if(_tip_has_runtime_payload)
+      # Prefer the canonical component names stored by target_prepare_package().
+      if(TARGET_RUNTIME_COMP)
+        set(RUNTIME_COMPONENT_NAME "${TARGET_RUNTIME_COMP}")
+      else()
+        set(RUNTIME_COMPONENT_NAME "Runtime")
+      endif()
+
+      list(APPEND ALL_RUNTIME_COMPONENTS ${RUNTIME_COMPONENT_NAME})
+      list(APPEND COMPONENT_TARGET_MAP "${RUNTIME_COMPONENT_NAME}:${TARGET_NAME}")
+    endif()
+
     list(APPEND ALL_DEVELOPMENT_COMPONENTS ${DEV_COMPONENT_NAME})
-    list(APPEND COMPONENT_TARGET_MAP "${RUNTIME_COMPONENT_NAME}:${TARGET_NAME}")
     list(APPEND COMPONENT_TARGET_MAP "${DEV_COMPONENT_NAME}:${TARGET_NAME}")
   endforeach()
 
@@ -1204,16 +1276,14 @@ function(_collect_export_components EXPORT_PROPERTY_PREFIX TARGETS)
 endfunction(_collect_export_components)
 
 # ~~~
-# Helper: Build CMake component arguments for install() commands using prefix pattern.
+# Helper: Build CMake component arguments for install() commands.
 #
-# This internal helper function generates component names using the Component Prefix Pattern:
-# - If COMPONENT_PREFIX is provided: "${COMPONENT_PREFIX}_${COMPONENT_TYPE}"
-# - If no prefix: "${COMPONENT_TYPE}" only
-# - Always single install (no dual install complexity)
+# This internal helper returns one COMPONENT argument for the requested component
+# name. COMPONENT_PREFIX is kept only for older internal callers.
 #
 # Parameters:
 #   VAR_PREFIX - Variable name prefix for the output arguments
-#   COMPONENT_PREFIX - Optional prefix for component names (e.g., "Core", "GUI")
+#   COMPONENT_PREFIX - Optional runtime component name (e.g., "Core", "GUI")
 #   COMPONENT_TYPE - Component type: "Runtime" or "Development"
 #
 # Returns via parent scope:
@@ -1230,9 +1300,8 @@ function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
     return()
   endif()
 
-  # Generate component name using prefix pattern
-  if(COMPONENT_PREFIX)
-    set(COMPONENT_NAME "${COMPONENT_PREFIX}_${COMPONENT_TYPE}")
+  if(COMPONENT_PREFIX AND COMPONENT_TYPE STREQUAL "Runtime")
+    set(COMPONENT_NAME "${COMPONENT_PREFIX}")
   else()
     set(COMPONENT_NAME "${COMPONENT_TYPE}")
   endif()
@@ -1464,8 +1533,29 @@ function(finalize_package)
       list(REMOVE_DUPLICATES detected_components)
       set_property(GLOBAL PROPERTY "_TIP_DETECTED_COMPONENTS" "${detected_components}")
     endif()
+
+    if(ALL_RUNTIME_COMPONENTS)
+      get_property(_tip_detected_runtime_components GLOBAL PROPERTY "_TIP_DETECTED_RUNTIME_COMPONENTS")
+      foreach(component ${ALL_RUNTIME_COMPONENTS})
+        if(NOT component IN_LIST _tip_detected_runtime_components)
+          list(APPEND _tip_detected_runtime_components "${component}")
+        endif()
+      endforeach()
+      if(_tip_detected_runtime_components)
+        list(REMOVE_DUPLICATES _tip_detected_runtime_components)
+        set_property(GLOBAL PROPERTY "_TIP_DETECTED_RUNTIME_COMPONENTS" "${_tip_detected_runtime_components}")
+      endif()
+    endif()
   else()
     project_log(VERBOSE "Export '${ARG_EXPORT_NAME}' finalizing ${target_count} ${target_label}: [${TARGETS}]")
+  endif()
+
+  set(_tip_export_target_components ${ALL_RUNTIME_COMPONENTS} ${ALL_DEVELOPMENT_COMPONENTS})
+  if(_tip_export_target_components)
+    list(REMOVE_DUPLICATES _tip_export_target_components)
+    foreach(_tip_development_component IN LISTS ALL_DEVELOPMENT_COMPONENTS)
+      _tip_append_cpack_component_dependencies("${_tip_development_component}" ${_tip_export_target_components})
+    endforeach()
   endif()
 
   # Apply DEBUG_POSTFIX only to library targets if specified
@@ -1483,12 +1573,12 @@ function(finalize_package)
   set(_tip_cps_default_target_names "")
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
   set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
+  set(_tip_exported_alias_names "")
 
   # Install each target separately with its own components
   foreach(TARGET_NAME ${TARGETS})
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
-    get_property(TARGET_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT")
     get_property(TARGET_ALIAS_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
     get_property(TARGET_ALIAS_NAME_EXPLICIT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT")
 
@@ -1502,6 +1592,11 @@ function(finalize_package)
     if("${TARGET_ALIAS_NAME}" STREQUAL "")
       set(TARGET_ALIAS_NAME "${TARGET_NAME}")
     endif()
+
+    if(TARGET_ALIAS_NAME IN_LIST _tip_exported_alias_names)
+      project_log(FATAL_ERROR "Duplicate exported target name '${TARGET_ALIAS_NAME}' in export '${ARG_EXPORT_NAME}'. Use unique ALIAS_NAME values for each target.")
+    endif()
+    list(APPEND _tip_exported_alias_names "${TARGET_ALIAS_NAME}")
     list(APPEND _tip_cps_exported_target_names "${TARGET_ALIAS_NAME}")
 
     get_target_property(_tip_cps_target_type ${TARGET_NAME} TYPE)
@@ -1515,28 +1610,22 @@ function(finalize_package)
       list(APPEND _tip_cps_default_target_names "${TARGET_ALIAS_NAME}")
     endif()
 
-    # Build component args for this target Priority: explicit components > prefix pattern > defaults
-
-    if(TARGET_RUNTIME_COMP AND NOT TARGET_COMP)
-      # Explicit runtime component specified (traditional mode)
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_RUNTIME_COMP})
-    elseif(TARGET_COMP)
-      # NEW SCHEME: COMPONENT name directly for runtime files
-      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT ${TARGET_COMP})
+    if(TARGET_RUNTIME_COMP)
+      set(TARGET_RUNTIME_COMPONENT_ARGS COMPONENT "${TARGET_RUNTIME_COMP}")
     else()
-      # Default: Runtime
       _build_component_args(TARGET_RUNTIME_COMPONENT "" "Runtime")
     endif()
 
-    if(TARGET_DEV_COMP AND NOT TARGET_COMP)
-      # Explicit development component specified (traditional mode)
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT ${TARGET_DEV_COMP})
-    elseif(TARGET_COMP)
-      # NEW SCHEME: COMPONENT_Development for development files
-      set(TARGET_DEV_COMPONENT_ARGS COMPONENT "${TARGET_COMP}_Development")
+    if(TARGET_DEV_COMP)
+      set(TARGET_DEV_COMPONENT_ARGS COMPONENT "${TARGET_DEV_COMP}")
     else()
-      # Default: Development
       _build_component_args(TARGET_DEV_COMPONENT "" "Development")
+    endif()
+
+    if(TARGET_DEV_COMP)
+      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT "${TARGET_DEV_COMP}")
+    else()
+      set(TARGET_NAMELINK_COMPONENT_ARGS NAMELINK_COMPONENT Development)
     endif()
 
     # Set the export name for the target if different from target name
@@ -1582,6 +1671,7 @@ function(finalize_package)
       DESTINATION
       "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}"
       ${TARGET_RUNTIME_COMPONENT_ARGS}
+      ${TARGET_NAMELINK_COMPONENT_ARGS}
       ARCHIVE
       DESTINATION
       "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}"
@@ -1790,22 +1880,26 @@ function(finalize_package)
     endif()
   endforeach()
 
-  # Set up component args for config files using the first development component
+  # Install CMake package metadata with the shared SDK component for this export.
+  set(CONFIG_COMPONENTS "")
   if(ALL_DEVELOPMENT_COMPONENTS)
-    list(GET ALL_DEVELOPMENT_COMPONENTS 0 FIRST_DEV_COMPONENT)
-    set(CONFIG_COMPONENT_ARGS COMPONENT ${FIRST_DEV_COMPONENT})
+    set(CONFIG_COMPONENTS ${ALL_DEVELOPMENT_COMPONENTS})
   else()
-    # Fallback to generic Development component
-    _build_component_args(CONFIG_COMPONENT "" "Development")
+    set(CONFIG_COMPONENTS Development)
   endif()
+  list(REMOVE_DUPLICATES CONFIG_COMPONENTS)
+  list(GET CONFIG_COMPONENTS 0 FIRST_CONFIG_COMPONENT)
+  set(CONFIG_COMPONENT_ARGS COMPONENT ${FIRST_CONFIG_COMPONENT})
 
   # Install targets export file with config component CMake automatically handles configuration-specific exports
-  install(
-    EXPORT ${ARG_EXPORT_NAME}
-    FILE ${ARG_EXPORT_NAME}Targets.cmake
-    NAMESPACE ${NAMESPACE}
-    DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    ${CONFIG_COMPONENT_ARGS})
+  foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)
+    install(
+      EXPORT ${ARG_EXPORT_NAME}
+      FILE ${ARG_EXPORT_NAME}Targets.cmake
+      NAMESPACE ${NAMESPACE}
+      DESTINATION ${CMAKE_CONFIG_DESTINATION}
+      COMPONENT "${_tip_config_component}")
+  endforeach()
 
   if(SBOM_ENABLED)
     set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${SBOM_EXPERIMENTAL_VALUE}")
@@ -2050,6 +2144,13 @@ function(finalize_package)
   # Prepare component dependencies content for template substitution
   set(PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "")
   set(_tip_find_package_components ${ALL_UNIQUE_COMPONENTS} ${COMPONENT_DEPENDENCY_COMPONENTS})
+  foreach(TARGET_NAME IN LISTS TARGETS)
+    get_property(_tip_target_component_explicit GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT_EXPLICIT")
+    if(_tip_target_component_explicit)
+      get_property(_tip_target_runtime_component GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
+      list(APPEND _tip_find_package_components "${_tip_target_runtime_component}")
+    endif()
+  endforeach()
   if(_tip_find_package_components)
     list(REMOVE_DUPLICATES _tip_find_package_components)
     set(_tip_known_find_components "")
@@ -2062,7 +2163,16 @@ function(finalize_package)
 
       set(_tip_component_dep_list ${component_deps})
       foreach(component_dep IN LISTS _tip_component_dep_list)
-        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  find_dependency(${component_dep})\n")
+        _tip_find_package_expression_package_name(_tip_component_dep_package_name "${component_dep}")
+        _tip_find_package_expression_without_required(_tip_component_dep_optional_expression "${component_dep}")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  if(${ARG_EXPORT_NAME}_FIND_REQUIRED_${component_name})\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    find_dependency(${component_dep})\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  else()\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    find_package(${_tip_component_dep_optional_expression} QUIET)\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    if(NOT ${_tip_component_dep_package_name}_FOUND)\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "      set(${ARG_EXPORT_NAME}_${component_name}_FOUND FALSE)\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "    endif()\n")
+        string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "  endif()\n")
       endforeach()
 
       string(APPEND PACKAGE_COMPONENT_DEPENDENCIES_CONTENT "endif()\n")
@@ -2118,10 +2228,12 @@ function(finalize_package)
 
       get_filename_component(file_name "${cmake_file}" NAME)
 
-      install(
-        FILES "${SRC_CMAKE_FILE}"
-        DESTINATION "${CMAKE_CONFIG_DESTINATION}"
-        ${CONFIG_COMPONENT_ARGS})
+      foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)
+        install(
+          FILES "${SRC_CMAKE_FILE}"
+          DESTINATION "${CMAKE_CONFIG_DESTINATION}"
+          COMPONENT "${_tip_config_component}")
+      endforeach()
 
       string(APPEND PACKAGE_INCLUDE_ON_FIND_PACKAGE "include(\"\${CMAKE_CURRENT_LIST_DIR}/${file_name}\")\n")
     endforeach()
@@ -2140,10 +2252,12 @@ function(finalize_package)
     PATH_VARS CMAKE_INSTALL_PREFIX)
 
   # Install config files using correct filename with config component
-  install(
-    FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}"
-    DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    ${CONFIG_COMPONENT_ARGS})
+  foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)
+    install(
+      FILES "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}"
+      DESTINATION ${CMAKE_CONFIG_DESTINATION}
+      COMPONENT "${_tip_config_component}")
+  endforeach()
 
   # Log package status with component information
   if(ALL_UNIQUE_COMPONENTS)

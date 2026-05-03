@@ -516,7 +516,7 @@ _tip_proof_run_step(
   --prefix
   "${_tip_repeat_target_install_prefix}"
   --component
-  Sdk_Development)
+  Development)
 set(_tip_repeat_target_cps_file "${_tip_repeat_target_install_prefix}/share/cps/repeatpkg/repeatpkg.cps")
 _tip_proof_assert_json_array("${_tip_repeat_target_cps_file}" "default_components" api)
 _tip_proof_assert_file_not_contains("${_tip_repeat_target_cps_file}" "\"core\"")
@@ -562,7 +562,7 @@ _tip_proof_run_step(
   --prefix
   "${_tip_repeat_override_install_prefix}"
   --component
-  Sdk_Development)
+  Development)
 set(_tip_repeat_override_cps_file "${_tip_repeat_override_install_prefix}/share/cps/repeatoverride/repeatoverride.cps")
 _tip_proof_assert_json_array("${_tip_repeat_override_cps_file}" "default_components" api)
 _tip_proof_assert_file_not_contains("${_tip_repeat_override_cps_file}" "\"repeat_override\"")

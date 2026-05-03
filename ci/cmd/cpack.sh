@@ -181,7 +181,7 @@ run_basic() {
   (cd "${build_dir}" && \
     runtime_has_exe="$(tar -tzf MyLibrary-*-Runtime.tar.gz | grep -c 'bin/mytool' || true)" && \
     dev_has_headers="$(tar -tzf MyLibrary-*-Development.tar.gz | grep -c 'include/' || true)" && \
-    tools_has_exe="$(tar -tzf MyLibrary-*-TOOLS.tar.gz | grep -c 'bin/mytool' || true)" && \
+    tools_has_exe="$(tar -tzf MyLibrary-*-Tools.tar.gz | grep -c 'bin/mytool' || true)" && \
     [[ "${runtime_has_exe}" == "0" ]] || exit 1 && \
     [[ "${dev_has_headers}" != "0" ]] || exit 1 && \
     [[ "${tools_has_exe}" != "0" ]] || exit 1)
@@ -200,8 +200,8 @@ run_basic() {
     mkdir -p test-runtime test-dev test-tools-alone test-tools-with-deps && \
     (cd test-runtime && tar -xzf ../MyLibrary-*-Runtime.tar.gz) && \
     (cd test-dev && tar -xzf ../MyLibrary-*-Development.tar.gz) && \
-    (cd test-tools-alone && tar -xzf ../MyLibrary-*-TOOLS.tar.gz) && \
-    (cd test-tools-with-deps && tar -xzf ../MyLibrary-*-TOOLS.tar.gz && tar -xzf ../MyLibrary-*-Runtime.tar.gz))
+    (cd test-tools-alone && tar -xzf ../MyLibrary-*-Tools.tar.gz) && \
+    (cd test-tools-with-deps && tar -xzf ../MyLibrary-*-Tools.tar.gz && tar -xzf ../MyLibrary-*-Runtime.tar.gz))
 
   (cd "${build_dir}/test-runtime" && \
     if ci_is_windows; then
@@ -272,10 +272,10 @@ run_components() {
   (cd "${build_dir}" && cpack --verbose)
 
   (cd "${build_dir}" && ls -la MediaLibrary-*.tar.gz MediaLibrary-*.deb 2>/dev/null || true)
-  if (cd "${build_dir}" && ls MediaLibrary-*-CORE.tar.gz 1>/dev/null 2>&1); then
-    ci_log "✓ Components example produced CORE group package"
+  if (cd "${build_dir}" && ls MediaLibrary-*-Core.tar.gz 1>/dev/null 2>&1); then
+    ci_log "✓ Components example produced Core component package"
   else
-    ci_die "Components example did not produce expected CORE group package"
+    ci_die "Components example did not produce expected Core component package"
   fi
 }
 
@@ -307,7 +307,7 @@ run_cross_platform() {
       else
         ci_warn "Development component package missing"
       fi
-      if ls *-TOOLS.tar.gz 1>/dev/null 2>&1; then
+      if ls *-Tools.tar.gz 1>/dev/null 2>&1; then
         ci_log "✓ Tools component package found"
       else
         ci_warn "Tools component package missing"

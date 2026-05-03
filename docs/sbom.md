@@ -34,7 +34,7 @@ target_install_package(math_utils
 - All `target_install_package(... SBOM ...)` calls sharing one `EXPORT_NAME` must agree on every non-empty SBOM option, including metadata inheritance mode: same project metadata, `SBOM_NO_PROJECT_METADATA`, or explicit fields only.
 - `SBOM_PROJECT` and `SBOM_NO_PROJECT_METADATA` are mutually exclusive in a single call and conflict if mixed for the same export.
 - `SBOM_FORMAT` is omitted by default so CMake uses its current SPDX 3.0.1 JSON-LD output.
-- `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Sdk_Development` does not install the SBOM.
+- `install(SBOM)` has no `COMPONENT` option. SBOM files therefore participate in full installs and CMake's own default non-component behavior rather than this wrapper's development component routing. A component install such as `cmake --install <build-dir> --component Development` does not install the SBOM.
 - CMake cannot generate an SBOM for targets whose `LINK_LIBRARIES` or `INTERFACE_LINK_LIBRARIES` contain generator expressions unless those expressions are guarded by `$<LINK_ONLY:...>`.
 - CMake may emit a developer warning because SBOM generation is experimental. Use `-Wno-dev` if you want quieter configure output.
 - `SBOM_LICENSE` is package/project-level metadata. Per-target component licenses should be set with each target's `SPDX_LICENSE` property.

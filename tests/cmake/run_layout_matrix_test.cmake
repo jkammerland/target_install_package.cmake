@@ -250,7 +250,7 @@ _tip_run_step(
   --prefix
   "${_development_prefix}"
   --component
-  "Layout_Development")
+  "Development")
 _tip_run_step(
   NAME
   "install-full"
@@ -342,9 +342,7 @@ _tip_assert_any_file_contains("${_import_prefix_literal}/${_layout_prefix}${_ins
 set(_current_list_dir_literal "\${CMAKE_CURRENT_LIST_DIR}")
 _tip_assert_file_contains("${_development_cmake_dir}/layout_matrixConfig.cmake" "include(\"${_current_list_dir_literal}/layout_matrixTargets.cmake\")")
 
-set(_installed_runner_candidates
-    "${_full_bindir}/layout_runner${_tip_executable_suffix}"
-    "${_full_bindir}/layout_runner")
+set(_installed_runner_candidates "${_full_bindir}/layout_runner${_tip_executable_suffix}" "${_full_bindir}/layout_runner")
 _tip_find_existing_path(_installed_runner ${_installed_runner_candidates})
 _tip_run_step(NAME "run-installed-layout-runner" COMMAND "${_installed_runner}")
 
@@ -353,8 +351,7 @@ set(_consumer_build_dir "${_consumer_dir}/b")
 file(MAKE_DIRECTORY "${_consumer_dir}")
 
 file(
-  WRITE
-  "${_consumer_dir}/CMakeLists.txt"
+  WRITE "${_consumer_dir}/CMakeLists.txt"
   [=[
 cmake_minimum_required(VERSION 3.25)
 project(layout_matrix_consumer LANGUAGES CXX)
@@ -381,8 +378,7 @@ target_link_libraries(layout_matrix_consumer PRIVATE layout_matrix::layout_archi
 ]=])
 
 file(
-  WRITE
-  "${_consumer_dir}/main.cpp"
+  WRITE "${_consumer_dir}/main.cpp"
   [=[
 #include "layout/layout.hpp"
 
@@ -393,14 +389,7 @@ int main() {
 }
 ]=])
 
-set(_consumer_configure_command
-    "${CMAKE_COMMAND}"
-    -S
-    "${_consumer_dir}"
-    -B
-    "${_consumer_build_dir}"
-    "-DCMAKE_PREFIX_PATH=${_full_prefix}"
-    "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_CONSUMER_CONFIG}")
+set(_consumer_configure_command "${CMAKE_COMMAND}" -S "${_consumer_dir}" -B "${_consumer_build_dir}" "-DCMAKE_PREFIX_PATH=${_full_prefix}" "-DCMAKE_BUILD_TYPE=${TIP_LAYOUT_CONSUMER_CONFIG}")
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
   if(TIP_CMAKE_GENERATOR MATCHES "Multi-Config|Visual Studio|Xcode")
@@ -438,10 +427,8 @@ _tip_run_step(
   "${TIP_LAYOUT_CONSUMER_CONFIG}")
 
 set(_consumer_executable_candidates
-    "${_consumer_build_dir}/layout_matrix_consumer${_tip_executable_suffix}"
-    "${_consumer_build_dir}/${TIP_LAYOUT_CONSUMER_CONFIG}/layout_matrix_consumer${_tip_executable_suffix}"
-    "${_consumer_build_dir}/layout_matrix_consumer"
-    "${_consumer_build_dir}/${TIP_LAYOUT_CONSUMER_CONFIG}/layout_matrix_consumer")
+    "${_consumer_build_dir}/layout_matrix_consumer${_tip_executable_suffix}" "${_consumer_build_dir}/${TIP_LAYOUT_CONSUMER_CONFIG}/layout_matrix_consumer${_tip_executable_suffix}"
+    "${_consumer_build_dir}/layout_matrix_consumer" "${_consumer_build_dir}/${TIP_LAYOUT_CONSUMER_CONFIG}/layout_matrix_consumer")
 _tip_find_existing_path(_consumer_executable ${_consumer_executable_candidates})
 
 if(WIN32)

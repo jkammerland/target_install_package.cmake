@@ -54,7 +54,7 @@ cmake --build "${BUILD_DIR}"
 echo "Generating packages..."
 (cd "${BUILD_DIR}" && cpack --verbose)
 
-# Verify that only TGZ packages are generated (no DEB/RPM due to single component)
+# Verify that only TGZ packages are generated because the fixture requested only TGZ.
 echo "Verifying generated packages..."
 if (cd "${BUILD_DIR}" && ls SimpleLib-*.tar.gz 1> /dev/null 2>&1); then
   echo "✅ Single component package generated"

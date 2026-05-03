@@ -154,7 +154,7 @@ fi
 
 ci_log "==> Component install smoke test"
 cmake --install "${build_dir}" \
-  --component CMakeUtilities_Development \
+  --component Development \
   --prefix "${install_dir}-components"
 if [[ -f "${install_dir}-components/share/cmake/target_install_package/target_install_package.cmake" ]]; then
   ci_log "✓ Component install OK"
