@@ -23,7 +23,7 @@ add_library(${PROJECT_NAME} INTERFACE)
 
 # Only install if this is the main project or if explicitly enabled
 option(TARGET_INSTALL_PACKAGE_ENABLE_INSTALL "Create install configuration for ${PROJECT_NAME}" OFF)
-option(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL "Do not create install configuration for ${PROJECT_NAME}" OFF)
+option(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL "FOR CI: Do not create install configuration for ${PROJECT_NAME}" OFF)
 if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
   if(PROJECT_IS_TOP_LEVEL OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
     # Use target_install_package to install itself and target_configure_sources
