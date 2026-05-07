@@ -83,6 +83,8 @@ target_install_package(my_library
 
 `ADDITIONAL_FILES_COMPONENTS` is optional. If omitted, additional files are installed with the package's development component. Use it for files such as licenses or notices that must be present in runtime packages too.
 
+Missing `ADDITIONAL_FILES` entries fail configuration so packaging typos do not silently drop legal or metadata payloads.
+
 `target_install_package()` does not define a built-in manifest format. If you need stricter traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
 ## Table of Contents
@@ -183,7 +185,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.2
+  GIT_TAG v7.0.3
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -200,7 +202,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.0.2
+    GIT_TAG v7.0.3
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -339,7 +341,7 @@ target_configure_sources(my_library
 target_install_package(my_library NAMESPACE MyLib::)
 ```
 
-Public configured headers are installed with the package. Private configured headers stay build-only. See [examples/configure-files](examples/configure-files/) for the complete example.
+Public configured headers are installed with the package. Private configured headers stay build-only. Missing templates fail configuration. Generated files are named from the input basename with a trailing `.in` stripped, so colliding basenames in the same `OUTPUT_DIR` are rejected. See [examples/configure-files](examples/configure-files/) for the complete example.
 Installed paths follow the `BASE_DIRS` you set for each file set.
 
 ### Libraries with Dependencies

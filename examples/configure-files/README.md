@@ -4,6 +4,8 @@ Use `target_configure_sources()` when a target needs generated headers.
 
 - `PUBLIC` configured headers are installed with the package
 - `PRIVATE` configured headers stay in the build tree
+- Missing templates fail configuration
+- Template basenames must be unique within an `OUTPUT_DIR`
 
 ## Build
 

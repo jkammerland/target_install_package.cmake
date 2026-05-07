@@ -92,6 +92,8 @@ For legal/compliance files, a common destination is `${CMAKE_INSTALL_DATADIR}/li
 
 `ADDITIONAL_FILES_COMPONENTS` is optional. When omitted, additional files are installed with the package's development component. Provide one or more components when a file must be included in runtime packages, documentation packages, or several component archives.
 
+Missing `ADDITIONAL_FILES` entries fail configuration so packaging typos do not silently omit legal or metadata payloads.
+
 `target_install_package()` does not define a built-in manifest format. `ADDITIONAL_FILES` is usually enough; for stricter packaging traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
 
 ## Why These Defaults

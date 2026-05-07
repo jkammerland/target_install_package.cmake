@@ -310,6 +310,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_unknown_arguments COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_unknown_arguments_test.cmake")
   set_tests_properties(proof_unknown_arguments PROPERTIES LABELS "proof;review")
 
+  add_test(NAME proof_strict_validation COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_strict_validation_test.cmake")
+  set_tests_properties(proof_strict_validation PROPERTIES LABELS "proof;review")
+
   add_test(NAME proof_export_alias_conflict COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_export_alias_conflict_test.cmake")
   set_tests_properties(proof_export_alias_conflict PROPERTIES LABELS "proof;review")
 

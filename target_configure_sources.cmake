@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.2)
+  list_file_include_guard(VERSION 7.0.3)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -42,6 +42,7 @@ endif()
 # Behavior:
 #   - Template files are configured using configure_file().
 #   - .in extension is stripped from output filenames.
+#   - Generated output path collisions fail configuration.
 #   - Configured files are stored in OUTPUT_DIR.
 #   - PUBLIC/INTERFACE files are installed with target_install_package.
 #   - PRIVATE files are not installed.
@@ -96,13 +97,30 @@ function(target_configure_sources TARGET_NAME)
   endif()
 
   # Validate FILES parameter
-  if(NOT ARGS_FILES)
+  list(LENGTH ARGS_FILES _tip_args_files_count)
+  if(_tip_args_files_count EQUAL 0)
     project_log(FATAL_ERROR "target_configure_sources: No FILES specified")
   endif()
 
   # Set default values
   if(NOT ARGS_OUTPUT_DIR)
     set(ARGS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/configured/${TARGET_NAME}")
+  endif()
+  if(IS_ABSOLUTE "${ARGS_OUTPUT_DIR}")
+    cmake_path(
+      NORMAL_PATH
+      ARGS_OUTPUT_DIR
+      OUTPUT_VARIABLE
+      ARGS_OUTPUT_DIR)
+  else()
+    cmake_path(
+      ABSOLUTE_PATH
+      ARGS_OUTPUT_DIR
+      BASE_DIRECTORY
+      "${CMAKE_CURRENT_BINARY_DIR}"
+      NORMALIZE
+      OUTPUT_VARIABLE
+      ARGS_OUTPUT_DIR)
   endif()
 
   if(NOT ARGS_SUBSTITUTION_MODE)
@@ -137,14 +155,27 @@ function(target_configure_sources TARGET_NAME)
 
   # Process template files
   set(CONFIGURED_FILES "")
+  set(_tip_configured_output_files "")
   foreach(SOURCE_FILE IN LISTS ARGS_FILES)
-    if(NOT IS_ABSOLUTE "${SOURCE_FILE}")
-      set(SOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${SOURCE_FILE}")
+    if(IS_ABSOLUTE "${SOURCE_FILE}")
+      cmake_path(
+        NORMAL_PATH
+        SOURCE_FILE
+        OUTPUT_VARIABLE
+        SOURCE_FILE)
+    else()
+      cmake_path(
+        ABSOLUTE_PATH
+        SOURCE_FILE
+        BASE_DIRECTORY
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        NORMALIZE
+        OUTPUT_VARIABLE
+        SOURCE_FILE)
     endif()
 
     if(NOT EXISTS "${SOURCE_FILE}")
-      project_log(WARNING "target_configure_sources: Template file not found: ${SOURCE_FILE}")
-      continue()
+      project_log(FATAL_ERROR "target_configure_sources: Template file not found: ${SOURCE_FILE}")
     endif()
 
     # Add dependency tracking
@@ -155,7 +186,44 @@ function(target_configure_sources TARGET_NAME)
 
     get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
     string(REGEX REPLACE "\\.in$" "" OUTPUT_FILE_NAME "${FILE_NAME}")
-    set(OUTPUT_FILE "${ARGS_OUTPUT_DIR}/${OUTPUT_FILE_NAME}")
+    cmake_path(
+      APPEND
+      ARGS_OUTPUT_DIR
+      "${OUTPUT_FILE_NAME}"
+      OUTPUT_VARIABLE
+      OUTPUT_FILE)
+    cmake_path(
+      NORMAL_PATH
+      OUTPUT_FILE
+      OUTPUT_VARIABLE
+      OUTPUT_FILE)
+
+    list(FIND _tip_configured_output_files "${OUTPUT_FILE}" _tip_existing_output_index)
+    if(NOT _tip_existing_output_index EQUAL -1)
+      string(SHA256 _tip_output_hash "${OUTPUT_FILE}")
+      set(_tip_existing_source "${_tip_configured_output_source_${_tip_output_hash}}")
+      if("${_tip_existing_source}" STREQUAL "${SOURCE_FILE}")
+        project_log(DEBUG "  Skipping duplicate template source for output ${OUTPUT_FILE}: ${SOURCE_FILE}")
+        continue()
+      endif()
+
+      project_log(FATAL_ERROR
+                  "target_configure_sources: Multiple template files generate the same output '${OUTPUT_FILE}': '${_tip_existing_source}' and '${SOURCE_FILE}'. Use unique template basenames or separate OUTPUT_DIR values.")
+    endif()
+    list(APPEND _tip_configured_output_files "${OUTPUT_FILE}")
+    string(SHA256 _tip_output_hash "${OUTPUT_FILE}")
+    set(_tip_configured_output_source_${_tip_output_hash} "${SOURCE_FILE}")
+
+    get_property(
+      _tip_existing_global_source_set GLOBAL
+      PROPERTY "_TIP_CONFIGURED_OUTPUT_SOURCE_${_tip_output_hash}"
+      SET)
+    get_property(_tip_existing_global_source GLOBAL PROPERTY "_TIP_CONFIGURED_OUTPUT_SOURCE_${_tip_output_hash}")
+    if(_tip_existing_global_source_set)
+      project_log(FATAL_ERROR
+                  "target_configure_sources: Multiple template files generate the same output '${OUTPUT_FILE}': '${_tip_existing_global_source}' and '${SOURCE_FILE}'. Use unique template basenames or separate OUTPUT_DIR values.")
+    endif()
+    set_property(GLOBAL PROPERTY "_TIP_CONFIGURED_OUTPUT_SOURCE_${_tip_output_hash}" "${SOURCE_FILE}")
 
     set(_tip_configure_file_options "")
     if(ARGS_SUBSTITUTION_MODE STREQUAL "@ONLY")
@@ -168,7 +236,8 @@ function(target_configure_sources TARGET_NAME)
     project_log(DEBUG "  Configured ${SOURCE_FILE} -> ${OUTPUT_FILE}")
   endforeach()
 
-  if(NOT CONFIGURED_FILES)
+  list(LENGTH CONFIGURED_FILES _tip_configured_files_count)
+  if(_tip_configured_files_count EQUAL 0)
     project_log(WARNING "target_configure_sources: No files were successfully configured for target ${TARGET_NAME}")
     return()
   endif()
