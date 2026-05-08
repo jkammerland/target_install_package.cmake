@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.2)
+  list_file_include_guard(VERSION 7.0.3)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -797,6 +797,11 @@ function(target_prepare_package TARGET_NAME)
   # Store configuration in global properties for finalize_package
   set(EXPORT_PROPERTY_PREFIX "_CMAKE_PACKAGE_EXPORT_${ARG_EXPORT_NAME}")
 
+  get_property(_tip_export_finalized GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_FINALIZED")
+  if(_tip_export_finalized)
+    project_log(FATAL_ERROR "Export '${ARG_EXPORT_NAME}' has already been finalized. Target '${TARGET_NAME}' cannot be added after finalize_package().")
+  endif()
+
   if(ARG_CONFIG_TEMPLATE)
     _tip_resolve_absolute_paths(ARG_CONFIG_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ARG_CONFIG_TEMPLATE}")
     list(GET ARG_CONFIG_TEMPLATE 0 ARG_CONFIG_TEMPLATE)
@@ -1508,8 +1513,9 @@ function(finalize_package)
     list(APPEND ALL_UNIQUE_COMPONENTS ${ALL_COMPONENTS})
   endif()
   foreach(TARGET_NAME ${TARGETS})
+    get_property(TARGET_ADDITIONAL_FILES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES")
     get_property(TARGET_ADDITIONAL_FILES_COMPONENTS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ADDITIONAL_FILES_COMPONENTS")
-    if(TARGET_ADDITIONAL_FILES_COMPONENTS)
+    if(TARGET_ADDITIONAL_FILES AND TARGET_ADDITIONAL_FILES_COMPONENTS)
       list(APPEND ALL_UNIQUE_COMPONENTS ${TARGET_ADDITIONAL_FILES_COMPONENTS})
     endif()
   endforeach()
@@ -1845,7 +1851,7 @@ function(finalize_package)
         endif()
       endif()
 
-      foreach(FILE_PATH ${TARGET_ADDITIONAL_FILES})
+      foreach(FILE_PATH IN LISTS TARGET_ADDITIONAL_FILES)
         cmake_path(
           ABSOLUTE_PATH
           FILE_PATH
@@ -1856,8 +1862,7 @@ function(finalize_package)
           SRC_FILE_PATH)
 
         if(NOT EXISTS "${SRC_FILE_PATH}")
-          project_log(WARNING "  Additional file to install not found for '${TARGET_NAME}': ${SRC_FILE_PATH}")
-          continue()
+          project_log(FATAL_ERROR "  Additional file to install not found for '${TARGET_NAME}': ${SRC_FILE_PATH}")
         endif()
 
         set(TARGET_ADDITIONAL_FILES_DEST_PATH "${TARGET_ADDITIONAL_FILES_DESTINATION}")
