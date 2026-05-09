@@ -4,6 +4,8 @@ A Software Bill of Materials is a machine-readable inventory of what a package c
 
 `target_install_package(... SBOM ...)` keeps the normal CMake config package and additionally asks CMake to install an SPDX SBOM for the export when CMake's SBOM experiment is activated.
 
+The repository dogfoods this path for tagged releases. The self-release package exports an SPDX SBOM for the installed CMake module tree, includes the inlined helper modules as interface components, and publishes a signed sidecar named `target_install_package-<version>-cmake.spdx.json`.
+
 ## Basic Example
 
 ```cmake

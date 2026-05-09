@@ -5,6 +5,7 @@ project(
   VERSION 7.0.4
   DESCRIPTION "CMake utilities for creating installable packages"
   HOMEPAGE_URL "https://github.com/jkammerland/target_install_package.cmake")
+set(target_install_package_SPDX_LICENSE "MIT")
 
 # ~~~
 # Project dependencies, these have been included directly in this project for
@@ -24,11 +25,13 @@ include(${CMAKE_CURRENT_LIST_DIR}/export_cpack.cmake)
 
 # Create an INTERFACE library to represent our modules
 add_library(${PROJECT_NAME} INTERFACE)
+set_target_properties(${PROJECT_NAME} PROPERTIES SPDX_LICENSE "${target_install_package_SPDX_LICENSE}")
 
 # Only install if this is the main project or if explicitly enabled
 option(TARGET_INSTALL_PACKAGE_ENABLE_INSTALL "Create install configuration for ${PROJECT_NAME}" OFF)
 option(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL "FOR CI: Do not create install configuration for ${PROJECT_NAME}" OFF)
 option(TARGET_INSTALL_PACKAGE_ENABLE_CPACK "Configure CPack release archives for ${PROJECT_NAME}" OFF)
+option(TARGET_INSTALL_PACKAGE_ENABLE_SBOM "Install SPDX SBOM metadata for ${PROJECT_NAME}" OFF)
 option(TARGET_INSTALL_PACKAGE_REQUIRE_SIGNING "Require GPG signing for ${PROJECT_NAME} CPack archives" OFF)
 set(GPG_SIGNING_KEY
     ""
@@ -38,9 +41,39 @@ set(GPG_PASSPHRASE_FILE
     CACHE FILEPATH "File containing the GPG key passphrase for noninteractive CPack signing")
 if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
   if(PROJECT_IS_TOP_LEVEL OR TARGET_INSTALL_PACKAGE_ENABLE_INSTALL)
+    set(_tip_self_additional_target_args "")
+    set(_tip_self_sbom_args "")
+    if(TARGET_INSTALL_PACKAGE_ENABLE_SBOM)
+      set(_tip_self_helper_targets list_file_include_guard project_include_guard project_log)
+      foreach(_tip_self_helper_target IN LISTS _tip_self_helper_targets)
+        if(TARGET ${_tip_self_helper_target})
+          message(FATAL_ERROR "Cannot create self-release helper target '${_tip_self_helper_target}' because a target with that name already exists.")
+        endif()
+        add_library(${_tip_self_helper_target} INTERFACE)
+        set_target_properties(${_tip_self_helper_target} PROPERTIES SPDX_LICENSE "${target_install_package_SPDX_LICENSE}")
+      endforeach()
+      target_link_libraries(${PROJECT_NAME} INTERFACE ${_tip_self_helper_targets})
+      list(APPEND _tip_self_additional_target_args ADDITIONAL_TARGETS ${_tip_self_helper_targets})
+      list(
+        APPEND
+        _tip_self_sbom_args
+        SBOM
+        SBOM_NAME
+        ${PROJECT_NAME}
+        SBOM_DESTINATION
+        ${CMAKE_INSTALL_DATADIR}/sbom/${PROJECT_NAME}
+        SBOM_LICENSE
+        ${target_install_package_SPDX_LICENSE}
+        SBOM_DESCRIPTION
+        "${PROJECT_DESCRIPTION}"
+        SBOM_HOMEPAGE_URL
+        "${PROJECT_HOMEPAGE_URL}")
+    endif()
+
     # Use target_install_package to install itself and target_configure_sources
     target_install_package(
       ${PROJECT_NAME}
+      ${_tip_self_additional_target_args}
       ADDITIONAL_FILES
       ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in
       ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
@@ -62,7 +95,8 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
       # Override include destination to put modules in the cmake dir
       INCLUDE_DESTINATION
-      ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME})
+      ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
+      ${_tip_self_sbom_args})
 
     install(
       PROGRAMS ${CMAKE_CURRENT_LIST_DIR}/cmake/build_minimal_container.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/collect_runtime_deps.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/container_to_quadlet.sh

@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --ninja --gpg
+          bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg
 
       - name: Build signed self-release package
         shell: bash
@@ -121,6 +121,7 @@ jobs:
             build/cpack/self-release/packages/*.sha256
             build/cpack/self-release/packages/*.sha512
             build/cpack/self-release/packages/*.asc
+            build/cpack/self-release/packages/*.spdx.json
           retention-days: 7
 
   cpack-cross-platform:
