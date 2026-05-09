@@ -20,6 +20,10 @@ graph TD
   CPK --> CPK2[cpack regression]
   CPK --> CPK3[cpack components]
   CPK --> CPK4[cross-platform validation]
+  CPK --> CPK5[self-release package]
+
+  REL[.github/workflows/release.yml] --> REL1[signed self-release package]
+  REL --> REL2[GitHub release upload]
 ```
 
 ## Workflow → script mapping
@@ -31,6 +35,7 @@ graph TD
   - `*-consume`: `ci/run.sh examples --suite consume-*`
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
 - `cpack.yml`: `ci/run.sh bootstrap --packaging-tools --gpg` → `ci/run.sh cpack ...`
+- `release.yml`: imports the release GPG key, runs `ci/run.sh cpack --suite self-release --require-signing`, then uploads the signed artifacts to the tag's GitHub release
 
 ## Local parity (common entrypoints)
 
@@ -40,6 +45,7 @@ graph TD
 - Examples: `bash ci/run.sh examples --suite single --build-type Release --use-fetchcontent`
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
+- Self-release package dry run: `bash ci/run.sh bootstrap --ninja --gpg && bash ci/run.sh cpack --suite self-release`
 
 ## Logging and outputs
 

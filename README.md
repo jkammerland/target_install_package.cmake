@@ -185,7 +185,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.3
+  GIT_TAG v7.0.4
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -202,7 +202,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.0.3
+    GIT_TAG v7.0.4
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
