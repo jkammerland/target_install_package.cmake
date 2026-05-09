@@ -1,0 +1,153 @@
+name: Tagged Release
+
+on:
+  push:
+    tags: [ "v*" ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build Signed Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_version="$(
+            python3 - <<'PY'
+          import pathlib
+          import re
+
+          text = pathlib.Path("CMakeLists.txt").read_text(encoding="utf-8")
+          match = re.search(r"project\s*\(\s*target_install_package\b(?P<body>.*?)\)", text, re.S)
+          if not match:
+              raise SystemExit(1)
+          version = re.search(r"\bVERSION\s+([^\s\)]+)", match.group("body"))
+          if not version:
+              raise SystemExit(1)
+          print(version.group(1))
+          PY
+          )"
+          if [[ -z "${project_version}" ]]; then
+            echo "Could not read project version from CMakeLists.txt" >&2
+            exit 1
+          fi
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [[ "${tag_version}" != "${project_version}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match project version ${project_version}" >&2
+            exit 1
+          fi
+
+      - name: Bootstrap (ninja + gpg)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap --ninja --gpg
+
+      - name: Import release signing key
+        shell: bash
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_SIGNING_KEY_SECRET: ${{ secrets.GPG_SIGNING_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
+            echo "GPG_PRIVATE_KEY secret is required for tagged releases" >&2
+            exit 1
+          fi
+
+          mkdir -p "${HOME}/.gnupg"
+          chmod 700 "${HOME}/.gnupg"
+          printf '%s\n' "allow-loopback-pinentry" >> "${HOME}/.gnupg/gpg-agent.conf"
+          gpgconf --kill gpg-agent || true
+
+          printf '%s\n' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+
+          if [[ -n "${GPG_SIGNING_KEY_SECRET}" ]]; then
+            signing_key="${GPG_SIGNING_KEY_SECRET}"
+          else
+            signing_key="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $10; exit }')"
+          fi
+          if [[ -z "${signing_key}" ]]; then
+            echo "Could not determine imported GPG signing key fingerprint" >&2
+            exit 1
+          fi
+          gpg --batch --list-secret-keys "${signing_key}" >/dev/null
+          printf 'GPG_SIGNING_KEY=%s\n' "${signing_key}" >> "${GITHUB_ENV}"
+
+          if [[ -n "${GPG_PASSPHRASE}" ]]; then
+            passphrase_file="${RUNNER_TEMP}/target-install-package-gpg-passphrase"
+            umask 077
+            printf '%s' "${GPG_PASSPHRASE}" > "${passphrase_file}"
+            printf 'GPG_PASSPHRASE_FILE=%s\n' "${passphrase_file}" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Build signed release artifacts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh cpack --suite self-release --require-signing --package-dir build/release-packages
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Signed target_install_package ${GITHUB_REF_NAME} release artifacts."
+            echo
+            echo "Assets include TGZ and ZIP install-tree archives, detached GPG signatures, SHA256/SHA512 checksums, and the exported public signing key."
+            echo
+            echo "Verify an archive with:"
+            echo
+            echo '```sh'
+            echo "gpg --import target_install_package-signing-key.asc"
+            echo "gpg --verify target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sig target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz"
+            echo "sha256sum -c target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sha256"
+            echo '```'
+          } > build/release-notes.md
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-install-package-${{ github.ref_name }}
+          path: |
+            build/release-packages/*.tar.gz
+            build/release-packages/*.zip
+            build/release-packages/*.sig
+            build/release-packages/*.sha256
+            build/release-packages/*.sha512
+            build/release-packages/*.asc
+            build/release-notes.md
+          retention-days: 30
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t release_assets < <(
+            find build/release-packages -maxdepth 1 -type f \
+              \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sig' -o -name '*.sha256' -o -name '*.sha512' -o -name '*.asc' \) \
+              | sort
+          )
+          if (( ${#release_assets[@]} == 0 )); then
+            echo "No release assets found" >&2
+            exit 1
+          fi
+
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --verify-tag \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file build/release-notes.md \
+              "${release_assets[@]}"
+          fi
