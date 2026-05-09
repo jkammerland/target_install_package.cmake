@@ -92,6 +92,37 @@ jobs:
           set -euxo pipefail
           bash ci/run.sh cpack --suite components
 
+  cpack-self-release:
+    name: Self Release Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bootstrap (ninja + gpg)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap --ninja --gpg
+
+      - name: Build signed self-release package
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh cpack --suite self-release
+
+      - name: Upload self-release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-install-package-self-release
+          path: |
+            build/cpack/self-release/packages/*.tar.gz
+            build/cpack/self-release/packages/*.zip
+            build/cpack/self-release/packages/*.sig
+            build/cpack/self-release/packages/*.sha256
+            build/cpack/self-release/packages/*.sha512
+            build/cpack/self-release/packages/*.asc
+          retention-days: 7
+
   cpack-cross-platform:
     name: CPack Cross-Platform Package and Signature Validation
     runs-on: ubuntu-latest

@@ -15,6 +15,7 @@ Usage: ci/run.sh cpack [options]
 
 Suites:
   basic          CPack basic example + signing setup (safe for per-job CI matrix execution)
+  self-release   CPack the root project install tree and verify signed release archives
   components     CPack components example integration (Linux)
   cross-platform Cross-platform artifact analysis (Linux, after download-artifact)
   regression     Run tests/cpack-regression/run-all-tests.sh (Linux)
@@ -25,6 +26,8 @@ Options:
   --cc <path>            C compiler for configure
   --cxx <path>           C++ compiler for configure
   --artifacts-dir <dir>  For cross-platform suite (default: ./build/cpack/artifacts)
+  --package-dir <dir>    For self-release suite (default: ./build/cpack/self-release/packages)
+  --require-signing      Fail if GPG_SIGNING_KEY is not provided instead of creating a test key
   -h, --help             Show help
 EOF
 }
@@ -34,6 +37,8 @@ build_type="Release"
 cc=""
 cxx=""
 artifacts_dir="${ci_root}/build/cpack/artifacts"
+package_dir="${ci_root}/build/cpack/self-release/packages"
+require_signing=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +65,14 @@ while [[ $# -gt 0 ]]; do
     --artifacts-dir)
       artifacts_dir="$(ci_abs_path "${2:?}")"
       shift 2
+      ;;
+    --package-dir)
+      package_dir="$(ci_abs_path "${2:?}")"
+      shift 2
+      ;;
+    --require-signing)
+      require_signing=true
+      shift
       ;;
     *)
       usage >&2
@@ -399,6 +412,130 @@ run_basic() {
   fi
 }
 
+run_self_release() {
+  ci_require_cmd cpack
+  ci_require_cmd gpg
+
+  if [[ "${require_signing}" == "true" && -z "${GPG_SIGNING_KEY:-}" ]]; then
+    ci_die "--require-signing requires GPG_SIGNING_KEY to name an imported private key"
+  fi
+
+  if [[ -z "${GPG_SIGNING_KEY:-}" ]]; then
+    ci_log "==> Generate test GPG key for self-release package signing"
+    mkdir -p "${ci_root}/build/ci-deps"
+    generate_test_gpg_key
+  fi
+
+  local work_dir="${ci_root}/build/cpack/self-release"
+  local build_dir="${work_dir}/build"
+  local install_dir="${work_dir}/install"
+  local extract_dir="${work_dir}/extract"
+  local consumer_dir="${work_dir}/consumer"
+  local consumer_build_dir="${work_dir}/consumer-build"
+
+  rm -rf "${build_dir}" "${install_dir}" "${extract_dir}" "${consumer_dir}" "${consumer_build_dir}" "${package_dir}"
+  mkdir -p "${build_dir}" "${package_dir}"
+
+  ci_log "==> Configure root self-release package"
+  cmake --log-level=DEBUG -S "${ci_root}" -B "${build_dir}" -G Ninja \
+    ${cc:+-DCMAKE_C_COMPILER=${cc}} \
+    ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
+    -DCMAKE_BUILD_TYPE="${build_type}" \
+    -DCMAKE_INSTALL_PREFIX=/ \
+    -DCMAKE_INSTALL_DATADIR=share \
+    -DCPACK_PACKAGE_DIRECTORY="$(ci_path_for_cmake "${package_dir}")" \
+    -DPROJECT_LOG_COLORS=ON \
+    -DTARGET_INSTALL_PACKAGE_ENABLE_INSTALL=ON \
+    -DTARGET_INSTALL_PACKAGE_ENABLE_CPACK=ON \
+    -DTARGET_INSTALL_PACKAGE_REQUIRE_SIGNING=ON
+
+  ci_log "==> Build root self-release package"
+  cmake --build "${build_dir}" --config "${build_type}"
+
+  ci_log "==> Install root project for inspection"
+  cmake --install "${build_dir}" --config "${build_type}" --prefix "${install_dir}"
+
+  ci_log "==> Generate root release archives"
+  cpack --config "${build_dir}/CPackConfig.cmake" --verbose
+
+  shopt -s nullglob
+  local packages=("${package_dir}"/target_install_package-*-cmake.tar.gz "${package_dir}"/target_install_package-*-cmake.zip)
+  local tgz_packages=("${package_dir}"/target_install_package-*-cmake.tar.gz)
+  shopt -u nullglob
+
+  if (( ${#packages[@]} != 2 )); then
+    printf '%s\n' "${packages[@]}" >&2
+    ci_die "Expected exactly two self-release archives (TGZ and ZIP), found ${#packages[@]}"
+  fi
+  if (( ${#tgz_packages[@]} != 1 )); then
+    ci_die "Expected exactly one TGZ self-release archive, found ${#tgz_packages[@]}"
+  fi
+
+  ci_log "==> Verify root release signatures and checksums"
+  local package_file package_name
+  for package_file in "${packages[@]}"; do
+    package_name="$(basename "${package_file}")"
+    [[ -f "${package_file}.sig" ]] || ci_die "Missing detached signature for ${package_name}"
+    [[ -f "${package_file}.sha256" ]] || ci_die "Missing SHA256 checksum for ${package_name}"
+    [[ -f "${package_file}.sha512" ]] || ci_die "Missing SHA512 checksum for ${package_name}"
+    gpg --verify "${package_file}.sig" "${package_file}" >/dev/null
+    (cd "${package_dir}" && sha256sum -c "${package_name}.sha256")
+    (cd "${package_dir}" && sha512sum -c "${package_name}.sha512")
+  done
+
+  if gpg --armor --export "${GPG_SIGNING_KEY}" >"${package_dir}/target_install_package-signing-key.asc"; then
+    ci_log "✓ Exported public signing key"
+  else
+    ci_warn "Unable to export public signing key for ${GPG_SIGNING_KEY}"
+    rm -f "${package_dir}/target_install_package-signing-key.asc"
+  fi
+
+  ci_log "==> Verify packaged install tree with find_package()"
+  mkdir -p "${extract_dir}" "${consumer_dir}"
+  (cd "${extract_dir}" && cmake -E tar xzf "${tgz_packages[0]}")
+  local archive_root="${extract_dir}"
+  shopt -s nullglob
+  local archive_roots=("${extract_dir}"/target_install_package-*-cmake)
+  shopt -u nullglob
+  if (( ${#archive_roots[@]} == 1 )) && [[ -d "${archive_roots[0]}" ]]; then
+    archive_root="${archive_roots[0]}"
+  fi
+
+  local extracted_prefix="${archive_root}"
+  if [[ -f "${archive_root}/share/cmake/target_install_package/target_install_packageConfig.cmake" ]]; then
+    extracted_prefix="${archive_root}"
+  elif [[ -f "${archive_root}/usr/share/cmake/target_install_package/target_install_packageConfig.cmake" ]]; then
+    extracted_prefix="${archive_root}/usr"
+  else
+    ci_die "Extracted archive is missing target_install_packageConfig.cmake"
+  fi
+  [[ -f "${extracted_prefix}/share/cmake/target_install_package/sign_packages.cmake.in" ]] \
+    || ci_die "Extracted archive is missing sign_packages.cmake.in"
+  [[ -f "${extracted_prefix}/share/doc/target_install_package/LICENSE" ]] || ci_die "Extracted archive is missing LICENSE"
+
+  cat >"${consumer_dir}/CMakeLists.txt" <<'EOF'
+cmake_minimum_required(VERSION 3.25)
+project(target_install_package_self_release_consumer LANGUAGES CXX)
+
+find_package(target_install_package CONFIG REQUIRED)
+
+foreach(_tip_required_command IN ITEMS target_install_package target_configure_sources export_cpack)
+  if(NOT COMMAND ${_tip_required_command})
+    message(FATAL_ERROR "Expected command not loaded by target_install_package: ${_tip_required_command}")
+  endif()
+endforeach()
+
+if(NOT TARGET target_install_package::target_install_package)
+  message(FATAL_ERROR "Expected imported target target_install_package::target_install_package")
+endif()
+EOF
+
+  cmake -S "${consumer_dir}" -B "${consumer_build_dir}" -DCMAKE_PREFIX_PATH="$(ci_path_for_cmake "${extracted_prefix}")"
+
+  ci_log "==> Self-release package artifacts"
+  (cd "${package_dir}" && ls -la)
+}
+
 run_components() {
   if ! ci_is_linux; then
     ci_die "components suite is Linux-only"
@@ -486,6 +623,7 @@ run_regression() {
 
 case "${suite}" in
   basic) run_basic ;;
+  self-release) run_self_release ;;
   components) run_components ;;
   cross-platform) run_cross_platform ;;
   regression) run_regression ;;
