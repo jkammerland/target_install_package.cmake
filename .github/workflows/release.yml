@@ -101,12 +101,12 @@ jobs:
           {
             echo "Signed target_install_package ${GITHUB_REF_NAME} release artifacts."
             echo
-            echo "Assets include TGZ and ZIP install-tree archives, detached GPG signatures, SHA256/SHA512 checksums, and the exported public signing key."
+            echo "Assets include TGZ and ZIP install-tree archives, detached GPG signatures, SHA256/SHA512 checksums, and the exported public key for verifying release signatures."
             echo
             echo "Verify an archive with:"
             echo
             echo '```sh'
-            echo "gpg --import target_install_package-signing-key.asc"
+            echo "gpg --import target_install_package-release-public-key.asc"
             echo "gpg --verify target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sig target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz"
             echo "sha256sum -c target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sha256"
             echo '```'

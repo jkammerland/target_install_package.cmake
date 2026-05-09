@@ -483,11 +483,12 @@ run_self_release() {
     (cd "${package_dir}" && sha512sum -c "${package_name}.sha512")
   done
 
-  if gpg --armor --export "${GPG_SIGNING_KEY}" >"${package_dir}/target_install_package-signing-key.asc"; then
-    ci_log "✓ Exported public signing key"
+  local public_key_file="${package_dir}/target_install_package-release-public-key.asc"
+  if gpg --armor --export "${GPG_SIGNING_KEY}" >"${public_key_file}"; then
+    ci_log "✓ Exported public key for release signature verification"
   else
-    ci_warn "Unable to export public signing key for ${GPG_SIGNING_KEY}"
-    rm -f "${package_dir}/target_install_package-signing-key.asc"
+    ci_warn "Unable to export public key for ${GPG_SIGNING_KEY}"
+    rm -f "${public_key_file}"
   fi
 
   ci_log "==> Verify packaged install tree with find_package()"
