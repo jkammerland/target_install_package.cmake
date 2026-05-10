@@ -13,6 +13,7 @@ Usage: ci/run.sh bootstrap [options]
 
 Options:
   --ninja                 Ensure Ninja is installed
+  --cmake-version <ver>   Ensure an exact CMake version using Python's user install if needed
   --fmt                   Build+install fmt to a prefix
   --fmt-prefix <dir>      fmt install prefix (default: ./build/ci-deps/fmt-install)
   --fmt-ref <git-ref>     fmt git ref/sha (default: pinned commit)
@@ -30,6 +31,7 @@ ensure_ninja=false
 ensure_fmt=false
 ensure_packaging_tools=false
 ensure_gpg=false
+ensure_cmake_version=""
 
 fmt_prefix="${ci_root}/build/ci-deps/fmt-install"
 fmt_ref="53d006abfdc0653f7d3e4e180e694fcb720524b5"
@@ -47,6 +49,10 @@ while [[ $# -gt 0 ]]; do
     --ninja)
       ensure_ninja=true
       shift
+      ;;
+    --cmake-version)
+      ensure_cmake_version="${2:?}"
+      shift 2
       ;;
     --fmt)
       ensure_fmt=true
@@ -92,7 +98,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "${ensure_cmake_version}" ]]; then
+  current_cmake_version=""
+  if ci_has_cmd cmake; then
+    current_cmake_version="$(cmake --version | awk 'NR == 1 { print $3 }')"
+  fi
+  if [[ "${current_cmake_version}" != "${ensure_cmake_version}" ]]; then
+    ci_python_bin="$(ci_python)" || ci_die "python is required to install CMake ${ensure_cmake_version}"
+    ci_log "Installing CMake ${ensure_cmake_version}..."
+    "${ci_python_bin}" -m pip install --user "cmake==${ensure_cmake_version}"
+    ci_add_path "${HOME}/.local/bin"
+  fi
+fi
+
 ci_require_cmd cmake
+cmake --version | head -n 1
 
 if [[ "${ensure_ninja}" == "true" ]]; then
   if ci_has_cmd ninja; then

@@ -35,7 +35,7 @@ graph TD
   - `*-consume`: `ci/run.sh examples --suite consume-*`
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
 - `cpack.yml`: `ci/run.sh bootstrap --packaging-tools --gpg` → `ci/run.sh cpack ...`
-- `release.yml`: imports the release GPG key, runs `ci/run.sh cpack --suite self-release --require-signing`, then uploads the signed artifacts to the tag's GitHub release
+- `release.yml`: installs CMake 4.3.1, imports the release GPG key, runs `ci/run.sh cpack --suite self-release --require-signing`, then uploads the signed archives, SPDX SBOM, signatures, checksums, and public verification key to the tag's GitHub release
 
 ## Local parity (common entrypoints)
 
@@ -45,7 +45,7 @@ graph TD
 - Examples: `bash ci/run.sh examples --suite single --build-type Release --use-fetchcontent`
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
-- Self-release package dry run: `bash ci/run.sh bootstrap --ninja --gpg && bash ci/run.sh cpack --suite self-release`
+- Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
 
 ## Logging and outputs
 

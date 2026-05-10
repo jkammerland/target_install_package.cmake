@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --ninja --gpg
+          bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg
 
       - name: Import release signing key
         shell: bash
@@ -101,13 +101,14 @@ jobs:
           {
             echo "Signed target_install_package ${GITHUB_REF_NAME} release artifacts."
             echo
-            echo "Assets include TGZ and ZIP install-tree archives, detached GPG signatures, SHA256/SHA512 checksums, and the exported public key for verifying release signatures."
+            echo "Assets include TGZ and ZIP install-tree archives, an SPDX SBOM, detached GPG signatures, SHA256/SHA512 checksums, and the exported public key for verifying release signatures."
             echo
             echo "Verify an archive with:"
             echo
             echo '```sh'
             echo "gpg --import target_install_package-release-public-key.asc"
             echo "gpg --verify target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sig target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz"
+            echo "gpg --verify target_install_package-${GITHUB_REF_NAME#v}-cmake.spdx.json.sig target_install_package-${GITHUB_REF_NAME#v}-cmake.spdx.json"
             echo "sha256sum -c target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sha256"
             echo '```'
           } > build/release-notes.md
@@ -123,6 +124,7 @@ jobs:
             build/release-packages/*.sha256
             build/release-packages/*.sha512
             build/release-packages/*.asc
+            build/release-packages/*.spdx.json
             build/release-notes.md
           retention-days: 30
 
@@ -134,7 +136,7 @@ jobs:
           set -euo pipefail
           mapfile -t release_assets < <(
             find build/release-packages -maxdepth 1 -type f \
-              \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sig' -o -name '*.sha256' -o -name '*.sha512' -o -name '*.asc' \) \
+              \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.spdx.json' -o -name '*.sig' -o -name '*.sha256' -o -name '*.sha512' -o -name '*.asc' \) \
               | sort
           )
           if (( ${#release_assets[@]} == 0 )); then

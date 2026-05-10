@@ -9,6 +9,8 @@ source "${ci_dir}/lib/common.sh"
 
 ci_setup_ccache "${ci_root}"
 
+tip_sbom_experimental_value="ca494ed3-b261-4205-a01f-603c95e4cae0"
+
 usage() {
   cat <<'EOF'
 Usage: ci/run.sh cpack [options]
@@ -100,6 +102,65 @@ EOF
   gpg --batch --generate-key "${ci_root}/build/ci-deps/key-gen-batch"
   gpg --list-keys ci-test@target-install-package.local >/dev/null
   export GPG_SIGNING_KEY="ci-test@target-install-package.local"
+}
+
+validate_self_release_sbom() {
+  local sbom_file="${1:?}"
+  local ci_python_bin=""
+  ci_python_bin="$(ci_python)" || ci_die "python is required to validate the self-release SBOM"
+
+  "${ci_python_bin}" - "${sbom_file}" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as f:
+    document = json.load(f)
+
+graph = document.get("@graph", [])
+spdx_documents = [
+    item for item in graph
+    if item.get("type") == "SpdxDocument" and item.get("name") == "target_install_package"
+]
+if len(spdx_documents) != 1:
+    raise SystemExit(f"expected one target_install_package SPDX document, got {len(spdx_documents)}")
+
+spdx_document = spdx_documents[0]
+if spdx_document.get("dataLicense") != "MIT":
+    raise SystemExit(f"expected SPDX dataLicense MIT, got {spdx_document.get('dataLicense')!r}")
+
+expected_roots = {
+    "target_install_package",
+    "list_file_include_guard",
+    "project_include_guard",
+    "project_log",
+}
+actual_roots = {item.get("name") for item in spdx_document.get("rootElement", [])}
+missing = sorted(expected_roots - actual_roots)
+if missing:
+    raise SystemExit(f"self-release SBOM missing root elements: {', '.join(missing)}")
+PY
+}
+
+sign_and_verify_self_release_sidecar() {
+  local sidecar_file="${1:?}"
+  local sidecar_name
+  sidecar_name="$(basename "${sidecar_file}")"
+
+  local gpg_cmd=(gpg --batch --yes --detach-sign --armor)
+  if [[ -n "${GPG_PASSPHRASE_FILE:-}" && -f "${GPG_PASSPHRASE_FILE}" ]]; then
+    gpg_cmd+=(--pinentry-mode loopback --passphrase-file "${GPG_PASSPHRASE_FILE}")
+  else
+    gpg_cmd+=(--pinentry-mode loopback "--passphrase=")
+  fi
+  gpg_cmd+=(--default-key "${GPG_SIGNING_KEY}" --output "${sidecar_file}.sig" "${sidecar_file}")
+  "${gpg_cmd[@]}"
+
+  (cd "${package_dir}" && sha256sum "${sidecar_name}" >"${sidecar_name}.sha256")
+  (cd "${package_dir}" && sha512sum "${sidecar_name}" >"${sidecar_name}.sha512")
+  gpg --verify "${sidecar_file}.sig" "${sidecar_file}" >/dev/null
+  (cd "${package_dir}" && sha256sum -c "${sidecar_name}.sha256")
+  (cd "${package_dir}" && sha512sum -c "${sidecar_name}.sha512")
 }
 
 enable_gpg_signing_in_cpack_basic() {
@@ -447,6 +508,8 @@ run_self_release() {
     -DPROJECT_LOG_COLORS=ON \
     -DTARGET_INSTALL_PACKAGE_ENABLE_INSTALL=ON \
     -DTARGET_INSTALL_PACKAGE_ENABLE_CPACK=ON \
+    -DTARGET_INSTALL_PACKAGE_ENABLE_SBOM=ON \
+    -DCMAKE_EXPERIMENTAL_GENERATE_SBOM="${tip_sbom_experimental_value}" \
     -DTARGET_INSTALL_PACKAGE_REQUIRE_SIGNING=ON
 
   ci_log "==> Build root self-release package"
@@ -513,6 +576,20 @@ run_self_release() {
   [[ -f "${extracted_prefix}/share/cmake/target_install_package/sign_packages.cmake.in" ]] \
     || ci_die "Extracted archive is missing sign_packages.cmake.in"
   [[ -f "${extracted_prefix}/share/doc/target_install_package/LICENSE" ]] || ci_die "Extracted archive is missing LICENSE"
+
+  shopt -s nullglob
+  local packaged_sbom_files=("${extracted_prefix}/share/sbom/target_install_package"/*.spdx.json)
+  shopt -u nullglob
+  if (( ${#packaged_sbom_files[@]} != 1 )); then
+    ci_die "Expected one packaged target_install_package SBOM, found ${#packaged_sbom_files[@]}"
+  fi
+
+  local package_stem sbom_sidecar
+  package_stem="$(basename "${tgz_packages[0]}" .tar.gz)"
+  sbom_sidecar="${package_dir}/${package_stem}.spdx.json"
+  cmake -E copy "${packaged_sbom_files[0]}" "${sbom_sidecar}"
+  validate_self_release_sbom "${sbom_sidecar}"
+  sign_and_verify_self_release_sidecar "${sbom_sidecar}"
 
   cat >"${consumer_dir}/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.25)
