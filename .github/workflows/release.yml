@@ -100,7 +100,7 @@ jobs:
             exit 1
           fi
 
-          if ! tag_verify_output="$(git tag -v --raw "${GITHUB_REF_NAME}" 2>&1)"; then
+          if ! tag_verify_output="$(git verify-tag --raw "${GITHUB_REF_NAME}" 2>&1)"; then
             printf '%s\n' "${tag_verify_output}" >&2
             echo "Release tag ${GITHUB_REF_NAME} must be signed by the imported release GPG key" >&2
             exit 1
