@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   target_install_package
-  VERSION 7.0.5
+  VERSION 7.0.6
   DESCRIPTION "CMake utilities for creating installable packages"
   HOMEPAGE_URL "https://github.com/jkammerland/target_install_package.cmake")
 set(target_install_package_SPDX_LICENSE "MIT")

@@ -88,6 +88,54 @@ jobs:
             printf 'GPG_PASSPHRASE_FILE=%s\n' "${passphrase_file}" >> "${GITHUB_ENV}"
           fi
 
+      - name: Verify signed release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --force origin "+refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          tag_type="$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")"
+          if [[ "${tag_type}" != "tag" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} must be an annotated signed tag; got ${tag_type}" >&2
+            exit 1
+          fi
+
+          if ! tag_verify_output="$(git verify-tag --raw "${GITHUB_REF_NAME}" 2>&1)"; then
+            printf '%s\n' "${tag_verify_output}" >&2
+            echo "Release tag ${GITHUB_REF_NAME} must be signed by the imported release GPG key" >&2
+            exit 1
+          fi
+          printf '%s\n' "${tag_verify_output}"
+
+          tag_fingerprint="$(
+            awk '/^\[GNUPG:\] VALIDSIG / { print $3; exit }' <<< "${tag_verify_output}"
+          )"
+          if [[ -z "${tag_fingerprint}" ]]; then
+            echo "Could not determine ${GITHUB_REF_NAME} tag signing fingerprint" >&2
+            exit 1
+          fi
+
+          mapfile -t allowed_fingerprints < <(
+            gpg --batch --with-colons --list-secret-keys "${GPG_SIGNING_KEY}" | awk -F: '/^fpr:/ { print $10 }'
+          )
+          if (( ${#allowed_fingerprints[@]} == 0 )); then
+            echo "Could not determine allowed release signing fingerprints" >&2
+            exit 1
+          fi
+
+          fingerprint_matches=false
+          for allowed_fingerprint in "${allowed_fingerprints[@]}"; do
+            if [[ "${tag_fingerprint}" == "${allowed_fingerprint}" ]]; then
+              fingerprint_matches=true
+              break
+            fi
+          done
+          if [[ "${fingerprint_matches}" != "true" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} was signed by ${tag_fingerprint}, expected one of:" >&2
+            printf '  %s\n' "${allowed_fingerprints[@]}" >&2
+            exit 1
+          fi
+
       - name: Build signed release artifacts
         shell: bash
         run: |

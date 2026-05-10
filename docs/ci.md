@@ -35,7 +35,7 @@ graph TD
   - `*-consume`: `ci/run.sh examples --suite consume-*`
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
 - `cpack.yml`: `ci/run.sh bootstrap --packaging-tools --gpg` → `ci/run.sh cpack ...`
-- `release.yml`: installs CMake 4.3.1, imports the release GPG key, runs `ci/run.sh cpack --suite self-release --require-signing`, then uploads the signed archives, SPDX SBOM, signatures, checksums, and public verification key to the tag's GitHub release
+- `release.yml`: installs CMake 4.3.1, imports the release GPG key, verifies the tag is annotated and signed by that key, runs `ci/run.sh cpack --suite self-release --require-signing`, then uploads the signed archives, SPDX SBOM, signatures, checksums, and public verification key to the tag's GitHub release
 
 ## Local parity (common entrypoints)
 
@@ -46,6 +46,12 @@ graph TD
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
 - Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
+
+## Tagged releases
+
+Release assets are signed with the dedicated GPG key stored in the `GPG_PRIVATE_KEY`, `GPG_SIGNING_KEY`, and optional `GPG_PASSPHRASE` GitHub Actions secrets. The exported public key asset is generated from that key, so the key UID should identify this project and should not use placeholder contact information.
+
+Release tags must be annotated and signed by the same release key. The release workflow verifies both the tag signature and the signing fingerprint before it builds artifacts.
 
 ## Logging and outputs
 
