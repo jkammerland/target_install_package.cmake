@@ -41,7 +41,7 @@ graph TD
 
 - Bootstrap dependencies: `bash ci/run.sh bootstrap --ninja --fmt`
 - Configure/build/test/install root project: `bash ci/run.sh main --preset ci-release`
-- Consumer tests: `ci/run.sh consumer --preset ci-release`
+- Consumer tests: `bash ci/run.sh consumer --preset ci-release`
 - Examples: `bash ci/run.sh examples --suite single --build-type Release --use-fetchcontent`
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
