@@ -289,6 +289,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_cpack_single_component_filter COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_single_component_filter_test.cmake")
   set_tests_properties(proof_cpack_single_component_filter PROPERTIES LABELS "proof;review;cpack")
 
+  add_test(NAME proof_cpack_call_site_context COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_call_site_context_test.cmake")
+  set_tests_properties(proof_cpack_call_site_context PROPERTIES LABELS "proof;review;cpack")
+
   add_test(NAME proof_namelink_component COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_namelink_component_test.cmake")
   set_tests_properties(proof_namelink_component PROPERTIES LABELS "proof;review")
 
@@ -303,6 +306,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
 
   add_test(NAME proof_executable_configure_sources COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_executable_configure_sources_test.cmake")
   set_tests_properties(proof_executable_configure_sources PROPERTIES LABELS "proof;review")
+
+  add_test(NAME proof_library_relative_configure_sources COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_library_relative_configure_sources_test.cmake")
+  set_tests_properties(proof_library_relative_configure_sources PROPERTIES LABELS "proof;review;install")
 
   add_test(NAME proof_additional_files_components COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_additional_files_components_test.cmake")
   set_tests_properties(proof_additional_files_components PROPERTIES LABELS "proof;review")
@@ -324,6 +330,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
     if(_tip_bash_for_verifier_proof)
       add_test(NAME proof_signed_verifier_key COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_signed_verifier_key_test.cmake")
       set_tests_properties(proof_signed_verifier_key PROPERTIES LABELS "proof;review;signing")
+
+      add_test(NAME proof_release_tag_verifier COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_release_tag_verifier_test.cmake")
+      set_tests_properties(proof_release_tag_verifier PROPERTIES LABELS "proof;review;signing;release")
     else()
       message(STATUS "Skipping proof_signed_verifier_key: bash is required")
     endif()

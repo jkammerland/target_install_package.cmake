@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.6)
+  list_file_include_guard(VERSION 7.0.7)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -36,7 +36,7 @@ endif()
 #   SUBSTITUTION_MODE       - Configure mode (@ONLY or VARIABLES, default: @ONLY).
 #   FILE_SET                - Name of the file set (default: HEADERS).
 #   TYPE                    - Type of file set (currently only HEADERS is supported).
-#   BASE_DIRS               - Base directories for the file set (default: OUTPUT_DIR).
+#   BASE_DIRS               - Base directories for the file set; relative paths use CMAKE_CURRENT_BINARY_DIR (default: OUTPUT_DIR).
 #   FILES                   - List of template files to configure.
 #
 # Behavior:
@@ -107,11 +107,7 @@ function(target_configure_sources TARGET_NAME)
     set(ARGS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/configured/${TARGET_NAME}")
   endif()
   if(IS_ABSOLUTE "${ARGS_OUTPUT_DIR}")
-    cmake_path(
-      NORMAL_PATH
-      ARGS_OUTPUT_DIR
-      OUTPUT_VARIABLE
-      ARGS_OUTPUT_DIR)
+    cmake_path(NORMAL_PATH ARGS_OUTPUT_DIR OUTPUT_VARIABLE ARGS_OUTPUT_DIR)
   else()
     cmake_path(
       ABSOLUTE_PATH
@@ -149,6 +145,25 @@ function(target_configure_sources TARGET_NAME)
     set(ARGS_BASE_DIRS "${ARGS_OUTPUT_DIR}")
   endif()
 
+  # Generated files live in the build tree, so relative base directories use the calling binary directory for every target type.
+  set(_tip_normalized_base_dirs "")
+  foreach(_tip_base_dir IN LISTS ARGS_BASE_DIRS)
+    if(IS_ABSOLUTE "${_tip_base_dir}")
+      cmake_path(NORMAL_PATH _tip_base_dir OUTPUT_VARIABLE _tip_normalized_base_dir)
+    else()
+      cmake_path(
+        ABSOLUTE_PATH
+        _tip_base_dir
+        BASE_DIRECTORY
+        "${CMAKE_CURRENT_BINARY_DIR}"
+        NORMALIZE
+        OUTPUT_VARIABLE
+        _tip_normalized_base_dir)
+    endif()
+    list(APPEND _tip_normalized_base_dirs "${_tip_normalized_base_dir}")
+  endforeach()
+  set(ARGS_BASE_DIRS "${_tip_normalized_base_dirs}")
+
   # Create output directory
   file(MAKE_DIRECTORY "${ARGS_OUTPUT_DIR}")
   project_log(DEBUG "target_configure_sources: Created output directory: ${ARGS_OUTPUT_DIR}")
@@ -158,11 +173,7 @@ function(target_configure_sources TARGET_NAME)
   set(_tip_configured_output_files "")
   foreach(SOURCE_FILE IN LISTS ARGS_FILES)
     if(IS_ABSOLUTE "${SOURCE_FILE}")
-      cmake_path(
-        NORMAL_PATH
-        SOURCE_FILE
-        OUTPUT_VARIABLE
-        SOURCE_FILE)
+      cmake_path(NORMAL_PATH SOURCE_FILE OUTPUT_VARIABLE SOURCE_FILE)
     else()
       cmake_path(
         ABSOLUTE_PATH
@@ -186,17 +197,8 @@ function(target_configure_sources TARGET_NAME)
 
     get_filename_component(FILE_NAME "${SOURCE_FILE}" NAME)
     string(REGEX REPLACE "\\.in$" "" OUTPUT_FILE_NAME "${FILE_NAME}")
-    cmake_path(
-      APPEND
-      ARGS_OUTPUT_DIR
-      "${OUTPUT_FILE_NAME}"
-      OUTPUT_VARIABLE
-      OUTPUT_FILE)
-    cmake_path(
-      NORMAL_PATH
-      OUTPUT_FILE
-      OUTPUT_VARIABLE
-      OUTPUT_FILE)
+    cmake_path(APPEND ARGS_OUTPUT_DIR "${OUTPUT_FILE_NAME}" OUTPUT_VARIABLE OUTPUT_FILE)
+    cmake_path(NORMAL_PATH OUTPUT_FILE OUTPUT_VARIABLE OUTPUT_FILE)
 
     list(FIND _tip_configured_output_files "${OUTPUT_FILE}" _tip_existing_output_index)
     if(NOT _tip_existing_output_index EQUAL -1)
@@ -207,8 +209,10 @@ function(target_configure_sources TARGET_NAME)
         continue()
       endif()
 
-      project_log(FATAL_ERROR
-                  "target_configure_sources: Multiple template files generate the same output '${OUTPUT_FILE}': '${_tip_existing_source}' and '${SOURCE_FILE}'. Use unique template basenames or separate OUTPUT_DIR values.")
+      project_log(
+        FATAL_ERROR
+        "target_configure_sources: Multiple template files generate the same output '${OUTPUT_FILE}': '${_tip_existing_source}' and '${SOURCE_FILE}'. Use unique template basenames or separate OUTPUT_DIR values."
+      )
     endif()
     list(APPEND _tip_configured_output_files "${OUTPUT_FILE}")
     string(SHA256 _tip_output_hash "${OUTPUT_FILE}")
@@ -220,8 +224,10 @@ function(target_configure_sources TARGET_NAME)
       SET)
     get_property(_tip_existing_global_source GLOBAL PROPERTY "_TIP_CONFIGURED_OUTPUT_SOURCE_${_tip_output_hash}")
     if(_tip_existing_global_source_set)
-      project_log(FATAL_ERROR
-                  "target_configure_sources: Multiple template files generate the same output '${OUTPUT_FILE}': '${_tip_existing_global_source}' and '${SOURCE_FILE}'. Use unique template basenames or separate OUTPUT_DIR values.")
+      project_log(
+        FATAL_ERROR
+        "target_configure_sources: Multiple template files generate the same output '${OUTPUT_FILE}': '${_tip_existing_global_source}' and '${SOURCE_FILE}'. Use unique template basenames or separate OUTPUT_DIR values."
+      )
     endif()
     set_property(GLOBAL PROPERTY "_TIP_CONFIGURED_OUTPUT_SOURCE_${_tip_output_hash}" "${SOURCE_FILE}")
 
@@ -263,19 +269,7 @@ function(target_configure_sources TARGET_NAME)
     project_log(DEBUG "  Adding ${SCOPE} include directories for executable target ${TARGET_NAME}")
     set(_tip_executable_include_dirs "")
     foreach(_tip_base_dir IN LISTS ARGS_BASE_DIRS)
-      if(IS_ABSOLUTE "${_tip_base_dir}")
-        set(_tip_executable_base_dir "${_tip_base_dir}")
-      else()
-        cmake_path(
-          ABSOLUTE_PATH
-          _tip_base_dir
-          BASE_DIRECTORY
-          "${CMAKE_CURRENT_BINARY_DIR}"
-          NORMALIZE
-          OUTPUT_VARIABLE
-          _tip_executable_base_dir)
-      endif()
-      list(APPEND _tip_executable_include_dirs "$<BUILD_INTERFACE:${_tip_executable_base_dir}>")
+      list(APPEND _tip_executable_include_dirs "$<BUILD_INTERFACE:${_tip_base_dir}>")
     endforeach()
     target_include_directories(${TARGET_NAME} ${SCOPE} ${_tip_executable_include_dirs})
   endif()

@@ -1,49 +1,98 @@
 name: Tagged Release
 
 on:
-  push:
-    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing signed release tag to publish
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build Signed Release
+  verify:
+    name: Verify Signed Release Tag
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.verify.outputs.release_tag }}
+      release_commit: ${{ steps.verify.outputs.release_commit }}
+      release_version: ${{ steps.verify.outputs.release_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
-      - name: Check tag matches project version
+      - name: Fetch candidate tag from trusted workflow ref
         shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          project_version="$(
-            python3 - <<'PY'
-          import pathlib
-          import re
+          expected_workflow_ref="refs/heads/${DEFAULT_BRANCH}"
+          if [[ "${GITHUB_REF}" != "${expected_workflow_ref}" ]]; then
+            echo "Release workflow must be dispatched from ${expected_workflow_ref}, got ${GITHUB_REF}" >&2
+            exit 1
+          fi
+          if [[ "${RELEASE_TAG}" != v* ]] || ! git check-ref-format "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            echo "Invalid release tag: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          git fetch --force origin "+refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          git fetch origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
 
-          text = pathlib.Path("CMakeLists.txt").read_text(encoding="utf-8")
-          match = re.search(r"project\s*\(\s*target_install_package\b(?P<body>.*?)\)", text, re.S)
-          if not match:
-              raise SystemExit(1)
-          version = re.search(r"\bVERSION\s+([^\s\)]+)", match.group("body"))
-          if not version:
-              raise SystemExit(1)
-          print(version.group(1))
-          PY
+      - name: Verify tag signature, ancestry, and version
+        id: verify
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          verification_output="$(
+            bash ci/run.sh release verify-tag \
+              --tag "${RELEASE_TAG}" \
+              --trusted-ref "refs/remotes/origin/${DEFAULT_BRANCH}"
           )"
-          if [[ -z "${project_version}" ]]; then
-            echo "Could not read project version from CMakeLists.txt" >&2
-            exit 1
-          fi
-          tag_version="${GITHUB_REF_NAME#v}"
-          if [[ "${tag_version}" != "${project_version}" ]]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match project version ${project_version}" >&2
-            exit 1
-          fi
+          printf '%s\n' "${verification_output}"
+          while IFS='=' read -r key value; do
+            case "${key}" in
+              release_tag|release_commit|release_version)
+                printf '%s=%s\n' "${key}" "${value}" >> "${GITHUB_OUTPUT}"
+                ;;
+              *)
+                echo "Unexpected verifier output key: ${key}" >&2
+                exit 1
+                ;;
+            esac
+          done <<< "${verification_output}"
 
-      - name: Bootstrap (ninja + gpg)
+  release:
+    name: Build Signed Release
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://github.com/${{ github.repository }}/releases/tag/${{ needs.verify.outputs.release_tag }}
+    permissions:
+      contents: write
+    env:
+      RELEASE_COMMIT: ${{ needs.verify.outputs.release_commit }}
+      RELEASE_TAG: ${{ needs.verify.outputs.release_tag }}
+      RELEASE_VERSION: ${{ needs.verify.outputs.release_version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.verify.outputs.release_commit }}
+
+      - name: Bootstrap release tools
         shell: bash
         run: |
           set -euxo pipefail
@@ -57,8 +106,9 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euo pipefail
+          expected_fingerprint="7A9DA5E43CC1A9ECB9745CBE3A209DA2768BE08D"
           if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
-            echo "GPG_PRIVATE_KEY secret is required for tagged releases" >&2
+            echo "GPG_PRIVATE_KEY environment secret is required for releases" >&2
             exit 1
           fi
 
@@ -66,20 +116,18 @@ jobs:
           chmod 700 "${HOME}/.gnupg"
           printf '%s\n' "allow-loopback-pinentry" >> "${HOME}/.gnupg/gpg-agent.conf"
           gpgconf --kill gpg-agent || true
-
           printf '%s\n' "${GPG_PRIVATE_KEY}" | gpg --batch --import
 
-          if [[ -n "${GPG_SIGNING_KEY_SECRET}" ]]; then
-            signing_key="${GPG_SIGNING_KEY_SECRET}"
-          else
-            signing_key="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $10; exit }')"
-          fi
-          if [[ -z "${signing_key}" ]]; then
-            echo "Could not determine imported GPG signing key fingerprint" >&2
+          signing_selector="${GPG_SIGNING_KEY_SECRET:-${expected_fingerprint}}"
+          signing_fingerprint="$(
+            gpg --batch --with-colons --list-secret-keys "${signing_selector}" \
+              | awk -F: '/^fpr:/ { print toupper($10); exit }'
+          )"
+          if [[ "${signing_fingerprint}" != "${expected_fingerprint}" ]]; then
+            echo "Imported secret key fingerprint ${signing_fingerprint:-missing} does not match ${expected_fingerprint}" >&2
             exit 1
           fi
-          gpg --batch --list-secret-keys "${signing_key}" >/dev/null
-          printf 'GPG_SIGNING_KEY=%s\n' "${signing_key}" >> "${GITHUB_ENV}"
+          printf 'GPG_SIGNING_KEY=%s\n' "${expected_fingerprint}" >> "${GITHUB_ENV}"
 
           if [[ -n "${GPG_PASSPHRASE}" ]]; then
             passphrase_file="${RUNNER_TEMP}/target-install-package-gpg-passphrase"
@@ -88,53 +136,17 @@ jobs:
             printf 'GPG_PASSPHRASE_FILE=%s\n' "${passphrase_file}" >> "${GITHUB_ENV}"
           fi
 
-      - name: Verify signed release tag
+      - name: Recheck tag before building
         shell: bash
         run: |
           set -euo pipefail
-
-          git fetch --force origin "+refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
-          tag_type="$(git cat-file -t "refs/tags/${GITHUB_REF_NAME}")"
-          if [[ "${tag_type}" != "tag" ]]; then
-            echo "Release tag ${GITHUB_REF_NAME} must be an annotated signed tag; got ${tag_type}" >&2
+          git fetch --force origin "+refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          actual_commit="$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")"
+          if [[ "${actual_commit}" != "${RELEASE_COMMIT}" ]]; then
+            echo "Release tag moved from ${RELEASE_COMMIT} to ${actual_commit}" >&2
             exit 1
           fi
-
-          if ! tag_verify_output="$(git verify-tag --raw "${GITHUB_REF_NAME}" 2>&1)"; then
-            printf '%s\n' "${tag_verify_output}" >&2
-            echo "Release tag ${GITHUB_REF_NAME} must be signed by the imported release GPG key" >&2
-            exit 1
-          fi
-          printf '%s\n' "${tag_verify_output}"
-
-          tag_fingerprint="$(
-            awk '/^\[GNUPG:\] VALIDSIG / { print $3; exit }' <<< "${tag_verify_output}"
-          )"
-          if [[ -z "${tag_fingerprint}" ]]; then
-            echo "Could not determine ${GITHUB_REF_NAME} tag signing fingerprint" >&2
-            exit 1
-          fi
-
-          mapfile -t allowed_fingerprints < <(
-            gpg --batch --with-colons --list-secret-keys "${GPG_SIGNING_KEY}" | awk -F: '/^fpr:/ { print $10 }'
-          )
-          if (( ${#allowed_fingerprints[@]} == 0 )); then
-            echo "Could not determine allowed release signing fingerprints" >&2
-            exit 1
-          fi
-
-          fingerprint_matches=false
-          for allowed_fingerprint in "${allowed_fingerprints[@]}"; do
-            if [[ "${tag_fingerprint}" == "${allowed_fingerprint}" ]]; then
-              fingerprint_matches=true
-              break
-            fi
-          done
-          if [[ "${fingerprint_matches}" != "true" ]]; then
-            echo "Release tag ${GITHUB_REF_NAME} was signed by ${tag_fingerprint}, expected one of:" >&2
-            printf '  %s\n' "${allowed_fingerprints[@]}" >&2
-            exit 1
-          fi
+          git verify-tag --raw "refs/tags/${RELEASE_TAG}"
 
       - name: Build signed release artifacts
         shell: bash
@@ -147,7 +159,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Signed target_install_package ${GITHUB_REF_NAME} release artifacts."
+            echo "Signed target_install_package ${RELEASE_TAG} release artifacts."
             echo
             echo "Assets include TGZ and ZIP install-tree archives, an SPDX SBOM, detached GPG signatures, SHA256/SHA512 checksums, and the exported public key for verifying release signatures."
             echo
@@ -155,16 +167,16 @@ jobs:
             echo
             echo '```sh'
             echo "gpg --import target_install_package-release-public-key.asc"
-            echo "gpg --verify target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sig target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz"
-            echo "gpg --verify target_install_package-${GITHUB_REF_NAME#v}-cmake.spdx.json.sig target_install_package-${GITHUB_REF_NAME#v}-cmake.spdx.json"
-            echo "sha256sum -c target_install_package-${GITHUB_REF_NAME#v}-cmake.tar.gz.sha256"
+            echo "gpg --verify target_install_package-${RELEASE_VERSION}-cmake.tar.gz.sig target_install_package-${RELEASE_VERSION}-cmake.tar.gz"
+            echo "gpg --verify target_install_package-${RELEASE_VERSION}-cmake.spdx.json.sig target_install_package-${RELEASE_VERSION}-cmake.spdx.json"
+            echo "sha256sum -c target_install_package-${RELEASE_VERSION}-cmake.tar.gz.sha256"
             echo '```'
           } > build/release-notes.md
 
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: target-install-package-${{ github.ref_name }}
+          name: target-install-package-${{ needs.verify.outputs.release_tag }}
           path: |
             build/release-packages/*.tar.gz
             build/release-packages/*.zip
@@ -176,7 +188,7 @@ jobs:
             build/release-notes.md
           retention-days: 30
 
-      - name: Publish GitHub release
+      - name: Publish immutable GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -192,12 +204,24 @@ jobs:
             exit 1
           fi
 
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" "${release_assets[@]}" --clobber
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            is_draft="$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft)"
+            if [[ "${is_draft}" != "true" ]]; then
+              echo "Published release ${RELEASE_TAG} already exists; refusing to replace its assets" >&2
+              exit 1
+            fi
           else
-            gh release create "${GITHUB_REF_NAME}" \
+            gh release create "${RELEASE_TAG}" \
+              --draft \
               --verify-tag \
-              --title "${GITHUB_REF_NAME}" \
-              --notes-file build/release-notes.md \
-              "${release_assets[@]}"
+              --target "${RELEASE_COMMIT}" \
+              --title "${RELEASE_TAG}" \
+              --notes-file build/release-notes.md
           fi
+
+          gh release upload "${RELEASE_TAG}" "${release_assets[@]}" --clobber
+          gh release edit "${RELEASE_TAG}" --draft=false
+          gh release verify "${RELEASE_TAG}"
+          for release_asset in "${release_assets[@]}"; do
+            gh release verify-asset "${RELEASE_TAG}" "${release_asset}"
+          done

@@ -19,7 +19,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.6
+  GIT_TAG v7.0.7
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -221,7 +221,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.6
+  GIT_TAG v7.0.7
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -238,7 +238,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.0.6
+    GIT_TAG v7.0.7
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -378,7 +378,7 @@ target_install_package(my_library NAMESPACE MyLib::)
 ```
 
 Public configured headers are installed with the package. Private configured headers stay build-only. Missing templates fail configuration. Generated files are named from the input basename with a trailing `.in` stripped, so colliding basenames in the same `OUTPUT_DIR` are rejected. See [examples/configure-files](examples/configure-files/) for the complete example.
-Installed paths follow the `BASE_DIRS` you set for each file set.
+Installed paths follow the `BASE_DIRS` you set for each file set. Relative `OUTPUT_DIR` and `BASE_DIRS` values are resolved from the directory's `CMAKE_CURRENT_BINARY_DIR`, because configured outputs live in the build tree.
 
 ### Libraries with Dependencies
 
@@ -459,7 +459,7 @@ export_cpack(
 # No need for include(CPack) - export_cpack() does it automatically
 ```
 
-`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` sets CPack's license resource for generators that display or embed one. Install a license file explicitly, or use `ADDITIONAL_FILES`, when the license text must be present in the installed payload.
+`PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` sets CPack's license resource for generators that display or embed one. Relative `LICENSE_FILE` paths and automatic license discovery use the source directory that calls `export_cpack()`. Default package metadata likewise comes from that calling project's `PROJECT_*` values, including when it is a subproject. Install a license file explicitly, or use `ADDITIONAL_FILES`, when the license text must be present in the installed payload.
 
 **Generate packages:**
 ```bash
