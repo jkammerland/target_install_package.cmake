@@ -2,6 +2,23 @@
 
 This directory contains comprehensive examples demonstrating the usage of `target_install_package`, `target_configure_sources` and `export_cpack` utilities.
 
+## Choose an Example
+
+| If you want to learn... | Open this example |
+|-------------------------|-------------------|
+| The smallest useful static library install | [basic-static](basic-static/) |
+| Shared library runtime/development split | [basic-shared](basic-shared/) |
+| Header-only or interface library packaging | [basic-interface](basic-interface/) |
+| Multiple targets behind one `find_package()` call | [components-same-export](components-same-export/) |
+| A conventional SDK shape with an umbrella target | [sdk](sdk/) |
+| Generated/configured public headers | [configure-files](configure-files/) |
+| Component installs and selective runtime packages | [components](components/) |
+| CPack archive/native package output | [cpack-basic](cpack-basic/) |
+| Signed CPack artifacts and verification flow | [cpack-signed](cpack-signed/) |
+| Minimal container image generation from install rules | [minimal-container](minimal-container/) |
+| Relocatable shared-library installs | [rpath-example](rpath-example/) |
+| C++20 modules or module partitions | [cxx-modules](cxx-modules/) or [cxx-modules-partitions](cxx-modules-partitions/) |
+
 ## 📚 Available Examples
 
 | Example | Type | Features Demonstrated |
@@ -12,7 +29,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [multi-target](multi-target/) | Multi-Library | Multiple libraries in one package |
 | [multi-config](multi-config/) | Multi-Config | Different configurations (Debug/Release) within a single package |
 | [components](components/) | Component-Based | Custom components and selective installation |
-| [components-same-export](components-same-export/) | Multi-Target Export | Correct pattern for multiple targets with dependency aggregation |
+| [components-same-export](components-same-export/) | Multi-Target Export | Recommended pattern for multiple targets with dependency aggregation |
 | [sdk](sdk/) | SDK Package | Prebuilt shared/static libraries with an interface umbrella target |
 | [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
 | [configure-files](configure-files/) | Template Configuration | Build-time header generation from templates |
@@ -25,7 +42,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [multi-cpack](multi-cpack/) | Multi-CPack | Multiple package configurations from one source tree |
 | [rpath-example](rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
-The CPS examples are covered by the proof tests rather than a standalone example directory because CPS requires CMake 4.3+. See the README CPS section for the producer and consumer snippets.
+The CPS and SBOM paths are covered by proof tests and focused docs rather than standalone example directories because they require CMake 4.3+ and, for SBOM, the CMake SBOM experiment activation value. See [CPS support](../docs/cps.md), [SBOM support](../docs/sbom.md), and the [Compatibility Matrix](../docs/compatibility.md).
 
 ## 🚀 Quick Start
 

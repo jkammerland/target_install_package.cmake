@@ -1,78 +1,133 @@
-# CMake Target Installation Utilities 
+# CMake Target Installation Utilities
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-CMake utilities for creating installable packages. Linux, Windows and macOS are supported. CMake installation configuration uses a single function that generates a CMake package with default settings.
+CMake utilities for turning normal CMake targets into installable, `find_package()`-ready packages. The core path is intentionally small:
 
 ```cmake
-# Producer project
 target_install_package(my_library)
-
-# Consumer project
-find_package(my_library CONFIG REQUIRED)
 ```
 
-Most use cases require minimal configuration. The goal is to simplify this workflow while preserving the ability to interleave configuration and installation steps.
+That call creates install rules, target exports, package config files, version files, and predictable runtime/development components from the target metadata you already maintain.
 
-This project requires several CMake helper projects, inlined under the `cmake/` folder. You can use the same approach in your own project, but check [installation](#installation) first, or the [examples](examples/).
+## Quick Start
+
+Producer project:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  target_install_package
+  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
+  GIT_TAG v7.0.6
+)
+FetchContent_MakeAvailable(target_install_package)
+
+add_library(math_utils STATIC)
+target_sources(math_utils PRIVATE src/matrix.cpp)
+target_sources(math_utils PUBLIC
+  FILE_SET HEADERS
+  BASE_DIRS include
+  FILES include/math/matrix.h
+)
+
+target_install_package(math_utils NAMESPACE Math::)
+```
+
+Consumer project:
+
+```cmake
+find_package(math_utils CONFIG REQUIRED)
+target_link_libraries(app PRIVATE Math::math_utils)
+```
+
+Build and inspect an install tree:
+
+```bash
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$PWD/build/install"
+cmake --build build
+cmake --install build
+```
+
+## When to Use It
+
+Use this project when:
+
+- You publish CMake libraries, tools, SDKs, or examples that should be consumed with `find_package()`.
+- You want `FILE_SET` headers, exported targets, config packages, and version files without repeating the same install boilerplate in every project.
+- You need runtime/development component separation for local installs, CI artifacts, or CPack packages.
+- You want optional CPack, signing, checksums, container archives, CPS metadata, or SBOM metadata behind one install contract.
+
+Use raw CMake install rules instead when you only ship a private application, need CMake older than 3.25, or already have a distribution-specific install policy that intentionally diverges from `GNUInstallDirs`. See [Why target_install_package](docs/why-target-install-package.md) for the detailed trade-off.
+
+## Choose a Starting Point
+
+| Need | Start Here |
+|------|------------|
+| Package one static, shared, or header-only library | [Basic Library Installation](#basic-library-installation), then [examples/basic-static](examples/basic-static/), [examples/basic-shared](examples/basic-shared/), or [examples/basic-interface](examples/basic-interface/) |
+| Generate configured public headers | [Configuring Template Headers](#configuring-template-headers) and [examples/configure-files](examples/configure-files/) |
+| Put several targets behind one `find_package()` call | [Multi-Target Exports](#multi-target-exports) and [examples/components-same-export](examples/components-same-export/) |
+| Split runtime and SDK packages | [Component-Based Installation](#component-based-installation) and [Component Packaging Plan](docs/component-packaging-plan.md) |
+| Generate archives, DEB/RPM/WIX/DMG, signatures, or checksums | [CPack Package Generation](#cpack-package-generation), [CPack tutorial](CPack-Tutorial.md), and [examples/cpack-basic](examples/cpack-basic/) |
+| Build a minimal container image from install rules | [Container Packaging](docs/Container-Packaging.md) and [examples/minimal-container](examples/minimal-container/) |
+| Add CPS or SBOM metadata | [CPS support](docs/cps.md), [SBOM support](docs/sbom.md), and [Compatibility Matrix](docs/compatibility.md) |
 
 ## Requirements
 
 - CMake 3.25+ for core utilities and examples
-- C++20 modules examples require CMake 3.28+
-- [Common Package Specification (CPS)](docs/cps.md) generation requires CMake 4.3+
-- [SBOM](docs/sbom.md) generation requires CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to that CMake version's activation value
+- CMake 3.28+ for C++20 modules examples
+- CMake 4.3+ for [Common Package Specification (CPS)](docs/cps.md)
+- CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for [SBOM](docs/sbom.md)
 
-## Shipped Functions & Files
+See the [Compatibility Matrix](docs/compatibility.md) for target type, platform, CPack, CPS, SBOM, and container support details.
+
+## Features
+
+- Target-centric install API with less boilerplate
+- Package installation with CMake config and version file generation
+- Automatic install rules from `FILE_SET` headers and C++20 modules
+- Static, shared, interface, executable, and multi-target export support
+- Component-based installation with runtime/development/custom separation
+- Build variant support for debug/release/custom configurations
+- Templated source file configuration with install-aware include paths
+- CPack integration with platform-appropriate package generators (`TGZ`, `ZIP`, `DEB`, `RPM`, `WIX`, `DragNDrop`)
+- Integrated container image generation through CPack's External generator and `export_cpack(GENERATORS "CONTAINER")`
+- GPG signing and checksum generation for CPack outputs
+- Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
+- Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
+
+## Shipped Functions and Files
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
 | [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
-| [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and add them to target's FILE_SET |
-| [export_cpack](export_cpack.cmake) | Function | CPack configuration with component detection, platform-appropriate generators, and optional GPG signing (see [tutorial](CPack-Tutorial.md)) |
-| [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template (can be overridden with custom templates) |
-| [sign_packages.cmake.in](cmake/sign_packages.cmake.in) | Template | GPG signing template (see [tutorial](CPack-Tutorial.md)) |
-| [project_log](cmake/project_log.cmake) | Function | Enhanced logging with color support and project context |
-| [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
-| [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking (guard against submodules/inlining cmake files, protecting previous definitions) |
+| [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and add them to target's `FILE_SET` |
+| [export_cpack](export_cpack.cmake) | Function | CPack configuration with component detection, platform-appropriate generators, and optional GPG signing |
+| [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template |
+| [sign_packages.cmake.in](cmake/sign_packages.cmake.in) | Template | GPG signing template |
+| [project_log](cmake/project_log.cmake) | Function | Logging with color support and project context |
+| [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
+| [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking |
 
+## Important Defaults
 
-> [!NOTE]
-> The `target_install_package()` function generates CMake package configuration files (`<TargetName>Config.cmake` and `<TargetName>ConfigVersion.cmake`) from the [template](cmake/generic-config.cmake.in). These files allow other CMake projects to find and use your installed target via `find_package(<TargetName>)`, setting up include directories, link libraries, and version compatibility checks. This makes your project a well-behaved CMake package.
+`target_install_package()` uses standard CMake installation directories through [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html): executables and Windows DLLs go to `bin/`, libraries go to `lib/` or `lib64/`, headers go to `include/`, and config files go to `share/cmake/<package>/`.
 
-> [!TIP]
-> With CMake 4.3+, it can also generate opt-in Common Package Specification (`.cps`) metadata via `CPS` and an opt-in SPDX SBOM via `SBOM` when CMake's SBOM experiment is explicitly activated.
+Install layout is controlled by `TIP_INSTALL_LAYOUT` globally or `LAYOUT` per target:
 
-### Template Override System 
-The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
+- `fhs`: default Filesystem Hierarchy Standard layout for system packages and normal installs.
+- `split_debug`: only Debug artifacts go under `debug/`.
+- `split_all`: all configurations install under lower-cased configuration subdirectories.
 
-> [!NOTE]
-> Config templates use `@ARG_EXPORT_NAME@` for CMake substitution, which defaults to `${TARGET_NAME}`. This is important to remember when trying to add multiple targets to the same CMake package. To join multiple targets, share the same `EXPORT_NAME`.
+Config templates use `@ARG_EXPORT_NAME@` for CMake substitution, defaulting to `${TARGET_NAME}`. Multiple targets join one package by sharing the same `EXPORT_NAME`. The template-resolution algorithm is documented in [Config Template Resolution](docs/template_resolution.md#source-of-truth).
 
-### Install Layout Policy (Filesystem Hierarchy Standard, FHS)
-`target_install_package()` supports install layout selection via `TIP_INSTALL_LAYOUT` (global) or `LAYOUT` (per target):
-
-- `fhs` = Filesystem Hierarchy Standard (FHS) layout aligned with system package conventions (`DEB`/`RPM`): no configuration-specific subdirectories and standard `bin/`, `lib*/`, and `share/` destinations.
-- `split_debug` = only Debug artifacts go under `debug/`.
-- `split_all` = all configurations are installed under `<config>/` subdirectories.
-
-See [Default Installation Directories](docs/default_install_dirs.md#install-layout-policy) for full behavior and packaging notes.
-
-> [!NOTE]
-> `target_install_package()` uses standard CMake installation directories via
-> [`GNUInstallDirs`](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html):
-> executables and DLLs(Windows) go to `bin/`, libraries to `lib/` or `lib64/`,
-> and config files to `share/cmake/<package>/`.
-
-### Packaging LICENSE and Notice Files
-For most projects, `ADDITIONAL_FILES` is enough to ship legal/compliance files:
+For legal and compliance files, use `ADDITIONAL_FILES`:
 
 ```cmake
 target_install_package(my_library
   ADDITIONAL_FILES
-    "LICENSE"
-    "NOTICE"
-    "docs/THIRD_PARTY_NOTICES.md"
+    LICENSE
+    NOTICE
   ADDITIONAL_FILES_DESTINATION
     "${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME}"
   ADDITIONAL_FILES_COMPONENTS
@@ -81,17 +136,12 @@ target_install_package(my_library
 )
 ```
 
-`ADDITIONAL_FILES_COMPONENTS` is optional. If omitted, additional files are installed with the package's development component. Use it for files such as licenses or notices that must be present in runtime packages too.
+Missing `ADDITIONAL_FILES` entries fail configuration so packaging typos do not silently drop legal or metadata payloads. If you need stricter traceability, keep your own repository-managed file list and feed that list into `ADDITIONAL_FILES`.
 
-Missing `ADDITIONAL_FILES` entries fail configuration so packaging typos do not silently drop legal or metadata payloads.
+## Detailed Contents
 
-`target_install_package()` does not define a built-in manifest format. If you need stricter traceability, keep your own repository-managed file list (for example, a CMake list variable or checked-in text file) and feed that list into `ADDITIONAL_FILES`.
-
-## Table of Contents
-
-1. [Features](#features)
-2. [Installation](#installation)
-3. [Usage](#usage)
+1. [Installation](#installation)
+2. [Usage](#usage)
    - [Basic Library Installation](#basic-library-installation)
    - [Configuring Template Headers](#configuring-template-headers)
    - [Libraries with Dependencies](#libraries-with-dependencies)
@@ -99,34 +149,20 @@ Missing `ADDITIONAL_FILES` entries fail configuration so packaging typos do not 
    - [Software Bill of Materials (SBOM)](#software-bill-of-materials-sbom)
    - [CPack Package Generation](#cpack-package-generation)
    - [Mixing with Standard Install Commands](#mixing-with-standard-install-commands)
-4. [Component-Based Installation](#component-based-installation)
+3. [Component-Based Installation](#component-based-installation)
    - [Component Model](#component-model)
    - [Logical Component Grouping](#logical-component-grouping)
    - [Installing Specific Components](#installing-specific-components)
-5. [Multi-Target Exports](#multi-target-exports)
+4. [Multi-Target Exports](#multi-target-exports)
    - [When to Use Multi-Target Exports](#when-to-use-multi-target-exports)
    - [Simple Multi-Target Package](#simple-multi-target-package)
    - [Component-Dependent Dependencies](#component-dependent-dependencies)
-6. [Game Engine with Modular Components](#game-engine-with-modular-components)
-7. [Build Variant Support](#build-variant-support)
-8. [Header-Only Libraries](#header-only-libraries)
-9. [FILE_SET Features](#file_set-approach-features)
-10. [FILE_SET vs Manual Installation](#file_set-vs-manual-installation)
-11. [Similar projects](#similar-projects)
-
-## Features
-
-- Modern feel target centric API with less boilerplate
-- Package installation with CMake config file generation
-- Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
-- Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
-- CPack integration with platform-appropriate package generators (TGZ, ZIP, DEB, RPM, WIX)
-- Integrated [container image generation](docs/Container-Packaging.md) through CPack's External generator and `export_cpack(GENERATORS "CONTAINER")`
-- CPack signing for all platforms using GPG
-- Automatic install rules from file sets (CMake 3.25+) and C++20 modules (CMake 3.28+)
-- Component-based installation with runtime/development/custom separation
-- Build variant support for debug/release/custom configurations
-- Templated source file configuration with proper include paths
+5. [Game Engine with Modular Components](#game-engine-with-modular-components)
+6. [Build Variant Support](#build-variant-support)
+7. [Header-Only Libraries](#header-only-libraries)
+8. [FILE_SET Features](#file_set-approach-features)
+9. [FILE_SET vs Manual Installation](#file_set-vs-manual-installation)
+10. [Similar projects](#similar-projects)
 
 ### Tips
 > [!TIP]
