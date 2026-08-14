@@ -18,6 +18,7 @@ Subcommands:
   examples          Configure/build/test examples via examples/CMakePresets.json
   cpack             Run CPack integration/smoke workflows
   packaging-tests   Run packaging tests under tests/packaging
+  release           Verify signed release tags
 
 Run `ci/run.sh <subcommand> --help` for subcommand options.
 EOF
@@ -29,7 +30,7 @@ case "${subcommand}" in
     usage
     exit 0
     ;;
-  bootstrap|main|consumer|examples|cpack|packaging-tests)
+  bootstrap|main|consumer|examples|cpack|packaging-tests|release)
     shift
     exec bash "${ci_dir}/cmd/${subcommand}.sh" "$@"
     ;;

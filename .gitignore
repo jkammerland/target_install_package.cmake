@@ -13,6 +13,8 @@ out/
 CMakeSettings.json
 .aider*
 .claude/
+.codex/
+results/
 *build/
 *.cache/
 build-*/

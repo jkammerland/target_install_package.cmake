@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.6)
+  list_file_include_guard(VERSION 7.0.7)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -89,14 +89,14 @@ endif()
 #   )
 #
 # Parameters:
-#   PACKAGE_NAME            - Name of the package (default: ${PROJECT_NAME})
-#   PACKAGE_VERSION         - Version of the package (default: ${PROJECT_VERSION})
+#   PACKAGE_NAME            - Name of the package (default: ${PROJECT_NAME} where export_cpack is called)
+#   PACKAGE_VERSION         - Version of the package (default: ${PROJECT_VERSION} where export_cpack is called)
 #   PACKAGE_VENDOR          - Vendor/organization name (default: derived from PROJECT_HOMEPAGE_URL)
 #   PACKAGE_CONTACT         - Contact information (default: derived from maintainer info)
 #   PACKAGE_DESCRIPTION     - Package description (default: ${PROJECT_DESCRIPTION})
 #   PACKAGE_HOMEPAGE_URL    - Project homepage URL (default: ${PROJECT_HOMEPAGE_URL})
 #   PACKAGE_LICENSE         - Package license identifier for package metadata such as RPM License: (default: Unknown)
-#   LICENSE_FILE            - Path to CPack's license resource file (default: auto-detected)
+#   LICENSE_FILE            - Path to CPack's license resource file; relative paths use the calling source directory (default: auto-detected there)
 #   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
@@ -225,6 +225,10 @@ function(export_cpack)
   endif()
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS" "${_tip_cpack_config_args}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_NAME" "${PROJECT_NAME}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_VERSION" "${PROJECT_VERSION}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_DESCRIPTION" "${PROJECT_DESCRIPTION}")
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_HOMEPAGE_URL" "${PROJECT_HOMEPAGE_URL}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_STORED" TRUE)
 
   # Schedule deferred CPack configuration after package finalization
@@ -849,6 +853,10 @@ function(_execute_deferred_cpack_config)
   if(NOT _tip_cpack_config_source_dir)
     set(_tip_cpack_config_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
+  get_property(_tip_cpack_config_project_name GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_NAME")
+  get_property(_tip_cpack_config_project_version GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_VERSION")
+  get_property(_tip_cpack_config_project_description GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_DESCRIPTION")
+  get_property(_tip_cpack_config_project_homepage_url GLOBAL PROPERTY "_TIP_CPACK_CONFIG_PROJECT_HOMEPAGE_URL")
 
   set(_tip_cpack_keyword_names
       PACKAGE_NAME
@@ -966,25 +974,25 @@ function(_execute_deferred_cpack_config)
 
   # Set default package metadata from project properties
   if(NOT ARG_PACKAGE_NAME)
-    set(ARG_PACKAGE_NAME "${PROJECT_NAME}")
+    set(ARG_PACKAGE_NAME "${_tip_cpack_config_project_name}")
   endif()
 
   if(NOT ARG_PACKAGE_VERSION)
-    set(ARG_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(ARG_PACKAGE_VERSION "${_tip_cpack_config_project_version}")
     if(NOT ARG_PACKAGE_VERSION)
       set(ARG_PACKAGE_VERSION "1.0.0")
     endif()
   endif()
 
   if(NOT ARG_PACKAGE_DESCRIPTION)
-    set(ARG_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
+    set(ARG_PACKAGE_DESCRIPTION "${_tip_cpack_config_project_description}")
     if(NOT ARG_PACKAGE_DESCRIPTION)
       set(ARG_PACKAGE_DESCRIPTION "Package created with target_install_package")
     endif()
   endif()
 
   if(NOT ARG_PACKAGE_HOMEPAGE_URL)
-    set(ARG_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
+    set(ARG_PACKAGE_HOMEPAGE_URL "${_tip_cpack_config_project_homepage_url}")
   endif()
 
   if(NOT ARG_PACKAGE_VENDOR)
@@ -1000,11 +1008,20 @@ function(_execute_deferred_cpack_config)
     set(ARG_PACKAGE_CONTACT "maintainer@${ARG_PACKAGE_VENDOR}")
   endif()
 
-  # Auto-detect license file if not specified
-  if(NOT ARG_LICENSE_FILE)
+  # Resolve license files from the directory that called export_cpack(), not the deferred top-level directory.
+  if(ARG_LICENSE_FILE)
+    cmake_path(
+      ABSOLUTE_PATH
+      ARG_LICENSE_FILE
+      BASE_DIRECTORY
+      "${_tip_cpack_config_source_dir}"
+      NORMALIZE
+      OUTPUT_VARIABLE
+      ARG_LICENSE_FILE)
+  else()
     foreach(license_name LICENSE LICENSE.txt LICENSE.md COPYING COPYING.txt)
-      if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${license_name}")
-        set(ARG_LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${license_name}")
+      if(EXISTS "${_tip_cpack_config_source_dir}/${license_name}")
+        set(ARG_LICENSE_FILE "${_tip_cpack_config_source_dir}/${license_name}")
         break()
       endif()
     endforeach()
