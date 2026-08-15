@@ -28,7 +28,6 @@ target_install_package(math_utils
 
 - `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
 - This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; use the value required by your CMake version.
-- CMake 4.3 spells the associated export option `EXPORT`; CMake 4.4 and newer spell it `EXPORTS`. The wrapper selects the compatible form automatically.
 - `SBOM_NAME` defaults to `EXPORT_NAME`.
 - `SBOM_VERSION` wins, then explicit wrapper `VERSION`, then selected/call-time project `VERSION`.
 - Wrapper effective `VERSION` fallback only applies when `SBOM_PROJECT` was not explicitly set.
