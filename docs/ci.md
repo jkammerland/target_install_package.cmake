@@ -47,7 +47,7 @@ graph TD
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
 - Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
-- Release tag verification: `bash ci/run.sh release verify-tag --tag v7.0.7 --trusted-ref refs/remotes/origin/master`
+- Release tag verification: `bash ci/run.sh release verify-tag --tag v7.0.8 --trusted-ref refs/remotes/origin/master`
 
 ## Tagged releases
 
@@ -55,7 +55,7 @@ Release assets are signed with the dedicated GPG key whose full fingerprint is `
 
 Release tags must be annotated, signed by that exact key, match the version in `CMakeLists.txt`, and point to a commit contained in `master`. The secret-free verification job enforces those conditions before the private-key job can start. The release job then checks that the tag still resolves to the verified commit before building.
 
-Configure the repository with an active tag ruleset matching `v*` that restricts tag creation, updates, and deletion to administrators. Configure the `release` environment with a required reviewer and allow only the protected `master` branch, because the trusted workflow is dispatched from `master` and verifies the tag input separately. Move the GPG secrets into that environment and remove their repository-level copies. Enable immutable releases before publishing the next version.
+Configure the repository with an active tag ruleset matching `v*` that restricts tag creation, updates, and deletion to administrators. Configure the `release` environment with a required reviewer and allow only the selected `master` branch, because the trusted workflow is dispatched from `master` and verifies the tag input separately. Move the GPG secrets into that environment and remove their repository-level copies. Enable immutable releases before publishing the next version.
 
 To publish a release:
 
@@ -64,7 +64,9 @@ To publish a release:
 3. Run the `Tagged Release` workflow from `master` with the tag name as its input.
 4. Review and approve the `release` environment deployment.
 
-The workflow creates a draft, uploads and verifies every asset, then publishes it. It refuses to replace assets on an existing published release.
+Do not create or publish the release through the GitHub Releases page. The workflow creates a draft, uploads and verifies every asset, then publishes it. It refuses to replace assets on an existing published release.
+
+Publishing makes the release, assets, and tag immutable. If an erroneous immutable release is deleted, GitHub permanently reserves its tag name; advance to a new version instead of trying to recreate that tag. Version `v7.0.7` is retired and must not be reused.
 
 ## Logging and outputs
 
