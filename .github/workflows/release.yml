@@ -221,7 +221,27 @@ jobs:
 
           gh release upload "${RELEASE_TAG}" "${release_assets[@]}" --clobber
           gh release edit "${RELEASE_TAG}" --draft=false
-          gh release verify "${RELEASE_TAG}"
+
+          release_verification_output=""
+          for attempt in {1..30}; do
+            if release_verification_output="$(gh release verify "${RELEASE_TAG}" 2>&1)"; then
+              printf '%s\n' "${release_verification_output}"
+              break
+            fi
+
+            printf '%s\n' "${release_verification_output}" >&2
+            if [[ "${release_verification_output}" != *"no attestations for tag"* ]]; then
+              exit 1
+            fi
+            if (( attempt == 30 )); then
+              echo "Release attestation was unavailable after 5 minutes" >&2
+              exit 1
+            fi
+
+            echo "Release attestation is not available yet; retrying in 10 seconds (${attempt}/30)" >&2
+            sleep 10
+          done
+
           for release_asset in "${release_assets[@]}"; do
             gh release verify-asset "${RELEASE_TAG}" "${release_asset}"
           done
