@@ -1,6 +1,6 @@
 # Software Bill of Materials (SBOM)
 
-A Software Bill of Materials is a machine-readable inventory of what a package contains, including component names, versions, licenses, and related project metadata. Its purpose is supply-chain visibility: package managers, scanners, and compliance tooling can inspect what was shipped and connect it to license or vulnerability data. CMake 4.3 can generate installed SPDX SBOM metadata with [`install(SBOM)`](https://cmake.org/cmake/help/latest/command/install.html#sbom), and SPDX is documented by the [SPDX project](https://spdx.dev/).
+A Software Bill of Materials is a machine-readable inventory of what a package contains, including component names, versions, licenses, and related project metadata. Its purpose is supply-chain visibility: package managers, scanners, and compliance tooling can inspect what was shipped and connect it to license or vulnerability data. CMake 4.3+ can generate installed SPDX SBOM metadata with [`install(SBOM)`](https://cmake.org/cmake/help/latest/command/install.html#sbom), and SPDX is documented by the [SPDX project](https://spdx.dev/).
 
 `target_install_package(... SBOM ...)` keeps the normal CMake config package and additionally asks CMake to install an SPDX SBOM for the export when CMake's SBOM experiment is activated.
 
@@ -28,6 +28,7 @@ target_install_package(math_utils
 
 - `SBOM` is opt-in, export-scoped, and fails during configure on CMake older than 4.3.
 - This wrapper does not set `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for you. The activation value is version-specific; use the value required by your CMake version.
+- CMake 4.3 spells the associated export option `EXPORT`; CMake 4.4 and newer spell it `EXPORTS`. The wrapper selects the compatible form automatically.
 - `SBOM_NAME` defaults to `EXPORT_NAME`.
 - `SBOM_VERSION` wins, then explicit wrapper `VERSION`, then selected/call-time project `VERSION`.
 - Wrapper effective `VERSION` fallback only applies when `SBOM_PROJECT` was not explicitly set.

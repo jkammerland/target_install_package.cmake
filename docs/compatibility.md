@@ -10,7 +10,7 @@ This matrix describes the supported surface of `target_install_package()`, `targ
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
-| SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
+| SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. The wrapper supports CMake 4.3's `EXPORT` and CMake 4.4+'s `EXPORTS` signatures. |
 
 ## Target Types
 
