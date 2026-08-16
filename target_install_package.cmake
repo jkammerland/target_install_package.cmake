@@ -1944,7 +1944,13 @@ function(finalize_package)
       set(_tip_sbom_effective_license "${SBOM_INHERITED_LICENSE}")
     endif()
 
-    set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORT "${ARG_EXPORT_NAME}")
+    # install(SBOM) is experimental, and CMake 4.4 replaced EXPORT with
+    # EXPORTS when it added support for aggregating multiple export sets.
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+      set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORTS "${ARG_EXPORT_NAME}")
+    else()
+      set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORT "${ARG_EXPORT_NAME}")
+    endif()
 
     if(SBOM_NO_PROJECT_METADATA
        OR SBOM_INHERITED_PROJECT_METADATA

@@ -1,6 +1,6 @@
 # Software Bill of Materials (SBOM)
 
-A Software Bill of Materials is a machine-readable inventory of what a package contains, including component names, versions, licenses, and related project metadata. Its purpose is supply-chain visibility: package managers, scanners, and compliance tooling can inspect what was shipped and connect it to license or vulnerability data. CMake 4.3 can generate installed SPDX SBOM metadata with [`install(SBOM)`](https://cmake.org/cmake/help/latest/command/install.html#sbom), and SPDX is documented by the [SPDX project](https://spdx.dev/).
+A Software Bill of Materials is a machine-readable inventory of what a package contains, including component names, versions, licenses, and related project metadata. Its purpose is supply-chain visibility: package managers, scanners, and compliance tooling can inspect what was shipped and connect it to license or vulnerability data. CMake 4.3+ can generate installed SPDX SBOM metadata with [`install(SBOM)`](https://cmake.org/cmake/help/latest/command/install.html#sbom), and SPDX is documented by the [SPDX project](https://spdx.dev/).
 
 `target_install_package(... SBOM ...)` keeps the normal CMake config package and additionally asks CMake to install an SPDX SBOM for the export when CMake's SBOM experiment is activated.
 

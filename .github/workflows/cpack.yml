@@ -92,6 +92,45 @@ jobs:
           set -euxo pipefail
           bash ci/run.sh cpack --suite components
 
+  sbom-api-compatibility:
+    name: SBOM API (CMake ${{ matrix.cmake-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cmake-version: 4.3.1
+            activation-value: ca494ed3-b261-4205-a01f-603c95e4cae0
+          - cmake-version: 4.4.0
+            activation-value: 2d856d6d-53e8-488b-a17f-d486d2cac317
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bootstrap exact CMake and Ninja
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap \
+            --cmake-version "${{ matrix.cmake-version }}" \
+            --ninja
+
+      - name: Configure SBOM proof suite
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S . -B build/sbom-api -G Ninja \
+            -DTARGET_INSTALL_PACKAGE_DISABLE_INSTALL=ON \
+            -Dtarget_install_package_BUILD_TESTS=ON \
+            -Dtarget_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE="${{ matrix.activation-value }}"
+
+      - name: Run SBOM proof suite
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build/sbom-api \
+            --output-on-failure \
+            -R '^proof_sbom_'
+
   cpack-self-release:
     name: Self Release Package
     runs-on: ubuntu-latest
