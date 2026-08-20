@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
   target_install_package
-  VERSION 7.0.8
+  VERSION 7.1.0
   DESCRIPTION "CMake utilities for creating installable packages"
   HOMEPAGE_URL "https://github.com/jkammerland/target_install_package.cmake")
 set(target_install_package_SPDX_LICENSE "MIT")
@@ -68,6 +68,9 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
         "${PROJECT_DESCRIPTION}"
         SBOM_HOMEPAGE_URL
         "${PROJECT_HOMEPAGE_URL}")
+      if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+        list(APPEND _tip_self_sbom_args SBOM_PACKAGE_URL "pkg:github/jkammerland/target_install_package.cmake@${PROJECT_VERSION}")
+      endif()
     endif()
 
     # Use target_install_package to install itself and target_configure_sources

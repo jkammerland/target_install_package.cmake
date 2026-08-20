@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.8)
+  list_file_include_guard(VERSION 7.1.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -102,7 +102,7 @@ endif()
 #     SBOM_FORMAT <format>
 #     DISABLE_RPATH)
 #
-#   SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM. SBOM_PACKAGE_URL is not exposed in v1.
+#   SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM.
 #
 # Parameters:
 #   TARGET_NAME                  - Name of the target to install.

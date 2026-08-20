@@ -9,7 +9,8 @@ source "${ci_dir}/lib/common.sh"
 
 ci_setup_ccache "${ci_root}"
 
-tip_sbom_experimental_value="ca494ed3-b261-4205-a01f-603c95e4cae0"
+tip_sbom_experimental_value_43="ca494ed3-b261-4205-a01f-603c95e4cae0"
+tip_sbom_experimental_value_44="2d856d6d-53e8-488b-a17f-d486d2cac317"
 
 usage() {
   cat <<'EOF'
@@ -85,6 +86,23 @@ done
 
 ci_require_cmd cmake
 
+tip_sbom_experimental_value() {
+  local cmake_version
+  cmake_version="$(cmake --version | awk 'NR == 1 { print $3 }')"
+
+  case "${cmake_version}" in
+    4.3.*)
+      printf '%s\n' "${tip_sbom_experimental_value_43}"
+      ;;
+    4.4.*)
+      printf '%s\n' "${tip_sbom_experimental_value_44}"
+      ;;
+    *)
+      ci_die "The self-release SBOM suite does not have an activation value for CMake ${cmake_version}"
+      ;;
+  esac
+}
+
 generate_test_gpg_key() {
   ci_require_cmd gpg
   cat >"${ci_root}/build/ci-deps/key-gen-batch" <<'EOF'
@@ -106,14 +124,16 @@ EOF
 
 validate_self_release_sbom() {
   local sbom_file="${1:?}"
+  local require_package_url="${2:-false}"
   local ci_python_bin=""
   ci_python_bin="$(ci_python)" || ci_die "python is required to validate the self-release SBOM"
 
-  "${ci_python_bin}" - "${sbom_file}" <<'PY'
+  "${ci_python_bin}" - "${sbom_file}" "${require_package_url}" <<'PY'
 import json
 import sys
 
 path = sys.argv[1]
+require_package_url = sys.argv[2] == "true"
 with open(path, "r", encoding="utf-8") as f:
     document = json.load(f)
 
@@ -139,6 +159,16 @@ actual_roots = {item.get("name") for item in spdx_document.get("rootElement", []
 missing = sorted(expected_roots - actual_roots)
 if missing:
     raise SystemExit(f"self-release SBOM missing root elements: {', '.join(missing)}")
+
+if require_package_url:
+    for root in spdx_document.get("rootElement", []):
+        version = root.get("software_packageVersion")
+        expected_url = f"pkg:github/jkammerland/target_install_package.cmake@{version}"
+        if root.get("software_downloadLocation") != expected_url:
+            raise SystemExit(
+                f"expected package URL {expected_url!r} for {root.get('name')}, "
+                f"got {root.get('software_downloadLocation')!r}"
+            )
 PY
 }
 
@@ -477,6 +507,9 @@ run_self_release() {
   ci_require_cmd cpack
   ci_require_cmd gpg
 
+  local sbom_experimental_value
+  sbom_experimental_value="$(tip_sbom_experimental_value)"
+
   if [[ "${require_signing}" == "true" && -z "${GPG_SIGNING_KEY:-}" ]]; then
     ci_die "--require-signing requires GPG_SIGNING_KEY to name an imported private key"
   fi
@@ -509,7 +542,7 @@ run_self_release() {
     -DTARGET_INSTALL_PACKAGE_ENABLE_INSTALL=ON \
     -DTARGET_INSTALL_PACKAGE_ENABLE_CPACK=ON \
     -DTARGET_INSTALL_PACKAGE_ENABLE_SBOM=ON \
-    -DCMAKE_EXPERIMENTAL_GENERATE_SBOM="${tip_sbom_experimental_value}" \
+    -DCMAKE_EXPERIMENTAL_GENERATE_SBOM="${sbom_experimental_value}" \
     -DTARGET_INSTALL_PACKAGE_REQUIRE_SIGNING=ON
 
   ci_log "==> Build root self-release package"
@@ -588,7 +621,11 @@ run_self_release() {
   package_stem="$(basename "${tgz_packages[0]}" .tar.gz)"
   sbom_sidecar="${package_dir}/${package_stem}.spdx.json"
   cmake -E copy "${packaged_sbom_files[0]}" "${sbom_sidecar}"
-  validate_self_release_sbom "${sbom_sidecar}"
+  local require_package_url=false
+  if [[ "${sbom_experimental_value}" == "${tip_sbom_experimental_value_44}" ]]; then
+    require_package_url=true
+  fi
+  validate_self_release_sbom "${sbom_sidecar}" "${require_package_url}"
   sign_and_verify_self_release_sidecar "${sbom_sidecar}"
 
   cat >"${consumer_dir}/CMakeLists.txt" <<'EOF'
