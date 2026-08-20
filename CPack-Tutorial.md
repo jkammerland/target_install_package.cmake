@@ -514,6 +514,17 @@ GENERATE_CHECKSUMS ON
 GENERATE_CHECKSUMS OFF
 ```
 
+`GENERATE_CHECKSUMS` is the compatibility form: `ON` selects `SHA256` and `SHA512`, while `OFF` disables wrapper-managed checksums. New configurations can select any CMake hash algorithms explicitly:
+
+```cmake
+CHECKSUMS
+  SHA256
+  SHA512
+  SHA3_256
+```
+
+`CHECKSUMS` and `GENERATE_CHECKSUMS` are mutually exclusive. CMake 4.2+ uses native `CPACK_PACKAGE_CHECKSUM` list support. Older CMake versions generate the same lowercase sidecars from the post-build script after package signing.
+
 #### GPG_KEYSERVER
 **Purpose**: Provides a keyserver value for verification tooling that you generate around the package. Signing itself uses the local GPG keyring and does not fetch keys.
 
