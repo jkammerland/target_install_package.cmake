@@ -8,6 +8,110 @@ on:
   workflow_dispatch:
 
 jobs:
+  cmake-feature-lanes:
+    name: CMake ${{ matrix.cmake-version }} (${{ matrix.feature }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cmake-version: 3.25.0
+            feature: core-floor
+          - cmake-version: 3.28.4
+            feature: modules-floor
+          - cmake-version: 4.4.2
+            feature: latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GCC 14 for the modules floor
+        if: matrix.feature == 'modules-floor'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 g++-14
+
+      - name: Bootstrap exact CMake and Ninja
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bootstrap_args=(--cmake-version "${{ matrix.cmake-version }}" --ninja)
+          if [[ "${{ matrix.feature }}" != "modules-floor" ]]; then
+            bootstrap_args+=(--fmt)
+          fi
+          bash ci/run.sh bootstrap "${bootstrap_args[@]}"
+
+      - name: Prove the core CMake floor
+        if: matrix.feature == 'core-floor'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh main --preset ci-release
+          bash ci/run.sh consumer --preset ci-release
+
+      - name: Prove the C++ modules floor
+        if: matrix.feature == 'modules-floor'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S examples/cxx-modules -B build/cmake-floor/modules -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 \
+            -DCMAKE_INSTALL_PREFIX="$PWD/build/cmake-floor/modules-install"
+          cmake --build build/cmake-floor/modules --target math_modules
+          cmake --install build/cmake-floor/modules
+
+      - name: Configure the latest CMake feature lane
+        if: matrix.feature == 'latest'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S . \
+            --presets-file cmake/presets/CMakePresets-4.4.json \
+            --preset ci-modern \
+            -DCMAKE_PREFIX_PATH="$PWD/build/ci-deps/fmt-install" \
+            -Werror=install-absolute-destination
+
+      - name: Build, test, and install the latest CMake feature lane
+        if: matrix.feature == 'latest'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build build/ci-modern
+          cmake --build build/ci-modern --target all_verify_header_sets
+          ctest --test-dir build/ci-modern --output-on-failure
+          cmake --install build/ci-modern
+
+  windows-clang-cl-modules:
+    name: CMake 4.4.2 modules (Windows / Ninja / clang-cl)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Bootstrap exact CMake and Ninja
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja
+
+      - name: Build and install the C++ modules example
+        shell: bash
+        run: |
+          set -euxo pipefail
+          clang-cl --version
+          cmake -S examples/cxx-modules -B build/clang-cl-modules -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang-cl \
+            -DCMAKE_CXX_COMPILER=clang-cl \
+            -DCMAKE_INSTALL_PREFIX="$PWD/build/clang-cl-modules-install"
+          cmake --build build/clang-cl-modules --target math_modules
+          cmake --install build/clang-cl-modules
+
   build:
     name: Build (${{ matrix.os }} / ${{ matrix.c_compiler }} / ${{ matrix.build_type }}${{ matrix.compiler_variant && format(' / {0}', matrix.compiler_variant) || '' }})
     runs-on: ${{ matrix.os }}

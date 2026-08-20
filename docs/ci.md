@@ -7,6 +7,8 @@ This repository’s GitHub Actions workflows are intentionally thin wrappers aro
 ```mermaid
 graph TD
   CI[.github/workflows/ci.yml] --> B[build (matrix)]
+  CI --> FL[CMake feature floors and latest]
+  CI --> WCL[Windows Ninja + clang-cl modules]
   B -->|needs| INT[test-integration]
   CI --> EX[test-examples (matrix)]
   CI --> CSM[multi-config-consume (matrix)]
@@ -21,6 +23,8 @@ graph TD
   CPK --> CPK3[cpack components]
   CPK --> CPK4[cross-platform validation]
   CPK --> CPK5[self-release package]
+  CPK --> CPK6[checksum compatibility]
+  CPK --> CPK7[SBOM API compatibility]
 
   REL[.github/workflows/release.yml] --> RELV[verify signed tag without secrets]
   RELV -->|release environment approval| REL1[signed self-release package]
@@ -30,12 +34,14 @@ graph TD
 ## Workflow → script mapping
 
 - `ci.yml`
+  - `cmake-feature-lanes`: exact CMake `3.25.0`, `3.28.4`, and `4.4.2` core, module, and latest-feature proofs
+  - `windows-clang-cl-modules`: CMake `4.4.2` with Ninja and `clang-cl`
   - `build`: `ci/run.sh bootstrap` → `ci/run.sh main` → `ci/run.sh consumer`
   - `test-integration`: `ci/run.sh consumer --suite integration`
   - `test-examples`: `ci/run.sh examples --suite {single|multi} --use-fetchcontent`
   - `*-consume`: `ci/run.sh examples --suite consume-*`
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
-- `cpack.yml`: `ci/run.sh bootstrap --packaging-tools --gpg` → `ci/run.sh cpack ...`
+- `cpack.yml`: package integration plus exact CMake `3.25.0` fallback checksums, `4.2.3` native checksums, and `4.3.4`/`4.4.2` SBOM syntax proofs
 - `release.yml`: when dispatched from the default branch, verifies an existing annotated tag with the pinned public key and confirms that its commit belongs to `master`; after release-environment approval, imports the private key, runs `ci/run.sh cpack --suite self-release --require-signing`, and publishes the signed archives, SPDX SBOM, signatures, checksums, and public verification key
 
 ## Local parity (common entrypoints)
@@ -46,8 +52,9 @@ graph TD
 - Examples: `bash ci/run.sh examples --suite single --build-type Release --use-fetchcontent`
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
-- Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
-- Release tag verification: `bash ci/run.sh release verify-tag --tag v7.0.8 --trusted-ref refs/remotes/origin/master`
+- Latest-feature preset: `cmake -S . --presets-file cmake/presets/CMakePresets-4.4.json --preset ci-modern -Werror=install-absolute-destination`
+- Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
+- Release tag verification: `bash ci/run.sh release verify-tag --tag v7.1.0 --trusted-ref refs/remotes/origin/master`
 
 ## Tagged releases
 
