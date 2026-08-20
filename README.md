@@ -2,52 +2,39 @@
 
 [![CMake CI](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml/badge.svg)](https://github.com/jkammerland/target_install_package.cmake/actions/workflows/ci.yml)
 
-CMake utilities for turning normal CMake targets into installable, `find_package()`-ready packages. The core path is intentionally small:
+CMake utilities for turning normal CMake targets into installable, `find_package()`-ready packages on Linux, macOS, and Windows.
 
 ```cmake
+# Producer project
 target_install_package(my_library)
+
+# Consumer project
+find_package(my_library CONFIG REQUIRED)
+target_link_libraries(app PRIVATE my_library::my_library)
 ```
 
-That call creates install rules, target exports, package config files, version files, and predictable runtime/development components from the target metadata you already maintain.
+The producer call creates install rules, target exports, package config and version files, and predictable runtime/development components from the target metadata you already maintain. See [Installation](#installation) to add the utilities to a project.
 
-## Quick Start
+## Public API
 
-Producer project:
+- [`target_install_package()`](docs/api.md#target_install_package): Turns one target into an automatically finalized, installable CMake package.
+- [`target_prepare_package()`](docs/api.md#target_prepare_package): Registers a target with an export for workflows that need explicit finalization control.
+- [`finalize_package()`](docs/api.md#finalize_package): Finalizes a prepared export early; normal projects can rely on automatic finalization.
+- [`target_configure_sources()`](docs/api.md#target_configure_sources): Configures template headers or sources and attaches the generated files to a target file set.
+- [`export_cpack()`](docs/api.md#export_cpack): Configures one deferred CPack package from registered targets, components, and project metadata.
+- [`project_log()`](docs/api.md#project_log): Emits standard CMake message levels with project context and optional color.
 
-```cmake
-include(FetchContent)
-FetchContent_Declare(
-  target_install_package
-  GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.1.0
-)
-FetchContent_MakeAvailable(target_install_package)
+The [API overview](docs/api.md) shows signatures, focused examples, and links to the complete argument reference maintained with each implementation.
 
-add_library(math_utils STATIC)
-target_sources(math_utils PRIVATE src/matrix.cpp)
-target_sources(math_utils PUBLIC
-  FILE_SET HEADERS
-  BASE_DIRS include
-  FILES include/math/matrix.h
-)
+## Requirements
 
-target_install_package(math_utils NAMESPACE Math::)
-```
+- CMake 3.25+ for core utilities and examples
+- CMake 3.28+ for C++20 modules examples
+- CMake 4.3+ for [Common Package Specification (CPS)](docs/cps.md)
+- CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for [SBOM](docs/sbom.md)
+- CMake 4.4+ for installable [source-only packages](docs/source-only-packages.md)
 
-Consumer project:
-
-```cmake
-find_package(math_utils CONFIG REQUIRED)
-target_link_libraries(app PRIVATE Math::math_utils)
-```
-
-Build and inspect an install tree:
-
-```bash
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$PWD/build/install"
-cmake --build build
-cmake --install build
-```
+See the [Compatibility Matrix](docs/compatibility.md) for target type, platform, CPack, CPS, SBOM, source-package, and container support details.
 
 ## When to Use It
 
@@ -68,18 +55,10 @@ Use raw CMake install rules instead when you only ship a private application, ne
 | Generate configured public headers | [Configuring Template Headers](#configuring-template-headers) and [examples/configure-files](examples/configure-files/) |
 | Put several targets behind one `find_package()` call | [Multi-Target Exports](#multi-target-exports) and [examples/components-same-export](examples/components-same-export/) |
 | Split runtime and SDK packages | [Component-Based Installation](#component-based-installation) and [Component Packaging Plan](docs/component-packaging-plan.md) |
+| Install implementation sources for consumer compilation | [Source-only packages](docs/source-only-packages.md) (CMake 4.4+) |
 | Generate archives, DEB/RPM/WIX/DMG, signatures, or checksums | [CPack Package Generation](#cpack-package-generation), [CPack tutorial](CPack-Tutorial.md), and [examples/cpack-basic](examples/cpack-basic/) |
 | Build a minimal container image from install rules | [Container Packaging](docs/Container-Packaging.md) and [examples/minimal-container](examples/minimal-container/) |
 | Add CPS or SBOM metadata | [CPS support](docs/cps.md), [SBOM support](docs/sbom.md), and [Compatibility Matrix](docs/compatibility.md) |
-
-## Requirements
-
-- CMake 3.25+ for core utilities and examples
-- CMake 3.28+ for C++20 modules examples
-- CMake 4.3+ for [Common Package Specification (CPS)](docs/cps.md)
-- CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for [SBOM](docs/sbom.md)
-
-See the [Compatibility Matrix](docs/compatibility.md) for target type, platform, CPack, CPS, SBOM, and container support details.
 
 ## Features
 
@@ -96,19 +75,6 @@ See the [Compatibility Matrix](docs/compatibility.md) for target type, platform,
 - GPG signing and checksum generation for CPack outputs
 - Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
 - Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
-
-## Shipped Functions and Files
-
-| File/Function | Type | Description |
-|--------------|------|-------------|
-| [target_install_package](target_install_package.cmake) | Function | Main utility for creating installable packages with automatic CMake config generation |
-| [target_configure_sources](target_configure_sources.cmake) | Function | Configure template files and add them to target's `FILE_SET` |
-| [export_cpack](export_cpack.cmake) | Function | CPack configuration with component detection, platform-appropriate generators, and optional GPG signing |
-| [generic-config.cmake.in](cmake/generic-config.cmake.in) | Template | Default CMake config template |
-| [sign_packages.cmake.in](cmake/sign_packages.cmake.in) | Template | GPG signing template |
-| [project_log](cmake/project_log.cmake) | Function | Logging with color support and project context |
-| [project_include_guard](cmake/project_include_guard.cmake) | Macro | Project-level include guard with version checking |
-| [list_file_include_guard](cmake/list_file_include_guard.cmake) | Macro | File-level include guard with version checking |
 
 ## Important Defaults
 
