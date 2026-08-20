@@ -29,6 +29,7 @@ graph TD
   REL[.github/workflows/release.yml] --> RELV[verify signed tag without secrets]
   RELV -->|release environment approval| REL1[signed self-release package]
   REL1 --> REL2[immutable GitHub release]
+  TAG[.github/workflows/sign-release-tag.yml] -->|release environment approval| TAG1[signed tag bundle]
 ```
 
 ## Workflow → script mapping
@@ -43,6 +44,7 @@ graph TD
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
 - `cpack.yml`: package integration plus exact CMake `3.25.0` fallback checksums, `4.2.3` native checksums, and `4.3.4`/`4.4.2` SBOM syntax proofs
 - `release.yml`: when dispatched from the default branch, verifies an existing annotated tag with the pinned public key and confirms that its commit belongs to `master`; after release-environment approval, imports the private key, runs `ci/run.sh cpack --suite self-release --require-signing`, and publishes the signed archives, SPDX SBOM, signatures, checksums, and public verification key
+- `sign-release-tag.yml`: validates a new version against the exact default-branch commit, signs an annotated tag with the protected release key, verifies its fingerprint, and uploads a Git bundle for an administrator to verify and push through the protected tag ruleset
 
 ## Local parity (common entrypoints)
 
@@ -67,9 +69,10 @@ Configure the repository with an active tag ruleset matching `v*` that restricts
 To publish a release:
 
 1. Merge the version bump and wait for all required checks on `master`.
-2. Create and push a signed annotated tag from that exact `master` commit.
-3. Run the `Tagged Release` workflow from `master` with the tag name as its input.
-4. Review and approve the `release` environment deployment.
+2. Run `Prepare Signed Release Tag` from `master`, enter the tag name, and approve the `release` environment deployment.
+3. Download the signed tag bundle, verify its checksum, import the tag, run `ci/run.sh release verify-tag`, and push the protected tag from an administrator checkout.
+4. Run the `Tagged Release` workflow from `master` with the tag name as its input.
+5. Review and approve the `release` environment deployment.
 
 Do not create or publish the release through the GitHub Releases page. The workflow creates a draft, uploads and verifies every asset, then publishes it. It refuses to replace assets on an existing published release.
 
