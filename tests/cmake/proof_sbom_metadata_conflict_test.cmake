@@ -37,30 +37,21 @@ function(_tip_proof_write_conflict_fixture case_name first_install second_instal
   file(MAKE_DIRECTORY "${_tip_source_dir}/first/src")
   file(MAKE_DIRECTORY "${_tip_source_dir}/second/src")
 
-  file(
-    WRITE "${_tip_source_dir}/CMakeLists.txt"
-    "cmake_minimum_required(VERSION 3.25)\n"
-    "project(proof_sbom_metadata_conflict_root VERSION 1.2.3 LANGUAGES CXX)\n"
-    "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-    "add_subdirectory(first)\n"
-    "add_subdirectory(second)\n")
+  file(WRITE "${_tip_source_dir}/CMakeLists.txt" "cmake_minimum_required(VERSION 3.25)\n" "project(proof_sbom_metadata_conflict_root VERSION 1.2.3 LANGUAGES CXX)\n"
+                                                 "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n" "add_subdirectory(first)\n" "add_subdirectory(second)\n")
 
   file(
     WRITE "${_tip_source_dir}/first/CMakeLists.txt"
     "project(${_tip_first_project} VERSION 1.2.3 SPDX_LICENSE \"MIT\" DESCRIPTION \"First project metadata\" HOMEPAGE_URL \"https://example.invalid/first\" LANGUAGES CXX)\n"
-    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
-    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-    "add_library(first_lib STATIC src/first.cpp)\n"
-    "${first_install}\n")
+    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+    "add_library(first_lib STATIC src/first.cpp)\n" "${first_install}\n")
   file(WRITE "${_tip_source_dir}/first/src/first.cpp" "int first_lib_value() { return 1; }\n")
 
   file(
     WRITE "${_tip_source_dir}/second/CMakeLists.txt"
     "project(${_tip_second_project} VERSION 1.2.3 SPDX_LICENSE \"Apache-2.0\" DESCRIPTION \"Second project metadata\" HOMEPAGE_URL \"https://example.invalid/second\" LANGUAGES CXX)\n"
-    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
-    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-    "add_library(second_lib STATIC src/second.cpp)\n"
-    "${second_install}\n")
+    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+    "add_library(second_lib STATIC src/second.cpp)\n" "${second_install}\n")
   file(WRITE "${_tip_source_dir}/second/src/second.cpp" "int second_lib_value() { return 2; }\n")
 
   _tip_proof_expect_failure(
@@ -80,14 +71,41 @@ function(_tip_proof_write_conflict_fixture case_name first_install second_instal
 endfunction()
 
 _tip_proof_write_conflict_fixture(
-  "inherit-then-none"
-  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "inherit-then-none" "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
   "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/conflict\")")
 
 _tip_proof_write_conflict_fixture(
-  "none-then-inherit"
-  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/conflict\")"
+  "none-then-inherit" "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/conflict\")"
   "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_DESTINATION \"share/sbom/conflict\")")
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+  set(_tip_cross_export_source_dir "${_tip_case_root}/cross-export-package-url-src")
+  set(_tip_cross_export_build_dir "${_tip_case_root}/cross-export-package-url-build")
+  file(MAKE_DIRECTORY "${_tip_cross_export_source_dir}")
+  file(
+    WRITE "${_tip_cross_export_source_dir}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 4.4)\n"
+    "project(proof_sbom_cross_export_conflict VERSION 1.2.3 LANGUAGES CXX)\n"
+    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+    "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+    "add_library(first INTERFACE)\n"
+    "target_install_package(first EXPORT_NAME FirstExport VERSION 1.2.3 SBOM SBOM_NAME Combined SBOM_NO_PROJECT_METADATA SBOM_PACKAGE_URL \"pkg:generic/first@1.2.3\")\n"
+    "add_library(second INTERFACE)\n"
+    "target_install_package(second EXPORT_NAME SecondExport VERSION 1.2.3 SBOM SBOM_NAME Combined SBOM_NO_PROJECT_METADATA SBOM_PACKAGE_URL \"pkg:generic/second@1.2.3\")\n")
+  _tip_proof_expect_failure(
+    NAME
+    "cross-export-package-url-conflict"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    -S
+    "${_tip_cross_export_source_dir}"
+    -B
+    "${_tip_cross_export_build_dir}"
+    ${_tip_toolchain_args}
+    EXPECT_CONTAINS
+    "url for SBOM 'Combined' across exports")
+endif()
 
 _tip_proof_write_conflict_fixture(
   "project-a-then-project-b"
@@ -102,13 +120,11 @@ _tip_proof_write_conflict_fixture(
   "FirstProject")
 
 _tip_proof_write_conflict_fixture(
-  "inherit-then-explicit"
-  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "inherit-then-explicit" "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")"
   "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME FirstProject SBOM_DESTINATION \"share/sbom/conflict\")")
 
 _tip_proof_write_conflict_fixture(
-  "explicit-then-inherit"
-  "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_DESTINATION \"share/sbom/conflict\")"
+  "explicit-then-inherit" "target_install_package(first_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_DESTINATION \"share/sbom/conflict\")"
   "target_install_package(second_lib EXPORT_NAME SharedConflictExport VERSION 1.2.3 SBOM SBOM_NAME SecondProject SBOM_DESTINATION \"share/sbom/conflict\")")
 
 message(STATUS "[proof] SBOM metadata conflict proof passed.")

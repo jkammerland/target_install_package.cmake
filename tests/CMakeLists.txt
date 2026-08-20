@@ -386,6 +386,12 @@ if(target_install_package_BUILD_PROOF_TESTS)
       add_test(NAME proof_sbom_metadata_conflict COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
                                                          "${_tip_proof_script_dir}/proof_sbom_metadata_conflict_test.cmake")
       set_tests_properties(proof_sbom_metadata_conflict PROPERTIES LABELS "proof;sbom")
+
+      if(CMAKE_VERSION VERSION_LESS "4.4")
+        add_test(NAME proof_sbom_multi_export_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
+                                                            "${_tip_proof_script_dir}/proof_sbom_multi_export_guard_test.cmake")
+        set_tests_properties(proof_sbom_multi_export_guard PROPERTIES LABELS "proof;sbom;cmake-4.3")
+      endif()
     endif()
 
     add_test(NAME proof_sbom_missing_gate COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_missing_gate_test.cmake")

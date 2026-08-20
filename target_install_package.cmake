@@ -98,6 +98,7 @@ endif()
 #     SBOM_LICENSE <license>
 #     SBOM_DESCRIPTION <description>
 #     SBOM_HOMEPAGE_URL <url>
+#     SBOM_PACKAGE_URL <url>
 #     SBOM_FORMAT <format>
 #     DISABLE_RPATH)
 #
@@ -139,7 +140,7 @@ endif()
 #                                  SBOM version metadata defaults from explicit SBOM_VERSION, then explicit wrapper VERSION, then selected
 #                                  call-time project VERSION. Wrapper effective VERSION fallback only applies when SBOM_PROJECT was not explicit.
 #                                  CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to this CMake version's non-boolean activation value.
-#                                  SBOM_PACKAGE_URL is intentionally not exposed while CMake's experimental SBOM interface stabilizes.
+#                                  Exports sharing one SBOM_NAME are aggregated with CMake 4.4+ and must use identical metadata.
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
 # Behavior:
@@ -339,6 +340,172 @@ function(_tip_validate_sbom_activation EXPORT_NAME)
   endif()
 endfunction()
 
+function(_tip_resolve_sbom_export_metadata EXPORT_NAME OUT_PREFIX)
+  set(_tip_export_property_prefix "_CMAKE_PACKAGE_EXPORT_${EXPORT_NAME}")
+  foreach(
+    _tip_property IN
+    ITEMS VERSION
+          VERSION_EXPLICIT
+          SBOM_NAME
+          SBOM_PROJECT
+          SBOM_DESTINATION
+          SBOM_VERSION
+          SBOM_VERSION_EXPLICIT
+          SBOM_INHERITED_VERSION
+          SBOM_LICENSE
+          SBOM_INHERITED_LICENSE
+          SBOM_DESCRIPTION
+          SBOM_INHERITED_DESCRIPTION
+          SBOM_HOMEPAGE_URL
+          SBOM_INHERITED_HOMEPAGE_URL
+          SBOM_PACKAGE_URL
+          SBOM_FORMAT
+          SBOM_METADATA_MODE
+          SBOM_EXPERIMENTAL_VALUE)
+    get_property(_tip_${_tip_property} GLOBAL PROPERTY "${_tip_export_property_prefix}_${_tip_property}")
+  endforeach()
+
+  if("${_tip_SBOM_NAME}" STREQUAL "")
+    set(_tip_SBOM_NAME "${EXPORT_NAME}")
+  endif()
+
+  set(_tip_effective_version "")
+  if(_tip_SBOM_VERSION_EXPLICIT)
+    set(_tip_effective_version "${_tip_SBOM_VERSION}")
+  elseif(_tip_VERSION_EXPLICIT)
+    set(_tip_effective_version "${_tip_VERSION}")
+  elseif(NOT "${_tip_SBOM_INHERITED_VERSION}" STREQUAL "")
+    set(_tip_effective_version "${_tip_SBOM_INHERITED_VERSION}")
+  elseif("${_tip_SBOM_PROJECT}" STREQUAL "")
+    set(_tip_effective_version "${_tip_VERSION}")
+  endif()
+
+  set(_tip_effective_license "${_tip_SBOM_LICENSE}")
+  if("${_tip_effective_license}" STREQUAL "")
+    set(_tip_effective_license "${_tip_SBOM_INHERITED_LICENSE}")
+  endif()
+
+  set(_tip_effective_description "${_tip_SBOM_DESCRIPTION}")
+  if("${_tip_effective_description}" STREQUAL "")
+    set(_tip_effective_description "${_tip_SBOM_INHERITED_DESCRIPTION}")
+  endif()
+
+  set(_tip_effective_homepage_url "${_tip_SBOM_HOMEPAGE_URL}")
+  if("${_tip_effective_homepage_url}" STREQUAL "")
+    set(_tip_effective_homepage_url "${_tip_SBOM_INHERITED_HOMEPAGE_URL}")
+  endif()
+
+  set(${OUT_PREFIX}_NAME
+      "${_tip_SBOM_NAME}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_DESTINATION
+      "${_tip_SBOM_DESTINATION}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_VERSION
+      "${_tip_effective_version}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_LICENSE
+      "${_tip_effective_license}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_DESCRIPTION
+      "${_tip_effective_description}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_HOMEPAGE_URL
+      "${_tip_effective_homepage_url}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_PACKAGE_URL
+      "${_tip_SBOM_PACKAGE_URL}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_FORMAT
+      "${_tip_SBOM_FORMAT}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_METADATA_MODE
+      "${_tip_SBOM_METADATA_MODE}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_EXPERIMENTAL_VALUE
+      "${_tip_SBOM_EXPERIMENTAL_VALUE}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_finalize_all_sboms)
+  get_property(_tip_sboms_finalized GLOBAL PROPERTY "_TIP_SBOMS_FINALIZED")
+  if(_tip_sboms_finalized)
+    return()
+  endif()
+
+  get_property(_tip_sbom_group_hashes GLOBAL PROPERTY "_TIP_SBOM_GROUP_HASHES")
+  foreach(_tip_sbom_group_hash IN LISTS _tip_sbom_group_hashes)
+    get_property(_tip_sbom_name GLOBAL PROPERTY "_TIP_SBOM_GROUP_${_tip_sbom_group_hash}_NAME")
+    get_property(_tip_sbom_exports GLOBAL PROPERTY "_TIP_SBOM_GROUP_${_tip_sbom_group_hash}_EXPORTS")
+    list(REMOVE_DUPLICATES _tip_sbom_exports)
+
+    foreach(_tip_sbom_export IN LISTS _tip_sbom_exports)
+      get_property(_tip_export_finalized GLOBAL PROPERTY "_CMAKE_PACKAGE_EXPORT_${_tip_sbom_export}_FINALIZED")
+      if(NOT _tip_export_finalized)
+        finalize_package(EXPORT_NAME "${_tip_sbom_export}")
+      endif()
+    endforeach()
+
+    list(GET _tip_sbom_exports 0 _tip_reference_export)
+    _tip_resolve_sbom_export_metadata("${_tip_reference_export}" _tip_reference)
+
+    foreach(_tip_sbom_export IN LISTS _tip_sbom_exports)
+      _tip_resolve_sbom_export_metadata("${_tip_sbom_export}" _tip_candidate)
+      foreach(
+        _tip_field IN
+        ITEMS NAME
+              DESTINATION
+              VERSION
+              LICENSE
+              DESCRIPTION
+              HOMEPAGE_URL
+              PACKAGE_URL
+              FORMAT
+              METADATA_MODE
+              EXPERIMENTAL_VALUE)
+        if(NOT "${_tip_candidate_${_tip_field}}" STREQUAL "${_tip_reference_${_tip_field}}")
+          string(REPLACE "_" " " _tip_field_description "${_tip_field}")
+          string(TOLOWER "${_tip_field_description}" _tip_field_description)
+          project_log(
+            FATAL_ERROR
+            "Conflicting SBOM ${_tip_field_description} for SBOM '${_tip_sbom_name}' across exports '${_tip_reference_export}' and '${_tip_sbom_export}': '${_tip_reference_${_tip_field}}' vs '${_tip_candidate_${_tip_field}}'."
+          )
+        endif()
+      endforeach()
+    endforeach()
+
+    set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${_tip_reference_EXPERIMENTAL_VALUE}")
+    _tip_validate_sbom_activation("${_tip_reference_export}")
+
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+      set(_tip_sbom_args SBOM "${_tip_sbom_name}" EXPORTS ${_tip_sbom_exports})
+    else()
+      list(GET _tip_sbom_exports 0 _tip_sbom_export)
+      set(_tip_sbom_args SBOM "${_tip_sbom_name}" EXPORT "${_tip_sbom_export}")
+    endif()
+    list(APPEND _tip_sbom_args NO_PROJECT_METADATA)
+
+    foreach(
+      _tip_field IN
+      ITEMS DESTINATION
+            VERSION
+            LICENSE
+            DESCRIPTION
+            HOMEPAGE_URL
+            PACKAGE_URL
+            FORMAT)
+      if(NOT "${_tip_reference_${_tip_field}}" STREQUAL "")
+        list(APPEND _tip_sbom_args "${_tip_field}" "${_tip_reference_${_tip_field}}")
+      endif()
+    endforeach()
+
+    install(${_tip_sbom_args})
+    project_log(STATUS "SBOM '${_tip_sbom_name}' is ready for exports: [${_tip_sbom_exports}]")
+  endforeach()
+
+  set_property(GLOBAL PROPERTY "_TIP_SBOMS_FINALIZED" TRUE)
+endfunction()
+
 function(_tip_component_dependency_property_name OUT_VAR EXPORT_PROPERTY_PREFIX COMPONENT_NAME)
   string(SHA256 _tip_component_hash "${COMPONENT_NAME}")
   set(${OUT_VAR}
@@ -461,9 +628,10 @@ endfunction()
 #     SBOM_LICENSE <license>
 #     SBOM_DESCRIPTION <description>
 #     SBOM_HOMEPAGE_URL <url>
+#     SBOM_PACKAGE_URL <url>
 #     SBOM_FORMAT <format>)
 #
-# SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM. SBOM_PACKAGE_URL is not exposed in v1.
+# SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM.
 #
 # See target_install_package() for parameter descriptions.
 # CONFIG_TEMPLATE resolution source of truth:
@@ -521,6 +689,7 @@ function(target_prepare_package TARGET_NAME)
       SBOM_LICENSE
       SBOM_DESCRIPTION
       SBOM_HOMEPAGE_URL
+      SBOM_PACKAGE_URL
       SBOM_FORMAT)
   set(multiValueArgs
       ADDITIONAL_FILES
@@ -783,6 +952,7 @@ function(target_prepare_package TARGET_NAME)
           ARG_SBOM_LICENSE
           ARG_SBOM_DESCRIPTION
           ARG_SBOM_HOMEPAGE_URL
+          ARG_SBOM_PACKAGE_URL
           ARG_SBOM_FORMAT)
     if(DEFINED ${_tip_sbom_arg} AND NOT "${${_tip_sbom_arg}}" STREQUAL "")
       set(_tip_sbom_specific_requested TRUE)
@@ -799,6 +969,15 @@ function(target_prepare_package TARGET_NAME)
   if(ARG_SBOM)
     _tip_validate_sbom_activation("${ARG_EXPORT_NAME}")
 
+    if(NOT "${ARG_SBOM_PACKAGE_URL}" STREQUAL "" AND CMAKE_VERSION VERSION_LESS "4.4")
+      project_log(FATAL_ERROR "SBOM_PACKAGE_URL requires CMake 4.4 or newer because CMake 4.3 does not accept PACKAGE_URL in install(SBOM).")
+    endif()
+
+    set(_tip_effective_sbom_name "${ARG_SBOM_NAME}")
+    if("${_tip_effective_sbom_name}" STREQUAL "")
+      set(_tip_effective_sbom_name "${ARG_EXPORT_NAME}")
+    endif()
+
     if(NOT "${ARG_SBOM_PROJECT}" STREQUAL "" AND ARG_SBOM_NO_PROJECT_METADATA)
       project_log(FATAL_ERROR "SBOM_PROJECT and SBOM_NO_PROJECT_METADATA cannot be used together.")
     endif()
@@ -812,11 +991,6 @@ function(target_prepare_package TARGET_NAME)
           project_log(FATAL_ERROR "SBOM_PROJECT '${ARG_SBOM_PROJECT}' is not visible from target '${TARGET_NAME}'.")
         endif()
       else()
-        set(_tip_effective_sbom_name "${ARG_SBOM_NAME}")
-        if("${_tip_effective_sbom_name}" STREQUAL "")
-          set(_tip_effective_sbom_name "${ARG_EXPORT_NAME}")
-        endif()
-
         if("${_tip_effective_sbom_name}" STREQUAL "${PROJECT_NAME}")
           set(_tip_sbom_metadata_project "${PROJECT_NAME}")
         endif()
@@ -1023,6 +1197,7 @@ function(target_prepare_package TARGET_NAME)
             SBOM_LICENSE
             SBOM_DESCRIPTION
             SBOM_HOMEPAGE_URL
+            SBOM_PACKAGE_URL
             SBOM_FORMAT)
       set(_tip_sbom_arg_var "ARG_${_tip_sbom_one_value}")
       if(DEFINED ${_tip_sbom_arg_var} AND NOT "${${_tip_sbom_arg_var}}" STREQUAL "")
@@ -1068,6 +1243,29 @@ function(target_prepare_package TARGET_NAME)
         _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SBOM_INHERITED_HOMEPAGE_URL" "${${_tip_sbom_project_homepage_var}}" "SBOM inherited project homepage URL")
       endif()
     endif()
+
+    string(SHA256 _tip_sbom_group_hash "${_tip_effective_sbom_name}")
+    get_property(_tip_sbom_group_name GLOBAL PROPERTY "_TIP_SBOM_GROUP_${_tip_sbom_group_hash}_NAME")
+    if(NOT "${_tip_sbom_group_name}" STREQUAL "" AND NOT "${_tip_sbom_group_name}" STREQUAL "${_tip_effective_sbom_name}")
+      project_log(FATAL_ERROR "Internal SBOM name hash collision between '${_tip_sbom_group_name}' and '${_tip_effective_sbom_name}'.")
+    endif()
+    set_property(GLOBAL PROPERTY "_TIP_SBOM_GROUP_${_tip_sbom_group_hash}_NAME" "${_tip_effective_sbom_name}")
+
+    get_property(_tip_sbom_group_exports GLOBAL PROPERTY "_TIP_SBOM_GROUP_${_tip_sbom_group_hash}_EXPORTS")
+    if(CMAKE_VERSION VERSION_LESS "4.4"
+       AND _tip_sbom_group_exports
+       AND NOT ARG_EXPORT_NAME IN_LIST _tip_sbom_group_exports)
+      project_log(FATAL_ERROR
+                  "SBOM_NAME '${_tip_effective_sbom_name}' is already registered for export '${_tip_sbom_group_exports}'. Aggregating multiple export sets into one SBOM requires CMake 4.4 or newer.")
+    endif()
+    list(APPEND _tip_sbom_group_exports "${ARG_EXPORT_NAME}")
+    list(REMOVE_DUPLICATES _tip_sbom_group_exports)
+    set_property(GLOBAL PROPERTY "_TIP_SBOM_GROUP_${_tip_sbom_group_hash}_EXPORTS" "${_tip_sbom_group_exports}")
+
+    get_property(_tip_sbom_group_hashes GLOBAL PROPERTY "_TIP_SBOM_GROUP_HASHES")
+    list(APPEND _tip_sbom_group_hashes "${_tip_sbom_group_hash}")
+    list(REMOVE_DUPLICATES _tip_sbom_group_hashes)
+    set_property(GLOBAL PROPERTY "_TIP_SBOM_GROUP_HASHES" "${_tip_sbom_group_hashes}")
   endif()
 
   get_property(
@@ -1223,6 +1421,14 @@ function(target_prepare_package TARGET_NAME)
     # Schedule automatic finalization for this export at the end of configuration
     project_log(DEBUG "  Scheduling automatic finalization for export '${ARG_EXPORT_NAME}' at end of configuration")
     cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY \"${CMAKE_SOURCE_DIR}\" CALL _auto_finalize_single_export \"${ARG_EXPORT_NAME}\")")
+  endif()
+
+  if(ARG_SBOM)
+    get_property(_tip_sbom_finalization_scheduled GLOBAL PROPERTY "_TIP_SBOM_FINALIZATION_SCHEDULED")
+    if(NOT _tip_sbom_finalization_scheduled)
+      set_property(GLOBAL PROPERTY "_TIP_SBOM_FINALIZATION_SCHEDULED" TRUE)
+      cmake_language(EVAL CODE "cmake_language(DEFER DIRECTORY \"${CMAKE_SOURCE_DIR}\" CALL _tip_finalize_all_sboms)")
+    endif()
   endif()
 
   project_log(VERBOSE "Target '${TARGET_NAME}' configured successfully for export '${ARG_EXPORT_NAME}'")
@@ -1971,81 +2177,6 @@ function(finalize_package)
       DESTINATION ${CMAKE_CONFIG_DESTINATION}
       COMPONENT "${_tip_config_component}")
   endforeach()
-
-  if(SBOM_ENABLED)
-    set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${SBOM_EXPERIMENTAL_VALUE}")
-    _tip_validate_sbom_activation("${ARG_EXPORT_NAME}")
-
-    if(NOT "${SBOM_PROJECT}" STREQUAL "" AND SBOM_NO_PROJECT_METADATA)
-      project_log(FATAL_ERROR "SBOM_PROJECT and SBOM_NO_PROJECT_METADATA cannot be used together for export '${ARG_EXPORT_NAME}'.")
-    endif()
-
-    if("${SBOM_NAME}" STREQUAL "")
-      set(SBOM_NAME "${ARG_EXPORT_NAME}")
-    endif()
-
-    set(_tip_sbom_effective_version "")
-    if(SBOM_VERSION_EXPLICIT)
-      set(_tip_sbom_effective_version "${SBOM_VERSION}")
-    elseif(VERSION_EXPLICIT)
-      set(_tip_sbom_effective_version "${VERSION}")
-    elseif(NOT "${SBOM_INHERITED_VERSION}" STREQUAL "")
-      set(_tip_sbom_effective_version "${SBOM_INHERITED_VERSION}")
-    elseif("${SBOM_PROJECT}" STREQUAL "")
-      set(_tip_sbom_effective_version "${VERSION}")
-    endif()
-
-    set(_tip_sbom_effective_description "${SBOM_DESCRIPTION}")
-    if("${_tip_sbom_effective_description}" STREQUAL "")
-      set(_tip_sbom_effective_description "${SBOM_INHERITED_DESCRIPTION}")
-    endif()
-
-    set(_tip_sbom_effective_homepage_url "${SBOM_HOMEPAGE_URL}")
-    if("${_tip_sbom_effective_homepage_url}" STREQUAL "")
-      set(_tip_sbom_effective_homepage_url "${SBOM_INHERITED_HOMEPAGE_URL}")
-    endif()
-
-    set(_tip_sbom_effective_license "${SBOM_LICENSE}")
-    if("${_tip_sbom_effective_license}" STREQUAL "")
-      set(_tip_sbom_effective_license "${SBOM_INHERITED_LICENSE}")
-    endif()
-
-    # install(SBOM) is experimental, and CMake 4.4 replaced EXPORT with
-    # EXPORTS when it added support for aggregating multiple export sets.
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
-      set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORTS "${ARG_EXPORT_NAME}")
-    else()
-      set(_tip_sbom_args SBOM "${SBOM_NAME}" EXPORT "${ARG_EXPORT_NAME}")
-    endif()
-
-    if(SBOM_NO_PROJECT_METADATA
-       OR SBOM_INHERITED_PROJECT_METADATA
-       OR "${SBOM_METADATA_MODE}" STREQUAL "explicit")
-      list(APPEND _tip_sbom_args NO_PROJECT_METADATA)
-    endif()
-
-    if(NOT "${SBOM_DESTINATION}" STREQUAL "")
-      list(APPEND _tip_sbom_args DESTINATION "${SBOM_DESTINATION}")
-    endif()
-    if(NOT "${_tip_sbom_effective_version}" STREQUAL "")
-      list(APPEND _tip_sbom_args VERSION "${_tip_sbom_effective_version}")
-    endif()
-    if(NOT "${_tip_sbom_effective_license}" STREQUAL "")
-      list(APPEND _tip_sbom_args LICENSE "${_tip_sbom_effective_license}")
-    endif()
-    if(NOT "${_tip_sbom_effective_description}" STREQUAL "")
-      list(APPEND _tip_sbom_args DESCRIPTION "${_tip_sbom_effective_description}")
-    endif()
-    if(NOT "${_tip_sbom_effective_homepage_url}" STREQUAL "")
-      list(APPEND _tip_sbom_args HOMEPAGE_URL "${_tip_sbom_effective_homepage_url}")
-    endif()
-    if(NOT "${SBOM_FORMAT}" STREQUAL "")
-      list(APPEND _tip_sbom_args FORMAT "${SBOM_FORMAT}")
-    endif()
-
-    install(${_tip_sbom_args})
-    project_log(STATUS "SBOM '${SBOM_NAME}' is ready for export '${ARG_EXPORT_NAME}'")
-  endif()
 
   if(CPS_ENABLED)
     if(CMAKE_VERSION VERSION_LESS "4.3")

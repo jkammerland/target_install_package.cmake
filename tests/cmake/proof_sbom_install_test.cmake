@@ -26,6 +26,20 @@ file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/src")
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
+set(_tip_cross_export_fixture "")
+set(_tip_package_url_argument "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+  set(_tip_package_url_argument " SBOM_PACKAGE_URL \"pkg:generic/proof-sbom@2.3.4\"")
+  string(
+    APPEND
+    _tip_cross_export_fixture
+    "add_library(sbom_extra STATIC src/extra.cpp)\n"
+    "target_install_package(sbom_extra EXPORT_NAME proof_sbom_extra VERSION \${PROJECT_VERSION} "
+    "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
+    "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL \"https://example.invalid/proof-sbom\" "
+    "SBOM_PACKAGE_URL \"pkg:generic/proof-sbom@2.3.4\")\n")
+endif()
+
 file(
   WRITE "${_tip_fixture_source_dir}/CMakeLists.txt"
   "cmake_minimum_required(VERSION 3.25)\n"
@@ -40,7 +54,7 @@ file(
   "target_install_package(sbom_static EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION} "
   "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
   "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL "
-  "\"https://example.invalid/proof-sbom\")\n"
+  "\"https://example.invalid/proof-sbom\"${_tip_package_url_argument})\n"
   "add_library(sbom_shared SHARED src/shared.cpp)\n"
   "target_compile_features(sbom_shared PUBLIC cxx_std_17)\n"
   "target_sources(sbom_shared PUBLIC FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/shared.hpp\")\n"
@@ -50,16 +64,18 @@ file(
   "target_install_package(sbom_shared EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION} "
   "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
   "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL "
-  "\"https://example.invalid/proof-sbom\")\n"
+  "\"https://example.invalid/proof-sbom\"${_tip_package_url_argument})\n"
   "add_library(sbom_iface INTERFACE)\n"
   "target_sources(sbom_iface INTERFACE FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/iface.hpp\")\n"
-  "target_install_package(sbom_iface EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION})\n")
+  "target_install_package(sbom_iface EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION})\n"
+  "${_tip_cross_export_fixture}")
 
 file(WRITE "${_tip_fixture_source_dir}/include/proof_sbom/static.hpp" "int sbom_static_value();\n")
 file(WRITE "${_tip_fixture_source_dir}/include/proof_sbom/shared.hpp" "int sbom_shared_value();\n")
 file(WRITE "${_tip_fixture_source_dir}/include/proof_sbom/iface.hpp" "#pragma once\n")
 file(WRITE "${_tip_fixture_source_dir}/src/static.cpp" "#include <proof_sbom/static.hpp>\nint sbom_static_value() { return 3; }\n")
 file(WRITE "${_tip_fixture_source_dir}/src/shared.cpp" "#include <proof_sbom/shared.hpp>\nint sbom_shared_value() { return 4; }\n")
+file(WRITE "${_tip_fixture_source_dir}/src/extra.cpp" "int sbom_extra_value() { return 5; }\n")
 
 set(_tip_fixture_configure_command "${CMAKE_COMMAND}" -S "${_tip_fixture_source_dir}" -B "${_tip_fixture_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
@@ -97,9 +113,17 @@ _tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://spdx.org/rdf/3.0
 _tip_proof_find_spdx_document("${_tip_sbom_file}" "ProofSbom" _tip_document_index)
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "MIT" "@graph" ${_tip_document_index} "dataLicense")
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "Proof SBOM package" "@graph" ${_tip_document_index} "description")
-_tip_proof_assert_root_element_names("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "sbom_shared" "sbom_iface")
+set(_tip_expected_root_elements sbom_static sbom_shared sbom_iface)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+  list(APPEND _tip_expected_root_elements sbom_extra)
+endif()
+_tip_proof_assert_root_element_names("${_tip_sbom_file}" "${_tip_document_index}" ${_tip_expected_root_elements})
 _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "2.3.4" "https://example.invalid/proof-sbom")
 _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_shared" "2.3.4" "https://example.invalid/proof-sbom")
 _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_iface" "2.3.4" "https://example.invalid/proof-sbom")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+  _tip_proof_assert_root_element_json_path_string("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "pkg:generic/proof-sbom@2.3.4" "software_downloadLocation")
+  _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_extra" "2.3.4" "https://example.invalid/proof-sbom")
+endif()
 
 message(STATUS "[proof] SBOM install proof passed.")
