@@ -8,6 +8,7 @@ This matrix describes the supported surface of `target_install_package()`, `targ
 |---------|---------------|-------|
 | Core utilities and examples | 3.25 | Required by the project. |
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
+| `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |

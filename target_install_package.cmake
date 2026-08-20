@@ -57,6 +57,7 @@ endif()
 #     CONFIG_TEMPLATE <template_path>
 #     INCLUDE_DESTINATION <include_dest>
 #     MODULE_DESTINATION <module_dest>
+#     SOURCE_DESTINATION <source_dest>
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
@@ -115,6 +116,7 @@ endif()
 #                                  docs/template_resolution.md#source-of-truth
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
+#   SOURCE_DESTINATION           - Destination for CMake 4.4 SOURCES file sets (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}/src`).
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
 #   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
@@ -143,6 +145,7 @@ endif()
 # Behavior:
 #   - Installs headers, libraries, and config files for the target.
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
+#   - Installs public and interface SOURCES file sets with CMake 4.4+.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
 #   - Supports multi-config builds with automatic debug postfix handling.
@@ -418,6 +421,7 @@ endfunction()
 #     CONFIG_TEMPLATE <template_path>
 #     INCLUDE_DESTINATION <include_dest>
 #     MODULE_DESTINATION <module_dest>
+#     SOURCE_DESTINATION <source_dest>
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
@@ -491,6 +495,7 @@ function(target_prepare_package TARGET_NAME)
       CONFIG_TEMPLATE
       INCLUDE_DESTINATION
       MODULE_DESTINATION
+      SOURCE_DESTINATION
       CMAKE_CONFIG_DESTINATION
       COMPONENT
       DEBUG_POSTFIX
@@ -642,6 +647,14 @@ function(target_prepare_package TARGET_NAME)
     endif()
     set(ARG_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_DATADIR}/cmake/${ARG_EXPORT_NAME}")
     project_log(DEBUG "  CMake config destination not provided, using default: ${ARG_CMAKE_CONFIG_DESTINATION}")
+  endif()
+
+  if(NOT ARG_SOURCE_DESTINATION)
+    if(NOT CMAKE_INSTALL_DATADIR)
+      set(CMAKE_INSTALL_DATADIR "share")
+    endif()
+    set(ARG_SOURCE_DESTINATION "${CMAKE_INSTALL_DATADIR}/${ARG_EXPORT_NAME}/src")
+    project_log(DEBUG "  Source destination not provided, using default: ${ARG_SOURCE_DESTINATION}")
   endif()
 
   # BREAKING CHANGE: Validate against deprecated component names Users should use COMPONENT instead for cleaner naming
@@ -942,6 +955,7 @@ function(target_prepare_package TARGET_NAME)
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CONFIG_TEMPLATE" "${ARG_CONFIG_TEMPLATE}" "config template")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}" "include destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}" "module destination")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SOURCE_DESTINATION" "${ARG_SOURCE_DESTINATION}" "source destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CMAKE_CONFIG_DESTINATION" "${ARG_CMAKE_CONFIG_DESTINATION}" "CMake config destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}" "debug postfix")
 
@@ -1468,6 +1482,7 @@ function(finalize_package)
   get_property(CONFIG_TEMPLATE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_TEMPLATE")
   get_property(INCLUDE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION")
   get_property(MODULE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION")
+  get_property(SOURCE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SOURCE_DESTINATION")
   get_property(CMAKE_CONFIG_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CMAKE_CONFIG_DESTINATION")
   get_property(CONFIG_DEV_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   get_property(CURRENT_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR")
@@ -1609,6 +1624,7 @@ function(finalize_package)
   set(_tip_exported_alias_names "")
 
   # Install each target separately with its own components
+  set(_tip_export_has_source_sets FALSE)
   foreach(TARGET_NAME ${TARGETS})
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
@@ -1733,6 +1749,29 @@ function(finalize_package)
 
     if(TARGET_PUBLIC_HEADERS)
       list(APPEND INSTALL_ARGS PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION} ${TARGET_DEV_COMPONENT_ARGS})
+    endif()
+
+    # Handle installable source file sets. All public and interface file sets must be listed when the target is exported.
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+      get_target_property(TARGET_INTERFACE_SOURCE_SETS ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+      if(TARGET_INTERFACE_SOURCE_SETS AND NOT TARGET_INTERFACE_SOURCE_SETS MATCHES "-NOTFOUND$")
+        set(_tip_export_has_source_sets TRUE)
+        if(CPS_ENABLED)
+          project_log(
+            FATAL_ERROR
+            "CPS package metadata for export '${ARG_EXPORT_NAME}' is not supported with SOURCES file sets. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export.")
+        endif()
+        foreach(CURRENT_SOURCE_SET_NAME IN LISTS TARGET_INTERFACE_SOURCE_SETS)
+          list(
+            APPEND
+            INSTALL_ARGS
+            FILE_SET
+            "${CURRENT_SOURCE_SET_NAME}"
+            DESTINATION
+            "${SOURCE_DESTINATION}"
+            ${TARGET_DEV_COMPONENT_ARGS})
+        endforeach()
+      endif()
     endif()
 
     # Handle C++20 modules
@@ -2179,7 +2218,14 @@ function(finalize_package)
 
   # Prepare public dependencies content
   set(PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "")
+  set(_tip_package_public_content_required FALSE)
+  if(_tip_export_has_source_sets)
+    set(_tip_package_public_content_required TRUE)
+    string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT
+           "if(CMAKE_VERSION VERSION_LESS \"4.4\")\n  message(FATAL_ERROR \"Package '${ARG_EXPORT_NAME}' contains SOURCES file sets and requires CMake 4.4 or newer.\")\nendif()\n")
+  endif()
   if(PUBLIC_DEPENDENCIES)
+    set(_tip_package_public_content_required TRUE)
     foreach(dep ${PUBLIC_DEPENDENCIES})
       string(APPEND PACKAGE_PUBLIC_DEPENDENCIES_CONTENT "find_dependency(${dep})\n")
     endforeach()
@@ -2285,7 +2331,7 @@ function(finalize_package)
   endif()
 
   # Validate template contains required placeholders for provided parameters
-  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${PUBLIC_DEPENDENCIES}" "${_tip_find_package_components}")
+  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${_tip_package_public_content_required}" "${_tip_find_package_components}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")

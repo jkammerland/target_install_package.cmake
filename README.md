@@ -86,6 +86,7 @@ See the [Compatibility Matrix](docs/compatibility.md) for target type, platform,
 - Target-centric install API with less boilerplate
 - Package installation with CMake config and version file generation
 - Automatic install rules from `FILE_SET` headers and C++20 modules
+- Source-only packages from installable CMake 4.4 `SOURCES` file sets
 - Static, shared, interface, executable, and multi-target export support
 - Component-based installation with runtime/development/custom separation
 - Build variant support for debug/release/custom configurations
