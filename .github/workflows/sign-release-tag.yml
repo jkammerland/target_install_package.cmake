@@ -1,0 +1,156 @@
+name: Prepare Signed Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: New release tag to sign
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sign-release-tag-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    name: Sign Release Tag Bundle
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate default-branch release state
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          expected_workflow_ref="refs/heads/${DEFAULT_BRANCH}"
+          if [[ "${GITHUB_REF}" != "${expected_workflow_ref}" ]]; then
+            echo "Tag signing must be dispatched from ${expected_workflow_ref}, got ${GITHUB_REF}" >&2
+            exit 1
+          fi
+          if [[ "${RELEASE_TAG}" != v* ]] || ! git check-ref-format "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            echo "Invalid release tag: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release tag ${RELEASE_TAG} already exists on origin" >&2
+            exit 1
+          fi
+
+          project_version="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          contents = Path("CMakeLists.txt").read_text(encoding="utf-8")
+          project = re.search(r"project\s*\(\s*target_install_package\b(?P<body>.*?)\)", contents, re.DOTALL | re.IGNORECASE)
+          if not project:
+              raise SystemExit("Could not find target_install_package project declaration")
+          version = re.search(r"\bVERSION\s+([^\s\)]+)", project.group("body"))
+          if not version:
+              raise SystemExit("Could not find target_install_package project version")
+          print(version.group(1))
+          PY
+          )"
+          if [[ "${RELEASE_TAG#v}" != "${project_version}" ]]; then
+            echo "Release tag ${RELEASE_TAG} does not match project version ${project_version}" >&2
+            exit 1
+          fi
+          if [[ ! -f "docs/releases/${RELEASE_TAG}.md" ]]; then
+            echo "Missing curated release notes: docs/releases/${RELEASE_TAG}.md" >&2
+            exit 1
+          fi
+
+      - name: Import release signing key
+        shell: bash
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_SIGNING_KEY_SECRET: ${{ secrets.GPG_SIGNING_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          expected_fingerprint="7A9DA5E43CC1A9ECB9745CBE3A209DA2768BE08D"
+          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
+            echo "GPG_PRIVATE_KEY environment secret is required for releases" >&2
+            exit 1
+          fi
+
+          mkdir -p "${HOME}/.gnupg"
+          chmod 700 "${HOME}/.gnupg"
+          printf '%s\n' "allow-loopback-pinentry" >> "${HOME}/.gnupg/gpg-agent.conf"
+          gpgconf --kill gpg-agent || true
+          printf '%s\n' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+
+          signing_selector="${GPG_SIGNING_KEY_SECRET:-${expected_fingerprint}}"
+          signing_fingerprint="$(
+            gpg --batch --with-colons --list-secret-keys "${signing_selector}" \
+              | awk -F: '/^fpr:/ { print toupper($10); exit }'
+          )"
+          if [[ "${signing_fingerprint}" != "${expected_fingerprint}" ]]; then
+            echo "Imported secret key fingerprint ${signing_fingerprint:-missing} does not match ${expected_fingerprint}" >&2
+            exit 1
+          fi
+          printf 'GPG_SIGNING_KEY=%s\n' "${expected_fingerprint}" >> "${GITHUB_ENV}"
+
+          if [[ -n "${GPG_PASSPHRASE}" ]]; then
+            passphrase_file="${RUNNER_TEMP}/target-install-package-gpg-passphrase"
+            umask 077
+            printf '%s' "${GPG_PASSPHRASE}" > "${passphrase_file}"
+            printf 'GPG_PASSPHRASE_FILE=%s\n' "${passphrase_file}" >> "${GITHUB_ENV}"
+          fi
+
+      - name: Sign and verify tag bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          gpg_wrapper="${RUNNER_TEMP}/target-install-package-gpg"
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'set -euo pipefail' \
+            'gpg_args=(--batch)' \
+            'if [[ -n "${GPG_PASSPHRASE_FILE:-}" ]]; then' \
+            '  gpg_args+=(--pinentry-mode loopback --passphrase-file "${GPG_PASSPHRASE_FILE}")' \
+            'fi' \
+            'exec gpg "${gpg_args[@]}" "$@"' > "${gpg_wrapper}"
+          chmod 700 "${gpg_wrapper}"
+
+          git \
+            -c gpg.program="${gpg_wrapper}" \
+            -c user.name="target_install_package release automation" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            -c user.signingkey="${GPG_SIGNING_KEY}" \
+            tag --sign --message "target_install_package ${RELEASE_TAG}" "${RELEASE_TAG}" "${GITHUB_SHA}"
+
+          verification_output="$(git verify-tag --raw "refs/tags/${RELEASE_TAG}" 2>&1)"
+          signing_fingerprint="$(awk '/^\[GNUPG:\] VALIDSIG / { print toupper($3); exit }' <<<"${verification_output}")"
+          if [[ "${signing_fingerprint}" != "${GPG_SIGNING_KEY}" ]]; then
+            echo "Signed tag fingerprint ${signing_fingerprint:-missing} does not match ${GPG_SIGNING_KEY}" >&2
+            exit 1
+          fi
+          if [[ "$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")" != "${GITHUB_SHA}" ]]; then
+            echo "Signed tag does not resolve to workflow commit ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+
+          mkdir -p build/release-tag
+          git bundle create "build/release-tag/${RELEASE_TAG}.bundle" "refs/tags/${RELEASE_TAG}"
+          (cd build/release-tag && sha256sum "${RELEASE_TAG}.bundle" > "${RELEASE_TAG}.bundle.sha256")
+
+      - name: Upload signed tag bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-release-tag-${{ inputs.tag }}
+          path: |
+            build/release-tag/${{ inputs.tag }}.bundle
+            build/release-tag/${{ inputs.tag }}.bundle.sha256
+          retention-days: 7
