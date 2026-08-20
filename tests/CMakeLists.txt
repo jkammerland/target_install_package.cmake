@@ -277,6 +277,20 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_versioned_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_versioned_find_package_test.cmake")
   set_tests_properties(proof_versioned_find_package PROPERTIES LABELS "proof;review")
 
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+    add_test(NAME proof_cmake_44_version_compatibility COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cmake_44_version_compatibility_test.cmake")
+    set_tests_properties(proof_cmake_44_version_compatibility PROPERTIES LABELS "proof;review;cmake-4.4")
+
+    if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+      add_test(NAME proof_cmake_44_version_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                                   "${_tip_proof_script_dir}/proof_cmake_44_version_old_cmake_guard_test.cmake")
+      set_tests_properties(proof_cmake_44_version_old_cmake_guard PROPERTIES LABELS "proof;review;cmake-4.4")
+    endif()
+  else()
+    add_test(NAME proof_cmake_44_version_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cmake_44_version_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_cmake_44_version_old_cmake_guard PROPERTIES LABELS "proof;review;cmake-4.4")
+  endif()
+
   add_test(NAME proof_component_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_component_find_package_test.cmake")
   set_tests_properties(proof_component_find_package PROPERTIES LABELS "proof;review")
 

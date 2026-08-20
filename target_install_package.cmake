@@ -52,6 +52,7 @@ endif()
 #     ALIAS_NAME <alias_name>
 #     VERSION <version>
 #     COMPATIBILITY <compatibility>
+#     ARCH_INDEPENDENT
 #     EXPORT_NAME <export_name>
 #     CONFIG_TEMPLATE <template_path>
 #     INCLUDE_DESTINATION <include_dest>
@@ -107,6 +108,7 @@ endif()
 #   ALIAS_NAME                   - Custom alias name for the exported target (default: `${TARGET_NAME}`).
 #   VERSION                      - Version of the package (default: `${PROJECT_VERSION}`).
 #   COMPATIBILITY                - Version compatibility mode (default: "SameMajorVersion").
+#   ARCH_INDEPENDENT             - Disable architecture suitability checks in the generated package version file.
 #   EXPORT_NAME                  - Name of the CMake export file (default: `${TARGET_NAME}`).
 #   CONFIG_TEMPLATE              - Optional path to a CMake config template.
 #                                  Source of truth for resolution order:
@@ -268,7 +270,9 @@ function(_tip_derive_cps_compat_version OUT_VAR VERSION COMPATIBILITY VERSION_SC
     return()
   endif()
 
-  if("${COMPATIBILITY}" STREQUAL "ExactVersion")
+  if("${COMPATIBILITY}" STREQUAL "ExactVersion"
+     OR "${COMPATIBILITY}" STREQUAL "SamePatchVersion"
+     OR "${COMPATIBILITY}" STREQUAL "SameFullVersion")
     set(${OUT_VAR}
         ""
         PARENT_SCOPE)
@@ -288,6 +292,12 @@ function(_tip_derive_cps_compat_version OUT_VAR VERSION COMPATIBILITY VERSION_SC
       set(_tip_compat_version "${_tip_major}.0.0")
     elseif("${COMPATIBILITY}" STREQUAL "SameMinorVersion")
       set(_tip_compat_version "${_tip_major}.${_tip_minor}.0")
+    elseif("${COMPATIBILITY}" STREQUAL "SemanticVersion")
+      if(_tip_major EQUAL 0)
+        set(_tip_compat_version "0.${_tip_minor}.0")
+      else()
+        set(_tip_compat_version "${_tip_major}.0.0")
+      endif()
     endif()
   endif()
 
@@ -403,6 +413,7 @@ endfunction()
 #     ALIAS_NAME <alias_name>
 #     VERSION <version>
 #     COMPATIBILITY <compatibility>
+#     ARCH_INDEPENDENT
 #     EXPORT_NAME <export_name>
 #     CONFIG_TEMPLATE <template_path>
 #     INCLUDE_DESTINATION <include_dest>
@@ -464,6 +475,7 @@ function(target_prepare_package TARGET_NAME)
   # Parse function arguments
   set(options
       DISABLE_RPATH
+      ARCH_INDEPENDENT
       CPS
       CPS_NO_PROJECT_METADATA
       CPS_LOWER_CASE_FILE
@@ -662,9 +674,22 @@ function(target_prepare_package TARGET_NAME)
     "Additional files destination")
 
   # Validate compatibility parameter
-  set(VALID_COMPATIBILITY "AnyNewerVersion;SameMajorVersion;SameMinorVersion;ExactVersion")
-  if(NOT ARG_COMPATIBILITY IN_LIST VALID_COMPATIBILITY)
-    project_log(FATAL_ERROR "Invalid COMPATIBILITY '${ARG_COMPATIBILITY}'. Must be one of: ${VALID_COMPATIBILITY}")
+  set(_tip_legacy_compatibility AnyNewerVersion SameMajorVersion SameMinorVersion ExactVersion)
+  set(_tip_cmake_44_compatibility SamePatchVersion SameFullVersion SemanticVersion)
+  set(_tip_valid_compatibility ${_tip_legacy_compatibility})
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+    list(APPEND _tip_valid_compatibility ${_tip_cmake_44_compatibility})
+  endif()
+
+  if(NOT ARG_COMPATIBILITY IN_LIST _tip_valid_compatibility)
+    if(ARG_COMPATIBILITY IN_LIST _tip_cmake_44_compatibility)
+      project_log(FATAL_ERROR "COMPATIBILITY '${ARG_COMPATIBILITY}' requires CMake 4.4 or newer.")
+    endif()
+    project_log(FATAL_ERROR "Invalid COMPATIBILITY '${ARG_COMPATIBILITY}'. Supported values: ${_tip_valid_compatibility}")
+  endif()
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4" AND ARG_COMPATIBILITY STREQUAL "ExactVersion")
+    message(DEPRECATION "COMPATIBILITY ExactVersion is deprecated by CMake 4.4. Use SamePatchVersion to ignore tweak, or SameFullVersion to require every version component to match.")
   endif()
 
   set(_tip_cps_specific_requested FALSE)
@@ -913,6 +938,7 @@ function(target_prepare_package TARGET_NAME)
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "NAMESPACE" "${ARG_NAMESPACE}" "namespace")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "VERSION" "${ARG_VERSION}" "version")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "COMPATIBILITY" "${ARG_COMPATIBILITY}" "compatibility")
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "ARCH_INDEPENDENT" "${ARG_ARCH_INDEPENDENT}" "architecture independence")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CONFIG_TEMPLATE" "${ARG_CONFIG_TEMPLATE}" "config template")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}" "include destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}" "module destination")
@@ -1438,6 +1464,7 @@ function(finalize_package)
   get_property(NAMESPACE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE")
   get_property(VERSION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_VERSION")
   get_property(COMPATIBILITY GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPATIBILITY")
+  get_property(ARCH_INDEPENDENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ARCH_INDEPENDENT")
   get_property(CONFIG_TEMPLATE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_TEMPLATE")
   get_property(INCLUDE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION")
   get_property(MODULE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION")
@@ -2063,6 +2090,12 @@ function(finalize_package)
         set(_tip_cps_effective_compat_version "${CPS_COMPAT_VERSION}")
         if("${_tip_cps_effective_compat_version}" STREQUAL "")
           _tip_derive_cps_compat_version(_tip_cps_effective_compat_version "${_tip_cps_effective_version}" "${COMPATIBILITY}" "${CPS_VERSION_SCHEMA}")
+          if(COMPATIBILITY STREQUAL "SamePatchVersion" OR COMPATIBILITY STREQUAL "ExactVersion")
+            project_log(
+              WARNING
+              "CPS cannot represent COMPATIBILITY '${COMPATIBILITY}' exactly for export '${ARG_EXPORT_NAME}'. Omitting COMPAT_VERSION makes CPS require the package version. Set CPS_COMPAT_VERSION explicitly to override this stricter behavior."
+            )
+          endif()
         endif()
         if(NOT "${_tip_cps_effective_compat_version}" STREQUAL "")
           list(APPEND _tip_cps_args COMPAT_VERSION "${_tip_cps_effective_compat_version}")
@@ -2134,10 +2167,11 @@ function(finalize_package)
   set(LEGACY_VERSION_FILENAME "${ARG_EXPORT_NAME}-config-version.cmake")
   set(LEGACY_VERSION_FILE_PATH "${CURRENT_BINARY_DIR}/${LEGACY_VERSION_FILENAME}")
 
-  write_basic_package_version_file(
-    "${VERSION_FILE_PATH}"
-    VERSION ${VERSION}
-    COMPATIBILITY ${COMPATIBILITY})
+  set(_tip_version_file_args "${VERSION_FILE_PATH}" VERSION ${VERSION} COMPATIBILITY ${COMPATIBILITY})
+  if(ARCH_INDEPENDENT)
+    list(APPEND _tip_version_file_args ARCH_INDEPENDENT)
+  endif()
+  write_basic_package_version_file(${_tip_version_file_args})
 
   if(NOT VERSION_FILENAME STREQUAL LEGACY_VERSION_FILENAME)
     configure_file("${VERSION_FILE_PATH}" "${LEGACY_VERSION_FILE_PATH}" COPYONLY)
