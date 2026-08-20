@@ -5,7 +5,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.8)
+  list_file_include_guard(VERSION 7.1.0)
 else()
   if(COMMAND project_log)
     project_log(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
@@ -78,6 +78,7 @@ endif()
 #     [SIGNING_METHOD <detached|embedded|both>]
 #     [GPG_KEYSERVER <keyserver_url>]
 #     [GENERATE_CHECKSUMS]
+#     [CHECKSUMS <algorithm1> <algorithm2> ...]
 #     [CONTAINER_NAME <name>]
 #     [CONTAINER_TAG <tag>]
 #     [CONTAINER_RUNTIME <podman|docker>]
@@ -105,6 +106,8 @@ endif()
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
+#   CHECKSUMS               - Package checksum algorithms. Supports MD5, SHA1, SHA2, and SHA3 variants accepted by CMake.
+#   GENERATE_CHECKSUMS      - Compatibility alias: ON selects SHA256 and SHA512; OFF selects none. Cannot be combined with CHECKSUMS.
 #   CONTAINER_NAME          - Name for container image when using CONTAINER generator (default: lowercase package name)
 #   CONTAINER_TAG           - Tag for container image when using CONTAINER generator (default: package version)
 #   CONTAINER_RUNTIME       - Explicit runtime command for container build/save (default: podman)
@@ -879,6 +882,7 @@ function(_execute_deferred_cpack_config)
       SIGNING_METHOD
       GPG_KEYSERVER
       GENERATE_CHECKSUMS
+      CHECKSUMS
       CONTAINER_NAME
       CONTAINER_TAG
       CONTAINER_RUNTIME
@@ -937,6 +941,18 @@ function(_execute_deferred_cpack_config)
   endwhile()
 
   # Now parse and process the stored arguments
+  set(_tip_checksums_explicit FALSE)
+  set(_tip_legacy_checksums_explicit FALSE)
+  if("CHECKSUMS" IN_LIST _tip_cpack_parse_args)
+    set(_tip_checksums_explicit TRUE)
+  endif()
+  if("GENERATE_CHECKSUMS" IN_LIST _tip_cpack_parse_args)
+    set(_tip_legacy_checksums_explicit TRUE)
+  endif()
+  if(_tip_checksums_explicit AND _tip_legacy_checksums_explicit)
+    project_log(FATAL_ERROR "CHECKSUMS and GENERATE_CHECKSUMS cannot be used together. Use CHECKSUMS for an explicit algorithm list.")
+  endif()
+
   set(options COMPONENT_GROUPS ENABLE_COMPONENT_INSTALL NO_DEFAULT_GENERATORS)
   set(oneValueArgs
       PACKAGE_NAME
@@ -958,7 +974,7 @@ function(_execute_deferred_cpack_config)
       CONTAINER_RUNTIME
       CONTAINER_ENTRYPOINT
       CONTAINER_ARCHIVE_FORMAT)
-  set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS CONTAINER_COMPONENTS CONTAINER_ROOTFS_OVERLAYS)
+  set(multiValueArgs GENERATORS COMPONENTS DEFAULT_COMPONENTS CHECKSUMS CONTAINER_COMPONENTS CONTAINER_ROOTFS_OVERLAYS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${_tip_cpack_parse_args})
   if(_tip_additional_cpack_vars_seen)
     set(ARG_ADDITIONAL_CPACK_VARS "${_tip_additional_cpack_vars}")
@@ -966,6 +982,27 @@ function(_execute_deferred_cpack_config)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+
+  set(_tip_supported_checksum_algorithms
+      MD5
+      SHA1
+      SHA224
+      SHA256
+      SHA384
+      SHA512
+      SHA3_224
+      SHA3_256
+      SHA3_384
+      SHA3_512)
+  set(_tip_explicit_checksum_algorithms "")
+  foreach(_tip_checksum_algorithm IN LISTS ARG_CHECKSUMS)
+    string(TOUPPER "${_tip_checksum_algorithm}" _tip_checksum_algorithm)
+    if(NOT _tip_checksum_algorithm IN_LIST _tip_supported_checksum_algorithms)
+      project_log(FATAL_ERROR "Unsupported CHECKSUMS algorithm '${_tip_checksum_algorithm}'. Supported values: ${_tip_supported_checksum_algorithms}")
+    endif()
+    list(APPEND _tip_explicit_checksum_algorithms "${_tip_checksum_algorithm}")
+  endforeach()
+  list(REMOVE_DUPLICATES _tip_explicit_checksum_algorithms)
   set(_tip_components_explicit FALSE)
   set(_tip_components_keyword "COMPONENTS")
   if(_tip_components_keyword IN_LIST _tip_cpack_parse_args)
@@ -1467,6 +1504,33 @@ function(_execute_deferred_cpack_config)
     set(_tip_gpg_requires_rpmsign TRUE)
   endif()
 
+  set(_tip_effective_signing_key "${ARG_GPG_SIGNING_KEY}")
+  if("${_tip_effective_signing_key}" STREQUAL "" AND DEFINED ENV{GPG_SIGNING_KEY})
+    set(_tip_effective_signing_key "$ENV{GPG_SIGNING_KEY}")
+  endif()
+
+  if(_tip_checksums_explicit)
+    set(_tip_checksum_algorithms ${_tip_explicit_checksum_algorithms})
+  elseif(_tip_legacy_checksums_explicit)
+    if(ARG_GENERATE_CHECKSUMS)
+      set(_tip_checksum_algorithms SHA256 SHA512)
+    else()
+      set(_tip_checksum_algorithms "")
+    endif()
+  elseif(NOT "${_tip_effective_signing_key}" STREQUAL "")
+    set(_tip_checksum_algorithms SHA256 SHA512)
+  else()
+    set(_tip_checksum_algorithms "")
+  endif()
+
+  set(_tip_post_build_checksum_algorithms ${_tip_checksum_algorithms})
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.2")
+    if(_tip_checksum_algorithms)
+      _tip_store_cpack_var(CPACK_PACKAGE_CHECKSUM "${_tip_checksum_algorithms}")
+    endif()
+    set(_tip_post_build_checksum_algorithms "")
+  endif()
+
   set(_tip_gpg_signing_args
       SIGNING_KEY
       "${ARG_GPG_SIGNING_KEY}"
@@ -1482,8 +1546,8 @@ function(_execute_deferred_cpack_config)
       "${ARG_PACKAGE_VERSION}"
       PACKAGE_CONTACT
       "${ARG_PACKAGE_CONTACT}")
-  if(DEFINED ARG_GENERATE_CHECKSUMS AND NOT "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
-    list(APPEND _tip_gpg_signing_args GENERATE_CHECKSUMS "${ARG_GENERATE_CHECKSUMS}")
+  if(_tip_post_build_checksum_algorithms)
+    list(APPEND _tip_gpg_signing_args CHECKSUMS ${_tip_post_build_checksum_algorithms})
   endif()
   if(_tip_gpg_requires_rpmsign)
     list(APPEND _tip_gpg_signing_args REQUIRE_RPMSIGN)
@@ -1544,11 +1608,10 @@ function(_configure_gpg_signing)
       PASSPHRASE_FILE
       SIGNING_METHOD
       KEYSERVER
-      GENERATE_CHECKSUMS
       PACKAGE_NAME
       PACKAGE_VERSION
       PACKAGE_CONTACT)
-  set(multiValueArgs)
+  set(multiValueArgs CHECKSUMS)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for GPG signing configuration: ${ARG_UNPARSED_ARGUMENTS}")
@@ -1563,24 +1626,6 @@ function(_configure_gpg_signing)
     set(ARG_PASSPHRASE_FILE "$ENV{GPG_PASSPHRASE_FILE}")
   endif()
 
-  # Enable checksums by default when signing is enabled. Without signing, only configure the post-build script when checksums were explicitly requested.
-  if(NOT DEFINED ARG_GENERATE_CHECKSUMS OR "${ARG_GENERATE_CHECKSUMS}" STREQUAL "")
-    if(ARG_SIGNING_KEY)
-      set(ARG_GENERATE_CHECKSUMS ON)
-    else()
-      set(ARG_GENERATE_CHECKSUMS OFF)
-    endif()
-  else()
-    string(TOUPPER "${ARG_GENERATE_CHECKSUMS}" _tip_generate_checksums_upper)
-    if(_tip_generate_checksums_upper MATCHES "^(ON|TRUE|YES|1)$")
-      set(ARG_GENERATE_CHECKSUMS ON)
-    elseif(_tip_generate_checksums_upper MATCHES "^(OFF|FALSE|NO|0)$")
-      set(ARG_GENERATE_CHECKSUMS OFF)
-    else()
-      project_log(FATAL_ERROR "GENERATE_CHECKSUMS must be ON or OFF, got: ${ARG_GENERATE_CHECKSUMS}")
-    endif()
-  endif()
-
   if(ARG_SIGNING_METHOD
      AND NOT ARG_SIGNING_METHOD STREQUAL "detached"
      AND NOT ARG_SIGNING_METHOD STREQUAL "embedded"
@@ -1592,7 +1637,7 @@ function(_configure_gpg_signing)
     project_log(FATAL_ERROR "SIGNING_METHOD '${ARG_SIGNING_METHOD}' requires GPG_SIGNING_KEY or the GPG_SIGNING_KEY environment variable.")
   endif()
 
-  if(NOT ARG_SIGNING_KEY AND NOT ARG_GENERATE_CHECKSUMS)
+  if(NOT ARG_SIGNING_KEY AND NOT ARG_CHECKSUMS)
     return()
   endif()
 
@@ -1669,11 +1714,11 @@ function(_configure_gpg_signing)
     project_log(STATUS "GPG package signing configured:")
     project_log(STATUS "  Signing key: ${ARG_SIGNING_KEY}")
     project_log(STATUS "  Signing method: ${ARG_SIGNING_METHOD}")
-    project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
+    project_log(STATUS "  Post-build checksums: ${ARG_CHECKSUMS}")
     project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
   else()
     project_log(STATUS "CPack checksum generation configured:")
-    project_log(STATUS "  Generate checksums: ${ARG_GENERATE_CHECKSUMS}")
+    project_log(STATUS "  Post-build checksums: ${ARG_CHECKSUMS}")
     project_log(STATUS "  Post-build script: ${CMAKE_BINARY_DIR}/sign_packages.cmake")
   endif()
 

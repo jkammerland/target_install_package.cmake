@@ -96,7 +96,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg
+          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg
 
       - name: Import release signing key
         shell: bash
@@ -158,8 +158,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          release_notes_source="docs/releases/${RELEASE_TAG}.md"
+          if [[ ! -f "${release_notes_source}" ]]; then
+            echo "Missing curated release notes: ${release_notes_source}" >&2
+            exit 1
+          fi
+
+          cat "${release_notes_source}" > build/release-notes.md
           {
-            echo "Signed target_install_package ${RELEASE_TAG} release artifacts."
+            echo
+            echo "## Artifact verification"
             echo
             echo "Assets include TGZ and ZIP install-tree archives, an SPDX SBOM, detached GPG signatures, SHA256/SHA512 checksums, and the exported public key for verifying release signatures."
             echo
@@ -171,7 +179,7 @@ jobs:
             echo "gpg --verify target_install_package-${RELEASE_VERSION}-cmake.spdx.json.sig target_install_package-${RELEASE_VERSION}-cmake.spdx.json"
             echo "sha256sum -c target_install_package-${RELEASE_VERSION}-cmake.tar.gz.sha256"
             echo '```'
-          } > build/release-notes.md
+          } >> build/release-notes.md
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

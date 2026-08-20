@@ -92,6 +92,35 @@ jobs:
           set -euxo pipefail
           bash ci/run.sh cpack --suite components
 
+  cpack-checksum-compatibility:
+    name: CPack checksums (CMake ${{ matrix.cmake-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cmake-version: [3.25.0, 4.2.3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bootstrap exact CMake and Ninja
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap \
+            --cmake-version "${{ matrix.cmake-version }}" \
+            --ninja
+
+      - name: Prove fallback and native checksum generation
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake \
+            -DTIP_REPO_ROOT="$PWD" \
+            -DTIP_PROOF_TEST_ROOT="$PWD/build/cpack/checksums-${{ matrix.cmake-version }}" \
+            -DTIP_CMAKE_GENERATOR=Ninja \
+            -DTIP_CMAKE_MAKE_PROGRAM="$(command -v ninja)" \
+            -P tests/cmake/proof_cpack_checksums_test.cmake
+
   sbom-api-compatibility:
     name: SBOM API (CMake ${{ matrix.cmake-version }})
     runs-on: ubuntu-latest
@@ -99,9 +128,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - cmake-version: 4.3.1
+          - cmake-version: 4.3.4
             activation-value: ca494ed3-b261-4205-a01f-603c95e4cae0
-          - cmake-version: 4.4.0
+          - cmake-version: 4.4.2
             activation-value: 2d856d6d-53e8-488b-a17f-d486d2cac317
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +170,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --cmake-version 4.3.1 --ninja --gpg
+          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg
 
       - name: Build signed self-release package
         shell: bash

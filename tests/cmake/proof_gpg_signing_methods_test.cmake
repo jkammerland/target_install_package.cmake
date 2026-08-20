@@ -61,6 +61,24 @@ file(MAKE_DIRECTORY "${_tip_checksums_only_package_dir}")
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
+function(_tip_assert_checksum_configuration build_dir)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.2")
+    _tip_proof_assert_file_contains("${build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_CHECKSUM \"SHA256;SHA512\")")
+  else()
+    _tip_proof_assert_file_contains("${build_dir}/sign_packages.cmake" "set(CHECKSUMS \"SHA256;SHA512\")")
+  endif()
+endfunction()
+
+function(_tip_assert_manual_checksum_result package_file)
+  if(CMAKE_VERSION VERSION_LESS "4.2")
+    _tip_proof_assert_exists("${package_file}.sha256")
+    _tip_proof_assert_exists("${package_file}.sha512")
+  else()
+    _tip_proof_assert_not_exists("${package_file}.sha256")
+    _tip_proof_assert_not_exists("${package_file}.sha512")
+  endif()
+endfunction()
+
 file(
   WRITE "${_tip_fake_bin_dir}/gpg"
   "#!/bin/sh\n"
@@ -112,6 +130,7 @@ set(_tip_configure_command "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_bin_dir}:
                            "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_PROGRAM_PATH=${_tip_fake_bin_dir}" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "configure" COMMAND ${_tip_configure_command})
+_tip_assert_checksum_configuration("${_tip_build_dir}")
 
 set(_tip_tgz_package "${_tip_tgz_package_dir}/proof.tar.gz")
 file(WRITE "${_tip_tgz_package}" "tgz\n")
@@ -126,8 +145,7 @@ _tip_proof_run_step(
   "${_tip_build_dir}/sign_packages.cmake")
 
 _tip_proof_assert_exists("${_tip_tgz_package_dir}/proof.tar.gz.sig")
-_tip_proof_assert_exists("${_tip_tgz_package_dir}/proof.tar.gz.sha256")
-_tip_proof_assert_exists("${_tip_tgz_package_dir}/proof.tar.gz.sha512")
+_tip_assert_manual_checksum_result("${_tip_tgz_package}")
 _tip_proof_assert_file_contains("${_tip_case_root}/gpg.log" "--passphrase=")
 _tip_proof_assert_not_exists("${_tip_case_root}/rpmsign.log")
 
@@ -144,8 +162,7 @@ _tip_proof_run_step(
   "${_tip_build_dir}/sign_packages.cmake")
 
 _tip_proof_assert_exists("${_tip_rpm_package_dir}/proof.rpm.sig")
-_tip_proof_assert_exists("${_tip_rpm_package_dir}/proof.rpm.sha256")
-_tip_proof_assert_exists("${_tip_rpm_package_dir}/proof.rpm.sha512")
+_tip_assert_manual_checksum_result("${_tip_rpm_package}")
 _tip_proof_assert_file_contains("${_tip_case_root}/rpmsign.log" "--addsign")
 _tip_proof_assert_file_contains("${_tip_case_root}/rpmsign.log" "${_tip_rpm_package}")
 
@@ -159,9 +176,8 @@ file(
   "target_install_package(proof_embedded_lib)\n"
   "export_cpack(PACKAGE_NAME ProofSigningEmbedded GENERATORS RPM SIGNING_METHOD embedded GENERATE_CHECKSUMS OFF)\n")
 
-set(_tip_embedded_configure_command "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_bin_dir}:$ENV{PATH}" "GPG_SIGNING_KEY=proof@example.invalid" "${CMAKE_COMMAND}" -S
-                                    "${_tip_embedded_source_dir}" -B "${_tip_embedded_build_dir}" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_PROGRAM_PATH=${_tip_fake_bin_dir}"
-                                    ${_tip_toolchain_args})
+set(_tip_embedded_configure_command "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_bin_dir}:$ENV{PATH}" "GPG_SIGNING_KEY=proof@example.invalid" "${CMAKE_COMMAND}" -S "${_tip_embedded_source_dir}" -B
+                                    "${_tip_embedded_build_dir}" "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_PROGRAM_PATH=${_tip_fake_bin_dir}" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "embedded-configure" COMMAND ${_tip_embedded_configure_command})
 
@@ -193,7 +209,7 @@ file(
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(proof_both_no_rpm_lib INTERFACE)\n"
   "target_install_package(proof_both_no_rpm_lib)\n"
-  "export_cpack(PACKAGE_NAME ProofSigningBothNoRpm GENERATORS TGZ SIGNING_METHOD both GENERATE_CHECKSUMS ON)\n")
+  "export_cpack(PACKAGE_NAME ProofSigningBothNoRpm GENERATORS TGZ SIGNING_METHOD both)\n")
 
 set(_tip_both_no_rpm_configure_command
     "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_gpg_only_bin_dir}:$ENV{PATH}" "GPG_SIGNING_KEY=proof@example.invalid" "${CMAKE_COMMAND}" -S "${_tip_both_no_rpm_source_dir}" -B
@@ -201,6 +217,7 @@ set(_tip_both_no_rpm_configure_command
     "-DCMAKE_PROGRAM_PATH=${_tip_fake_gpg_only_bin_dir}" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "both-no-rpm-configure-without-rpmsign" COMMAND ${_tip_both_no_rpm_configure_command})
+_tip_assert_checksum_configuration("${_tip_both_no_rpm_build_dir}")
 
 set(_tip_both_no_rpm_package "${_tip_both_no_rpm_package_dir}/proof-both-no-rpm.tar.gz")
 file(WRITE "${_tip_both_no_rpm_package}" "tgz\n")
@@ -215,8 +232,7 @@ _tip_proof_run_step(
   "${_tip_both_no_rpm_build_dir}/sign_packages.cmake")
 
 _tip_proof_assert_exists("${_tip_both_no_rpm_package_dir}/proof-both-no-rpm.tar.gz.sig")
-_tip_proof_assert_exists("${_tip_both_no_rpm_package_dir}/proof-both-no-rpm.tar.gz.sha256")
-_tip_proof_assert_exists("${_tip_both_no_rpm_package_dir}/proof-both-no-rpm.tar.gz.sha512")
+_tip_assert_manual_checksum_result("${_tip_both_no_rpm_package}")
 
 file(
   WRITE "${_tip_checksums_off_source_dir}/CMakeLists.txt"
@@ -263,30 +279,33 @@ file(
   "target_install_package(proof_checksums_only_lib)\n"
   "export_cpack(PACKAGE_NAME ProofChecksumsOnly GENERATORS TGZ GENERATE_CHECKSUMS ON)\n")
 
-set(_tip_checksums_only_configure_command
-    "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_checksums_only_source_dir}" -B "${_tip_checksums_only_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
-    ${_tip_toolchain_args})
+set(_tip_checksums_only_configure_command "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_checksums_only_source_dir}" -B "${_tip_checksums_only_build_dir}"
+                                          "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "checksums-only-configure-without-signing-key" COMMAND ${_tip_checksums_only_configure_command})
-_tip_proof_assert_file_contains("${_tip_checksums_only_build_dir}/sign_packages.cmake" "set(SIGNING_METHOD \"none\")")
-_tip_proof_assert_file_contains("${_tip_checksums_only_build_dir}/sign_packages.cmake" "set(GPG_EXECUTABLE \"\")")
+_tip_assert_checksum_configuration("${_tip_checksums_only_build_dir}")
 
 set(_tip_checksums_only_package "${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz")
 file(WRITE "${_tip_checksums_only_package}" "tgz\n")
 file(WRITE "${_tip_checksums_only_package}.sig" "stale signature\n")
 
-_tip_proof_run_step(
-  NAME
-  "run-checksums-only-script-pass"
-  COMMAND
-  "${CMAKE_COMMAND}"
-  "-DCPACK_PACKAGE_DIRECTORY=${_tip_checksums_only_package_dir}"
-  -P
-  "${_tip_checksums_only_build_dir}/sign_packages.cmake")
-
-_tip_proof_assert_not_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sig")
-_tip_proof_assert_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sha256")
-_tip_proof_assert_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sha512")
+if(CMAKE_VERSION VERSION_LESS "4.2")
+  _tip_proof_assert_file_contains("${_tip_checksums_only_build_dir}/sign_packages.cmake" "set(SIGNING_METHOD \"none\")")
+  _tip_proof_assert_file_contains("${_tip_checksums_only_build_dir}/sign_packages.cmake" "set(GPG_EXECUTABLE \"\")")
+  _tip_proof_run_step(
+    NAME
+    "run-checksums-only-script-pass"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    "-DCPACK_PACKAGE_DIRECTORY=${_tip_checksums_only_package_dir}"
+    -P
+    "${_tip_checksums_only_build_dir}/sign_packages.cmake")
+  _tip_proof_assert_not_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sig")
+  _tip_proof_assert_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sha256")
+  _tip_proof_assert_exists("${_tip_checksums_only_package_dir}/proof-checksums-only.tar.gz.sha512")
+else()
+  _tip_proof_assert_not_exists("${_tip_checksums_only_build_dir}/sign_packages.cmake")
+endif()
 
 file(
   WRITE "${_tip_explicit_sign_no_key_source_dir}/CMakeLists.txt"
@@ -298,9 +317,8 @@ file(
   "target_install_package(proof_explicit_sign_no_key_lib)\n"
   "export_cpack(PACKAGE_NAME ProofExplicitSignNoKey GENERATORS TGZ SIGNING_METHOD detached GENERATE_CHECKSUMS ON)\n")
 
-set(_tip_explicit_sign_no_key_configure_command
-    "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_explicit_sign_no_key_source_dir}" -B "${_tip_explicit_sign_no_key_build_dir}"
-    "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+set(_tip_explicit_sign_no_key_configure_command "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_explicit_sign_no_key_source_dir}" -B
+                                                "${_tip_explicit_sign_no_key_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
 _tip_proof_expect_failure(
   NAME
@@ -321,9 +339,8 @@ file(
   "target_install_package(proof_invalid_signing_method_lib)\n"
   "export_cpack(PACKAGE_NAME ProofInvalidSigningMethod GENERATORS TGZ SIGNING_METHOD bananas)\n")
 
-set(_tip_invalid_signing_method_configure_command
-    "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_invalid_signing_method_source_dir}" -B "${_tip_invalid_signing_method_build_dir}"
-    "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+set(_tip_invalid_signing_method_configure_command "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_invalid_signing_method_source_dir}" -B
+                                                  "${_tip_invalid_signing_method_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
 _tip_proof_expect_failure(
   NAME
@@ -344,9 +361,8 @@ file(
   "target_install_package(proof_invalid_checksums_lib)\n"
   "export_cpack(PACKAGE_NAME ProofInvalidChecksums GENERATORS TGZ GENERATE_CHECKSUMS maybe)\n")
 
-set(_tip_invalid_checksums_configure_command
-    "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_invalid_checksums_source_dir}" -B "${_tip_invalid_checksums_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
-    ${_tip_toolchain_args})
+set(_tip_invalid_checksums_configure_command "${CMAKE_COMMAND}" -E env "GPG_SIGNING_KEY=" "${CMAKE_COMMAND}" -S "${_tip_invalid_checksums_source_dir}" -B "${_tip_invalid_checksums_build_dir}"
+                                             "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
 _tip_proof_expect_failure(
   NAME

@@ -3,7 +3,7 @@ get_property(
   PROPERTY "list_file_include_guard_cmake_INITIALIZED"
   SET)
 if(_LFG_INITIALIZED)
-  list_file_include_guard(VERSION 7.0.8)
+  list_file_include_guard(VERSION 7.1.0)
 else()
   message(VERBOSE "including <${CMAKE_CURRENT_FUNCTION_LIST_FILE}>, without list_file_include_guard")
 
@@ -25,7 +25,7 @@ endif()
 #     OUTPUT_DIR <directory>
 #     SUBSTITUTION_MODE @ONLY|VARIABLES
 #     FILE_SET <file_set_name>
-#     TYPE HEADERS
+#     TYPE <HEADERS|SOURCES>
 #     BASE_DIRS <base_directories...>
 #     FILES <template_files...>)
 #
@@ -35,7 +35,7 @@ endif()
 #   OUTPUT_DIR              - Directory for generated files (default: configured/TARGET_NAME).
 #   SUBSTITUTION_MODE       - Configure mode (@ONLY or VARIABLES, default: @ONLY).
 #   FILE_SET                - Name of the file set (default: HEADERS).
-#   TYPE                    - Type of file set (currently only HEADERS is supported).
+#   TYPE                    - Type of file set (HEADERS by default; SOURCES requires CMake 4.4+).
 #   BASE_DIRS               - Base directories for the file set; relative paths use CMAKE_CURRENT_BINARY_DIR (default: OUTPUT_DIR).
 #   FILES                   - List of template files to configure.
 #
@@ -137,8 +137,10 @@ function(target_configure_sources TARGET_NAME)
   endif()
 
   # Validate file set type
-  if(NOT ARGS_TYPE STREQUAL "HEADERS")
-    project_log(WARNING "target_configure_sources: Only HEADERS type is currently well-tested")
+  if(ARGS_TYPE STREQUAL "SOURCES" AND CMAKE_VERSION VERSION_LESS "4.4")
+    project_log(FATAL_ERROR "target_configure_sources: TYPE SOURCES requires CMake 4.4 or newer")
+  elseif(NOT ARGS_TYPE STREQUAL "HEADERS" AND NOT ARGS_TYPE STREQUAL "SOURCES")
+    project_log(WARNING "target_configure_sources: TYPE ${ARGS_TYPE} is not officially supported")
   endif()
 
   if(NOT ARGS_BASE_DIRS)
@@ -249,9 +251,13 @@ function(target_configure_sources TARGET_NAME)
   endif()
 
   get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
-  if(NOT TARGET_TYPE STREQUAL "EXECUTABLE")
-    project_log(DEBUG "  Adding ${SCOPE} headers to FILE_SET ${ARGS_FILE_SET}")
+  if(NOT TARGET_TYPE STREQUAL "EXECUTABLE" OR ARGS_TYPE STREQUAL "SOURCES")
+    project_log(DEBUG "  Adding ${SCOPE} ${ARGS_TYPE} files to FILE_SET ${ARGS_FILE_SET}")
 
+    if(ARGS_TYPE STREQUAL "SOURCES")
+      cmake_policy(PUSH)
+      cmake_policy(SET CMP0211 NEW)
+    endif()
     target_sources(
       ${TARGET_NAME}
       ${SCOPE}
@@ -263,6 +269,9 @@ function(target_configure_sources TARGET_NAME)
       ${ARGS_BASE_DIRS}
       FILES
       ${CONFIGURED_FILES})
+    if(ARGS_TYPE STREQUAL "SOURCES")
+      cmake_policy(POP)
+    endif()
     list(LENGTH CONFIGURED_FILES FILE_COUNT)
     project_log(DEBUG "  Successfully added ${FILE_COUNT} files to FILE_SET ${ARGS_FILE_SET}")
   else()

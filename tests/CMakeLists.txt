@@ -277,11 +277,44 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_versioned_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_versioned_find_package_test.cmake")
   set_tests_properties(proof_versioned_find_package PROPERTIES LABELS "proof;review")
 
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
+    add_test(NAME proof_cmake_44_version_compatibility COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cmake_44_version_compatibility_test.cmake")
+    set_tests_properties(proof_cmake_44_version_compatibility PROPERTIES LABELS "proof;review;cmake-4.4")
+
+    if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+      add_test(NAME proof_cmake_44_version_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                                   "${_tip_proof_script_dir}/proof_cmake_44_version_old_cmake_guard_test.cmake")
+      set_tests_properties(proof_cmake_44_version_old_cmake_guard PROPERTIES LABELS "proof;review;cmake-4.4")
+    endif()
+
+    add_test(NAME proof_source_file_sets COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_OLD_CMAKE_COMMAND=${target_install_package_PROOF_OLD_CMAKE_COMMAND}" -P
+                                                 "${_tip_proof_script_dir}/proof_source_file_sets_test.cmake")
+    set_tests_properties(proof_source_file_sets PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+
+    add_test(NAME proof_source_file_sets_failures COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_source_file_sets_failures_test.cmake")
+    set_tests_properties(proof_source_file_sets_failures PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+  else()
+    add_test(NAME proof_cmake_44_version_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cmake_44_version_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_cmake_44_version_old_cmake_guard PROPERTIES LABELS "proof;review;cmake-4.4")
+  endif()
+
+  if(CMAKE_VERSION VERSION_LESS "4.4")
+    add_test(NAME proof_source_file_sets_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_source_file_sets_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_source_file_sets_old_cmake_guard PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+  elseif(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+    add_test(NAME proof_source_file_sets_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                                 "${_tip_proof_script_dir}/proof_source_file_sets_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_source_file_sets_old_cmake_guard PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+  endif()
+
   add_test(NAME proof_component_find_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_component_find_package_test.cmake")
   set_tests_properties(proof_component_find_package PROPERTIES LABELS "proof;review")
 
   add_test(NAME proof_cpack_component_metadata COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_component_metadata_test.cmake")
   set_tests_properties(proof_cpack_component_metadata PROPERTIES LABELS "proof;review;cpack")
+
+  add_test(NAME proof_cpack_checksums COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_checksums_test.cmake")
+  set_tests_properties(proof_cpack_checksums PROPERTIES LABELS "proof;review;cpack;checksums")
 
   add_test(NAME proof_cpack_native_component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_native_component_dependencies_test.cmake")
   set_tests_properties(proof_cpack_native_component_dependencies PROPERTIES LABELS "proof;review;cpack")
@@ -356,6 +389,12 @@ if(target_install_package_BUILD_PROOF_TESTS)
       add_test(NAME proof_sbom_metadata_conflict COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
                                                          "${_tip_proof_script_dir}/proof_sbom_metadata_conflict_test.cmake")
       set_tests_properties(proof_sbom_metadata_conflict PROPERTIES LABELS "proof;sbom")
+
+      if(CMAKE_VERSION VERSION_LESS "4.4")
+        add_test(NAME proof_sbom_multi_export_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
+                                                            "${_tip_proof_script_dir}/proof_sbom_multi_export_guard_test.cmake")
+        set_tests_properties(proof_sbom_multi_export_guard PROPERTIES LABELS "proof;sbom;cmake-4.3")
+      endif()
     endif()
 
     add_test(NAME proof_sbom_missing_gate COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_sbom_missing_gate_test.cmake")

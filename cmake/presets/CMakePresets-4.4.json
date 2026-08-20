@@ -1,0 +1,42 @@
+{
+  "version": 12,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 4,
+    "patch": 2
+  },
+  "configurePresets": [
+    {
+      "name": "ci-modern",
+      "displayName": "CI modern CMake features",
+      "description": "CMake 4.4 proof suite with public and private header verification",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci-modern",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/ci-modern/install",
+        "CMAKE_VERIFY_INTERFACE_HEADER_SETS": "ON",
+        "CMAKE_VERIFY_PRIVATE_HEADER_SETS": "ON",
+        "PROJECT_LOG_COLORS": "ON",
+        "TARGET_INSTALL_PACKAGE_ENABLE_INSTALL": "ON",
+        "target_install_package_BUILD_PROOF_TESTS": "ON",
+        "target_install_package_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "ci-modern",
+      "configurePreset": "ci-modern"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "ci-modern",
+      "configurePreset": "ci-modern",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ This matrix describes the supported surface of `target_install_package()`, `targ
 |---------|---------------|-------|
 | Core utilities and examples | 3.25 | Required by the project. |
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
+| `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
@@ -38,7 +39,7 @@ This matrix describes the supported surface of `target_install_package()`, `targ
 | Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. |
 | Native Linux packages | Yes | Debian/RPM packaging tools on the build host. |
 | Signed packages | Yes | GPG for detached signatures; RPM signing tools for embedded RPM signatures. |
-| Checksums | Yes | Enabled through `export_cpack(GENERATE_CHECKSUMS ON)` or release configuration. |
+| Checksums | Yes | `CHECKSUMS` accepts CMake's MD5, SHA1, SHA2, and SHA3 algorithms. `GENERATE_CHECKSUMS ON` remains an alias for SHA256 and SHA512. |
 | Container archives | Yes | Linux host plus `podman` or `docker`; uses the CPack External generator. |
 | CPS metadata | Yes | CMake 4.3+ and compatible target set. |
 | SBOM metadata | Yes | CMake 4.3+ with the CMake SBOM experiment activated. |

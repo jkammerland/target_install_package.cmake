@@ -19,7 +19,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.8
+  GIT_TAG v7.1.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -86,6 +86,7 @@ See the [Compatibility Matrix](docs/compatibility.md) for target type, platform,
 - Target-centric install API with less boilerplate
 - Package installation with CMake config and version file generation
 - Automatic install rules from `FILE_SET` headers and C++20 modules
+- Source-only packages from installable CMake 4.4 `SOURCES` file sets
 - Static, shared, interface, executable, and multi-target export support
 - Component-based installation with runtime/development/custom separation
 - Build variant support for debug/release/custom configurations
@@ -221,7 +222,7 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.0.8
+  GIT_TAG v7.1.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
@@ -238,7 +239,7 @@ if(${PROJECT_NAME}_INSTALL)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.0.8
+    GIT_TAG v7.1.0
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
