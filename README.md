@@ -15,17 +15,6 @@ target_link_libraries(app PRIVATE my_library::my_library)
 
 The producer call creates install rules, target exports, package config and version files, and predictable runtime/development components from the target metadata you already maintain. See [Installation](#installation) to add the utilities to a project.
 
-## Public API
-
-- [`target_install_package()`](docs/api.md#target_install_package): Turns one target into an automatically finalized, installable CMake package.
-- [`target_prepare_package()`](docs/api.md#target_prepare_package): Registers a target with an export for workflows that need explicit finalization control.
-- [`finalize_package()`](docs/api.md#finalize_package): Finalizes a prepared export early; normal projects can rely on automatic finalization.
-- [`target_configure_sources()`](docs/api.md#target_configure_sources): Configures template headers or sources and attaches the generated files to a target file set.
-- [`export_cpack()`](docs/api.md#export_cpack): Configures one deferred CPack package from registered targets, components, and project metadata.
-- [`project_log()`](docs/api.md#project_log): Emits standard CMake message levels with project context and optional color.
-
-The [API overview](docs/api.md) shows signatures, focused examples, and links to the complete argument reference maintained with each implementation.
-
 ## Requirements
 
 - CMake 3.25+ for core utilities and examples
@@ -35,6 +24,19 @@ The [API overview](docs/api.md) shows signatures, focused examples, and links to
 - CMake 4.4+ for installable [source-only packages](docs/source-only-packages.md)
 
 See the [Compatibility Matrix](docs/compatibility.md) for target type, platform, CPack, CPS, SBOM, source-package, and container support details.
+
+## Shipped Functions and Files
+
+| File/Function | Type | Description |
+|--------------|------|-------------|
+| [`target_install_package()`](target_install_package.cmake) | Function | Creates install rules and a `find_package()`-ready CMake package for a target. |
+| [`target_configure_sources()`](target_configure_sources.cmake) | Function | Configures template headers or sources and adds the generated files to a target file set. |
+| [`export_cpack()`](export_cpack.cmake) | Function | Configures CPack from installed targets and components, with optional signing, checksums, and container output. |
+| [`generic-config.cmake.in`](cmake/generic-config.cmake.in) | Template | Provides the default generated CMake package configuration. |
+| [`sign_packages.cmake.in`](cmake/sign_packages.cmake.in) | Template | Implements detached GPG signing for generated packages. |
+| [`project_log()`](cmake/project_log.cmake) | Function | Adds project context and optional color to standard CMake message levels. |
+| [`project_include_guard()`](cmake/project_include_guard.cmake) | Macro | Prevents conflicting project-level inclusion of vendored helper modules. |
+| [`list_file_include_guard()`](cmake/list_file_include_guard.cmake) | Macro | Prevents conflicting repeated inclusion of an individual helper module. |
 
 ## When to Use It
 

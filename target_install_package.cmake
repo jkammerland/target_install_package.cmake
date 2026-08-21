@@ -44,7 +44,7 @@ endif()
 # AUTOMATIC FINALIZATION:
 # - target_install_package() can be called at any time and in any order
 # - Multiple targets can share the same EXPORT_NAME without explicit coordination
-# - finalize_package() is called automatically at the end of CMAKE_SOURCE_DIR (top-level)
+# - Each export is finalized automatically at the end of CMAKE_SOURCE_DIR (top-level)
 #
 # API:
 #   target_install_package(TARGET_NAME
@@ -567,17 +567,12 @@ function(_tip_find_package_expression_package_name OUT_VAR DEPENDENCY_EXPRESSION
 endfunction()
 
 # ~~~
-# Prepare a CMake installation target for packaging.
+# Register one target for deferred package finalization.
 #
-# This function validates and prepares installation rules for a target, storing
-# the configuration for later finalization. Finalization happens automatically
-# at the end of configuration using cmake_language(DEFER CALL).
+# This legacy implementation entry point validates and stores target metadata for
+# target_install_package(). It is not public API.
 #
-# Use this function when you have multiple targets that should be part of the same
-# export with aggregated dependencies. Call this for each target, then optionally
-# call finalize_package() for explicit control (otherwise it happens automatically).
-#
-# API:
+# Internal signature:
 #   target_prepare_package(TARGET_NAME
 #     NAMESPACE <namespace>
 #     ALIAS_NAME <alias_name>
@@ -1624,16 +1619,10 @@ endfunction()
 
 # Helper to setup CPack component relationships
 # ~~~
-# Finalize and install a prepared package export.
+# Finalize and install a registered package export.
 #
-# This function completes the installation process for all targets that were
-# prepared with target_prepare_package() for the given export name.
-#
-# NOTE: This function is OPTIONAL. All exports are automatically finalized at
-# the end of configuration using cmake_language(DEFER CALL).
-# Use this function only when you need explicit control over finalization timing.
-#
-# I don't think this function is needed anymore, but I leave it for now.
+# This legacy implementation entry point is invoked by deferred auto-finalization.
+# It is not public API.
 #
 # Under the hood:
 # 1. Collects all targets and their configurations from global properties
@@ -1642,17 +1631,11 @@ endfunction()
 # 4. Creates package config files with all aggregated dependencies
 # 5. Installs each target with its individual component assignments
 #
-# API:
+# Internal signature:
 #   finalize_package(EXPORT_NAME <export_name>)
 #
 # Parameters:
 #   EXPORT_NAME - Name of the export to finalize (required)
-#
-# Example:
-#   target_prepare_package(my_library EXPORT_NAME my_project PUBLIC_DEPENDENCIES "fmt REQUIRED")
-#   target_prepare_package(my_executable EXPORT_NAME my_project PUBLIC_DEPENDENCIES "spdlog REQUIRED")
-#   finalize_package(EXPORT_NAME my_project)
-#   # Result: Config file contains both fmt and spdlog dependencies
 # ~~~
 function(finalize_package)
   # Parse arguments

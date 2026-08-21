@@ -1,43 +1,33 @@
-Auto-Finalization and Export Scope
-==================================
+# Auto-Finalization and Export Scope
 
-Overview
---------
+## Overview
 
-`target_install_package()` defers packaging “finalization” so multiple targets can contribute to the same export without strict ordering. Finalization happens automatically at the end of the top-level configure step using:
+`target_install_package()` defers package finalization so multiple targets can contribute to the same export without strict ordering. Finalization happens automatically at the end of the top-level configure step, once per export name.
 
-- `cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _auto_finalize_single_export <name>)`
+The preparation and finalization functions used internally are legacy implementation details, not public API. Call `target_install_package()` for every target that contributes to an export.
 
-Why `CMAKE_SOURCE_DIR`?
------------------------
+```cmake
+target_install_package(my_lib
+  EXPORT_NAME my_export
+  NAMESPACE My::)
+
+target_install_package(my_tool
+  EXPORT_NAME my_export
+  NAMESPACE My::)
+```
+
+## Why `CMAKE_SOURCE_DIR`?
 
 - CMake targets are global once created and can be manipulated outside their original subproject (e.g., via add_subdirectory, superbuilds, or toolchain overlays).
 - Deferring to the top-level source directory ensures every participating target has had a chance to register before a package is finalized.
 - This avoids “half-finalized” packages when subprojects are configured in different orders.
 
-Manual Finalization (Optional)
-------------------------------
-
-If you need explicit control (for example, to finalize an export early in specialized workflows), you can call:
-
-```cmake
-target_prepare_package(my_lib EXPORT_NAME my_export)
-target_prepare_package(my_tool EXPORT_NAME my_export)
-finalize_package(EXPORT_NAME my_export)
-```
-
-Notes:
-- Calling `finalize_package()` marks the export finalized; auto-finalization will detect this and skip re-running.
-- You typically do not need to call `finalize_package()` yourself—the automatic behavior is sufficient for most builds.
-
-Interaction with CPack
-----------------------
+## Interaction with CPack
 
 - `export_cpack()` also uses deferred execution and forces any registered, unfinalized exports to finalize before it reads auto-detected components.
-- When both utilities are used, the effective order is: prepare targets → finalize pending packages (explicit, auto, or CPack-forced) → configure CPack (auto).
+- When both utilities are used, the effective order is: register targets, finalize pending packages, then configure CPack.
 
-Troubleshooting
----------------
+## Troubleshooting
 
-- If an export appears incomplete, ensure all contributing targets were configured before the end of the top-level configure step, or call `finalize_package()` explicitly.
+- If an export appears incomplete, ensure every contributing target calls `target_install_package()` with the same `EXPORT_NAME` before the end of the top-level configure step.
 - In superbuilds, the automatic finalization still runs at the superproject’s `CMAKE_SOURCE_DIR`, which is typically desirable due to global target scope.
