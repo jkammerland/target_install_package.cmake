@@ -9,6 +9,17 @@ if(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
 endif()
 
+function(_tip_hybrid_sdk_executable_path build_dir configuration out_var)
+  file(STRINGS "${build_dir}/CMakeCache.txt" _tip_configuration_types REGEX "^CMAKE_CONFIGURATION_TYPES:[^=]*=")
+  set(_tip_executable_path "${build_dir}/hybrid_sdk_consumer${CMAKE_EXECUTABLE_SUFFIX}")
+  if(_tip_configuration_types)
+    set(_tip_executable_path "${build_dir}/${configuration}/hybrid_sdk_consumer${CMAKE_EXECUTABLE_SUFFIX}")
+  endif()
+  set(${out_var}
+      "${_tip_executable_path}"
+      PARENT_SCOPE)
+endfunction()
+
 function(_tip_hybrid_sdk_run_case name source_destination expected_source_destination)
   set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/hybrid-sdk/${name}")
   set(_tip_producer_root "${_tip_case_root}/producer")
@@ -17,6 +28,7 @@ function(_tip_hybrid_sdk_run_case name source_destination expected_source_destin
   set(_tip_install_prefix "${_tip_case_root}/install")
   set(_tip_consumer_source_dir "${_tip_case_root}/consumer-src")
   set(_tip_consumer_build_dir "${_tip_case_root}/consumer-build")
+  set(_tip_build_config "Release")
 
   file(REMOVE_RECURSE "${_tip_case_root}")
   file(MAKE_DIRECTORY "${_tip_producer_root}")
@@ -29,13 +41,14 @@ function(_tip_hybrid_sdk_run_case name source_destination expected_source_destin
       "${_tip_producer_source_dir}"
       -B
       "${_tip_producer_build_dir}"
+      "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
       "-DTARGET_INSTALL_PACKAGE_ROOT=${TIP_REPO_ROOT}")
   if(NOT "${source_destination}" STREQUAL "")
     list(APPEND _tip_producer_configure_command "-DHYBRID_SDK_SOURCE_DESTINATION=${source_destination}")
   endif()
   list(APPEND _tip_producer_configure_command ${_tip_toolchain_args})
   _tip_proof_run_step(NAME "${name}-producer-configure" COMMAND ${_tip_producer_configure_command})
-  _tip_proof_run_step(NAME "${name}-producer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_producer_build_dir}")
+  _tip_proof_run_step(NAME "${name}-producer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_producer_build_dir}" --config "${_tip_build_config}")
   _tip_proof_run_step(
     NAME
     "${name}-producer-install"
@@ -43,6 +56,8 @@ function(_tip_hybrid_sdk_run_case name source_destination expected_source_destin
     "${CMAKE_COMMAND}"
     --install
     "${_tip_producer_build_dir}"
+    --config
+    "${_tip_build_config}"
     --prefix
     "${_tip_install_prefix}")
 
@@ -105,9 +120,11 @@ function(_tip_hybrid_sdk_run_case name source_destination expected_source_destin
     "${_tip_consumer_source_dir}"
     -B
     "${_tip_consumer_build_dir}"
+    "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
     ${_tip_toolchain_args})
-  _tip_proof_run_step(NAME "${name}-consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}")
-  _tip_proof_run_step(NAME "${name}-consumer-run" COMMAND "${_tip_consumer_build_dir}/hybrid_sdk_consumer${CMAKE_EXECUTABLE_SUFFIX}")
+  _tip_proof_run_step(NAME "${name}-consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config "${_tip_build_config}")
+  _tip_hybrid_sdk_executable_path("${_tip_consumer_build_dir}" "${_tip_build_config}" _tip_consumer_executable)
+  _tip_proof_run_step(NAME "${name}-consumer-run" COMMAND "${_tip_consumer_executable}")
 endfunction()
 
 _tip_hybrid_sdk_run_case("default-destination" "" "share/hybrid_sdk/src")

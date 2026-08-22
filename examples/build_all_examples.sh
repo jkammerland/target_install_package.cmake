@@ -486,6 +486,7 @@ EXAMPLES=(
     "components"
     "components-same-export"
     "sdk"
+    "hybrid-sdk"
     "dependency-aggregation"
     "configure-files"
     "cxx-modules"
