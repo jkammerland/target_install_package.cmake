@@ -63,6 +63,19 @@ setup_macos_sdk() {
 
 MACOS_SDK_PATH=""
 
+cmake_supports_hybrid_sdk() {
+    local cmake_version
+    cmake_version="$(cmake --version | awk 'NR == 1 { print $3; exit }')"
+
+    if [[ ! "$cmake_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        return 1
+    fi
+
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    (( 10#$major > 4 || (10#$major == 4 && 10#$minor >= 4) ))
+}
+
 # Function to show help
 show_help() {
     echo "Build and install all CMake target_install_package examples"
@@ -548,6 +561,12 @@ if [[ "${CLEAN_MODE}" == "true" ]]; then
         clean_all_examples
     fi
     exit 0
+fi
+
+if cmake_supports_hybrid_sdk; then
+    EXAMPLES+=("hybrid-sdk")
+else
+    print_warning "Skipping hybrid-sdk: requires CMake 4.4 or newer"
 fi
 
 # Prepare macOS SDK when running on macOS
