@@ -127,12 +127,24 @@ function(_tip_file_api_assert_interface_sources_under_prefix target_json install
   endforeach()
 endfunction()
 
+function(_tip_file_api_executable_path build_dir configuration executable_name out_var)
+  file(STRINGS "${build_dir}/CMakeCache.txt" _tip_configuration_types REGEX "^CMAKE_CONFIGURATION_TYPES:[^=]*=")
+  set(_tip_executable_path "${build_dir}/${executable_name}")
+  if(_tip_configuration_types)
+    set(_tip_executable_path "${build_dir}/${configuration}/${executable_name}")
+  endif()
+  set(${out_var}
+      "${_tip_executable_path}"
+      PARENT_SCOPE)
+endfunction()
+
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/file-api-structural-package")
 set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
 set(_tip_fixture_build_dir "${_tip_case_root}/fixture-build")
 set(_tip_install_prefix "${_tip_case_root}/fixture-install")
 set(_tip_consumer_source_dir "${_tip_case_root}/consumer-src")
 set(_tip_consumer_build_dir "${_tip_case_root}/consumer-build")
+set(_tip_build_config "Release")
 
 file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_fixture_source_dir}/include/file_api" "${_tip_fixture_source_dir}/src")
@@ -174,9 +186,10 @@ _tip_proof_run_step(
   "${_tip_fixture_source_dir}"
   -B
   "${_tip_fixture_build_dir}"
+  "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
   ${_tip_toolchain_args})
 include("${_tip_fixture_build_dir}/modules-supported.cmake")
-_tip_proof_run_step(NAME "fixture-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_fixture_build_dir}")
+_tip_proof_run_step(NAME "fixture-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_fixture_build_dir}" --config "${_tip_build_config}")
 _tip_proof_run_step(
   NAME
   "fixture-install"
@@ -184,6 +197,8 @@ _tip_proof_run_step(
   "${CMAKE_COMMAND}"
   --install
   "${_tip_fixture_build_dir}"
+  --config
+  "${_tip_build_config}"
   --prefix
   "${_tip_install_prefix}")
 
@@ -208,6 +223,7 @@ _tip_proof_run_step(
   "${_tip_consumer_source_dir}"
   -B
   "${_tip_consumer_build_dir}"
+  "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
   ${_tip_toolchain_args})
 
 set(_tip_reply_dir "${_tip_consumer_build_dir}/.cmake/api/v1/reply")
@@ -266,7 +282,8 @@ foreach(_tip_reply_file IN LISTS _tip_reply_files)
   endif()
 endforeach()
 
-_tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}")
-_tip_proof_run_step(NAME "consumer-run" COMMAND "${_tip_consumer_build_dir}/file_api_consumer${CMAKE_EXECUTABLE_SUFFIX}")
+_tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config "${_tip_build_config}")
+_tip_file_api_executable_path("${_tip_consumer_build_dir}" "${_tip_build_config}" "file_api_consumer${CMAKE_EXECUTABLE_SUFFIX}" _tip_consumer_executable)
+_tip_proof_run_step(NAME "consumer-run" COMMAND "${_tip_consumer_executable}")
 
 message(STATUS "[proof] File API structural package proof passed.")
