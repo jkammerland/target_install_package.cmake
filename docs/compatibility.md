@@ -2,6 +2,8 @@
 
 This matrix describes the supported surface of `target_install_package()`, `target_configure_sources()`, and `export_cpack()`. Generator-specific package behavior still depends on the tools installed on the build host.
 
+See the [CMake Version Policy](cmake-version-policy.md) for the global-floor migration process and producer versus consumer requirements.
+
 ## CMake Versions
 
 | Feature | Minimum CMake | Notes |

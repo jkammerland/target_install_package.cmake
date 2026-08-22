@@ -23,7 +23,7 @@ The producer call creates install rules, target exports, package config and vers
 - CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for [SBOM](docs/sbom.md)
 - CMake 4.4+ for installable [source-only packages](docs/source-only-packages.md)
 
-See the [Compatibility Matrix](docs/compatibility.md) for target type, platform, CPack, CPS, SBOM, source-package, and container support details.
+See the [Compatibility Matrix](docs/compatibility.md) and [CMake Version Policy](docs/cmake-version-policy.md) for target type, platform, CPack, CPS, SBOM, source-package, and CMake-version support details.
 
 ## Shipped Functions and Files
 
