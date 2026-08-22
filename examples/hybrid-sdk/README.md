@@ -9,9 +9,9 @@ This CMake 4.4+ example packages one SDK behind `HybridSdk::sdk`:
 ## Build And Install
 
 ```bash
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$PWD/build/install"
-cmake --build build
-cmake --install build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/build/install"
+cmake --build build --config Release
+cmake --install build --config Release
 ```
 
 Extension sources install to `share/hybrid_sdk/src` by default. Set

@@ -67,7 +67,7 @@ cmake_supports_hybrid_sdk() {
     local cmake_version
     cmake_version="$(cmake --version | awk 'NR == 1 { print $3; exit }')"
 
-    if [[ ! "$cmake_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    if [[ ! "$cmake_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
         return 1
     fi
 
@@ -543,6 +543,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "${CLEAN_MODE}" == "true" ]] || cmake_supports_hybrid_sdk; then
+    EXAMPLES+=("hybrid-sdk")
+else
+    print_warning "Skipping hybrid-sdk: requires CMake 4.4 or newer"
+fi
+
 if [[ -n "${BUILD_ROOT}" ]]; then
     mkdir -p "${BUILD_ROOT}"
 fi
@@ -561,12 +567,6 @@ if [[ "${CLEAN_MODE}" == "true" ]]; then
         clean_all_examples
     fi
     exit 0
-fi
-
-if cmake_supports_hybrid_sdk; then
-    EXAMPLES+=("hybrid-sdk")
-else
-    print_warning "Skipping hybrid-sdk: requires CMake 4.4 or newer"
 fi
 
 # Prepare macOS SDK when running on macOS
