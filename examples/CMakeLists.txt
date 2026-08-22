@@ -52,7 +52,7 @@ if(RUN_BUILD_ALL_EXAMPLES)
   #
   message(STATUS "Running build script, this may take some time...")
   set(build_script "${CMAKE_CURRENT_SOURCE_DIR}/build_all_examples.sh")
-  set(build_script_args)
+  set(build_script_args --cmake-command "${CMAKE_COMMAND}")
   if(EXAMPLES_BUILD_ROOT)
     list(APPEND build_script_args --build-root "${EXAMPLES_BUILD_ROOT}")
   endif()
