@@ -9,7 +9,9 @@ export SOURCE_DATE_EPOCH=1704067200
 export TZ=UTC
 export LC_ALL=C
 export LANG=C
-cmake -S . -B build
+cmake -S . -B build \
+  -DTARGET_INSTALL_PACKAGE_ENABLE_CPACK=ON \
+  -DCPACK_ARCHIVE_THREADS=1
 cmake --build build
 cpack -G TGZ --config build/CPackConfig.cmake -B packages
 ```
