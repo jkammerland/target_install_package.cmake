@@ -385,6 +385,35 @@ function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
     set(_tip_source_base_dirs "${_tip_target_binary_dir}")
   endif()
 
+  set(_tip_installed_relative_paths "")
+  set(_tip_installed_relative_path_sources "")
+  foreach(_tip_extracted_source IN LISTS _tip_extracted_sources)
+    set(_tip_installed_relative_path "")
+    foreach(_tip_source_base_dir IN LISTS _tip_source_base_dirs)
+      cmake_path(IS_PREFIX _tip_source_base_dir "${_tip_extracted_source}" NORMALIZE _tip_source_in_base_dir)
+      if(_tip_source_in_base_dir)
+        set(_tip_source_path "${_tip_extracted_source}")
+        cmake_path(RELATIVE_PATH _tip_source_path BASE_DIRECTORY "${_tip_source_base_dir}" OUTPUT_VARIABLE _tip_installed_relative_path)
+        break()
+      endif()
+    endforeach()
+
+    if("${_tip_installed_relative_path}" STREQUAL "")
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES could not map source '${_tip_extracted_source}' on target '${TARGET_NAME}' to an installed relative path.")
+    endif()
+
+    list(FIND _tip_installed_relative_paths "${_tip_installed_relative_path}" _tip_installed_relative_path_index)
+    if(NOT _tip_installed_relative_path_index EQUAL -1)
+      list(GET _tip_installed_relative_path_sources ${_tip_installed_relative_path_index} _tip_colliding_source)
+      project_log(
+        FATAL_ERROR
+        "SOURCE_FILE_SET_FROM_TARGET_SOURCES sources '${_tip_colliding_source}' and '${_tip_extracted_source}' on target '${TARGET_NAME}' have the same installed relative path '${_tip_installed_relative_path}'."
+      )
+    endif()
+    list(APPEND _tip_installed_relative_paths "${_tip_installed_relative_path}")
+    list(APPEND _tip_installed_relative_path_sources "${_tip_extracted_source}")
+  endforeach()
+
   target_sources(
     ${TARGET_NAME}
     INTERFACE FILE_SET
@@ -887,10 +916,6 @@ function(target_prepare_package TARGET_NAME)
     project_log(FATAL_ERROR "Target '${TARGET_NAME}' does not exist.")
   endif()
 
-  if(NOT "${ARG_SOURCE_FILE_SET_FROM_TARGET_SOURCES}" STREQUAL "")
-    _tip_add_source_file_set_from_target_sources(${TARGET_NAME} "${ARG_SOURCE_FILE_SET_FROM_TARGET_SOURCES}")
-  endif()
-
   # Validate additional targets
   if(ARG_ADDITIONAL_TARGETS)
     foreach(ADD_TARGET ${ARG_ADDITIONAL_TARGETS})
@@ -1177,6 +1202,9 @@ function(target_prepare_package TARGET_NAME)
   if(_tip_export_finalized)
     project_log(FATAL_ERROR "Export '${ARG_EXPORT_NAME}' has already been finalized. Target '${TARGET_NAME}' cannot be added after finalize_package().")
   endif()
+
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "TARGET_${TARGET_NAME}_SOURCE_FILE_SET_FROM_TARGET_SOURCES" "${ARG_SOURCE_FILE_SET_FROM_TARGET_SOURCES}"
+                             "SOURCE_FILE_SET_FROM_TARGET_SOURCES for target '${TARGET_NAME}'")
 
   if(ARG_CONFIG_TEMPLATE)
     _tip_resolve_absolute_paths(ARG_CONFIG_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ARG_CONFIG_TEMPLATE}")
@@ -1831,6 +1859,13 @@ function(finalize_package)
   if(NOT TARGETS)
     project_log(FATAL_ERROR "No targets prepared for export '${ARG_EXPORT_NAME}'")
   endif()
+
+  foreach(_tip_source_target IN LISTS TARGETS)
+    get_property(_tip_source_file_set_from_target_sources GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_FILE_SET_FROM_TARGET_SOURCES")
+    if(NOT "${_tip_source_file_set_from_target_sources}" STREQUAL "")
+      _tip_add_source_file_set_from_target_sources(${_tip_source_target} "${_tip_source_file_set_from_target_sources}")
+    endif()
+  endforeach()
 
   # Get all stored properties
   get_property(NAMESPACE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE")

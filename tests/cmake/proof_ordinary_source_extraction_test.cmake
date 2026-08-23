@@ -30,11 +30,11 @@ file(
   "add_custom_command(OUTPUT \"\${CMAKE_CURRENT_BINARY_DIR}/generated.cpp\" COMMAND \"\${CMAKE_COMMAND}\" -E copy \"\${CMAKE_CURRENT_SOURCE_DIR}/src/generated.cpp.in\" \"\${CMAKE_CURRENT_BINARY_DIR}/generated.cpp\" DEPENDS \"\${CMAKE_CURRENT_SOURCE_DIR}/src/generated.cpp.in\")\n"
   "add_custom_target(generate_ordinary_source ALL DEPENDS \"\${CMAKE_CURRENT_BINARY_DIR}/generated.cpp\")\n"
   "add_library(ordinary_source_only INTERFACE)\n"
+  "target_install_package(ordinary_source_only EXPORT_NAME ordinary_source_pkg NAMESPACE ordinary:: VERSION 1.0.0 SOURCE_FILE_SET_FROM_TARGET_SOURCES implementation)\n"
   "target_sources(ordinary_source_only INTERFACE FILE_SET headers TYPE HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/include/proof/ordinary.hpp\")\n"
   "target_sources(ordinary_source_only INTERFACE src/ordinary.cpp \"\${CMAKE_CURRENT_BINARY_DIR}/generated.cpp\")\n"
   "set_source_files_properties(\"\${CMAKE_CURRENT_BINARY_DIR}/generated.cpp\" PROPERTIES GENERATED TRUE)\n"
-  "add_dependencies(ordinary_source_only generate_ordinary_source)\n"
-  "target_install_package(ordinary_source_only EXPORT_NAME ordinary_source_pkg NAMESPACE ordinary:: VERSION 1.0.0 SOURCE_FILE_SET_FROM_TARGET_SOURCES implementation)\n")
+  "add_dependencies(ordinary_source_only generate_ordinary_source)\n")
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 _tip_proof_run_step(
@@ -95,5 +95,44 @@ _tip_proof_run_step(
   ${_tip_toolchain_args})
 _tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}")
 _tip_proof_run_step(NAME "consumer-run" COMMAND "${_tip_consumer_build_dir}/proof_ordinary_source_consumer${CMAKE_EXECUTABLE_SUFFIX}")
+
+set(_tip_subdir_fixture_source_dir "${_tip_case_root}/subdir-fixture-src")
+set(_tip_subdir_fixture_build_dir "${_tip_case_root}/subdir-fixture-build")
+set(_tip_subdir_install_prefix "${_tip_case_root}/subdir-fixture-install")
+file(MAKE_DIRECTORY "${_tip_subdir_fixture_source_dir}/lib/src")
+file(WRITE "${_tip_subdir_fixture_source_dir}/lib/src/early.cpp" "int early_value() { return 40; }\n")
+file(WRITE "${_tip_subdir_fixture_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 4.4)\n" "project(proof_deferred_subdir_extraction VERSION 1.0.0 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_subdirectory(lib)\n")
+file(
+  WRITE "${_tip_subdir_fixture_source_dir}/lib/CMakeLists.txt"
+  "add_library(deferred_subdir_sources INTERFACE)\n"
+  "target_sources(deferred_subdir_sources INTERFACE \"\${CMAKE_CURRENT_SOURCE_DIR}/src/early.cpp\")\n"
+  "target_install_package(deferred_subdir_sources EXPORT_NAME deferred_subdir_pkg SOURCE_FILE_SET_FROM_TARGET_SOURCES implementation)\n"
+  "file(MAKE_DIRECTORY \"\${CMAKE_CURRENT_BINARY_DIR}/generated\")\n"
+  "file(WRITE \"\${CMAKE_CURRENT_BINARY_DIR}/generated/late.cpp\" \"int late_value() { return 2; }\\n\")\n"
+  "set_source_files_properties(\"\${CMAKE_CURRENT_BINARY_DIR}/generated/late.cpp\" PROPERTIES GENERATED TRUE)\n"
+  "target_sources(deferred_subdir_sources INTERFACE \"\${CMAKE_CURRENT_BINARY_DIR}/generated/late.cpp\")\n")
+_tip_proof_run_step(
+  NAME
+  "subdir-fixture-configure"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  -S
+  "${_tip_subdir_fixture_source_dir}"
+  -B
+  "${_tip_subdir_fixture_build_dir}"
+  ${_tip_toolchain_args})
+_tip_proof_run_step(
+  NAME
+  "subdir-fixture-install"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --install
+  "${_tip_subdir_fixture_build_dir}"
+  --prefix
+  "${_tip_subdir_install_prefix}")
+_tip_proof_assert_exists("${_tip_subdir_install_prefix}/share/deferred_subdir_pkg/src/src/early.cpp")
+_tip_proof_assert_exists("${_tip_subdir_install_prefix}/share/deferred_subdir_pkg/src/generated/late.cpp")
 
 message(STATUS "[proof] Ordinary source extraction proof passed.")

@@ -56,4 +56,31 @@ _tip_write_ordinary_source_extraction_fixture(header-source "is a header" "targe
 _tip_write_ordinary_source_extraction_fixture(binary-library "supports INTERFACE_LIBRARY targets only" "target_sources(ordinary_source_only PRIVATE src/ordinary.cpp)"
                                               "add_library(ordinary_source_only STATIC)")
 
+set(_tip_collision_source_dir "${_tip_case_root}/collision/src-root")
+set(_tip_collision_build_dir "${_tip_case_root}/collision/build-root")
+file(MAKE_DIRECTORY "${_tip_collision_source_dir}/src" "${_tip_collision_build_dir}/src")
+file(WRITE "${_tip_collision_source_dir}/src/ordinary.cpp" "int source_value() { return 40; }\n")
+file(WRITE "${_tip_collision_build_dir}/src/ordinary.cpp" "int generated_value() { return 2; }\n")
+file(
+  WRITE "${_tip_collision_source_dir}/CMakeLists.txt"
+  "cmake_minimum_required(VERSION 4.4)\n"
+  "project(proof_ordinary_source_extraction_collision VERSION 1.0.0 LANGUAGES CXX)\n"
+  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+  "add_library(ordinary_source_only INTERFACE)\n"
+  "target_sources(ordinary_source_only INTERFACE \"\${CMAKE_CURRENT_SOURCE_DIR}/src/ordinary.cpp\" \"\${CMAKE_CURRENT_BINARY_DIR}/src/ordinary.cpp\")\n"
+  "set_source_files_properties(\"\${CMAKE_CURRENT_BINARY_DIR}/src/ordinary.cpp\" PROPERTIES GENERATED TRUE)\n"
+  "target_install_package(ordinary_source_only EXPORT_NAME colliding-source-paths SOURCE_FILE_SET_FROM_TARGET_SOURCES implementation)\n")
+_tip_proof_expect_failure(
+  NAME
+  "colliding-source-paths-configure"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  -S
+  "${_tip_collision_source_dir}"
+  -B
+  "${_tip_collision_build_dir}"
+  EXPECT_CONTAINS
+  "same installed relative path")
+
 message(STATUS "[proof] Ordinary source extraction failure proof passed.")
