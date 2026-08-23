@@ -294,6 +294,12 @@ if(target_install_package_BUILD_PROOF_TESTS)
     add_test(NAME proof_source_file_sets_failures COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_source_file_sets_failures_test.cmake")
     set_tests_properties(proof_source_file_sets_failures PROPERTIES LABELS "proof;review;cmake-4.4;sources")
 
+    add_test(NAME proof_ordinary_source_extraction COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_ordinary_source_extraction_test.cmake")
+    set_tests_properties(proof_ordinary_source_extraction PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+
+    add_test(NAME proof_ordinary_source_extraction_failures COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_ordinary_source_extraction_failures_test.cmake")
+    set_tests_properties(proof_ordinary_source_extraction_failures PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+
     add_test(NAME proof_consumer_local_source_libraries COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_consumer_local_source_libraries_test.cmake")
     set_tests_properties(proof_consumer_local_source_libraries PROPERTIES LABELS "proof;review;cmake-4.4;sources")
 
@@ -327,6 +333,11 @@ if(target_install_package_BUILD_PROOF_TESTS)
 
   add_test(NAME proof_cpack_checksums COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_checksums_test.cmake")
   set_tests_properties(proof_cpack_checksums PROPERTIES LABELS "proof;review;cpack;checksums")
+
+  if(CMAKE_VERSION VERSION_EQUAL "4.4.2")
+    add_test(NAME proof_archive_reproducibility COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_archive_reproducibility_test.cmake")
+    set_tests_properties(proof_archive_reproducibility PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.4")
+  endif()
 
   add_test(NAME proof_cpack_native_component_dependencies COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_native_component_dependencies_test.cmake")
   set_tests_properties(proof_cpack_native_component_dependencies PROPERTIES LABELS "proof;review;cpack")

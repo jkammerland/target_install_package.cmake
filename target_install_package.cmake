@@ -58,6 +58,7 @@ endif()
 #     INCLUDE_DESTINATION <include_dest>
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
+#     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
 #     SOURCE_LIBRARY_TYPE <STATIC|SHARED|OBJECT|AUTO>
 #     SOURCE_LIBRARY_ALIAS <alias>
 #     SOURCE_FILE_SET_PROPERTIES <file_set> <property> <boolean> [...]
@@ -121,6 +122,9 @@ endif()
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   SOURCE_DESTINATION           - Destination for CMake 4.4 SOURCES file sets (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}/src`).
+#   SOURCE_FILE_SET_FROM_TARGET_SOURCES
+#                              - Creates a CMake 4.4 SOURCES file set from an interface library's ordinary target sources. Only
+#                                files that can be deterministically resolved inside the target's source or binary directory are accepted.
 #   SOURCE_LIBRARY_TYPE          - Creates an opt-in consumer-local library from installed SOURCES file sets. Supports STATIC,
 #                                  SHARED, OBJECT, or AUTO (uses BUILD_SHARED_LIBS at consumer configure time). Requires CMake 4.4+.
 #   SOURCE_LIBRARY_ALIAS         - Consumer alias suffix for SOURCE_LIBRARY_TYPE (default: `${ALIAS_NAME}_source`).
@@ -155,6 +159,7 @@ endif()
 #   - Installs headers, libraries, and config files for the target.
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
 #   - Installs public and interface SOURCES file sets with CMake 4.4+.
+#   - Can create an installable SOURCES file set from ordinary target sources with CMake 4.4+.
 #   - Can create a consumer-local library from installed SOURCES file sets with CMake 4.4+.
 #   - Applies requested consumer-build hygiene controls to public and interface SOURCES file sets with CMake 4.4+.
 #   - Supports C++20 modules (CMake 3.28+).
@@ -512,6 +517,264 @@ function(_tip_append_consumer_local_source_library_content OUT_VAR EXPORT_PROPER
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_apply_source_file_set_properties TARGET_NAME)
+  set(_tip_source_file_set_properties ${ARGN})
+  if(NOT _tip_source_file_set_properties)
+    return()
+  endif()
+
+  if(CMAKE_VERSION VERSION_LESS "4.4")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES requires CMake 4.4 or newer.")
+  endif()
+
+  list(LENGTH _tip_source_file_set_properties _tip_source_file_set_property_count)
+  math(EXPR _tip_source_file_set_property_remainder "${_tip_source_file_set_property_count} % 3")
+  if(NOT _tip_source_file_set_property_remainder EQUAL 0)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES for target '${TARGET_NAME}' requires `<file_set> <property> <boolean>` triples.")
+  endif()
+
+  get_target_property(_tip_interface_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+  if(NOT _tip_interface_source_sets OR _tip_interface_source_sets MATCHES "-NOTFOUND$")
+    set(_tip_interface_source_sets "")
+  endif()
+
+  set(_tip_supported_source_file_set_properties SKIP_LINTING SKIP_PRECOMPILE_HEADERS SKIP_UNITY_BUILD_INCLUSION CXX_SCAN_FOR_MODULES)
+  set(_tip_boolean_values
+      ON
+      OFF
+      TRUE
+      FALSE
+      YES
+      NO
+      Y
+      N
+      1
+      0)
+  set(_tip_source_file_set_property_index 0)
+  while(_tip_source_file_set_property_index LESS _tip_source_file_set_property_count)
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_name)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_property)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_value)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+
+    if(NOT _tip_source_file_set_name IN_LIST _tip_interface_source_sets)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES file set '${_tip_source_file_set_name}' does not name an INTERFACE SOURCES file set on target '${TARGET_NAME}'.")
+    endif()
+
+    get_property(
+      _tip_source_file_set_type FILE_SET "${_tip_source_file_set_name}"
+      TARGET "${TARGET_NAME}"
+      PROPERTY TYPE)
+    if(NOT _tip_source_file_set_type STREQUAL "SOURCES")
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES file set '${_tip_source_file_set_name}' on target '${TARGET_NAME}' must have type SOURCES.")
+    endif()
+
+    if(NOT _tip_source_file_set_property IN_LIST _tip_supported_source_file_set_properties)
+      project_log(FATAL_ERROR "Unsupported SOURCE_FILE_SET_PROPERTIES property '${_tip_source_file_set_property}'. Supported properties: ${_tip_supported_source_file_set_properties}.")
+    endif()
+
+    string(TOUPPER "${_tip_source_file_set_value}" _tip_source_file_set_value_upper)
+    if(NOT _tip_source_file_set_value_upper IN_LIST _tip_boolean_values)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES value '${_tip_source_file_set_value}' for '${_tip_source_file_set_property}' must be a boolean.")
+    endif()
+
+    set_property(
+      FILE_SET "${_tip_source_file_set_name}"
+      TARGET "${TARGET_NAME}"
+      PROPERTY "${_tip_source_file_set_property}" "${_tip_source_file_set_value}")
+    project_log(DEBUG "  Set ${_tip_source_file_set_property}=${_tip_source_file_set_value} on SOURCES file set '${_tip_source_file_set_name}'")
+  endwhile()
+endfunction()
+
+function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
+  if(CMAKE_VERSION VERSION_LESS "4.4")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES requires CMake 4.4 or newer.")
+  endif()
+
+  if("${FILE_SET_NAME}" STREQUAL "")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES requires a file-set name for target '${TARGET_NAME}'.")
+  endif()
+
+  get_target_property(_tip_target_type ${TARGET_NAME} TYPE)
+  if(NOT _tip_target_type STREQUAL "INTERFACE_LIBRARY")
+    project_log(
+      FATAL_ERROR
+      "SOURCE_FILE_SET_FROM_TARGET_SOURCES supports INTERFACE_LIBRARY targets only; '${TARGET_NAME}' is ${_tip_target_type}. Extracting a binary library's implementation sources would expose them to consumers."
+    )
+  endif()
+
+  get_target_property(_tip_target_source_dir ${TARGET_NAME} SOURCE_DIR)
+  get_target_property(_tip_target_binary_dir ${TARGET_NAME} BINARY_DIR)
+  if(NOT _tip_target_source_dir OR NOT _tip_target_binary_dir)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES could not determine source and binary directories for target '${TARGET_NAME}'.")
+  endif()
+
+  get_target_property(_tip_existing_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+  if(NOT _tip_existing_source_sets OR _tip_existing_source_sets MATCHES "-NOTFOUND$")
+    set(_tip_existing_source_sets "")
+  endif()
+  if(FILE_SET_NAME IN_LIST _tip_existing_source_sets)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES file set '${FILE_SET_NAME}' already exists on target '${TARGET_NAME}'.")
+  endif()
+
+  get_target_property(_tip_target_sources ${TARGET_NAME} SOURCES)
+  if(_tip_target_sources MATCHES "-NOTFOUND$")
+    set(_tip_target_sources "")
+  endif()
+  get_target_property(_tip_target_interface_sources ${TARGET_NAME} INTERFACE_SOURCES)
+  if(_tip_target_interface_sources MATCHES "-NOTFOUND$")
+    set(_tip_target_interface_sources "")
+  endif()
+  set(_tip_candidate_sources ${_tip_target_sources} ${_tip_target_interface_sources})
+  if(NOT _tip_candidate_sources)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES found no ordinary sources on target '${TARGET_NAME}'.")
+  endif()
+
+  set(_tip_existing_source_set_files "")
+  foreach(_tip_existing_source_set IN LISTS _tip_existing_source_sets)
+    get_target_property(_tip_existing_source_set_entries ${TARGET_NAME} SOURCE_SET_${_tip_existing_source_set})
+    foreach(_tip_existing_source_set_entry IN LISTS _tip_existing_source_set_entries)
+      if(NOT _tip_existing_source_set_entry MATCHES "\\$<")
+        if(IS_ABSOLUTE "${_tip_existing_source_set_entry}")
+          set(_tip_existing_source_set_file "${_tip_existing_source_set_entry}")
+        else()
+          cmake_path(
+            ABSOLUTE_PATH
+            _tip_existing_source_set_entry
+            BASE_DIRECTORY
+            "${_tip_target_source_dir}"
+            NORMALIZE
+            OUTPUT_VARIABLE
+            _tip_existing_source_set_file)
+        endif()
+        list(APPEND _tip_existing_source_set_files "${_tip_existing_source_set_file}")
+      endif()
+    endforeach()
+  endforeach()
+
+  set(_tip_header_extensions
+      .h
+      .hh
+      .hpp
+      .hxx
+      .h++
+      .inl
+      .ipp
+      .tpp)
+  set(_tip_module_extensions .cppm .ixx .mpp .mxx)
+  set(_tip_extracted_sources "")
+  foreach(_tip_candidate_source IN LISTS _tip_candidate_sources)
+    if("${_tip_candidate_source}" MATCHES "\\$<")
+      project_log(FATAL_ERROR
+                  "SOURCE_FILE_SET_FROM_TARGET_SOURCES cannot extract generator expression '${_tip_candidate_source}' from target '${TARGET_NAME}'. Add an explicit SOURCES file set instead.")
+    endif()
+
+    if(IS_ABSOLUTE "${_tip_candidate_source}")
+      cmake_path(NORMAL_PATH _tip_candidate_source OUTPUT_VARIABLE _tip_candidate_source_path)
+    else()
+      cmake_path(
+        ABSOLUTE_PATH
+        _tip_candidate_source
+        BASE_DIRECTORY
+        "${_tip_target_source_dir}"
+        NORMALIZE
+        OUTPUT_VARIABLE
+        _tip_candidate_source_path)
+    endif()
+
+    cmake_path(IS_PREFIX _tip_target_source_dir "${_tip_candidate_source_path}" NORMALIZE _tip_candidate_in_source_tree)
+    cmake_path(IS_PREFIX _tip_target_binary_dir "${_tip_candidate_source_path}" NORMALIZE _tip_candidate_in_binary_tree)
+    if(NOT _tip_candidate_in_source_tree AND NOT _tip_candidate_in_binary_tree)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is outside the target source and binary directories.")
+    endif()
+
+    get_filename_component(_tip_candidate_extension "${_tip_candidate_source_path}" LAST_EXT)
+    string(TOLOWER "${_tip_candidate_extension}" _tip_candidate_extension)
+    if(_tip_candidate_extension IN_LIST _tip_header_extensions)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is a header. Keep headers in a HEADERS file set.")
+    endif()
+    if(_tip_candidate_extension IN_LIST _tip_module_extensions)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is a C++ module interface. Keep modules in a CXX_MODULES file set.")
+    endif()
+
+    if(NOT EXISTS "${_tip_candidate_source_path}")
+      get_property(
+        _tip_candidate_generated
+        SOURCE "${_tip_candidate_source_path}" TARGET_DIRECTORY "${TARGET_NAME}"
+        PROPERTY GENERATED)
+      if(NOT _tip_candidate_generated)
+        project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' does not exist and is not marked GENERATED.")
+      endif()
+    endif()
+
+    if(_tip_candidate_source_path IN_LIST _tip_existing_source_set_files)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is already in an explicit source file set.")
+    endif()
+    if(NOT _tip_candidate_source_path IN_LIST _tip_extracted_sources)
+      list(APPEND _tip_extracted_sources "${_tip_candidate_source_path}")
+    endif()
+  endforeach()
+
+  if(NOT _tip_extracted_sources)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES found no extractable sources on target '${TARGET_NAME}'.")
+  endif()
+
+  set(_tip_source_base_dirs "${_tip_target_source_dir}" "${_tip_target_binary_dir}")
+  cmake_path(IS_PREFIX _tip_target_source_dir "${_tip_target_binary_dir}" NORMALIZE _tip_source_dir_contains_binary_dir)
+  cmake_path(IS_PREFIX _tip_target_binary_dir "${_tip_target_source_dir}" NORMALIZE _tip_binary_dir_contains_source_dir)
+  if(_tip_source_dir_contains_binary_dir)
+    set(_tip_source_base_dirs "${_tip_target_source_dir}")
+  elseif(_tip_binary_dir_contains_source_dir)
+    set(_tip_source_base_dirs "${_tip_target_binary_dir}")
+  endif()
+
+  set(_tip_installed_relative_paths "")
+  set(_tip_installed_relative_path_sources "")
+  foreach(_tip_extracted_source IN LISTS _tip_extracted_sources)
+    set(_tip_installed_relative_path "")
+    foreach(_tip_source_base_dir IN LISTS _tip_source_base_dirs)
+      cmake_path(IS_PREFIX _tip_source_base_dir "${_tip_extracted_source}" NORMALIZE _tip_source_in_base_dir)
+      if(_tip_source_in_base_dir)
+        set(_tip_source_path "${_tip_extracted_source}")
+        cmake_path(RELATIVE_PATH _tip_source_path BASE_DIRECTORY "${_tip_source_base_dir}" OUTPUT_VARIABLE _tip_installed_relative_path)
+        break()
+      endif()
+    endforeach()
+
+    if("${_tip_installed_relative_path}" STREQUAL "")
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES could not map source '${_tip_extracted_source}' on target '${TARGET_NAME}' to an installed relative path.")
+    endif()
+
+    list(FIND _tip_installed_relative_paths "${_tip_installed_relative_path}" _tip_installed_relative_path_index)
+    if(NOT _tip_installed_relative_path_index EQUAL -1)
+      list(GET _tip_installed_relative_path_sources ${_tip_installed_relative_path_index} _tip_colliding_source)
+      project_log(
+        FATAL_ERROR
+        "SOURCE_FILE_SET_FROM_TARGET_SOURCES sources '${_tip_colliding_source}' and '${_tip_extracted_source}' on target '${TARGET_NAME}' have the same installed relative path '${_tip_installed_relative_path}'."
+      )
+    endif()
+    list(APPEND _tip_installed_relative_paths "${_tip_installed_relative_path}")
+    list(APPEND _tip_installed_relative_path_sources "${_tip_extracted_source}")
+  endforeach()
+
+  target_sources(
+    ${TARGET_NAME}
+    INTERFACE FILE_SET
+              ${FILE_SET_NAME}
+              TYPE
+              SOURCES
+              BASE_DIRS
+              ${_tip_source_base_dirs}
+              FILES
+              ${_tip_extracted_sources})
+
+  # Raw INTERFACE_SOURCES cannot contain build-tree paths in an exported target.
+  # The file set above is their relocatable exported representation.
+  set_property(TARGET ${TARGET_NAME} PROPERTY INTERFACE_SOURCES "")
+endfunction()
+
 function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_SUFFIX VALUE DESCRIPTION)
   get_property(_tip_existing GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}")
 
@@ -858,6 +1121,7 @@ endfunction()
 #     INCLUDE_DESTINATION <include_dest>
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
+#     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
 #     SOURCE_FILE_SET_PROPERTIES <file_set> <property> <boolean> [...]
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
@@ -934,6 +1198,7 @@ function(target_prepare_package TARGET_NAME)
       INCLUDE_DESTINATION
       MODULE_DESTINATION
       SOURCE_DESTINATION
+      SOURCE_FILE_SET_FROM_TARGET_SOURCES
       SOURCE_LIBRARY_TYPE
       SOURCE_LIBRARY_ALIAS
       CMAKE_CONFIG_DESTINATION
@@ -998,72 +1263,6 @@ function(target_prepare_package TARGET_NAME)
   # Check if target exists
   if(NOT TARGET ${TARGET_NAME})
     project_log(FATAL_ERROR "Target '${TARGET_NAME}' does not exist.")
-  endif()
-
-  if(ARG_SOURCE_FILE_SET_PROPERTIES)
-    if(CMAKE_VERSION VERSION_LESS "4.4")
-      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES requires CMake 4.4 or newer.")
-    endif()
-
-    list(LENGTH ARG_SOURCE_FILE_SET_PROPERTIES _tip_source_file_set_property_count)
-    math(EXPR _tip_source_file_set_property_remainder "${_tip_source_file_set_property_count} % 3")
-    if(NOT _tip_source_file_set_property_remainder EQUAL 0)
-      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES for target '${TARGET_NAME}' requires `<file_set> <property> <boolean>` triples.")
-    endif()
-
-    get_target_property(_tip_interface_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
-    if(NOT _tip_interface_source_sets OR _tip_interface_source_sets MATCHES "-NOTFOUND$")
-      set(_tip_interface_source_sets "")
-    endif()
-
-    set(_tip_supported_source_file_set_properties SKIP_LINTING SKIP_PRECOMPILE_HEADERS SKIP_UNITY_BUILD_INCLUSION CXX_SCAN_FOR_MODULES)
-    set(_tip_boolean_values
-        ON
-        OFF
-        TRUE
-        FALSE
-        YES
-        NO
-        Y
-        N
-        1
-        0)
-    set(_tip_source_file_set_property_index 0)
-    while(_tip_source_file_set_property_index LESS _tip_source_file_set_property_count)
-      list(GET ARG_SOURCE_FILE_SET_PROPERTIES ${_tip_source_file_set_property_index} _tip_source_file_set_name)
-      math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
-      list(GET ARG_SOURCE_FILE_SET_PROPERTIES ${_tip_source_file_set_property_index} _tip_source_file_set_property)
-      math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
-      list(GET ARG_SOURCE_FILE_SET_PROPERTIES ${_tip_source_file_set_property_index} _tip_source_file_set_value)
-      math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
-
-      if(NOT _tip_source_file_set_name IN_LIST _tip_interface_source_sets)
-        project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES file set '${_tip_source_file_set_name}' does not name an INTERFACE SOURCES file set on target '${TARGET_NAME}'.")
-      endif()
-
-      get_property(
-        _tip_source_file_set_type FILE_SET "${_tip_source_file_set_name}"
-        TARGET "${TARGET_NAME}"
-        PROPERTY TYPE)
-      if(NOT _tip_source_file_set_type STREQUAL "SOURCES")
-        project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES file set '${_tip_source_file_set_name}' on target '${TARGET_NAME}' must have type SOURCES.")
-      endif()
-
-      if(NOT _tip_source_file_set_property IN_LIST _tip_supported_source_file_set_properties)
-        project_log(FATAL_ERROR "Unsupported SOURCE_FILE_SET_PROPERTIES property '${_tip_source_file_set_property}'. Supported properties: ${_tip_supported_source_file_set_properties}.")
-      endif()
-
-      string(TOUPPER "${_tip_source_file_set_value}" _tip_source_file_set_value_upper)
-      if(NOT _tip_source_file_set_value_upper IN_LIST _tip_boolean_values)
-        project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES value '${_tip_source_file_set_value}' for '${_tip_source_file_set_property}' must be a boolean.")
-      endif()
-
-      set_property(
-        FILE_SET "${_tip_source_file_set_name}"
-        TARGET "${TARGET_NAME}"
-        PROPERTY "${_tip_source_file_set_property}" "${_tip_source_file_set_value}")
-      project_log(DEBUG "  Set ${_tip_source_file_set_property}=${_tip_source_file_set_value} on SOURCES file set '${_tip_source_file_set_name}'")
-    endwhile()
   endif()
 
   # Validate additional targets
@@ -1154,7 +1353,6 @@ function(target_prepare_package TARGET_NAME)
   if(NOT ARG_SOURCE_LIBRARY_ALIAS)
     set(ARG_SOURCE_LIBRARY_ALIAS "${ARG_ALIAS_NAME}_source")
   endif()
-  _tip_validate_consumer_local_source_library(${TARGET_NAME} "${ARG_SOURCE_LIBRARY_TYPE}" "${ARG_SOURCE_LIBRARY_ALIAS}")
 
   # Handle CMAKE_CONFIG_DESTINATION using EXPORT_NAME instead of TARGET_NAME
   if(NOT ARG_CMAKE_CONFIG_DESTINATION)
@@ -1360,6 +1558,9 @@ function(target_prepare_package TARGET_NAME)
   if(_tip_export_finalized)
     project_log(FATAL_ERROR "Export '${ARG_EXPORT_NAME}' has already been finalized. Target '${TARGET_NAME}' cannot be added after finalize_package().")
   endif()
+
+  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "TARGET_${TARGET_NAME}_SOURCE_FILE_SET_FROM_TARGET_SOURCES" "${ARG_SOURCE_FILE_SET_FROM_TARGET_SOURCES}"
+                             "SOURCE_FILE_SET_FROM_TARGET_SOURCES for target '${TARGET_NAME}'")
 
   if(ARG_CONFIG_TEMPLATE)
     _tip_resolve_absolute_paths(ARG_CONFIG_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ARG_CONFIG_TEMPLATE}")
@@ -2024,6 +2225,22 @@ function(finalize_package)
   if(NOT TARGETS)
     project_log(FATAL_ERROR "No targets prepared for export '${ARG_EXPORT_NAME}'")
   endif()
+
+  foreach(_tip_source_target IN LISTS TARGETS)
+    get_property(_tip_source_file_set_from_target_sources GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_FILE_SET_FROM_TARGET_SOURCES")
+    if(NOT "${_tip_source_file_set_from_target_sources}" STREQUAL "")
+      _tip_add_source_file_set_from_target_sources(${_tip_source_target} "${_tip_source_file_set_from_target_sources}")
+    endif()
+
+    get_property(_tip_source_file_set_properties GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_FILE_SET_PROPERTIES")
+    if(_tip_source_file_set_properties)
+      _tip_apply_source_file_set_properties(${_tip_source_target} ${_tip_source_file_set_properties})
+    endif()
+
+    get_property(_tip_source_library_type GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_LIBRARY_TYPE")
+    get_property(_tip_source_library_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_LIBRARY_ALIAS")
+    _tip_validate_consumer_local_source_library(${_tip_source_target} "${_tip_source_library_type}" "${_tip_source_library_alias}")
+  endforeach()
 
   # Get all stored properties
   get_property(NAMESPACE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_NAMESPACE")
@@ -2855,8 +3072,14 @@ function(finalize_package)
   endif()
 
   # Validate template contains required placeholders for provided parameters
-  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${_tip_package_public_content_required}" "${_tip_find_package_components}"
-                                         "${_tip_has_consumer_local_source_targets}" "${PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT}")
+  _validate_config_template_placeholders(
+    "${CONFIG_TEMPLATE_TO_USE}"
+    "${ARG_EXPORT_NAME}"
+    "${INCLUDE_ON_FIND_PACKAGE}"
+    "${_tip_package_public_content_required}"
+    "${_tip_find_package_components}"
+    "${_tip_has_consumer_local_source_targets}"
+    "${PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
