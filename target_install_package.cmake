@@ -59,6 +59,7 @@ endif()
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
 #     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
+#     SOURCE_FILE_SET_PROPERTIES <file_set> <property> <boolean> [...]
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
@@ -122,6 +123,8 @@ endif()
 #   SOURCE_FILE_SET_FROM_TARGET_SOURCES
 #                              - Creates a CMake 4.4 SOURCES file set from an interface library's ordinary target sources. Only
 #                                files that can be deterministically resolved inside the target's source or binary directory are accepted.
+#   SOURCE_FILE_SET_PROPERTIES   - CMake 4.4 source file-set property triples: `<file_set> <property> <boolean>`. Supported properties are
+#                                  `SKIP_LINTING`, `SKIP_PRECOMPILE_HEADERS`, `SKIP_UNITY_BUILD_INCLUSION`, and `CXX_SCAN_FOR_MODULES`.
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
 #   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
@@ -152,6 +155,7 @@ endif()
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
 #   - Installs public and interface SOURCES file sets with CMake 4.4+.
 #   - Can create an installable SOURCES file set from ordinary target sources with CMake 4.4+.
+#   - Applies requested consumer-build hygiene controls to public and interface SOURCES file sets with CMake 4.4+.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
 #   - Supports multi-config builds with automatic debug postfix handling.
@@ -241,6 +245,77 @@ function(_tip_resolve_absolute_paths RESULT_VAR BASE_DIR)
   set(${RESULT_VAR}
       "${_tip_resolved_paths}"
       PARENT_SCOPE)
+endfunction()
+
+function(_tip_apply_source_file_set_properties TARGET_NAME)
+  set(_tip_source_file_set_properties ${ARGN})
+  if(NOT _tip_source_file_set_properties)
+    return()
+  endif()
+
+  if(CMAKE_VERSION VERSION_LESS "4.4")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES requires CMake 4.4 or newer.")
+  endif()
+
+  list(LENGTH _tip_source_file_set_properties _tip_source_file_set_property_count)
+  math(EXPR _tip_source_file_set_property_remainder "${_tip_source_file_set_property_count} % 3")
+  if(NOT _tip_source_file_set_property_remainder EQUAL 0)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES for target '${TARGET_NAME}' requires `<file_set> <property> <boolean>` triples.")
+  endif()
+
+  get_target_property(_tip_interface_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+  if(NOT _tip_interface_source_sets OR _tip_interface_source_sets MATCHES "-NOTFOUND$")
+    set(_tip_interface_source_sets "")
+  endif()
+
+  set(_tip_supported_source_file_set_properties SKIP_LINTING SKIP_PRECOMPILE_HEADERS SKIP_UNITY_BUILD_INCLUSION CXX_SCAN_FOR_MODULES)
+  set(_tip_boolean_values
+      ON
+      OFF
+      TRUE
+      FALSE
+      YES
+      NO
+      Y
+      N
+      1
+      0)
+  set(_tip_source_file_set_property_index 0)
+  while(_tip_source_file_set_property_index LESS _tip_source_file_set_property_count)
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_name)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_property)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_value)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+
+    if(NOT _tip_source_file_set_name IN_LIST _tip_interface_source_sets)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES file set '${_tip_source_file_set_name}' does not name an INTERFACE SOURCES file set on target '${TARGET_NAME}'.")
+    endif()
+
+    get_property(
+      _tip_source_file_set_type FILE_SET "${_tip_source_file_set_name}"
+      TARGET "${TARGET_NAME}"
+      PROPERTY TYPE)
+    if(NOT _tip_source_file_set_type STREQUAL "SOURCES")
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES file set '${_tip_source_file_set_name}' on target '${TARGET_NAME}' must have type SOURCES.")
+    endif()
+
+    if(NOT _tip_source_file_set_property IN_LIST _tip_supported_source_file_set_properties)
+      project_log(FATAL_ERROR "Unsupported SOURCE_FILE_SET_PROPERTIES property '${_tip_source_file_set_property}'. Supported properties: ${_tip_supported_source_file_set_properties}.")
+    endif()
+
+    string(TOUPPER "${_tip_source_file_set_value}" _tip_source_file_set_value_upper)
+    if(NOT _tip_source_file_set_value_upper IN_LIST _tip_boolean_values)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_PROPERTIES value '${_tip_source_file_set_value}' for '${_tip_source_file_set_property}' must be a boolean.")
+    endif()
+
+    set_property(
+      FILE_SET "${_tip_source_file_set_name}"
+      TARGET "${TARGET_NAME}"
+      PROPERTY "${_tip_source_file_set_property}" "${_tip_source_file_set_value}")
+    project_log(DEBUG "  Set ${_tip_source_file_set_property}=${_tip_source_file_set_value} on SOURCES file set '${_tip_source_file_set_name}'")
+  endwhile()
 endfunction()
 
 function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
@@ -777,6 +852,7 @@ endfunction()
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
 #     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
+#     SOURCE_FILE_SET_PROPERTIES <file_set> <property> <boolean> [...]
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
@@ -888,6 +964,7 @@ function(target_prepare_package TARGET_NAME)
       INCLUDE_ON_FIND_PACKAGE
       PUBLIC_CMAKE_FILES
       COMPONENT_DEPENDENCIES
+      SOURCE_FILE_SET_PROPERTIES
       CPS_DEFAULT_TARGETS
       CPS_DEFAULT_CONFIGURATIONS
       CPS_PERMISSIONS
@@ -1276,6 +1353,14 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT_EXPLICIT" "${_tip_component_explicit}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT" "${_tip_alias_name_explicit}")
+
+  if(ARG_SOURCE_FILE_SET_PROPERTIES)
+    get_property(_tip_existing_source_file_set_properties GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILE_SET_PROPERTIES")
+    if(_tip_existing_source_file_set_properties AND NOT "${_tip_existing_source_file_set_properties}" STREQUAL "${ARG_SOURCE_FILE_SET_PROPERTIES}")
+      project_log(FATAL_ERROR "Conflicting SOURCE_FILE_SET_PROPERTIES for target '${TARGET_NAME}' in export '${ARG_EXPORT_NAME}'.")
+    endif()
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILE_SET_PROPERTIES" "${ARG_SOURCE_FILE_SET_PROPERTIES}")
+  endif()
 
   foreach(_tip_additional_target IN LISTS ARG_ADDITIONAL_TARGETS)
     get_property(
@@ -1865,6 +1950,11 @@ function(finalize_package)
     if(NOT "${_tip_source_file_set_from_target_sources}" STREQUAL "")
       _tip_add_source_file_set_from_target_sources(${_tip_source_target} "${_tip_source_file_set_from_target_sources}")
     endif()
+
+    get_property(_tip_source_file_set_properties GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_FILE_SET_PROPERTIES")
+    if(_tip_source_file_set_properties)
+      _tip_apply_source_file_set_properties(${_tip_source_target} ${_tip_source_file_set_properties})
+    endif()
   endforeach()
 
   # Get all stored properties
@@ -2015,6 +2105,7 @@ function(finalize_package)
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
   set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
   set(_tip_exported_alias_names "")
+  set(PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT "")
 
   # Install each target separately with its own components
   set(_tip_export_has_source_sets FALSE)
@@ -2074,6 +2165,23 @@ function(finalize_package)
     if(NOT TARGET_ALIAS_NAME STREQUAL TARGET_NAME)
       set_property(TARGET ${TARGET_NAME} PROPERTY EXPORT_NAME ${TARGET_ALIAS_NAME})
       project_log(DEBUG "Set EXPORT_NAME '${TARGET_ALIAS_NAME}' for target '${TARGET_NAME}'")
+    endif()
+
+    get_property(_tip_target_source_file_set_properties GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILE_SET_PROPERTIES")
+    if(_tip_target_source_file_set_properties)
+      list(LENGTH _tip_target_source_file_set_properties _tip_target_source_file_set_property_count)
+      set(_tip_target_source_file_set_property_index 0)
+      while(_tip_target_source_file_set_property_index LESS _tip_target_source_file_set_property_count)
+        list(GET _tip_target_source_file_set_properties ${_tip_target_source_file_set_property_index} _tip_source_file_set_name)
+        math(EXPR _tip_target_source_file_set_property_index "${_tip_target_source_file_set_property_index} + 1")
+        list(GET _tip_target_source_file_set_properties ${_tip_target_source_file_set_property_index} _tip_source_file_set_property)
+        math(EXPR _tip_target_source_file_set_property_index "${_tip_target_source_file_set_property_index} + 1")
+        list(GET _tip_target_source_file_set_properties ${_tip_target_source_file_set_property_index} _tip_source_file_set_value)
+        math(EXPR _tip_target_source_file_set_property_index "${_tip_target_source_file_set_property_index} + 1")
+
+        string(APPEND PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT
+               "set_property(FILE_SET \"${_tip_source_file_set_name}\" TARGET \"${NAMESPACE}${TARGET_ALIAS_NAME}\" PROPERTY \"${_tip_source_file_set_property}\" \"${_tip_source_file_set_value}\")\n")
+      endwhile()
     endif()
 
     # Primary install with export (to base components)
@@ -2650,7 +2758,8 @@ function(finalize_package)
   endif()
 
   # Validate template contains required placeholders for provided parameters
-  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${_tip_package_public_content_required}" "${_tip_find_package_components}")
+  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${_tip_package_public_content_required}" "${_tip_find_package_components}"
+                                         "${PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
@@ -2775,7 +2884,14 @@ function(_auto_finalize_single_export EXPORT_NAME)
 endfunction()
 
 # Template validation helper function
-function(_validate_config_template_placeholders template_path export_name include_files public_deps component_deps)
+function(
+  _validate_config_template_placeholders
+  template_path
+  export_name
+  include_files
+  public_deps
+  component_deps
+  source_file_set_properties)
   # Read template content to validate required placeholders exist
   if(NOT EXISTS "${template_path}")
     project_log(FATAL_ERROR "Template file does not exist: ${template_path}")
@@ -2803,6 +2919,10 @@ function(_validate_config_template_placeholders template_path export_name includ
 
   if(component_deps AND NOT template_content MATCHES "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
     list(APPEND missing_placeholders "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  endif()
+
+  if(source_file_set_properties AND NOT template_content MATCHES "@PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT@")
+    list(APPEND missing_placeholders "@PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT@")
   endif()
 
   # Report missing placeholders with actionable error message
