@@ -1948,7 +1948,7 @@ function(finalize_package)
         if(CPS_ENABLED)
           project_log(
             FATAL_ERROR
-            "CPS package metadata for export '${ARG_EXPORT_NAME}' is not supported with SOURCES file sets. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export.")
+            "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support SOURCES file sets. CMake 4.4.2 install(PACKAGE_INFO) omits source-set metadata from CPS output. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export.")
         endif()
         foreach(CURRENT_SOURCE_SET_NAME IN LISTS TARGET_INTERFACE_SOURCE_SETS)
           list(
