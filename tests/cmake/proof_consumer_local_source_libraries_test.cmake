@@ -35,6 +35,7 @@ file(
   "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(private_support STATIC private/private.cpp)\n"
+  "add_library(Build::support ALIAS private_support)\n"
   "target_include_directories(private_support PUBLIC \$<BUILD_INTERFACE:\${CMAKE_CURRENT_SOURCE_DIR}/private> \$<INSTALL_INTERFACE:include>)\n"
   "target_sources(private_support PUBLIC FILE_SET headers TYPE HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/private\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/private/private.hpp\")\n"
   "add_library(source_backed STATIC)\n"
@@ -43,7 +44,7 @@ file(
   "set(GENERATED_VALUE 2)\n"
   "target_configure_sources(source_backed PUBLIC TYPE SOURCES FILE_SET generated_implementation OUTPUT_DIR \"\${CMAKE_CURRENT_BINARY_DIR}/generated\" BASE_DIRS \"\${CMAKE_CURRENT_BINARY_DIR}/generated\" FILES src/generated.cpp.in)\n"
   "target_compile_definitions(source_backed PRIVATE PRIVATE_VALUE=37 PUBLIC PUBLIC_VALUE=2)\n"
-  "target_link_libraries(source_backed PRIVATE private_support)\n"
+  "target_link_libraries(source_backed PRIVATE Build::support)\n"
   "target_install_package(source_backed EXPORT_NAME proof_consumer_source_pkg NAMESPACE proof:: VERSION 1.0.0 ADDITIONAL_TARGETS private_support SOURCE_LIBRARY_TYPE STATIC SOURCE_LIBRARY_ALIAS rebuilt_static)\n"
   "add_library(shared_source INTERFACE)\n"
   "target_sources(shared_source INTERFACE FILE_SET headers TYPE HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/include/proof/modes.hpp\")\n"
@@ -80,7 +81,10 @@ _tip_proof_run_step(
   --prefix
   "${_tip_install_prefix}")
 
-_tip_proof_assert_file_contains("${_tip_install_prefix}/share/cmake/proof_consumer_source_pkg/proof_consumer_source_pkgConfig.cmake" "WINDOWS_EXPORT_ALL_SYMBOLS ON")
+set(_tip_package_config "${_tip_install_prefix}/share/cmake/proof_consumer_source_pkg/proof_consumer_source_pkgConfig.cmake")
+_tip_proof_assert_file_contains("${_tip_package_config}" "WINDOWS_EXPORT_ALL_SYMBOLS ON")
+_tip_proof_assert_file_contains("${_tip_package_config}" "proof::private_support")
+_tip_proof_assert_file_not_contains("${_tip_package_config}" "Build::support")
 
 file(REMOVE_RECURSE "${_tip_fixture_source_dir}" "${_tip_fixture_build_dir}")
 file(MAKE_DIRECTORY "${_tip_consumer_source_dir}")
