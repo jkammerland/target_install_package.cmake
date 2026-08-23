@@ -294,6 +294,12 @@ if(target_install_package_BUILD_PROOF_TESTS)
     add_test(NAME proof_source_file_sets_failures COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_source_file_sets_failures_test.cmake")
     set_tests_properties(proof_source_file_sets_failures PROPERTIES LABELS "proof;review;cmake-4.4;sources")
 
+    add_test(NAME proof_ordinary_source_extraction COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_ordinary_source_extraction_test.cmake")
+    set_tests_properties(proof_ordinary_source_extraction PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+
+    add_test(NAME proof_ordinary_source_extraction_failures COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_ordinary_source_extraction_failures_test.cmake")
+    set_tests_properties(proof_ordinary_source_extraction_failures PROPERTIES LABELS "proof;review;cmake-4.4;sources")
+
     add_test(NAME proof_file_api_structural_package COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_file_api_structural_package_test.cmake")
     set_tests_properties(proof_file_api_structural_package PROPERTIES LABELS "proof;review;cmake-4.4;file-api")
 

@@ -31,6 +31,21 @@ target_configure_sources(foo_sources
   FILES src/configured_backend.cpp.in)
 ```
 
+## Extract ordinary sources
+
+For an opt-in migration path, `SOURCE_FILE_SET_FROM_TARGET_SOURCES` creates a named `SOURCES` file set from a library target's ordinary `SOURCES` and `INTERFACE_SOURCES` entries:
+
+```cmake
+add_library(foo_sources INTERFACE)
+target_sources(foo_sources INTERFACE src/foo.cpp "${CMAKE_CURRENT_BINARY_DIR}/generated.cpp")
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/generated.cpp" PROPERTIES GENERATED ON)
+
+target_install_package(foo_sources
+  SOURCE_FILE_SET_FROM_TARGET_SOURCES implementation)
+```
+
+The wrapper resolves relative paths from the target source directory; binary-generated files need an absolute binary-directory path and must exist by installation time. It replaces the ordinary `INTERFACE_SOURCES` entries with the new file set so the exported target remains relocatable. It rejects generator expressions, headers, C++ module interfaces, files outside those two directories, and files already assigned to explicit source file sets. Use an explicit file set for those cases.
+
 ## Consumer build hygiene
 
 Interface sources are compiled into every dependent target. This model works well for small portability layers, generated implementations, and source packages that feed one final target. It is not a drop-in replacement for a static or shared library:

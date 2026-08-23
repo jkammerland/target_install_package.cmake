@@ -58,6 +58,7 @@ endif()
 #     INCLUDE_DESTINATION <include_dest>
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
+#     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
@@ -118,6 +119,9 @@ endif()
 #   INCLUDE_DESTINATION          - Destination for installed headers (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   SOURCE_DESTINATION           - Destination for CMake 4.4 SOURCES file sets (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}/src`).
+#   SOURCE_FILE_SET_FROM_TARGET_SOURCES
+#                              - Creates a CMake 4.4 SOURCES file set from ordinary target sources. Only files that can be
+#                                deterministically resolved inside the target's source or binary directory are accepted.
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
 #   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
@@ -147,6 +151,7 @@ endif()
 #   - Installs headers, libraries, and config files for the target.
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
 #   - Installs public and interface SOURCES file sets with CMake 4.4+.
+#   - Can create an installable SOURCES file set from ordinary target sources with CMake 4.4+.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
 #   - Supports multi-config builds with automatic debug postfix handling.
@@ -236,6 +241,153 @@ function(_tip_resolve_absolute_paths RESULT_VAR BASE_DIR)
   set(${RESULT_VAR}
       "${_tip_resolved_paths}"
       PARENT_SCOPE)
+endfunction()
+
+function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
+  if(CMAKE_VERSION VERSION_LESS "4.4")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES requires CMake 4.4 or newer.")
+  endif()
+
+  if("${FILE_SET_NAME}" STREQUAL "")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES requires a file-set name for target '${TARGET_NAME}'.")
+  endif()
+
+  get_target_property(_tip_target_type ${TARGET_NAME} TYPE)
+  if(NOT _tip_target_type MATCHES "^(INTERFACE|STATIC|SHARED|OBJECT)_LIBRARY$")
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES supports library targets only; '${TARGET_NAME}' is ${_tip_target_type}.")
+  endif()
+
+  get_target_property(_tip_target_source_dir ${TARGET_NAME} SOURCE_DIR)
+  get_target_property(_tip_target_binary_dir ${TARGET_NAME} BINARY_DIR)
+  if(NOT _tip_target_source_dir OR NOT _tip_target_binary_dir)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES could not determine source and binary directories for target '${TARGET_NAME}'.")
+  endif()
+
+  get_target_property(_tip_existing_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+  if(NOT _tip_existing_source_sets OR _tip_existing_source_sets MATCHES "-NOTFOUND$")
+    set(_tip_existing_source_sets "")
+  endif()
+  if(FILE_SET_NAME IN_LIST _tip_existing_source_sets)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES file set '${FILE_SET_NAME}' already exists on target '${TARGET_NAME}'.")
+  endif()
+
+  get_target_property(_tip_target_sources ${TARGET_NAME} SOURCES)
+  if(_tip_target_sources MATCHES "-NOTFOUND$")
+    set(_tip_target_sources "")
+  endif()
+  get_target_property(_tip_target_interface_sources ${TARGET_NAME} INTERFACE_SOURCES)
+  if(_tip_target_interface_sources MATCHES "-NOTFOUND$")
+    set(_tip_target_interface_sources "")
+  endif()
+  set(_tip_candidate_sources ${_tip_target_sources} ${_tip_target_interface_sources})
+  if(NOT _tip_candidate_sources)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES found no ordinary sources on target '${TARGET_NAME}'.")
+  endif()
+
+  set(_tip_existing_source_set_files "")
+  foreach(_tip_existing_source_set IN LISTS _tip_existing_source_sets)
+    get_target_property(_tip_existing_source_set_entries ${TARGET_NAME} SOURCE_SET_${_tip_existing_source_set})
+    foreach(_tip_existing_source_set_entry IN LISTS _tip_existing_source_set_entries)
+      if(NOT _tip_existing_source_set_entry MATCHES "\\$<")
+        if(IS_ABSOLUTE "${_tip_existing_source_set_entry}")
+          set(_tip_existing_source_set_file "${_tip_existing_source_set_entry}")
+        else()
+          cmake_path(
+            ABSOLUTE_PATH
+            _tip_existing_source_set_entry
+            BASE_DIRECTORY
+            "${_tip_target_source_dir}"
+            NORMALIZE
+            OUTPUT_VARIABLE
+            _tip_existing_source_set_file)
+        endif()
+        list(APPEND _tip_existing_source_set_files "${_tip_existing_source_set_file}")
+      endif()
+    endforeach()
+  endforeach()
+
+  set(_tip_header_extensions
+      .h
+      .hh
+      .hpp
+      .hxx
+      .h++
+      .inl
+      .ipp
+      .tpp)
+  set(_tip_module_extensions .cppm .ixx .mpp .mxx)
+  set(_tip_extracted_sources "")
+  foreach(_tip_candidate_source IN LISTS _tip_candidate_sources)
+    if("${_tip_candidate_source}" MATCHES "\\$<")
+      project_log(FATAL_ERROR
+                  "SOURCE_FILE_SET_FROM_TARGET_SOURCES cannot extract generator expression '${_tip_candidate_source}' from target '${TARGET_NAME}'. Add an explicit SOURCES file set instead.")
+    endif()
+
+    if(IS_ABSOLUTE "${_tip_candidate_source}")
+      cmake_path(NORMAL_PATH _tip_candidate_source OUTPUT_VARIABLE _tip_candidate_source_path)
+    else()
+      cmake_path(
+        ABSOLUTE_PATH
+        _tip_candidate_source
+        BASE_DIRECTORY
+        "${_tip_target_source_dir}"
+        NORMALIZE
+        OUTPUT_VARIABLE
+        _tip_candidate_source_path)
+    endif()
+
+    cmake_path(IS_PREFIX _tip_target_source_dir "${_tip_candidate_source_path}" NORMALIZE _tip_candidate_in_source_tree)
+    cmake_path(IS_PREFIX _tip_target_binary_dir "${_tip_candidate_source_path}" NORMALIZE _tip_candidate_in_binary_tree)
+    if(NOT _tip_candidate_in_source_tree AND NOT _tip_candidate_in_binary_tree)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is outside the target source and binary directories.")
+    endif()
+
+    get_filename_component(_tip_candidate_extension "${_tip_candidate_source_path}" LAST_EXT)
+    string(TOLOWER "${_tip_candidate_extension}" _tip_candidate_extension)
+    if(_tip_candidate_extension IN_LIST _tip_header_extensions)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is a header. Keep headers in a HEADERS file set.")
+    endif()
+    if(_tip_candidate_extension IN_LIST _tip_module_extensions)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is a C++ module interface. Keep modules in a CXX_MODULES file set.")
+    endif()
+
+    if(NOT EXISTS "${_tip_candidate_source_path}")
+      get_property(
+        _tip_candidate_generated
+        SOURCE "${_tip_candidate_source_path}" TARGET_DIRECTORY "${TARGET_NAME}"
+        PROPERTY GENERATED)
+      if(NOT _tip_candidate_generated)
+        project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' does not exist and is not marked GENERATED.")
+      endif()
+    endif()
+
+    if(_tip_candidate_source_path IN_LIST _tip_existing_source_set_files)
+      project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES source '${_tip_candidate_source}' on target '${TARGET_NAME}' is already in an explicit source file set.")
+    endif()
+    if(NOT _tip_candidate_source_path IN_LIST _tip_extracted_sources)
+      list(APPEND _tip_extracted_sources "${_tip_candidate_source_path}")
+    endif()
+  endforeach()
+
+  if(NOT _tip_extracted_sources)
+    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES found no extractable sources on target '${TARGET_NAME}'.")
+  endif()
+
+  target_sources(
+    ${TARGET_NAME}
+    INTERFACE FILE_SET
+              ${FILE_SET_NAME}
+              TYPE
+              SOURCES
+              BASE_DIRS
+              "${_tip_target_source_dir}"
+              "${_tip_target_binary_dir}"
+              FILES
+              ${_tip_extracted_sources})
+
+  # Raw INTERFACE_SOURCES cannot contain build-tree paths in an exported target.
+  # The file set above is their relocatable exported representation.
+  set_property(TARGET ${TARGET_NAME} PROPERTY INTERFACE_SOURCES "")
 endfunction()
 
 function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_SUFFIX VALUE DESCRIPTION)
@@ -584,6 +736,7 @@ endfunction()
 #     INCLUDE_DESTINATION <include_dest>
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
+#     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
 #     DEBUG_POSTFIX <postfix>
@@ -659,6 +812,7 @@ function(target_prepare_package TARGET_NAME)
       INCLUDE_DESTINATION
       MODULE_DESTINATION
       SOURCE_DESTINATION
+      SOURCE_FILE_SET_FROM_TARGET_SOURCES
       CMAKE_CONFIG_DESTINATION
       COMPONENT
       DEBUG_POSTFIX
@@ -720,6 +874,10 @@ function(target_prepare_package TARGET_NAME)
   # Check if target exists
   if(NOT TARGET ${TARGET_NAME})
     project_log(FATAL_ERROR "Target '${TARGET_NAME}' does not exist.")
+  endif()
+
+  if(NOT "${ARG_SOURCE_FILE_SET_FROM_TARGET_SOURCES}" STREQUAL "")
+    _tip_add_source_file_set_from_target_sources(${TARGET_NAME} "${ARG_SOURCE_FILE_SET_FROM_TARGET_SOURCES}")
   endif()
 
   # Validate additional targets
@@ -1948,7 +2106,8 @@ function(finalize_package)
         if(CPS_ENABLED)
           project_log(
             FATAL_ERROR
-            "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support SOURCES file sets. CMake 4.4.2 install(PACKAGE_INFO) omits source-set metadata from CPS output. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export.")
+            "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support SOURCES file sets. CMake 4.4.2 install(PACKAGE_INFO) omits source-set metadata from CPS output. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export."
+          )
         endif()
         foreach(CURRENT_SOURCE_SET_NAME IN LISTS TARGET_INTERFACE_SOURCE_SETS)
           list(
