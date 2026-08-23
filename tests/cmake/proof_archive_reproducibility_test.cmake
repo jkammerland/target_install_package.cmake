@@ -21,15 +21,12 @@ set(_tip_source_date_epoch "1704067200")
 
 file(REMOVE_RECURSE "${_tip_case_root}")
 file(MAKE_DIRECTORY "${_tip_source_dir}/payload/alpha" "${_tip_source_dir}/payload/zulu")
-file(WRITE "${_tip_source_dir}/payload/alpha/first.txt" "first payload\n")
-file(WRITE "${_tip_source_dir}/payload/zulu/last.txt" "last payload\n")
-file(WRITE "${_tip_source_dir}/generated.txt.in" "generated payload\n")
 file(
   WRITE "${_tip_source_dir}/CMakeLists.txt"
   "cmake_minimum_required(VERSION 3.25)\n"
   "project(proof_archive_reproducibility VERSION 1.0.0 LANGUAGES NONE)\n"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-  "configure_file(\"\${CMAKE_CURRENT_SOURCE_DIR}/generated.txt.in\" \"\${CMAKE_CURRENT_BINARY_DIR}/generated.txt\" COPYONLY)\n"
+  "file(WRITE \"\${CMAKE_CURRENT_BINARY_DIR}/generated.txt\" \"generated payload\\n\")\n"
   "install(FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/payload/alpha/first.txt\" \"\${CMAKE_CURRENT_SOURCE_DIR}/payload/zulu/last.txt\" \"\${CMAKE_CURRENT_BINARY_DIR}/generated.txt\" DESTINATION share/proof COMPONENT Runtime)\n"
   "export_cpack(PACKAGE_NAME ReproducibleArchive PACKAGE_VERSION 1.0.0 GENERATORS TGZ COMPONENTS Runtime DEFAULT_COMPONENTS Runtime NO_DEFAULT_GENERATORS ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_THREADS 1 CPACK_PACKAGE_FILE_NAME ReproducibleArchive-1.0.0)\n"
 )
@@ -48,6 +45,11 @@ if(_tip_cpack_version_index EQUAL -1)
 endif()
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
+
+function(_tip_refresh_reproducibility_payload)
+  file(WRITE "${_tip_source_dir}/payload/alpha/first.txt" "first payload\n")
+  file(WRITE "${_tip_source_dir}/payload/zulu/last.txt" "last payload\n")
+endfunction()
 
 function(_tip_reproducibility_metadata out_var archive_path)
   execute_process(
@@ -87,8 +89,14 @@ function(_tip_create_reproducible_archive name out_var)
     ${_tip_toolchain_args})
 
   set(_tip_cpack_config "${_tip_build_dir}/CPackConfig.cmake")
+  set(_tip_generated_payload "${_tip_build_dir}/generated.txt")
   _tip_proof_assert_exists("${_tip_cpack_config}")
+  _tip_proof_assert_exists("${_tip_generated_payload}")
   _tip_proof_assert_file_contains("${_tip_cpack_config}" "set(CPACK_ARCHIVE_THREADS \"1\")")
+  file(TIMESTAMP "${_tip_source_dir}/payload/alpha/first.txt" _tip_source_mtime "%s" UTC)
+  file(TIMESTAMP "${_tip_generated_payload}" _tip_generated_mtime "%s" UTC)
+  file(SHA256 "${_tip_source_dir}/payload/alpha/first.txt" _tip_source_digest)
+  file(SHA256 "${_tip_generated_payload}" _tip_generated_digest)
   _tip_proof_run_step(
     NAME
     "${name}-package"
@@ -127,10 +135,40 @@ function(_tip_create_reproducible_archive name out_var)
   set(${out_var}
       "${_tip_archive}"
       PARENT_SCOPE)
+  set(_tip_${name}_source_mtime
+      "${_tip_source_mtime}"
+      PARENT_SCOPE)
+  set(_tip_${name}_generated_mtime
+      "${_tip_generated_mtime}"
+      PARENT_SCOPE)
+  set(_tip_${name}_source_digest
+      "${_tip_source_digest}"
+      PARENT_SCOPE)
+  set(_tip_${name}_generated_digest
+      "${_tip_generated_digest}"
+      PARENT_SCOPE)
 endfunction()
 
+_tip_refresh_reproducibility_payload()
 _tip_create_reproducible_archive(first _tip_first_archive)
+_tip_proof_run_step(
+  NAME
+  "timestamp-boundary"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  -E
+  sleep
+  2)
+_tip_refresh_reproducibility_payload()
 _tip_create_reproducible_archive(second _tip_second_archive)
+
+if(NOT _tip_first_source_digest STREQUAL _tip_second_source_digest OR NOT _tip_first_generated_digest STREQUAL _tip_second_generated_digest)
+  _tip_proof_fail("Clean archive builds did not start from identical payload content.")
+endif()
+if(_tip_first_source_mtime STREQUAL _tip_second_source_mtime OR _tip_first_generated_mtime STREQUAL _tip_second_generated_mtime)
+  _tip_proof_fail("Timestamp precondition failed: source and generated payload mtimes must differ before packaging.\n"
+                  "source: ${_tip_first_source_mtime} vs ${_tip_second_source_mtime}; generated: ${_tip_first_generated_mtime} vs ${_tip_second_generated_mtime}")
+endif()
 
 file(SHA256 "${_tip_first_archive}" _tip_first_digest)
 file(SHA256 "${_tip_second_archive}" _tip_second_digest)
