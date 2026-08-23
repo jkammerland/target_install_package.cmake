@@ -112,4 +112,38 @@ _tip_proof_expect_failure(
   EXPECT_CONTAINS
   "does not support SOURCES file sets")
 
+function(_tip_write_source_file_set_hygiene_fixture name expected_message)
+  set(_tip_fixture_dir "${_tip_case_root}/${name}")
+  file(MAKE_DIRECTORY "${_tip_fixture_dir}/include/proof" "${_tip_fixture_dir}/src")
+  file(WRITE "${_tip_fixture_dir}/include/proof/source.hpp" "#pragma once\n")
+  file(WRITE "${_tip_fixture_dir}/src/source.cpp" "int source_value() { return 42; }\n")
+  string(JOIN " " _tip_source_file_set_properties ${ARGN})
+  file(
+    WRITE "${_tip_fixture_dir}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 4.4)\n"
+    "project(proof_source_file_set_hygiene_failure VERSION 1.0.0 LANGUAGES CXX)\n"
+    "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+    "add_library(source_only INTERFACE)\n"
+    "target_sources(source_only INTERFACE FILE_SET api TYPE HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/include/proof/source.hpp\")\n"
+    "target_sources(source_only INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/src\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/src/source.cpp\")\n"
+    "target_install_package(source_only EXPORT_NAME ${name} SOURCE_FILE_SET_PROPERTIES ${_tip_source_file_set_properties})\n")
+  _tip_proof_expect_failure(
+    NAME
+    "${name}-configure"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    -S
+    "${_tip_fixture_dir}"
+    -B
+    "${_tip_fixture_dir}/build"
+    ${_tip_toolchain_args}
+    EXPECT_CONTAINS
+    "${expected_message}")
+endfunction()
+
+_tip_write_source_file_set_hygiene_fixture(malformed-source-file-set-properties "SOURCE_FILE_SET_PROPERTIES for target 'source_only'" implementation SKIP_LINTING)
+_tip_write_source_file_set_hygiene_fixture(unknown-source-file-set-property "UNKNOWN_PROPERTY" implementation UNKNOWN_PROPERTY ON)
+_tip_write_source_file_set_hygiene_fixture(header-source-file-set-property "SOURCE_FILE_SET_PROPERTIES file set 'api'" api SKIP_LINTING ON)
+
 message(STATUS "[proof] CMake 4.4 source file set failure proof passed.")

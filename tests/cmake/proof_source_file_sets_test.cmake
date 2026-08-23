@@ -35,10 +35,7 @@ file(
   "target_sources(source_only INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/src\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/src/source.cpp\")\n"
   "set(GENERATED_VALUE 2)\n"
   "target_configure_sources(source_only INTERFACE TYPE SOURCES FILE_SET generated_implementation OUTPUT_DIR \"\${CMAKE_CURRENT_BINARY_DIR}/generated\" BASE_DIRS \"\${CMAKE_CURRENT_BINARY_DIR}/generated\" FILES src/generated.cpp.in)\n"
-  "set_property(FILE_SET implementation TARGET source_only PROPERTY SKIP_LINTING ON)\n"
-  "set_property(FILE_SET implementation TARGET source_only PROPERTY SKIP_PRECOMPILE_HEADERS ON)\n"
-  "set_property(FILE_SET implementation TARGET source_only PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)\n"
-  "target_install_package(source_only EXPORT_NAME proof_source_pkg NAMESPACE proof:: VERSION 1.0.0)\n"
+  "target_install_package(source_only EXPORT_NAME proof_source_pkg NAMESPACE proof:: VERSION 1.0.0 SOURCE_FILE_SET_PROPERTIES implementation SKIP_LINTING ON implementation SKIP_PRECOMPILE_HEADERS ON generated_implementation SKIP_UNITY_BUILD_INCLUSION ON generated_implementation CXX_SCAN_FOR_MODULES OFF)\n"
   "add_library(custom_source_only INTERFACE)\n"
   "target_sources(custom_source_only INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/custom\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/custom/custom.cpp\")\n"
   "target_install_package(custom_source_only EXPORT_NAME custom_source_pkg SOURCE_DESTINATION share/custom-source VERSION 1.0.0)\n")
@@ -89,6 +86,13 @@ file(
   "    endif()\n"
   "  endforeach()\n"
   "endforeach()\n"
+  "get_property(skip_lint FILE_SET implementation TARGET proof::source_only PROPERTY SKIP_LINTING)\n"
+  "get_property(skip_pch FILE_SET implementation TARGET proof::source_only PROPERTY SKIP_PRECOMPILE_HEADERS)\n"
+  "get_property(skip_unity FILE_SET generated_implementation TARGET proof::source_only PROPERTY SKIP_UNITY_BUILD_INCLUSION)\n"
+  "get_property(scan_modules FILE_SET generated_implementation TARGET proof::source_only PROPERTY CXX_SCAN_FOR_MODULES)\n"
+  "if(NOT skip_lint OR NOT skip_pch OR NOT skip_unity OR NOT scan_modules STREQUAL \"OFF\")\n"
+  "  message(FATAL_ERROR \"Imported source file-set hygiene properties were not preserved\")\n"
+  "endif()\n"
   "add_executable(proof_source_consumer main.cpp)\n"
   "target_link_libraries(proof_source_consumer PRIVATE proof::source_only)\n")
 file(WRITE "${_tip_consumer_source_dir}/main.cpp" "#include <proof/source.hpp>\nint main() { return source_value() + generated_value() == 42 ? 0 : 1; }\n")
