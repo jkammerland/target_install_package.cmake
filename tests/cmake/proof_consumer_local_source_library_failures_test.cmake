@@ -71,4 +71,40 @@ _tip_proof_expect_failure(
   EXPECT_CONTAINS
   "SOURCE_LIBRARY_ALIAS")
 
+function(_tip_write_consumer_local_alias_failure_fixture name expected_message)
+  string(SHA256 _tip_fixture_hash "${name}")
+  string(SUBSTRING "${_tip_fixture_hash}" 0 8 _tip_fixture_hash)
+  set(_tip_fixture_dir "${_tip_case_root}/${_tip_fixture_hash}")
+  file(MAKE_DIRECTORY "${_tip_fixture_dir}/src")
+  file(WRITE "${_tip_fixture_dir}/src/source.cpp" "int value() { return 1; }\n")
+  file(WRITE "${_tip_fixture_dir}/CMakeLists.txt" "cmake_minimum_required(VERSION 4.4)\n" "project(proof_consumer_local_source_alias_failure LANGUAGES CXX)\n"
+                                                  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" ${ARGN})
+  _tip_proof_expect_failure(
+    NAME
+    "${name}-configure"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    -S
+    "${_tip_fixture_dir}"
+    -B
+    "${_tip_fixture_dir}/build"
+    EXPECT_CONTAINS
+    "${expected_message}")
+endfunction()
+
+_tip_write_consumer_local_alias_failure_fixture(
+  alias-conflicts-with-exported-target "conflicts with exported" "add_library(source_target INTERFACE)\n"
+  "target_sources(source_target INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/src\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/src/source.cpp\")\n"
+  "add_library(rebuilt INTERFACE)\n" "target_install_package(source_target EXPORT_NAME alias_conflict ADDITIONAL_TARGETS rebuilt SOURCE_LIBRARY_TYPE STATIC SOURCE_LIBRARY_ALIAS rebuilt)\n")
+
+_tip_write_consumer_local_alias_failure_fixture(
+  duplicate-source-alias
+  "consumer-local source alias 'rebuilt'"
+  "add_library(source_one INTERFACE)\n"
+  "target_sources(source_one INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/src\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/src/source.cpp\")\n"
+  "target_install_package(source_one EXPORT_NAME duplicate_source_alias SOURCE_LIBRARY_TYPE STATIC SOURCE_LIBRARY_ALIAS rebuilt)\n"
+  "add_library(source_two INTERFACE)\n"
+  "target_sources(source_two INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/src\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/src/source.cpp\")\n"
+  "target_install_package(source_two EXPORT_NAME duplicate_source_alias SOURCE_LIBRARY_TYPE STATIC SOURCE_LIBRARY_ALIAS rebuilt)\n")
+
 message(STATUS "[proof] Consumer-local source library failure proof passed.")

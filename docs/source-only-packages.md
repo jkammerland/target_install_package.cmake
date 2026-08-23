@@ -45,7 +45,7 @@ find_package(foo_sources CONFIG REQUIRED)
 target_link_libraries(app PRIVATE foo_sources::foo_compiled)
 ```
 
-Supported types are `STATIC`, `SHARED`, `OBJECT`, and `AUTO`. `AUTO` evaluates `BUILD_SHARED_LIBS` in the consumer project, selecting `SHARED` when it is enabled and `STATIC` otherwise. The target forwards public compile definitions, options, features, include directories, link options, link directories, and link dependencies. It also preserves relocatable private compile settings and dependencies required to build the local library.
+Supported types are `STATIC`, `SHARED`, `OBJECT`, and `AUTO`. `AUTO` evaluates `BUILD_SHARED_LIBS` in the consumer project, selecting `SHARED` when it is enabled and `STATIC` otherwise. Windows shared builds enable CMake's automatic symbol export so the consumer receives an import library. The target forwards public compile definitions, options, features, include directories, link options, link directories, and link dependencies. It also preserves relocatable private compile settings and dependencies required to build the local library. `SOURCE_LIBRARY_ALIAS` must be unique within the package namespace and cannot reuse an exported target name.
 
 The consumer compiles these sources with its own compiler, standard library, and ABI settings. Treat the result as source compatibility rather than a prebuilt binary ABI promise. Generator expressions in private build metadata, private build-tree paths, and C++ module file sets are rejected because they cannot be reconstructed safely in an unrelated consumer build.
 

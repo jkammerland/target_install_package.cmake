@@ -80,6 +80,8 @@ _tip_proof_run_step(
   --prefix
   "${_tip_install_prefix}")
 
+_tip_proof_assert_file_contains("${_tip_install_prefix}/share/cmake/proof_consumer_source_pkg/proof_consumer_source_pkgConfig.cmake" "WINDOWS_EXPORT_ALL_SYMBOLS ON")
+
 file(REMOVE_RECURSE "${_tip_fixture_source_dir}" "${_tip_fixture_build_dir}")
 file(MAKE_DIRECTORY "${_tip_consumer_source_dir}")
 file(
@@ -98,6 +100,13 @@ file(
   "get_target_property(auto_type proof::rebuilt_auto TYPE)\n"
   "if(NOT static_type STREQUAL \"STATIC_LIBRARY\" OR NOT shared_type STREQUAL \"SHARED_LIBRARY\" OR NOT object_type STREQUAL \"OBJECT_LIBRARY\" OR NOT auto_type STREQUAL \"SHARED_LIBRARY\")\n"
   "  message(FATAL_ERROR \"Unexpected consumer-local target types: \${static_type};\${shared_type};\${object_type};\${auto_type}\")\n"
+  "endif()\n"
+  "if(WIN32)\n"
+  "  get_target_property(shared_exports proof::rebuilt_shared WINDOWS_EXPORT_ALL_SYMBOLS)\n"
+  "  get_target_property(auto_exports proof::rebuilt_auto WINDOWS_EXPORT_ALL_SYMBOLS)\n"
+  "  if(NOT shared_exports OR NOT auto_exports)\n"
+  "    message(FATAL_ERROR \"Consumer-local shared targets must export symbols on Windows\")\n"
+  "  endif()\n"
   "endif()\n"
   "add_executable(static_consumer static.cpp)\n"
   "target_link_libraries(static_consumer PRIVATE proof::rebuilt_static)\n"

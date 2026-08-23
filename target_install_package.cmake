@@ -393,6 +393,8 @@ function(_tip_append_consumer_local_source_library_content OUT_VAR EXPORT_PROPER
   )
   string(APPEND _tip_content "  if(NOT ${_tip_variable_prefix}_files)\n    message(FATAL_ERROR \"Package '${_tip_imported_target}' has no installed source files.\")\n  endif()\n")
   string(APPEND _tip_content "  add_library(${_tip_internal_target} \${${_tip_variable_prefix}_type})\n")
+  string(APPEND _tip_content
+         "  if(WIN32 AND \"\${${_tip_variable_prefix}_type}\" STREQUAL \"SHARED\")\n    set_property(TARGET ${_tip_internal_target} PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)\n  endif()\n")
   string(APPEND _tip_content "  target_sources(${_tip_internal_target} PRIVATE \${${_tip_variable_prefix}_files})\n")
 
   foreach(_tip_private_property IN ITEMS COMPILE_DEFINITIONS COMPILE_OPTIONS COMPILE_FEATURES INCLUDE_DIRECTORIES LINK_OPTIONS LINK_DIRECTORIES)
@@ -2066,6 +2068,7 @@ function(finalize_package)
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
   set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
   set(_tip_exported_alias_names "")
+  set(_tip_source_library_alias_names "")
 
   # Install each target separately with its own components
   set(_tip_export_has_source_sets FALSE)
@@ -2089,8 +2092,27 @@ function(finalize_package)
     if(TARGET_ALIAS_NAME IN_LIST _tip_exported_alias_names)
       project_log(FATAL_ERROR "Duplicate exported target name '${TARGET_ALIAS_NAME}' in export '${ARG_EXPORT_NAME}'. Use unique ALIAS_NAME values for each target.")
     endif()
+    if(TARGET_ALIAS_NAME IN_LIST _tip_source_library_alias_names)
+      project_log(FATAL_ERROR
+                  "Consumer-local source alias '${TARGET_ALIAS_NAME}' in export '${ARG_EXPORT_NAME}' conflicts with exported target name '${TARGET_ALIAS_NAME}'. Use a unique SOURCE_LIBRARY_ALIAS.")
+    endif()
     list(APPEND _tip_exported_alias_names "${TARGET_ALIAS_NAME}")
     list(APPEND _tip_cps_exported_target_names "${TARGET_ALIAS_NAME}")
+
+    get_property(_tip_source_library_type GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_TYPE")
+    if(NOT "${_tip_source_library_type}" STREQUAL "")
+      get_property(_tip_source_library_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_ALIAS")
+      if(_tip_source_library_alias IN_LIST _tip_exported_alias_names)
+        project_log(
+          FATAL_ERROR
+          "Consumer-local source alias '${_tip_source_library_alias}' for target '${TARGET_NAME}' in export '${ARG_EXPORT_NAME}' conflicts with an exported target name. Use a unique SOURCE_LIBRARY_ALIAS."
+        )
+      endif()
+      if(_tip_source_library_alias IN_LIST _tip_source_library_alias_names)
+        project_log(FATAL_ERROR "Duplicate consumer-local source alias '${_tip_source_library_alias}' in export '${ARG_EXPORT_NAME}'. Use unique SOURCE_LIBRARY_ALIAS values for each target.")
+      endif()
+      list(APPEND _tip_source_library_alias_names "${_tip_source_library_alias}")
+    endif()
 
     get_target_property(_tip_cps_target_type ${TARGET_NAME} TYPE)
     if(CPS_ENABLED AND _tip_cps_target_type IN_LIST _tip_cps_unsupported_target_types)
