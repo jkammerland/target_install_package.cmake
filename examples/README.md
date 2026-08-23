@@ -11,6 +11,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | Header-only or interface library packaging | [basic-interface](basic-interface/) |
 | Multiple targets behind one `find_package()` call | [components-same-export](components-same-export/) |
 | A conventional SDK shape with an umbrella target | [sdk](sdk/) |
+| A prebuilt runtime plus consumer-built extension | [hybrid-sdk](hybrid-sdk/) |
 | Generated/configured public headers | [configure-files](configure-files/) |
 | Component installs and selective runtime packages | [components](components/) |
 | CPack archive/native package output | [cpack-basic](cpack-basic/) |
@@ -31,6 +32,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [components](components/) | Component-Based | Custom components and selective installation |
 | [components-same-export](components-same-export/) | Multi-Target Export | Recommended pattern for multiple targets with dependency aggregation |
 | [sdk](sdk/) | SDK Package | Prebuilt shared/static libraries with an interface umbrella target |
+| [hybrid-sdk](hybrid-sdk/) | Hybrid SDK Package | Prebuilt runtime plus CMake 4.4 source extension behind one umbrella target |
 | [dependency-aggregation](dependency-aggregation/) | Dependency Aggregation | Minimal example demonstrating dependency aggregation mechanics |
 | [configure-files](configure-files/) | Template Configuration | Build-time header generation from templates |
 | [cxx-modules](cxx-modules/) | C++20 Modules | C++20 modules with CXX_MODULES file sets |

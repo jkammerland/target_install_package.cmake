@@ -2,7 +2,7 @@
 
 # Build and install all CMake target_install_package examples
 # This script builds each example independently and installs them to their respective build/install directories
-# Usage: ./build_all_examples.sh [clean] [--multi-config] [--build-root <dir>] [--help]
+# Usage: ./build_all_examples.sh [clean] [--multi-config] [--build-root <dir>] [--cmake-command <path>] [--help]
 
 set -e  # Exit on any error
 
@@ -62,6 +62,20 @@ setup_macos_sdk() {
 }
 
 MACOS_SDK_PATH=""
+CMAKE_EXECUTABLE="cmake"
+
+cmake_supports_hybrid_sdk() {
+    local cmake_version
+    cmake_version="$("${CMAKE_EXECUTABLE}" --version | awk 'NR == 1 { print $3; exit }')"
+
+    if [[ ! "$cmake_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+        return 1
+    fi
+
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    (( 10#$major > 4 || (10#$major == 4 && 10#$minor >= 4) ))
+}
 
 # Function to show help
 show_help() {
@@ -75,6 +89,7 @@ show_help() {
     echo "                 (Debug, Release, MinSizeRel, RelWithDebInfo)"
     echo "  --build-root   Place all build/install outputs under a single directory"
     echo "                 (out-of-source builds, keeps examples/ clean)"
+    echo "  --cmake-command Use this CMake executable (default: cmake)"
     echo "  --help         Show this help message"
     echo ""
     echo "Multi-config mode automatically detects the best available generator:"
@@ -92,7 +107,7 @@ show_help() {
 # Function to detect best available multi-config generator
 detect_multiconfig_generator() {
     # Check for Ninja Multi-Config (most portable, available since CMake 3.17)
-    if cmake --help | grep -q "Ninja Multi-Config"; then
+    if "${CMAKE_EXECUTABLE}" --help | grep -q "Ninja Multi-Config"; then
         echo "Ninja Multi-Config"
         return 0
     fi
@@ -166,19 +181,19 @@ build_example() {
         fi
 
         print_status "Configuring $example_name (BuildType: $build_type)..."
-        if ! cmake "${cmake_args[@]}"; then
+        if ! "${CMAKE_EXECUTABLE}" "${cmake_args[@]}"; then
             print_error "Configuration failed for $example_name"
             return 1
         fi
 
         print_status "Building $example_name..."
-        if ! cmake --build "${build_dir}"; then
+        if ! "${CMAKE_EXECUTABLE}" --build "${build_dir}"; then
             print_error "Build failed for $example_name"
             return 1
         fi
 
         print_status "Installing $example_name..."
-        if ! cmake --install "${build_dir}"; then
+        if ! "${CMAKE_EXECUTABLE}" --install "${build_dir}"; then
             print_error "Installation failed for $example_name"
             return 1
         fi
@@ -227,7 +242,7 @@ build_example() {
     fi
     
     print_status "Configuring $example_name (BuildType: $build_type)..."
-    if ! cmake "${cmake_args[@]}"; then
+    if ! "${CMAKE_EXECUTABLE}" "${cmake_args[@]}"; then
         print_error "Configuration failed for $example_name"
         cd ../..
         return 1
@@ -235,7 +250,7 @@ build_example() {
     
     # Build
     print_status "Building $example_name..."
-    if ! cmake --build .; then
+    if ! "${CMAKE_EXECUTABLE}" --build .; then
         print_error "Build failed for $example_name"
         cd ../..
         return 1
@@ -243,7 +258,7 @@ build_example() {
     
     # Install
     print_status "Installing $example_name..."
-    if ! cmake --install .; then
+    if ! "${CMAKE_EXECUTABLE}" --install .; then
         print_error "Installation failed for $example_name"
         cd ../..
         return 1
@@ -299,7 +314,7 @@ build_example_multiconfig() {
             fi
         fi
 
-        if ! cmake "${cmake_args[@]}"; then
+        if ! "${CMAKE_EXECUTABLE}" "${cmake_args[@]}"; then
             print_error "Configuration failed for $example_name"
             return 1
         fi
@@ -310,14 +325,14 @@ build_example_multiconfig() {
 
         for config in "${configs[@]}"; do
             print_status "Building $example_name [$config]..."
-            if ! cmake --build "${build_dir}" --config "$config"; then
+            if ! "${CMAKE_EXECUTABLE}" --build "${build_dir}" --config "$config"; then
                 print_error "Build failed for $example_name [$config]"
                 failed_configs+=("$config")
                 continue
             fi
 
             print_status "Installing $example_name [$config]..."
-            if ! cmake --install "${build_dir}" --config "$config"; then
+            if ! "${CMAKE_EXECUTABLE}" --install "${build_dir}" --config "$config"; then
                 print_error "Installation failed for $example_name [$config]"
                 failed_configs+=("$config")
                 continue
@@ -378,7 +393,7 @@ build_example_multiconfig() {
         fi
     fi
 
-    if ! cmake "${cmake_args[@]}"; then
+    if ! "${CMAKE_EXECUTABLE}" "${cmake_args[@]}"; then
         print_error "Configuration failed for $example_name"
         cd ../..
         return 1
@@ -391,7 +406,7 @@ build_example_multiconfig() {
     
     for config in "${configs[@]}"; do
         print_status "Building $example_name [$config]..."
-        if ! cmake --build . --config "$config"; then
+        if ! "${CMAKE_EXECUTABLE}" --build . --config "$config"; then
             print_error "Build failed for $example_name [$config]"
             failed_configs+=("$config")
             continue
@@ -400,7 +415,7 @@ build_example_multiconfig() {
         print_status "Installing $example_name [$config]..."
         # Install each configuration into the single shared prefix; destinations
         # are routed by generator expressions in install() commands.
-        if ! cmake --install . --config "$config"; then
+        if ! "${CMAKE_EXECUTABLE}" --install . --config "$config"; then
             print_error "Installation failed for $example_name [$config]"
             failed_configs+=("$config")
             continue
@@ -518,6 +533,10 @@ while [[ $# -gt 0 ]]; do
             BUILD_ROOT="${2:?}"
             shift 2
             ;;
+        "--cmake-command")
+            CMAKE_EXECUTABLE="${2:?}"
+            shift 2
+            ;;
         "--help"|"-h")
             show_help
             exit 0
@@ -529,6 +548,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ "${CLEAN_MODE}" == "true" ]] || cmake_supports_hybrid_sdk; then
+    EXAMPLES+=("hybrid-sdk")
+else
+    print_warning "Skipping hybrid-sdk: requires CMake 4.4 or newer"
+fi
 
 if [[ -n "${BUILD_ROOT}" ]]; then
     mkdir -p "${BUILD_ROOT}"
@@ -564,7 +589,7 @@ if [ "$MULTI_CONFIG_MODE" = true ]; then
 fi
 
 # Detect support for --default-directory-per-config once
-if cmake --help 2>&1 | grep -q -- "--default-directory-per-config"; then
+if "${CMAKE_EXECUTABLE}" --help 2>&1 | grep -q -- "--default-directory-per-config"; then
     CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=true
 else
     CMAKE_HAS_DEFAULT_DIR_PER_CONFIG=false
