@@ -9,7 +9,7 @@ if(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
 endif()
 
-set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/ordinary-source-extraction")
+set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/ose")
 set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
 set(_tip_fixture_build_dir "${_tip_case_root}/fixture-build")
 set(_tip_install_prefix "${_tip_case_root}/fixture-install")
