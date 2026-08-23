@@ -120,8 +120,8 @@ endif()
 #   MODULE_DESTINATION           - Destination for C++20 modules (default: `${CMAKE_INSTALL_INCLUDEDIR}`).
 #   SOURCE_DESTINATION           - Destination for CMake 4.4 SOURCES file sets (default: `${CMAKE_INSTALL_DATADIR}/${EXPORT_NAME}/src`).
 #   SOURCE_FILE_SET_FROM_TARGET_SOURCES
-#                              - Creates a CMake 4.4 SOURCES file set from ordinary target sources. Only files that can be
-#                                deterministically resolved inside the target's source or binary directory are accepted.
+#                              - Creates a CMake 4.4 SOURCES file set from an interface library's ordinary target sources. Only
+#                                files that can be deterministically resolved inside the target's source or binary directory are accepted.
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
 #   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
@@ -253,8 +253,11 @@ function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
   endif()
 
   get_target_property(_tip_target_type ${TARGET_NAME} TYPE)
-  if(NOT _tip_target_type MATCHES "^(INTERFACE|STATIC|SHARED|OBJECT)_LIBRARY$")
-    project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES supports library targets only; '${TARGET_NAME}' is ${_tip_target_type}.")
+  if(NOT _tip_target_type STREQUAL "INTERFACE_LIBRARY")
+    project_log(
+      FATAL_ERROR
+      "SOURCE_FILE_SET_FROM_TARGET_SOURCES supports INTERFACE_LIBRARY targets only; '${TARGET_NAME}' is ${_tip_target_type}. Extracting a binary library's implementation sources would expose them to consumers."
+    )
   endif()
 
   get_target_property(_tip_target_source_dir ${TARGET_NAME} SOURCE_DIR)
@@ -373,6 +376,15 @@ function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
     project_log(FATAL_ERROR "SOURCE_FILE_SET_FROM_TARGET_SOURCES found no extractable sources on target '${TARGET_NAME}'.")
   endif()
 
+  set(_tip_source_base_dirs "${_tip_target_source_dir}" "${_tip_target_binary_dir}")
+  cmake_path(IS_PREFIX _tip_target_source_dir "${_tip_target_binary_dir}" NORMALIZE _tip_source_dir_contains_binary_dir)
+  cmake_path(IS_PREFIX _tip_target_binary_dir "${_tip_target_source_dir}" NORMALIZE _tip_binary_dir_contains_source_dir)
+  if(_tip_source_dir_contains_binary_dir)
+    set(_tip_source_base_dirs "${_tip_target_source_dir}")
+  elseif(_tip_binary_dir_contains_source_dir)
+    set(_tip_source_base_dirs "${_tip_target_binary_dir}")
+  endif()
+
   target_sources(
     ${TARGET_NAME}
     INTERFACE FILE_SET
@@ -380,8 +392,7 @@ function(_tip_add_source_file_set_from_target_sources TARGET_NAME FILE_SET_NAME)
               TYPE
               SOURCES
               BASE_DIRS
-              "${_tip_target_source_dir}"
-              "${_tip_target_binary_dir}"
+              ${_tip_source_base_dirs}
               FILES
               ${_tip_extracted_sources})
 

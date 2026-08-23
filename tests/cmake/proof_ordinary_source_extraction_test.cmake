@@ -11,7 +11,7 @@ endif()
 
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/ose")
 set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
-set(_tip_fixture_build_dir "${_tip_case_root}/fixture-build")
+set(_tip_fixture_build_dir "${_tip_fixture_source_dir}/build")
 set(_tip_install_prefix "${_tip_case_root}/fixture-install")
 set(_tip_consumer_source_dir "${_tip_case_root}/consumer-src")
 set(_tip_consumer_build_dir "${_tip_case_root}/consumer-build")
@@ -59,7 +59,7 @@ _tip_proof_run_step(
   "${_tip_install_prefix}")
 
 _tip_proof_assert_exists("${_tip_install_prefix}/share/ordinary_source_pkg/src/src/ordinary.cpp")
-_tip_proof_assert_exists("${_tip_install_prefix}/share/ordinary_source_pkg/src/generated.cpp")
+_tip_proof_assert_exists("${_tip_install_prefix}/share/ordinary_source_pkg/src/build/generated.cpp")
 
 file(REMOVE_RECURSE "${_tip_fixture_source_dir}" "${_tip_fixture_build_dir}")
 file(MAKE_DIRECTORY "${_tip_consumer_source_dir}")

@@ -13,6 +13,11 @@ set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/osef")
 file(REMOVE_RECURSE "${_tip_case_root}")
 
 function(_tip_write_ordinary_source_extraction_fixture name expected_message source_declaration)
+  if(ARGC GREATER 3)
+    set(_tip_target_declaration "${ARGV3}")
+  else()
+    set(_tip_target_declaration "add_library(ordinary_source_only INTERFACE)")
+  endif()
   string(SHA256 _tip_fixture_hash "${name}")
   string(SUBSTRING "${_tip_fixture_hash}" 0 8 _tip_fixture_hash)
   set(_tip_fixture_dir "${_tip_case_root}/${_tip_fixture_hash}")
@@ -25,7 +30,7 @@ function(_tip_write_ordinary_source_extraction_fixture name expected_message sou
     "project(proof_ordinary_source_extraction_failure VERSION 1.0.0 LANGUAGES CXX)\n"
     "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-    "add_library(ordinary_source_only INTERFACE)\n"
+    "${_tip_target_declaration}\n"
     "${source_declaration}\n"
     "target_install_package(ordinary_source_only EXPORT_NAME ${name} SOURCE_FILE_SET_FROM_TARGET_SOURCES implementation)\n")
   _tip_proof_expect_failure(
@@ -48,5 +53,7 @@ _tip_write_ordinary_source_extraction_fixture(
   "target_sources(ordinary_source_only INTERFACE src/ordinary.cpp)\ntarget_sources(ordinary_source_only INTERFACE FILE_SET explicit_implementation TYPE SOURCES BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/src\" FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/src/ordinary.cpp\")"
 )
 _tip_write_ordinary_source_extraction_fixture(header-source "is a header" "target_sources(ordinary_source_only INTERFACE include/proof/ordinary.hpp)")
+_tip_write_ordinary_source_extraction_fixture(binary-library "supports INTERFACE_LIBRARY targets only" "target_sources(ordinary_source_only PRIVATE src/ordinary.cpp)"
+                                              "add_library(ordinary_source_only STATIC)")
 
 message(STATUS "[proof] Ordinary source extraction failure proof passed.")
