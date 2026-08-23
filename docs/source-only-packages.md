@@ -31,6 +31,24 @@ target_configure_sources(foo_sources
   FILES src/configured_backend.cpp.in)
 ```
 
+## Consumer-local libraries
+
+`SOURCE_LIBRARY_TYPE` creates an additional consumer-local target from installed `SOURCES` file sets. The original imported target remains available; consumers opt into the compiled target through its stable alias:
+
+```cmake
+target_install_package(foo_sources
+  SOURCE_LIBRARY_TYPE STATIC
+  SOURCE_LIBRARY_ALIAS foo_compiled)
+
+# Consumer CMakeLists.txt
+find_package(foo_sources CONFIG REQUIRED)
+target_link_libraries(app PRIVATE foo_sources::foo_compiled)
+```
+
+Supported types are `STATIC`, `SHARED`, `OBJECT`, and `AUTO`. `AUTO` evaluates `BUILD_SHARED_LIBS` in the consumer project, selecting `SHARED` when it is enabled and `STATIC` otherwise. The target forwards public compile definitions, options, features, include directories, link options, link directories, and link dependencies. It also preserves relocatable private compile settings and dependencies required to build the local library.
+
+The consumer compiles these sources with its own compiler, standard library, and ABI settings. Treat the result as source compatibility rather than a prebuilt binary ABI promise. Generator expressions in private build metadata, private build-tree paths, and C++ module file sets are rejected because they cannot be reconstructed safely in an unrelated consumer build.
+
 ## Consumer build hygiene
 
 Interface sources are compiled into every dependent target. This model works well for small portability layers, generated implementations, and source packages that feed one final target. It is not a drop-in replacement for a static or shared library:
