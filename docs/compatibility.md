@@ -2,6 +2,8 @@
 
 This matrix describes the supported surface of `target_install_package()`, `target_configure_sources()`, and `export_cpack()`. Generator-specific package behavior still depends on the tools installed on the build host.
 
+See the [CMake Version Policy](cmake-version-policy.md) for the global-floor migration process and producer versus consumer requirements.
+
 ## CMake Versions
 
 | Feature | Minimum CMake | Notes |
@@ -60,6 +62,7 @@ This matrix describes the supported surface of `target_install_package()`, `targ
 - `target_install_package()` validates target names, package options, additional file paths, template placeholders, and conflicting export metadata at configure time.
 - `export_cpack()` can be called once per build tree because CPack has one package configuration per build directory.
 - `CPS` and `SBOM` options are intentionally opt-in so projects on older CMake versions can keep using the core install path.
+- CPS exports do not support CMake 4.4 `SOURCES` file sets: CMake 4.4.2 `install(PACKAGE_INFO)` omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
 - Container generation builds minimal runtime images. It is not a general Dockerfile authoring system.
 
