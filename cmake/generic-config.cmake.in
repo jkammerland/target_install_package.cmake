@@ -36,6 +36,7 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/@ARG_EXPORT_NAME@Targets.cmake")
 
+@PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT@
 @PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT@
 
 if(_tip_restore_relwithdebinfo_map)

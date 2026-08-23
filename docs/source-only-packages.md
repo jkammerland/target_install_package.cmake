@@ -57,12 +57,15 @@ Interface sources are compiled into every dependent target. This model works wel
 - Static state can be duplicated across binaries or shared libraries.
 - Consumer compile flags become part of the package's effective ABI.
 
-CMake 4.4 file-set properties can keep packaged sources out of consumer-wide tooling when appropriate:
+CMake 4.4 file-set properties can keep packaged sources out of consumer-wide tooling when appropriate. Pass them through `target_install_package()` as triples of file-set name, property, and boolean value:
 
 ```cmake
-set_property(FILE_SET implementation TARGET foo_sources PROPERTY SKIP_LINTING ON)
-set_property(FILE_SET implementation TARGET foo_sources PROPERTY SKIP_PRECOMPILE_HEADERS ON)
-set_property(FILE_SET implementation TARGET foo_sources PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
+target_install_package(foo_sources
+  SOURCE_FILE_SET_PROPERTIES
+    implementation SKIP_LINTING ON
+    implementation SKIP_PRECOMPILE_HEADERS ON
+    implementation SKIP_UNITY_BUILD_INCLUSION ON
+    implementation CXX_SCAN_FOR_MODULES OFF)
 ```
 
-These controls are opt-in because some packages should inherit the consumer's analysis, precompiled-header, or unity-build settings.
+`SKIP_LINTING`, `SKIP_PRECOMPILE_HEADERS`, `SKIP_UNITY_BUILD_INCLUSION`, and `CXX_SCAN_FOR_MODULES` require CMake 4.4 and apply only to public or interface `SOURCES` file sets. These controls are opt-in because some packages should inherit the consumer's analysis, precompiled-header, unity-build, or module-scanning settings.
