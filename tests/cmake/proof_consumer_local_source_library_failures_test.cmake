@@ -9,11 +9,13 @@ if(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
 endif()
 
-set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/consumer-local-source-library-failures")
+set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/cslf")
 file(REMOVE_RECURSE "${_tip_case_root}")
 
 function(_tip_write_consumer_local_failure_fixture name expected_message target_declaration body)
-  set(_tip_fixture_dir "${_tip_case_root}/${name}")
+  string(SHA256 _tip_fixture_hash "${name}")
+  string(SUBSTRING "${_tip_fixture_hash}" 0 8 _tip_fixture_hash)
+  set(_tip_fixture_dir "${_tip_case_root}/${_tip_fixture_hash}")
   file(MAKE_DIRECTORY "${_tip_fixture_dir}/src")
   file(WRITE "${_tip_fixture_dir}/src/source.cpp" "int value() { return 1; }\n")
   file(
