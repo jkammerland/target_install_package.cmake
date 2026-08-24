@@ -59,6 +59,8 @@ endif()
 #     MODULE_DESTINATION <module_dest>
 #     SOURCE_DESTINATION <source_dest>
 #     SOURCE_FILE_SET_FROM_TARGET_SOURCES <file_set>
+#     SOURCE_LIBRARY_TYPE <STATIC|SHARED|OBJECT|AUTO>
+#     SOURCE_LIBRARY_ALIAS <alias>
 #     SOURCE_FILE_SET_PROPERTIES <file_set> <property> <boolean> [...]
 #     CMAKE_CONFIG_DESTINATION <config_dest>
 #     COMPONENT <component>
@@ -123,6 +125,9 @@ endif()
 #   SOURCE_FILE_SET_FROM_TARGET_SOURCES
 #                              - Creates a CMake 4.4 SOURCES file set from an interface library's ordinary target sources. Only
 #                                files that can be deterministically resolved inside the target's source or binary directory are accepted.
+#   SOURCE_LIBRARY_TYPE          - Creates an opt-in consumer-local library from installed SOURCES file sets. Supports STATIC,
+#                                  SHARED, OBJECT, or AUTO (uses BUILD_SHARED_LIBS at consumer configure time). Requires CMake 4.4+.
+#   SOURCE_LIBRARY_ALIAS         - Consumer alias suffix for SOURCE_LIBRARY_TYPE (default: `${ALIAS_NAME}_source`).
 #   SOURCE_FILE_SET_PROPERTIES   - CMake 4.4 source file-set property triples: `<file_set> <property> <boolean>`. Supported properties are
 #                                  `SKIP_LINTING`, `SKIP_PRECOMPILE_HEADERS`, `SKIP_UNITY_BUILD_INCLUSION`, and `CXX_SCAN_FOR_MODULES`.
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
@@ -155,6 +160,7 @@ endif()
 #   - Handles both legacy PUBLIC_HEADER and modern FILE_SET installation.
 #   - Installs public and interface SOURCES file sets with CMake 4.4+.
 #   - Can create an installable SOURCES file set from ordinary target sources with CMake 4.4+.
+#   - Can create a consumer-local library from installed SOURCES file sets with CMake 4.4+.
 #   - Applies requested consumer-build hygiene controls to public and interface SOURCES file sets with CMake 4.4+.
 #   - Supports C++20 modules (CMake 3.28+).
 #   - Generates CMake config files with version and dependency handling.
@@ -244,6 +250,270 @@ function(_tip_resolve_absolute_paths RESULT_VAR BASE_DIR)
 
   set(${RESULT_VAR}
       "${_tip_resolved_paths}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_is_automatic_header_file_set_include OUT_VAR TARGET_NAME INCLUDE_DIRECTORY)
+  set(_tip_is_automatic_include FALSE)
+  get_target_property(_tip_header_sets ${TARGET_NAME} INTERFACE_HEADER_SETS)
+  foreach(_tip_header_set IN LISTS _tip_header_sets)
+    get_target_property(_tip_header_base_dirs ${TARGET_NAME} HEADER_DIRS_${_tip_header_set})
+    foreach(_tip_header_base_dir IN LISTS _tip_header_base_dirs)
+      if("${INCLUDE_DIRECTORY}" STREQUAL "$<BUILD_INTERFACE:${_tip_header_base_dir}>")
+        set(_tip_is_automatic_include TRUE)
+        break()
+      endif()
+    endforeach()
+    if(_tip_is_automatic_include)
+      break()
+    endif()
+  endforeach()
+  set(${OUT_VAR}
+      ${_tip_is_automatic_include}
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_validate_consumer_local_source_library TARGET_NAME LIBRARY_TYPE LIBRARY_ALIAS)
+  if("${LIBRARY_TYPE}" STREQUAL "")
+    return()
+  endif()
+
+  if(CMAKE_VERSION VERSION_LESS "4.4")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE requires CMake 4.4 or newer.")
+  endif()
+
+  if(NOT LIBRARY_TYPE MATCHES "^(STATIC|SHARED|OBJECT|AUTO)$")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}' must be STATIC, SHARED, OBJECT, or AUTO.")
+  endif()
+
+  if("${LIBRARY_ALIAS}" STREQUAL "" OR "${LIBRARY_ALIAS}" MATCHES "::")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_ALIAS for target '${TARGET_NAME}' must be a non-namespaced target name.")
+  endif()
+
+  get_target_property(_tip_target_type ${TARGET_NAME} TYPE)
+  if(NOT _tip_target_type MATCHES "^(INTERFACE|STATIC|SHARED|OBJECT)_LIBRARY$")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE supports library targets only; '${TARGET_NAME}' is ${_tip_target_type}.")
+  endif()
+
+  get_target_property(_tip_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+  if(NOT _tip_source_sets OR _tip_source_sets MATCHES "-NOTFOUND$")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}' requires an INTERFACE SOURCES file set.")
+  endif()
+
+  get_target_property(_tip_module_sets ${TARGET_NAME} INTERFACE_CXX_MODULE_SETS)
+  if(_tip_module_sets AND NOT _tip_module_sets MATCHES "-NOTFOUND$")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}' does not support C++ module file sets.")
+  endif()
+
+  get_target_property(_tip_target_source_dir ${TARGET_NAME} SOURCE_DIR)
+  get_target_property(_tip_target_binary_dir ${TARGET_NAME} BINARY_DIR)
+  foreach(
+    _tip_private_property IN
+    ITEMS COMPILE_DEFINITIONS
+          COMPILE_OPTIONS
+          COMPILE_FEATURES
+          INCLUDE_DIRECTORIES
+          LINK_LIBRARIES
+          LINK_OPTIONS
+          LINK_DIRECTORIES)
+    get_target_property(_tip_private_values ${TARGET_NAME} ${_tip_private_property})
+    if(NOT _tip_private_values OR _tip_private_values MATCHES "-NOTFOUND$")
+      continue()
+    endif()
+
+    foreach(_tip_private_value IN LISTS _tip_private_values)
+      if(_tip_private_property STREQUAL "INCLUDE_DIRECTORIES")
+        _tip_is_automatic_header_file_set_include(_tip_automatic_header_include ${TARGET_NAME} "${_tip_private_value}")
+        if(_tip_automatic_header_include)
+          continue()
+        endif()
+      endif()
+      if("${_tip_private_value}" MATCHES "\\$<")
+        project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}' does not support generator expressions in ${_tip_private_property}: '${_tip_private_value}'.")
+      endif()
+      string(FIND "${_tip_private_value}" "${_tip_target_source_dir}" _tip_source_dir_index)
+      string(FIND "${_tip_private_value}" "${_tip_target_binary_dir}" _tip_binary_dir_index)
+      if(NOT _tip_source_dir_index EQUAL -1 OR NOT _tip_binary_dir_index EQUAL -1)
+        project_log(FATAL_ERROR
+                    "SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}' cannot relocate ${_tip_private_property} entry '${_tip_private_value}'. Use an exported target or an install-tree path.")
+      endif()
+    endforeach()
+  endforeach()
+endfunction()
+
+function(_tip_append_consumer_local_source_library_content OUT_VAR EXPORT_PROPERTY_PREFIX NAMESPACE TARGETS TARGET_NAME)
+  get_property(_tip_library_type GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_TYPE")
+  if("${_tip_library_type}" STREQUAL "")
+    return()
+  endif()
+
+  get_property(_tip_target_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
+  get_property(_tip_library_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_ALIAS")
+  get_property(_tip_source_file_set_properties GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILE_SET_PROPERTIES")
+  set(_tip_imported_target "${NAMESPACE}${_tip_target_alias}")
+  set(_tip_public_alias "${NAMESPACE}${_tip_library_alias}")
+  string(SHA256 _tip_library_hash "${_tip_imported_target}:${_tip_public_alias}")
+  string(SUBSTRING "${_tip_library_hash}" 0 16 _tip_library_hash)
+  set(_tip_internal_target "_tip_consumer_source_${_tip_library_hash}")
+  set(_tip_variable_prefix "_tip_consumer_source_${_tip_library_hash}")
+
+  get_target_property(_tip_source_sets ${TARGET_NAME} INTERFACE_SOURCE_SETS)
+  foreach(_tip_source_set IN LISTS _tip_source_sets)
+    get_target_property(_tip_source_files ${TARGET_NAME} SOURCE_SET_${_tip_source_set})
+    foreach(_tip_source_file IN LISTS _tip_source_files)
+      if("${_tip_source_file}" MATCHES "\\$<")
+        project_log(FATAL_ERROR "SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}' does not support generator expressions in SOURCES file set '${_tip_source_set}'.")
+      endif()
+    endforeach()
+  endforeach()
+
+  set(_tip_private_link_libraries "")
+  get_target_property(_tip_link_libraries ${TARGET_NAME} LINK_LIBRARIES)
+  if(_tip_link_libraries AND NOT _tip_link_libraries MATCHES "-NOTFOUND$")
+    foreach(_tip_link_library IN LISTS _tip_link_libraries)
+      set(_tip_exported_link_target "${_tip_link_library}")
+      if(TARGET "${_tip_link_library}")
+        get_target_property(_tip_aliased_link_target "${_tip_link_library}" ALIASED_TARGET)
+        if(_tip_aliased_link_target AND NOT _tip_aliased_link_target MATCHES "-NOTFOUND$")
+          set(_tip_exported_link_target "${_tip_aliased_link_target}")
+        endif()
+      endif()
+      list(FIND TARGETS "${_tip_exported_link_target}" _tip_exported_target_index)
+      if(_tip_exported_target_index EQUAL -1)
+        list(APPEND _tip_private_link_libraries "${_tip_link_library}")
+      else()
+        get_property(_tip_link_library_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_exported_link_target}_ALIAS_NAME")
+        list(APPEND _tip_private_link_libraries "${NAMESPACE}${_tip_link_library_alias}")
+      endif()
+    endforeach()
+  endif()
+
+  set(_tip_content "")
+  string(APPEND _tip_content "# Consumer-local source library for ${_tip_imported_target}.\n")
+  string(APPEND _tip_content "if(NOT TARGET ${_tip_internal_target})\n")
+  if(_tip_library_type STREQUAL "AUTO")
+    string(APPEND _tip_content "  if(BUILD_SHARED_LIBS)\n    set(${_tip_variable_prefix}_type SHARED)\n  else()\n    set(${_tip_variable_prefix}_type STATIC)\n  endif()\n")
+  else()
+    string(APPEND _tip_content "  set(${_tip_variable_prefix}_type ${_tip_library_type})\n")
+  endif()
+  string(APPEND _tip_content "  get_target_property(${_tip_variable_prefix}_sets ${_tip_imported_target} INTERFACE_SOURCE_SETS)\n")
+  string(
+    APPEND
+    _tip_content
+    "  if(NOT ${_tip_variable_prefix}_sets OR ${_tip_variable_prefix}_sets MATCHES \"-NOTFOUND$\")\n    message(FATAL_ERROR \"Package '${_tip_imported_target}' is missing its installed SOURCES file sets.\")\n  endif()\n"
+  )
+  string(APPEND _tip_content "  set(${_tip_variable_prefix}_files)\n")
+  string(
+    APPEND
+    _tip_content
+    "  foreach(${_tip_variable_prefix}_set IN LISTS ${_tip_variable_prefix}_sets)\n    get_target_property(${_tip_variable_prefix}_set_files ${_tip_imported_target} SOURCE_SET_\${${_tip_variable_prefix}_set})\n    list(APPEND ${_tip_variable_prefix}_files \${${_tip_variable_prefix}_set_files})\n  endforeach()\n"
+  )
+  string(APPEND _tip_content "  if(NOT ${_tip_variable_prefix}_files)\n    message(FATAL_ERROR \"Package '${_tip_imported_target}' has no installed source files.\")\n  endif()\n")
+  string(APPEND _tip_content "  add_library(${_tip_internal_target} \${${_tip_variable_prefix}_type})\n")
+  string(APPEND _tip_content
+         "  if(WIN32 AND \"\${${_tip_variable_prefix}_type}\" STREQUAL \"SHARED\")\n    set_property(TARGET ${_tip_internal_target} PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)\n  endif()\n")
+  string(
+    APPEND
+    _tip_content
+    "  foreach(${_tip_variable_prefix}_set IN LISTS ${_tip_variable_prefix}_sets)\n    get_target_property(${_tip_variable_prefix}_set_dirs ${_tip_imported_target} SOURCE_DIRS_\${${_tip_variable_prefix}_set})\n    get_target_property(${_tip_variable_prefix}_set_files ${_tip_imported_target} SOURCE_SET_\${${_tip_variable_prefix}_set})\n    target_sources(${_tip_internal_target} PRIVATE FILE_SET \"\${${_tip_variable_prefix}_set}\" TYPE SOURCES BASE_DIRS \${${_tip_variable_prefix}_set_dirs} FILES \${${_tip_variable_prefix}_set_files})\n  endforeach()\n"
+  )
+
+  list(LENGTH _tip_source_file_set_properties _tip_source_file_set_property_count)
+  set(_tip_source_file_set_property_index 0)
+  while(_tip_source_file_set_property_index LESS _tip_source_file_set_property_count)
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_name)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_property)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    list(GET _tip_source_file_set_properties ${_tip_source_file_set_property_index} _tip_source_file_set_value)
+    math(EXPR _tip_source_file_set_property_index "${_tip_source_file_set_property_index} + 1")
+    string(APPEND _tip_content
+           "  set_property(FILE_SET [==[${_tip_source_file_set_name}]==] TARGET ${_tip_internal_target} PROPERTY [==[${_tip_source_file_set_property}]==] [==[${_tip_source_file_set_value}]==])\n")
+  endwhile()
+
+  foreach(_tip_private_property IN ITEMS COMPILE_DEFINITIONS COMPILE_OPTIONS COMPILE_FEATURES INCLUDE_DIRECTORIES LINK_OPTIONS LINK_DIRECTORIES)
+    get_target_property(_tip_private_values ${TARGET_NAME} ${_tip_private_property})
+    if(NOT _tip_private_values OR _tip_private_values MATCHES "-NOTFOUND$")
+      continue()
+    endif()
+
+    if(_tip_private_property STREQUAL "COMPILE_DEFINITIONS")
+      set(_tip_private_command target_compile_definitions)
+    elseif(_tip_private_property STREQUAL "COMPILE_OPTIONS")
+      set(_tip_private_command target_compile_options)
+    elseif(_tip_private_property STREQUAL "COMPILE_FEATURES")
+      set(_tip_private_command target_compile_features)
+    elseif(_tip_private_property STREQUAL "INCLUDE_DIRECTORIES")
+      set(_tip_private_command target_include_directories)
+    elseif(_tip_private_property STREQUAL "LINK_OPTIONS")
+      set(_tip_private_command target_link_options)
+    elseif(_tip_private_property STREQUAL "LINK_DIRECTORIES")
+      set(_tip_private_command target_link_directories)
+    endif()
+
+    foreach(_tip_private_value IN LISTS _tip_private_values)
+      if(_tip_private_property STREQUAL "INCLUDE_DIRECTORIES")
+        _tip_is_automatic_header_file_set_include(_tip_automatic_header_include ${TARGET_NAME} "${_tip_private_value}")
+        if(_tip_automatic_header_include)
+          continue()
+        endif()
+      endif()
+      string(APPEND _tip_content "  ${_tip_private_command}(${_tip_internal_target} PRIVATE [==[${_tip_private_value}]==])\n")
+    endforeach()
+  endforeach()
+  foreach(_tip_private_link_library IN LISTS _tip_private_link_libraries)
+    string(APPEND _tip_content "  target_link_libraries(${_tip_internal_target} PRIVATE [==[${_tip_private_link_library}]==])\n")
+  endforeach()
+
+  foreach(
+    _tip_public_property IN
+    ITEMS COMPILE_DEFINITIONS
+          COMPILE_OPTIONS
+          COMPILE_FEATURES
+          INCLUDE_DIRECTORIES
+          LINK_OPTIONS
+          LINK_DIRECTORIES
+          LINK_LIBRARIES)
+    if(_tip_public_property STREQUAL "COMPILE_DEFINITIONS")
+      set(_tip_public_command target_compile_definitions)
+    elseif(_tip_public_property STREQUAL "COMPILE_OPTIONS")
+      set(_tip_public_command target_compile_options)
+    elseif(_tip_public_property STREQUAL "COMPILE_FEATURES")
+      set(_tip_public_command target_compile_features)
+    elseif(_tip_public_property STREQUAL "INCLUDE_DIRECTORIES")
+      set(_tip_public_command target_include_directories)
+    elseif(_tip_public_property STREQUAL "LINK_OPTIONS")
+      set(_tip_public_command target_link_options)
+    elseif(_tip_public_property STREQUAL "LINK_DIRECTORIES")
+      set(_tip_public_command target_link_directories)
+    elseif(_tip_public_property STREQUAL "LINK_LIBRARIES")
+      set(_tip_public_command target_link_libraries)
+    endif()
+
+    string(APPEND _tip_content "  get_target_property(${_tip_variable_prefix}_${_tip_public_property} ${_tip_imported_target} INTERFACE_${_tip_public_property})\n")
+    string(
+      APPEND
+      _tip_content
+      "  if(${_tip_variable_prefix}_${_tip_public_property} AND NOT ${_tip_variable_prefix}_${_tip_public_property} MATCHES \"-NOTFOUND$\")\n    ${_tip_public_command}(${_tip_internal_target} PUBLIC \${${_tip_variable_prefix}_${_tip_public_property}})\n  endif()\n"
+    )
+  endforeach()
+  string(APPEND _tip_content "  get_target_property(${_tip_variable_prefix}_system_includes ${_tip_imported_target} INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)\n")
+  string(
+    APPEND
+    _tip_content
+    "  if(${_tip_variable_prefix}_system_includes AND NOT ${_tip_variable_prefix}_system_includes MATCHES \"-NOTFOUND$\")\n    target_include_directories(${_tip_internal_target} SYSTEM PUBLIC \${${_tip_variable_prefix}_system_includes})\n  endif()\n"
+  )
+  string(APPEND _tip_content "  get_target_property(${_tip_variable_prefix}_pic ${_tip_imported_target} INTERFACE_POSITION_INDEPENDENT_CODE)\n")
+  string(
+    APPEND
+    _tip_content
+    "  if(NOT ${_tip_variable_prefix}_pic MATCHES \"-NOTFOUND$\" AND NOT \"\${${_tip_variable_prefix}_pic}\" STREQUAL \"\")\n    set_property(TARGET ${_tip_internal_target} PROPERTY POSITION_INDEPENDENT_CODE \"\${${_tip_variable_prefix}_pic}\")\n  endif()\n"
+  )
+  string(APPEND _tip_content "  add_library(${_tip_public_alias} ALIAS ${_tip_internal_target})\n")
+  string(APPEND _tip_content "endif()\n")
+
+  set(${OUT_VAR}
+      "${${OUT_VAR}}${_tip_content}"
       PARENT_SCOPE)
 endfunction()
 
@@ -929,6 +1199,8 @@ function(target_prepare_package TARGET_NAME)
       MODULE_DESTINATION
       SOURCE_DESTINATION
       SOURCE_FILE_SET_FROM_TARGET_SOURCES
+      SOURCE_LIBRARY_TYPE
+      SOURCE_LIBRARY_ALIAS
       CMAKE_CONFIG_DESTINATION
       COMPONENT
       DEBUG_POSTFIX
@@ -1073,6 +1345,13 @@ function(target_prepare_package TARGET_NAME)
   if(NOT ARG_NAMESPACE)
     set(ARG_NAMESPACE "${ARG_EXPORT_NAME}::")
     project_log(DEBUG "  Namespace not provided, using export name: ${ARG_NAMESPACE}")
+  endif()
+
+  if(NOT "${ARG_SOURCE_LIBRARY_ALIAS}" STREQUAL "" AND "${ARG_SOURCE_LIBRARY_TYPE}" STREQUAL "")
+    project_log(FATAL_ERROR "SOURCE_LIBRARY_ALIAS requires SOURCE_LIBRARY_TYPE for target '${TARGET_NAME}'.")
+  endif()
+  if(NOT ARG_SOURCE_LIBRARY_ALIAS)
+    set(ARG_SOURCE_LIBRARY_ALIAS "${ARG_ALIAS_NAME}_source")
   endif()
 
   # Handle CMAKE_CONFIG_DESTINATION using EXPORT_NAME instead of TARGET_NAME
@@ -1353,6 +1632,8 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_COMPONENT_EXPLICIT" "${_tip_component_explicit}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME" "${ARG_ALIAS_NAME}")
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME_EXPLICIT" "${_tip_alias_name_explicit}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_TYPE" "${ARG_SOURCE_LIBRARY_TYPE}")
+  set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_ALIAS" "${ARG_SOURCE_LIBRARY_ALIAS}")
 
   if(ARG_SOURCE_FILE_SET_PROPERTIES)
     get_property(_tip_existing_source_file_set_properties GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_FILE_SET_PROPERTIES")
@@ -1955,6 +2236,10 @@ function(finalize_package)
     if(_tip_source_file_set_properties)
       _tip_apply_source_file_set_properties(${_tip_source_target} ${_tip_source_file_set_properties})
     endif()
+
+    get_property(_tip_source_library_type GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_LIBRARY_TYPE")
+    get_property(_tip_source_library_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_source_target}_SOURCE_LIBRARY_ALIAS")
+    _tip_validate_consumer_local_source_library(${_tip_source_target} "${_tip_source_library_type}" "${_tip_source_library_alias}")
   endforeach()
 
   # Get all stored properties
@@ -2105,6 +2390,7 @@ function(finalize_package)
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
   set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
   set(_tip_exported_alias_names "")
+  set(_tip_source_library_alias_names "")
   set(PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT "")
 
   # Install each target separately with its own components
@@ -2129,8 +2415,27 @@ function(finalize_package)
     if(TARGET_ALIAS_NAME IN_LIST _tip_exported_alias_names)
       project_log(FATAL_ERROR "Duplicate exported target name '${TARGET_ALIAS_NAME}' in export '${ARG_EXPORT_NAME}'. Use unique ALIAS_NAME values for each target.")
     endif()
+    if(TARGET_ALIAS_NAME IN_LIST _tip_source_library_alias_names)
+      project_log(FATAL_ERROR
+                  "Consumer-local source alias '${TARGET_ALIAS_NAME}' in export '${ARG_EXPORT_NAME}' conflicts with exported target name '${TARGET_ALIAS_NAME}'. Use a unique SOURCE_LIBRARY_ALIAS.")
+    endif()
     list(APPEND _tip_exported_alias_names "${TARGET_ALIAS_NAME}")
     list(APPEND _tip_cps_exported_target_names "${TARGET_ALIAS_NAME}")
+
+    get_property(_tip_source_library_type GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_TYPE")
+    if(NOT "${_tip_source_library_type}" STREQUAL "")
+      get_property(_tip_source_library_alias GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_SOURCE_LIBRARY_ALIAS")
+      if(_tip_source_library_alias IN_LIST _tip_exported_alias_names)
+        project_log(
+          FATAL_ERROR
+          "Consumer-local source alias '${_tip_source_library_alias}' for target '${TARGET_NAME}' in export '${ARG_EXPORT_NAME}' conflicts with an exported target name. Use a unique SOURCE_LIBRARY_ALIAS."
+        )
+      endif()
+      if(_tip_source_library_alias IN_LIST _tip_source_library_alias_names)
+        project_log(FATAL_ERROR "Duplicate consumer-local source alias '${_tip_source_library_alias}' in export '${ARG_EXPORT_NAME}'. Use unique SOURCE_LIBRARY_ALIAS values for each target.")
+      endif()
+      list(APPEND _tip_source_library_alias_names "${_tip_source_library_alias}")
+    endif()
 
     get_target_property(_tip_cps_target_type ${TARGET_NAME} TYPE)
     if(CPS_ENABLED AND _tip_cps_target_type IN_LIST _tip_cps_unsupported_target_types)
@@ -2711,6 +3016,15 @@ function(finalize_package)
     endforeach()
   endif()
 
+  set(PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT "")
+  foreach(TARGET_NAME IN LISTS TARGETS)
+    _tip_append_consumer_local_source_library_content(PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT "${EXPORT_PROPERTY_PREFIX}" "${NAMESPACE}" "${TARGETS}" "${TARGET_NAME}")
+  endforeach()
+  set(_tip_has_consumer_local_source_targets FALSE)
+  if(NOT "${PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT}" STREQUAL "")
+    set(_tip_has_consumer_local_source_targets TRUE)
+  endif()
+
   # Source of truth for CONFIG_TEMPLATE resolution: docs/template_resolution.md#source-of-truth
   set(CONFIG_TEMPLATE_TO_USE "")
   if(CONFIG_TEMPLATE)
@@ -2758,8 +3072,14 @@ function(finalize_package)
   endif()
 
   # Validate template contains required placeholders for provided parameters
-  _validate_config_template_placeholders("${CONFIG_TEMPLATE_TO_USE}" "${ARG_EXPORT_NAME}" "${INCLUDE_ON_FIND_PACKAGE}" "${_tip_package_public_content_required}" "${_tip_find_package_components}"
-                                         "${PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT}")
+  _validate_config_template_placeholders(
+    "${CONFIG_TEMPLATE_TO_USE}"
+    "${ARG_EXPORT_NAME}"
+    "${INCLUDE_ON_FIND_PACKAGE}"
+    "${_tip_package_public_content_required}"
+    "${_tip_find_package_components}"
+    "${_tip_has_consumer_local_source_targets}"
+    "${PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT}")
 
   # Generate correct config filename following CMake conventions Use <PackageName>Config.cmake format (exact case + "Config.cmake")
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
@@ -2891,6 +3211,7 @@ function(
   include_files
   public_deps
   component_deps
+  consumer_local_source_targets
   source_file_set_properties)
   # Read template content to validate required placeholders exist
   if(NOT EXISTS "${template_path}")
@@ -2919,6 +3240,10 @@ function(
 
   if(component_deps AND NOT template_content MATCHES "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
     list(APPEND missing_placeholders "@PACKAGE_COMPONENT_DEPENDENCIES_CONTENT@")
+  endif()
+
+  if(consumer_local_source_targets AND NOT template_content MATCHES "@PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT@")
+    list(APPEND missing_placeholders "@PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT@")
   endif()
 
   if(source_file_set_properties AND NOT template_content MATCHES "@PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT@")
