@@ -740,6 +740,8 @@ export_cpack(PACKAGE_NAME "MyLib")
 # Output: MyLib-1.0.0-Linux.tar.gz, mylib_1.0.0_amd64.deb, mylib-1.0.0-1.x86_64.rpm
 ```
 
+AppImage is deliberately not part of this default. On a Linux host with CMake 4.2+, request it explicitly with `export_cpack(GENERATORS AppImage ...)` and provide installed desktop/icon metadata. See [AppImage Packaging](docs/AppImage-Packaging.md) for the complete tool, dependency, component, and naming contract.
+
 ### Windows  
 ```cmake
 export_cpack(PACKAGE_NAME "MyLib")
@@ -771,6 +773,8 @@ mylib-tools_1.0.0_amd64.deb
 ```
 
 The split package output is a payload split. Extract archive components together when a development prefix needs shared-library targets, for example `Runtime` plus `Development`. Raw `cmake --install --component <name>` installs exactly the requested component, and archive packages do not enforce dependencies. Generated component DEB/RPM packages do get native package-manager metadata: DEB `Depends` and same-build RPM `Requires`.
+
+AppImage is an exception: CPack produces one monolithic artifact from the full install tree and does not honor component splitting or component filtering.
 
 ---
 

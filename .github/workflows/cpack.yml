@@ -92,6 +92,87 @@ jobs:
           set -euxo pipefail
           bash ci/run.sh cpack --suite components
 
+  cpack-appimage:
+    name: Native AppImage Artifact Proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bootstrap exact CMake and Ninja
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja
+
+      - name: Download and verify pinned AppImage tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          tool_dir="$PWD/build/cpack/appimage-tools"
+          mkdir -p "$tool_dir/patchelf"
+
+          curl --fail --location --retry 3 \
+            --output "$tool_dir/appimagetool-x86_64.AppImage" \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0  $tool_dir/appimagetool-x86_64.AppImage" | sha256sum --check --strict
+          chmod +x "$tool_dir/appimagetool-x86_64.AppImage"
+          (
+            cd "$tool_dir"
+            ./appimagetool-x86_64.AppImage --appimage-extract
+            mv squashfs-root appimagetool-root
+          )
+
+          curl --fail --location --retry 3 \
+            --output "$tool_dir/patchelf-0.18.0-x86_64.tar.gz" \
+            https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0-x86_64.tar.gz
+          echo "ce84f2447fb7a8679e58bc54a20dc2b01b37b5802e12c57eece772a6f14bf3f0  $tool_dir/patchelf-0.18.0-x86_64.tar.gz" | sha256sum --check --strict
+          tar -xzf "$tool_dir/patchelf-0.18.0-x86_64.tar.gz" -C "$tool_dir/patchelf"
+
+          curl --fail --location --retry 3 \
+            --output "$tool_dir/runtime-x86_64" \
+            https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $tool_dir/runtime-x86_64" | sha256sum --check --strict
+
+          "$tool_dir/appimagetool-root/AppRun" --version
+          "$tool_dir/patchelf/bin/patchelf" --version
+          {
+            echo "TIP_APPIMAGE_TOOL_EXECUTABLE=$tool_dir/appimagetool-root/AppRun"
+            echo "TIP_APPIMAGE_PATCHELF_EXECUTABLE=$tool_dir/patchelf/bin/patchelf"
+            echo "TIP_APPIMAGE_RUNTIME_FILE=$tool_dir/runtime-x86_64"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure AppImage proof suite
+        shell: bash
+        run: |
+          set -euxo pipefail
+          old_cmake_version="$(/usr/bin/cmake --version | awk 'NR == 1 { print $3 }')"
+          [[ "$(printf '%s\n' "$old_cmake_version" 4.2 | sort -V | head -n 1)" == "$old_cmake_version" ]]
+          [[ "$old_cmake_version" != 4.2 ]]
+
+          cmake -S . -B build/cpack/appimage-proof -G Ninja \
+            -DTARGET_INSTALL_PACKAGE_DISABLE_INSTALL=ON \
+            -Dtarget_install_package_BUILD_TESTS=ON \
+            -Dtarget_install_package_PROOF_OLD_CMAKE_COMMAND=/usr/bin/cmake \
+            -Dtarget_install_package_PROOF_APPIMAGE_TOOL_EXECUTABLE="$TIP_APPIMAGE_TOOL_EXECUTABLE" \
+            -Dtarget_install_package_PROOF_APPIMAGE_PATCHELF_EXECUTABLE="$TIP_APPIMAGE_PATCHELF_EXECUTABLE" \
+            -Dtarget_install_package_PROOF_APPIMAGE_RUNTIME_FILE="$TIP_APPIMAGE_RUNTIME_FILE"
+
+      - name: Build, inspect, and run AppImage
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ctest --test-dir build/cpack/appimage-proof \
+            --output-on-failure \
+            -R '^proof_cpack_appimage_'
+
+      - name: Upload verified AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: tip-appimage-example-x86_64
+          path: build/cpack/appimage-proof/tests/proofs/cpack-appimage-real/packages/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
   cpack-checksum-compatibility:
     name: CPack checksums (CMake ${{ matrix.cmake-version }})
     runs-on: ubuntu-latest

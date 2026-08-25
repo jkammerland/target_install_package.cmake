@@ -398,7 +398,7 @@ See [SBOM support](docs/sbom.md), CMake's [`install(SBOM)` documentation](https:
 
 ### CPack Package Generation
 
-Generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation:
+Generate distributable packages (TGZ, ZIP, DEB, RPM, WIX) with component separation. CMake 4.2+ AppImage output is available as an explicit Linux-only generator:
 
 ```cmake
 add_library(my_library SHARED)
@@ -439,6 +439,8 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 **See [examples/cpack-basic](examples/cpack-basic/) for a complete working example.**
 
 For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [Container Packaging](docs/Container-Packaging.md).
+
+For native AppImage packaging with validated desktop/icon metadata and tool prerequisites, see [AppImage Packaging](docs/AppImage-Packaging.md) and the [complete example](examples/cpack-appimage/). AppImage is opt-in only and remains outside the default generator list.
 
 **📖 For a comprehensive comparison with manual CPack setup and advanced usage patterns, see the [CPack Integration Tutorial](CPack-Tutorial.md).**
 

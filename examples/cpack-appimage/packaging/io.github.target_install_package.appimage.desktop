@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=target_install_package AppImage Example
+Comment=Exercises the native CPack AppImage generator
+Exec=tip-appimage
+Icon=tip-appimage
+Categories=Development;
+Terminal=true

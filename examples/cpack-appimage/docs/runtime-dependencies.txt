@@ -1,0 +1,1 @@
+The package proof installs its shared library explicitly. Real applications must install every non-system runtime dependency because appimagetool does not discover them.
