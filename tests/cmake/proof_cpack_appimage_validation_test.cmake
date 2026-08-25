@@ -30,17 +30,31 @@ FUNCTION(_tip_write_appimage_fixture name desktop_variant export_call)
     SET(_tip_desktop_entry "Type=Application\nExec=proof-app\nIcon=proof-app\n")
   ELSEIF(desktop_variant STREQUAL "bad-type")
     SET(_tip_desktop_entry "[Desktop Entry]\nType=Link\nName=AppImage validation proof\nExec=proof-app\nIcon=proof-app\n")
+  ELSEIF(desktop_variant STREQUAL "missing-name")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nExec=proof-app\nIcon=proof-app\nCategories=Development;\n")
+  ELSEIF(desktop_variant STREQUAL "empty-name")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=  \nExec=proof-app\nIcon=proof-app\nCategories=Development;\n")
+  ELSEIF(desktop_variant STREQUAL "missing-categories")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof-app\n")
+  ELSEIF(desktop_variant STREQUAL "empty-categories")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof-app\nCategories=  \n")
   ELSEIF(desktop_variant STREQUAL "missing-icon")
-    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\n")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nCategories=Development;\n")
   ELSEIF(desktop_variant STREQUAL "mismatched-icon")
-    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=other-app\n")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=other-app\nCategories=Development;\n")
+  ELSEIF(desktop_variant STREQUAL "icon-with-extension")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof-app.svg\nCategories=Development;\n")
+  ELSEIF(desktop_variant STREQUAL "prefix-only-icon")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof\nCategories=Development;\n")
   ELSEIF(desktop_variant STREQUAL "missing-exec")
-    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nIcon=proof-app\n")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nIcon=proof-app\nCategories=Development;\n")
   ENDIF()
 
   FILE(WRITE "${_tip_source_dir}/proof.desktop" "${_tip_desktop_entry}")
+  FILE(WRITE "${_tip_source_dir}/proof.DESKTOP" "${_tip_desktop_entry}")
   FILE(WRITE "${_tip_source_dir}/proof.txt" "not an icon\n")
   FILE(WRITE "${_tip_source_dir}/proof-app.svg" "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><rect width=\"16\" height=\"16\"/></svg>\n")
+  FILE(WRITE "${_tip_source_dir}/proof-app.SVG" "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><rect width=\"16\" height=\"16\"/></svg>\n")
   FILE(WRITE "${_tip_source_dir}/payload.txt" "AppImage validation payload\n")
   FOREACH(_tip_fake_tool IN ITEMS appimagetool patchelf)
     FILE(WRITE "${_tip_source_dir}/fake-bin/${_tip_fake_tool}" "#!/bin/sh\nexit 0\n")
@@ -122,10 +136,24 @@ _tip_expect_appimage_configure_failure(
 _tip_expect_appimage_configure_failure(
   "invalid-icon-extension" "valid" ".xpm extension"
   "export_cpack(GENERATORS AppImage APPIMAGE_DESKTOP_FILE proof.desktop APPIMAGE_ICON_FILE proof.txt APPIMAGE_TOOL_EXECUTABLE fake-bin/appimagetool APPIMAGE_PATCHELF_EXECUTABLE fake-bin/patchelf)")
+_tip_expect_appimage_configure_failure(
+  "uppercase-desktop-extension" "valid" "got: proof.DESKTOP"
+  "export_cpack(GENERATORS AppImage APPIMAGE_DESKTOP_FILE proof.DESKTOP APPIMAGE_ICON_FILE proof-app.svg APPIMAGE_TOOL_EXECUTABLE fake-bin/appimagetool APPIMAGE_PATCHELF_EXECUTABLE fake-bin/patchelf)"
+)
+_tip_expect_appimage_configure_failure(
+  "uppercase-icon-extension" "valid" "got: proof-app.SVG"
+  "export_cpack(GENERATORS AppImage APPIMAGE_DESKTOP_FILE proof.desktop APPIMAGE_ICON_FILE proof-app.SVG APPIMAGE_TOOL_EXECUTABLE fake-bin/appimagetool APPIMAGE_PATCHELF_EXECUTABLE fake-bin/patchelf)"
+)
 _tip_expect_appimage_configure_failure("missing-desktop-section" "missing-section" "must contain a [Desktop" "${_tip_valid_export_call}")
 _tip_expect_appimage_configure_failure("invalid-desktop-type" "bad-type" "Type=Application" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("missing-desktop-name" "missing-name" "non-empty Name" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("empty-desktop-name" "empty-name" "non-empty Name" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("missing-desktop-categories" "missing-categories" "Categories key" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("empty-desktop-categories" "empty-categories" "Categories key" "${_tip_valid_export_call}")
 _tip_expect_appimage_configure_failure("missing-desktop-icon" "missing-icon" "non-empty Icon" "${_tip_valid_export_call}")
-_tip_expect_appimage_configure_failure("mismatched-desktop-icon" "mismatched-icon" "prefix-match" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("mismatched-desktop-icon" "mismatched-icon" "Icon 'other-app'" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("desktop-icon-with-extension" "icon-with-extension" "Icon 'proof-app.svg'" "${_tip_valid_export_call}")
+_tip_expect_appimage_configure_failure("prefix-only-desktop-icon" "prefix-only-icon" "Icon 'proof'" "${_tip_valid_export_call}")
 _tip_expect_appimage_configure_failure("missing-desktop-exec" "missing-exec" "non-empty Exec" "${_tip_valid_export_call}")
 _tip_expect_appimage_configure_failure(
   "missing-appimagetool" "valid" "APPIMAGE_TOOL_EXECUTABLE"

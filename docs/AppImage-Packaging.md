@@ -34,9 +34,9 @@ export_cpack(
 The metadata arguments do not add install rules. Relative paths are resolved from the directory that calls `export_cpack()`. At configure time the wrapper verifies that:
 
 - the desktop and icon source files exist;
-- the desktop file contains `[Desktop Entry]`, `Type=Application`, and non-empty `Exec` and `Icon` keys;
-- `Icon=` is a name rather than a path and prefix-matches the installed icon basename;
-- the icon uses a `.png`, `.svg`, or `.xpm` extension; and
+- the desktop file contains `[Desktop Entry]`, `Type=Application`, and non-empty `Name`, `Categories`, `Exec`, and `Icon` keys;
+- `Icon=` exactly matches the installed icon basename without its extension and contains neither a path nor an extension;
+- the metadata extensions are case-sensitive: `.desktop` for the desktop file and `.png`, `.svg`, or `.xpm` for the icon; and
 - both required tools can be resolved and are executable.
 
 CPack receives the installed basenames as `CPACK_APPIMAGE_DESKTOP_FILE` and `CPACK_PACKAGE_ICON`. The project must install files with those same basenames. CPack performs the final staged-tree checks, including finding the desktop file, icon, and executable named by `Exec=`.
@@ -76,7 +76,7 @@ mkdir -p "$tools/patchelf"
 
 curl -fL -o "$tools/appimagetool-x86_64.AppImage" \
   https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-echo "a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0  $tools/appimagetool-x86_64.AppImage" | sha256sum -c -
+echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tools/appimagetool-x86_64.AppImage" | sha256sum -c -
 chmod +x "$tools/appimagetool-x86_64.AppImage"
 (cd "$tools" && ./appimagetool-x86_64.AppImage --appimage-extract && mv squashfs-root appimagetool-root)
 

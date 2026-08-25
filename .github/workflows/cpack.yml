@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja
+          bash ci/run.sh bootstrap --cmake-version 4.2.3 --ninja
 
       - name: Download and verify pinned AppImage tools
         shell: bash
@@ -114,7 +114,7 @@ jobs:
           curl --fail --location --retry 3 \
             --output "$tool_dir/appimagetool-x86_64.AppImage" \
             https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-          echo "a6d71e2b6cd66f8e8d16c37ad164658985e0cf5fcaa950c90a482890cb9d13e0  $tool_dir/appimagetool-x86_64.AppImage" | sha256sum --check --strict
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tool_dir/appimagetool-x86_64.AppImage" | sha256sum --check --strict
           chmod +x "$tool_dir/appimagetool-x86_64.AppImage"
           (
             cd "$tool_dir"
@@ -165,11 +165,29 @@ jobs:
             --output-on-failure \
             -R '^proof_cpack_appimage_'
 
-      - name: Upload verified AppImage
+      - name: Archive verified AppImage
+        shell: bash
+        run: |
+          set -euxo pipefail
+          package_dir="$PWD/build/cpack/appimage-proof/tests/proofs/cpack-appimage-real/packages"
+          mapfile -t appimages < <(find "$package_dir" -maxdepth 1 -type f -name '*.AppImage' -print)
+          [[ "${#appimages[@]}" -eq 1 ]]
+          [[ -x "${appimages[0]}" ]]
+
+          appimage_name="$(basename "${appimages[0]}")"
+          archive="$package_dir/tip-appimage-example-x86_64.tar"
+          tar --create --file "$archive" --directory "$package_dir" "$appimage_name"
+
+          verify_dir="$package_dir/archive-check"
+          mkdir -p "$verify_dir"
+          tar --extract --file "$archive" --directory "$verify_dir"
+          [[ -x "$verify_dir/$appimage_name" ]]
+
+      - name: Upload verified AppImage archive
         uses: actions/upload-artifact@v4
         with:
           name: tip-appimage-example-x86_64
-          path: build/cpack/appimage-proof/tests/proofs/cpack-appimage-real/packages/*.AppImage
+          path: build/cpack/appimage-proof/tests/proofs/cpack-appimage-real/packages/tip-appimage-example-x86_64.tar
           if-no-files-found: error
           retention-days: 7
 

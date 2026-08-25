@@ -43,7 +43,7 @@ graph TD
   - `test-examples`: `ci/run.sh examples --suite {single|multi} --use-fetchcontent`
   - `*-consume`: `ci/run.sh examples --suite consume-*`
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
-- `cpack.yml`: package integration plus exact CMake `3.25.0` fallback checksums, `4.2.3` native checksums, `4.3.4`/`4.4.2` SBOM syntax proofs, and a pinned CMake 4.4.2 AppImage build/extraction/runtime proof
+- `cpack.yml`: package integration plus exact CMake `3.25.0` fallback checksums, `4.2.3` native checksums and AppImage build/extraction/runtime proof, and `4.3.4`/`4.4.2` SBOM syntax proofs; the executable AppImage is retained inside a tar artifact
 - `release.yml`: when dispatched from the default branch, verifies an existing annotated tag with the pinned public key and confirms that its commit belongs to `master`; after release-environment approval, imports the private key, runs `ci/run.sh cpack --suite self-release --require-signing`, and publishes the signed archives, SPDX SBOM, signatures, checksums, and public verification key
 - `sign-release-tag.yml`: validates a new version against the exact default-branch commit, signs an annotated tag with the protected release key, verifies its fingerprint, and uploads a Git bundle for an administrator to verify and push through the protected tag ruleset
 
