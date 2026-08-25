@@ -12,8 +12,8 @@ usage() {
 Usage: ci/run.sh sarif [options]
 
 Configures and generates the root project while retaining CMake diagnostics as
-SARIF. The SARIF file is normalized after CMake exits, but CMake's original exit
-status is preserved.
+SARIF. The SARIF file is normalized after CMake exits. CMake failures preserve
+their original status; invalid output also fails an otherwise successful run.
 
 Options:
   --build-dir <dir>      Configure build directory (default: ./build/ci-sarif)
@@ -99,6 +99,7 @@ cmake "${configure_args[@]}"
 configure_status=$?
 set -e
 
+set +e
 normalization_summary="$("${ci_python_bin}" - "${sarif_file}" <<'PY'
 import json
 import sys
@@ -119,25 +120,91 @@ else:
         document = None
 
 
-def is_sarif_21(value):
-    if not isinstance(value, dict) or value.get("version") != "2.1.0":
-        return False
+def component_error(component, path):
+    if not isinstance(component, dict):
+        return f"{path} must be an object"
+    if not isinstance(component.get("name"), str) or not component["name"]:
+        return f"{path}.name must be a non-empty string"
+
+    rules = component.get("rules", [])
+    if not isinstance(rules, list):
+        return f"{path}.rules must be an array"
+    for rule_index, rule in enumerate(rules):
+        rule_path = f"{path}.rules[{rule_index}]"
+        if not isinstance(rule, dict):
+            return f"{rule_path} must be an object"
+        if not isinstance(rule.get("id"), str) or not rule["id"]:
+            return f"{rule_path}.id must be a non-empty string"
+        if "name" in rule and not isinstance(rule["name"], str):
+            return f"{rule_path}.name must be a string"
+    return None
+
+
+def sarif_21_error(value):
+    if not isinstance(value, dict):
+        return "the document must be an object"
+    if value.get("version") != "2.1.0":
+        return "version must be 2.1.0"
     runs = value.get("runs")
     if not isinstance(runs, list) or not runs:
-        return False
-    for run in runs:
-        if not isinstance(run, dict) or not isinstance(run.get("results", []), list):
-            return False
+        return "runs must be a non-empty array"
+
+    for run_index, run in enumerate(runs):
+        run_path = f"runs[{run_index}]"
+        if not isinstance(run, dict):
+            return f"{run_path} must be an object"
         tool = run.get("tool")
-        driver = tool.get("driver") if isinstance(tool, dict) else None
-        if not isinstance(driver, dict) or not isinstance(driver.get("name"), str) or not driver["name"]:
-            return False
-    return True
+        if not isinstance(tool, dict):
+            return f"{run_path}.tool must be an object"
+        driver = tool.get("driver")
+        error = component_error(driver, f"{run_path}.tool.driver")
+        if error:
+            return error
+
+        extensions = tool.get("extensions", [])
+        if not isinstance(extensions, list):
+            return f"{run_path}.tool.extensions must be an array"
+        for extension_index, extension in enumerate(extensions):
+            error = component_error(extension, f"{run_path}.tool.extensions[{extension_index}]")
+            if error:
+                return error
+
+        results = run.get("results", [])
+        if not isinstance(results, list):
+            return f"{run_path}.results must be an array"
+        rules = driver.get("rules", [])
+        for result_index, result in enumerate(results):
+            result_path = f"{run_path}.results[{result_index}]"
+            if not isinstance(result, dict):
+                return f"{result_path} must be an object"
+            message = result.get("message")
+            if not isinstance(message, dict):
+                return f"{result_path}.message must be an object"
+            if not isinstance(message.get("text"), str) or not message["text"]:
+                return f"{result_path}.message.text must be a non-empty string"
+
+            rule_id = result.get("ruleId")
+            if rule_id is not None and (not isinstance(rule_id, str) or not rule_id):
+                return f"{result_path}.ruleId must be a non-empty string"
+            rule_index_value = result.get("ruleIndex")
+            if rule_index_value is not None:
+                if isinstance(rule_index_value, bool) or not isinstance(rule_index_value, int) or rule_index_value < 0 or rule_index_value >= len(rules):
+                    return f"{result_path}.ruleIndex must identify a driver rule"
+                indexed_rule_id = rules[rule_index_value]["id"]
+                if rule_id is not None and rule_id != indexed_rule_id:
+                    return f"{result_path}.ruleId must match the indexed driver rule"
+
+            level = result.get("level")
+            if level is not None and level not in {"none", "note", "warning", "error"}:
+                return f"{result_path}.level is not a SARIF level"
+    return None
 
 
-if document is not None and not is_sarif_21(document):
-    fallback_reason = "CMake produced JSON that is not SARIF 2.1.0"
-    document = None
+if document is not None:
+    validation_error = sarif_21_error(document)
+    if validation_error:
+        fallback_reason = f"CMake produced invalid SARIF 2.1.0: {validation_error}"
+        document = None
 
 if document is None:
     if contents.strip():
@@ -165,11 +232,21 @@ if fallback_reason:
     print(f"warning: {fallback_reason}; wrote valid empty SARIF to {sarif_path}")
 else:
     print(f"SARIF valid: {sarif_path} ({result_count} result(s))")
+
+if fallback_reason:
+    raise SystemExit(1)
 PY
 )"
+normalization_status=$?
+set -e
 ci_log "${normalization_summary}"
 
 if ((configure_status != 0)); then
   ci_warn "CMake configure/generate failed with status ${configure_status}; SARIF was retained at ${sarif_file}"
+  exit "${configure_status}"
 fi
-exit "${configure_status}"
+
+if ((normalization_status != 0)); then
+  ci_warn "CMake configure/generate succeeded, but its SARIF output was invalid; failing after retaining diagnostics at ${sarif_file}"
+  exit 1
+fi

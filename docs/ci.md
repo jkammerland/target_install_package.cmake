@@ -75,9 +75,23 @@ bash ci/run.sh sarif \
 python3 -m json.tool build/sarif/cmake-configure.sarif >/dev/null
 ```
 
-The runner truncates stale output before configuration and validates CMake's output after configuration. If CMake produces no content or malformed SARIF, the runner preserves malformed bytes as a neighboring `.invalid` file when applicable and writes a valid empty SARIF 2.1.0 document at the requested output path. It then returns CMake's original status. Configure/generate failures therefore remain blocking; uploaded diagnostics and code-scanning findings are informational.
+To reproduce a blocking configure failure while verifying that the diagnostic artifact remains valid JSON:
 
-The SARIF workflow artifact is retained after both successful and failed configure attempts. GitHub downgrades write permissions for fork and Dependabot pull requests, so those events skip the code-scanning upload without failing the job and use the retained artifact instead. All other events upload the single SARIF file with the `cmake-configure` category.
+```sh
+set +e
+bash ci/run.sh sarif \
+  --build-dir build/ci-sarif-failure \
+  --output build/sarif/cmake-configure-failure.sarif \
+  --cmake-arg -DCMAKE_CXX_COMPILER=/definitely/missing/cxx
+status=$?
+set -e
+test "${status}" -ne 0
+python3 -m json.tool build/sarif/cmake-configure-failure.sarif >/dev/null
+```
+
+The runner truncates stale output before configuration and validates CMake's output after configuration, including the tool, rules, results, and diagnostic messages required by the upload. If CMake produces missing, malformed, or semantically invalid SARIF, the runner preserves nonempty invalid bytes as a neighboring `.invalid` file and writes a valid empty SARIF 2.1.0 document at the requested output path. A successful configure with invalid output fails the runner; when configure already failed, its original nonzero status is preserved. Configure/generate and SARIF integrity failures therefore remain blocking, while uploaded diagnostics and code-scanning findings are informational.
+
+The SARIF workflow artifact is retained after both successful and failed configure attempts, but artifact and code-scanning steps do not run after cancellation. GitHub [always permits code-scanning uploads triggered by `pull_request`](https://docs.github.com/en/code-security/reference/code-scanning/troubleshoot-analysis-errors/resource-not-accessible), including fork and Dependabot pull requests, so those events upload normally. Non-pull-request runs skip code scanning when Dependabot triggered the run or authored the pushed head commit, including a Dependabot pull request squash-merged to the default branch, because those runs can have read-only tokens. Other events upload the single SARIF file with the `cmake-configure` category.
 
 ## Tagged releases
 

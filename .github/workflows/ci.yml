@@ -31,7 +31,7 @@ jobs:
           bash ci/run.sh sarif
 
       - name: Retain CMake SARIF artifact
-        if: ${{ always() && steps.configure.outcome != 'skipped' }}
+        if: ${{ !cancelled() && steps.configure.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cmake-configure-sarif
@@ -41,10 +41,11 @@ jobs:
 
       - name: Upload CMake diagnostics to code scanning
         if: >-
-          ${{ always() && steps.configure.outcome != 'skipped' &&
-              (github.event_name != 'pull_request' ||
-               (github.event.pull_request.head.repo.full_name == github.repository &&
-                github.actor != 'dependabot[bot]')) }}
+          ${{ !cancelled() && steps.configure.outcome != 'skipped' &&
+              (github.event_name == 'pull_request' ||
+               (github.actor != 'dependabot[bot]' &&
+                (github.event_name != 'push' ||
+                 github.event.head_commit.author.username != 'dependabot[bot]'))) }}
         uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           sarif_file: build/sarif/cmake-configure.sarif
@@ -52,12 +53,13 @@ jobs:
 
       - name: Note restricted-token code scanning skip
         if: >-
-          ${{ always() && steps.configure.outcome != 'skipped' &&
-              github.event_name == 'pull_request' &&
-              (github.event.pull_request.head.repo.full_name != github.repository ||
-               github.actor == 'dependabot[bot]') }}
+          ${{ !cancelled() && steps.configure.outcome != 'skipped' &&
+              github.event_name != 'pull_request' &&
+              (github.actor == 'dependabot[bot]' ||
+               (github.event_name == 'push' &&
+                github.event.head_commit.author.username == 'dependabot[bot]')) }}
         shell: bash
-        run: echo "Code scanning upload skipped because this pull request has a read-only token; use the retained SARIF artifact instead."
+        run: echo "Code scanning upload skipped because this non-pull-request run has a Dependabot read-only token; use the retained SARIF artifact instead."
 
   cmake-feature-lanes:
     name: CMake ${{ matrix.cmake-version }} (${{ matrix.feature }})
