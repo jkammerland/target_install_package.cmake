@@ -8,7 +8,7 @@ This document records the v7 component packaging contract implemented by this br
 - SDK payload for an export installs to one shared `Development` component.
 - Runtime payload means executables, shared-library runtime files, Windows DLLs, and module-library runtime files.
 - Static libraries, interface libraries, and header-only targets are SDK-only unless another target registered through this wrapper puts runtime payload in the same component. Standalone manual install components need explicit `export_cpack(COMPONENTS ...)` inclusion.
-- Raw `cmake --install --component <name>` installs exactly that component and does not resolve dependencies.
+- Raw `cmake --install --component <name>` installs exactly the named component and does not resolve dependencies. CMake 4.4+ accepts multiple names in one invocation; earlier versions require one invocation per component.
 - Archive component packages are payload archives and do not enforce dependencies.
 - Generated component DEB/RPM packages translate CPack component relationships to native metadata: DEB `Depends` and same-build RPM `Requires`.
 - Other native package-manager dependency behavior remains generator-specific and should be documented with generator-specific tests before being promised.
@@ -40,6 +40,7 @@ This document records the v7 component packaging contract implemented by this br
    - Explicit one-component `export_cpack(COMPONENTS Development)` must package only that component.
    - Duplicate exported aliases must fail configure/finalize.
    - Existing unified `Development` tests must remain green.
+   - CMake 4.4 multi-component installs must preserve single-component and unfiltered full-install behavior, exclude unrelated components, and record duplicate and unknown-name behavior.
 
 6. Audit docs and examples.
    - Distinguish raw component installs, archive extraction, and native package-manager installs.
@@ -58,3 +59,4 @@ This document records the v7 component packaging contract implemented by this br
 - Do not duplicate shared-library runtime files into `Development`.
 - Do not implement dependency metadata for package generators beyond the tested DEB/RPM component bridge.
 - Do not make `find_package(... COMPONENTS ...)` hide exported targets.
+- Do not add a project wrapper around CMake 4.4's native multi-value `cmake --install --component` interface.
