@@ -112,8 +112,8 @@ endif()
 #   COMPRESSION_LEVEL       - Generic CPack compression level. Requires CMake 4.3+; 0 selects the backend default.
 #   ARCHIVE_COMPRESSION_LEVEL - Archive-specific compression level. Requires a selected binary archive generator and CMake 4.3+.
 #                               The level is validated against both binary and source archive generators because CPack writes it to both configs.
-#   DEBIAN_COMPRESSION_TYPE - Debian compression algorithm (gzip, bzip2, xz, lzma, or zstd). Requires the DEB generator.
-#   DEBIAN_COMPRESSION_LEVEL - Debian-specific compression level. Requires the DEB generator and CMake 4.3+.
+#   DEBIAN_COMPRESSION_TYPE - Debian compression algorithm (gzip, bzip2, xz, lzma, or zstd). Requires a selected binary or source DEB generator.
+#   DEBIAN_COMPRESSION_LEVEL - Debian-specific compression level. Requires a selected binary or source DEB generator and CMake 4.3+.
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
 #   CHECKSUMS               - Package checksum algorithms. Supports MD5, SHA1, SHA2, and SHA3 variants accepted by CMake.
 #   GENERATE_CHECKSUMS      - Compatibility alias: ON selects SHA256 and SHA512; OFF selects none. Cannot be combined with CHECKSUMS.
@@ -220,6 +220,18 @@ function(_tip_validate_cpack_compression_level argument_name value max_level)
   if(_tip_compression_level_length GREATER _tip_max_compression_level_length
      OR (_tip_compression_level_length EQUAL _tip_max_compression_level_length AND "${_tip_normalized_level}" STRGREATER "${max_level}"))
     project_log(FATAL_ERROR "${argument_name} must be an integer from 0 to ${max_level}, got: ${value}")
+  endif()
+endfunction()
+
+function(_tip_cpack_option_value_is_set out_var value)
+  if(NOT "${value}" STREQUAL "" AND NOT "${value}" MATCHES "(^|-)NOTFOUND$")
+    set(${out_var}
+        TRUE
+        PARENT_SCOPE)
+  else()
+    set(${out_var}
+        FALSE
+        PARENT_SCOPE)
   endif()
 endfunction()
 
@@ -1198,14 +1210,103 @@ function(_execute_deferred_cpack_config)
     set(_tip_compression_generators ${CPACK_GENERATOR})
   endif()
 
+  set(_tip_binary_selector_suffixes
+      7Z
+      BUNDLE
+      CYGWIN
+      DEB
+      DRAGNDROP
+      FREEBSD
+      IFW
+      NSIS
+      INNOSETUP
+      NUGET
+      PRODUCTBUILD
+      RPM
+      STGZ
+      TBZ2
+      TGZ
+      TXZ
+      TZ
+      WIX
+      ZIP)
+  set(_tip_source_selector_suffixes
+      7Z
+      CYGWIN
+      RPM
+      TBZ2
+      TGZ
+      TXZ
+      TZ
+      ZIP)
+  set(_tip_binary_selector_var_names "")
+  foreach(_tip_selector_suffix IN LISTS _tip_binary_selector_suffixes)
+    list(APPEND _tip_binary_selector_var_names "CPACK_BINARY_${_tip_selector_suffix}")
+  endforeach()
+  set(_tip_source_selector_var_names "")
+  foreach(_tip_selector_suffix IN LISTS _tip_source_selector_suffixes)
+    list(APPEND _tip_source_selector_var_names "CPACK_SOURCE_${_tip_selector_suffix}")
+  endforeach()
+  set(_tip_default_binary_selector_generators "")
+  if(CYGWIN)
+    set(_tip_default_binary_selector_generators CYGWINBINARY)
+  elseif(UNIX)
+    set(_tip_default_binary_selector_generators STGZ TGZ)
+    if(NOT APPLE)
+      list(APPEND _tip_default_binary_selector_generators TZ)
+    endif()
+  else()
+    set(_tip_default_binary_selector_generators NSIS)
+  endif()
+  set(_tip_default_source_selector_generators "")
+  if(CYGWIN)
+    set(_tip_default_source_selector_generators CYGWINSOURCE)
+  elseif(UNIX)
+    set(_tip_default_source_selector_generators TBZ2 TGZ TXZ TZ)
+  else()
+    set(_tip_default_source_selector_generators 7Z ZIP)
+  endif()
+
+  foreach(_tip_selector_suffix IN LISTS _tip_binary_selector_suffixes)
+    set(_tip_selector_generator "${_tip_selector_suffix}")
+    if(_tip_selector_suffix STREQUAL "CYGWIN")
+      set(_tip_selector_generator CYGWINBINARY)
+    endif()
+    set(_tip_selector_var_name "CPACK_BINARY_${_tip_selector_suffix}")
+    if(DEFINED ${_tip_selector_var_name})
+      set("_tip_effective_${_tip_selector_var_name}" "${${_tip_selector_var_name}}")
+    elseif(_tip_selector_generator IN_LIST _tip_default_binary_selector_generators)
+      set("_tip_effective_${_tip_selector_var_name}" ON)
+    else()
+      set("_tip_effective_${_tip_selector_var_name}" OFF)
+    endif()
+  endforeach()
+  foreach(_tip_selector_suffix IN LISTS _tip_source_selector_suffixes)
+    set(_tip_selector_generator "${_tip_selector_suffix}")
+    if(_tip_selector_suffix STREQUAL "CYGWIN")
+      set(_tip_selector_generator CYGWINSOURCE)
+    endif()
+    set(_tip_selector_var_name "CPACK_SOURCE_${_tip_selector_suffix}")
+    if(DEFINED ${_tip_selector_var_name})
+      set("_tip_effective_${_tip_selector_var_name}" "${${_tip_selector_var_name}}")
+    elseif(_tip_selector_generator IN_LIST _tip_default_source_selector_generators)
+      set("_tip_effective_${_tip_selector_var_name}" ON)
+    else()
+      set("_tip_effective_${_tip_selector_var_name}" OFF)
+    endif()
+  endforeach()
+
   set(_tip_compression_level_overridden FALSE)
   set(_tip_archive_compression_level_overridden FALSE)
   set(_tip_debian_compression_type_overridden FALSE)
   set(_tip_debian_compression_level_overridden FALSE)
 
-  set(_tip_effective_archive_compression_level_set FALSE)
-  if(DEFINED CPACK_ARCHIVE_COMPRESSION_LEVEL OR _tip_archive_compression_level_explicit)
-    set(_tip_effective_archive_compression_level_set TRUE)
+  set(_tip_effective_archive_compression_level "")
+  if(DEFINED CPACK_ARCHIVE_COMPRESSION_LEVEL)
+    set(_tip_effective_archive_compression_level "${CPACK_ARCHIVE_COMPRESSION_LEVEL}")
+  endif()
+  if(_tip_archive_compression_level_explicit)
+    set(_tip_effective_archive_compression_level "${ARG_ARCHIVE_COMPRESSION_LEVEL}")
   endif()
   set(_tip_effective_debian_compression_level_set FALSE)
   if(DEFINED CPACK_DEBIAN_COMPRESSION_LEVEL OR _tip_debian_compression_level_explicit)
@@ -1241,27 +1342,47 @@ function(_execute_deferred_cpack_config)
           set(_tip_compression_level_overridden TRUE)
         elseif(_tip_additional_cpack_var_name STREQUAL "CPACK_ARCHIVE_COMPRESSION_LEVEL")
           set(_tip_archive_compression_level_overridden TRUE)
-          set(_tip_effective_archive_compression_level_set TRUE)
+          set(_tip_effective_archive_compression_level "${_tip_additional_cpack_var_value}")
         elseif(_tip_additional_cpack_var_name STREQUAL "CPACK_DEBIAN_COMPRESSION_TYPE")
           set(_tip_debian_compression_type_overridden TRUE)
           set(_tip_effective_debian_compression_type "${_tip_additional_cpack_var_value}")
         elseif(_tip_additional_cpack_var_name STREQUAL "CPACK_DEBIAN_COMPRESSION_LEVEL")
           set(_tip_debian_compression_level_overridden TRUE)
           set(_tip_effective_debian_compression_level_set TRUE)
+        elseif(_tip_additional_cpack_var_name IN_LIST _tip_binary_selector_var_names OR _tip_additional_cpack_var_name IN_LIST _tip_source_selector_var_names)
+          set("_tip_effective_${_tip_additional_cpack_var_name}" "${_tip_additional_cpack_var_value}")
         endif()
         math(EXPR _tip_additional_cpack_var_index "${_tip_additional_cpack_var_index} + 2")
       endwhile()
     endif()
   endif()
-  if(NOT _tip_source_generators)
-    if(CYGWIN)
-      set(_tip_source_generators CygwinSource)
-    elseif(UNIX)
-      set(_tip_source_generators TBZ2 TGZ TXZ TZ)
-    else()
-      set(_tip_source_generators 7Z ZIP)
-    endif()
+  if(NOT _tip_compression_generators)
+    set(_tip_compression_generators "")
+    foreach(_tip_selector_suffix IN LISTS _tip_binary_selector_suffixes)
+      set(_tip_selector_generator "${_tip_selector_suffix}")
+      if(_tip_selector_suffix STREQUAL "CYGWIN")
+        set(_tip_selector_generator CYGWINBINARY)
+      endif()
+      set(_tip_selector_var_name "CPACK_BINARY_${_tip_selector_suffix}")
+      if(_tip_effective_${_tip_selector_var_name})
+        list(APPEND _tip_compression_generators "${_tip_selector_generator}")
+      endif()
+    endforeach()
   endif()
+  if(NOT _tip_source_generators)
+    set(_tip_source_generators "")
+    foreach(_tip_selector_suffix IN LISTS _tip_source_selector_suffixes)
+      set(_tip_selector_generator "${_tip_selector_suffix}")
+      if(_tip_selector_suffix STREQUAL "CYGWIN")
+        set(_tip_selector_generator CYGWINSOURCE)
+      endif()
+      set(_tip_selector_var_name "CPACK_SOURCE_${_tip_selector_suffix}")
+      if(_tip_effective_${_tip_selector_var_name})
+        list(APPEND _tip_source_generators "${_tip_selector_generator}")
+      endif()
+    endforeach()
+  endif()
+  _tip_cpack_option_value_is_set(_tip_effective_archive_compression_level_set "${_tip_effective_archive_compression_level}")
   set(_tip_compression_generators_upper "")
   set(_tip_has_effective_binary_deb_generator FALSE)
   foreach(_tip_compression_generator IN LISTS _tip_compression_generators)
@@ -1308,6 +1429,7 @@ function(_execute_deferred_cpack_config)
       CYGWINSOURCE
       FREEBSD)
   set(_tip_archive_zstd_generators 7Z_ZSTD TZST)
+  set(_tip_archive_neutral_generators TAR TZ)
   set(_tip_has_binary_archive_generator FALSE)
   foreach(_tip_generator_upper IN LISTS _tip_compression_generators_upper)
     if(_tip_generator_upper IN_LIST _tip_archive_generators)
@@ -1321,27 +1443,28 @@ function(_execute_deferred_cpack_config)
   foreach(_tip_generator_upper IN LISTS _tip_all_generators_upper)
     if(_tip_generator_upper IN_LIST _tip_archive_generators)
       set(_tip_has_effective_archive_generator TRUE)
-      if(NOT _tip_generator_upper IN_LIST _tip_archive_zstd_generators)
+      if(NOT _tip_generator_upper IN_LIST _tip_archive_zstd_generators AND NOT _tip_generator_upper IN_LIST _tip_archive_neutral_generators)
         set(_tip_archive_max_compression_level 9)
       endif()
     endif()
   endforeach()
 
-  if(_tip_compression_level_explicit OR _tip_archive_compression_level_explicit OR _tip_debian_compression_level_explicit)
+  if(_tip_compression_level_explicit
+     OR _tip_archive_compression_level_explicit
+     OR _tip_debian_compression_level_explicit)
     if(CMAKE_VERSION VERSION_LESS "4.3")
       project_log(FATAL_ERROR "Compression level controls require CMake 4.3 or newer (running ${CMAKE_VERSION})")
     endif()
   endif()
 
   if(_tip_debian_compression_type_explicit AND NOT _tip_debian_compression_type_overridden)
-    if(NOT _tip_has_effective_binary_deb_generator)
+    if(NOT _tip_has_effective_deb_generator)
       project_log(FATAL_ERROR "DEBIAN_COMPRESSION_TYPE requires the DEB generator")
     endif()
     string(TOLOWER "${ARG_DEBIAN_COMPRESSION_TYPE}" ARG_DEBIAN_COMPRESSION_TYPE)
     set(_tip_debian_compression_types gzip bzip2 xz lzma zstd)
     if(NOT ARG_DEBIAN_COMPRESSION_TYPE IN_LIST _tip_debian_compression_types)
-      project_log(FATAL_ERROR
-                  "Unsupported DEBIAN_COMPRESSION_TYPE '${ARG_DEBIAN_COMPRESSION_TYPE}'. Supported values: ${_tip_debian_compression_types}")
+      project_log(FATAL_ERROR "Unsupported DEBIAN_COMPRESSION_TYPE '${ARG_DEBIAN_COMPRESSION_TYPE}'. Supported values: ${_tip_debian_compression_types}")
     endif()
   endif()
 
@@ -1360,7 +1483,7 @@ function(_execute_deferred_cpack_config)
   endif()
 
   if(_tip_debian_compression_level_explicit AND NOT _tip_debian_compression_level_overridden)
-    if(NOT _tip_has_effective_binary_deb_generator)
+    if(NOT _tip_has_effective_deb_generator)
       project_log(FATAL_ERROR "DEBIAN_COMPRESSION_LEVEL requires the DEB generator")
     endif()
     _tip_validate_cpack_compression_level(DEBIAN_COMPRESSION_LEVEL "${ARG_DEBIAN_COMPRESSION_LEVEL}" "${_tip_debian_max_compression_level}")
@@ -1368,10 +1491,14 @@ function(_execute_deferred_cpack_config)
 
   if(_tip_compression_level_explicit AND NOT _tip_compression_level_overridden)
     set(_tip_generic_max_compression_level 19)
-    if(_tip_has_effective_archive_generator AND NOT _tip_effective_archive_compression_level_set AND _tip_archive_max_compression_level EQUAL 9)
+    if(_tip_has_effective_archive_generator
+       AND NOT _tip_effective_archive_compression_level_set
+       AND _tip_archive_max_compression_level EQUAL 9)
       set(_tip_generic_max_compression_level 9)
     endif()
-    if(_tip_has_effective_deb_generator AND NOT _tip_effective_debian_compression_level_set AND _tip_debian_max_compression_level EQUAL 9)
+    if(_tip_has_effective_deb_generator
+       AND NOT _tip_effective_debian_compression_level_set
+       AND _tip_debian_max_compression_level EQUAL 9)
       set(_tip_generic_max_compression_level 9)
     endif()
     _tip_validate_cpack_compression_level(COMPRESSION_LEVEL "${ARG_COMPRESSION_LEVEL}" "${_tip_generic_max_compression_level}")
