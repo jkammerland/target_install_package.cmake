@@ -84,10 +84,19 @@ _tip_configure_ownership_case("maximum" "ARCHIVE_UID 2147483647 ARCHIVE_GID 2147
 _tip_proof_assert_file_contains("${_tip_maximum_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_UID \"2147483647\")")
 _tip_proof_assert_file_contains("${_tip_maximum_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"2147483647\")")
 
+_tip_configure_ownership_case("additional-keyword-values" "ADDITIONAL_CPACK_VARS CPACK_PACKAGE_DESCRIPTION ARCHIVE_UID CPACK_PACKAGE_VENDOR ARCHIVE_GID PACKAGE_CONTACT ownership@example.com"
+                              _tip_additional_keyword_build_dir)
+_tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_DESCRIPTION \"ARCHIVE_UID\")")
+_tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_VENDOR \"ARCHIVE_GID\")")
+_tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_CONTACT \"ownership@example.com\")")
+
 find_program(_tip_tar_command NAMES tar bsdtar)
 set(_tip_tar_force_local_arg "")
 if(_tip_tar_command)
-  execute_process(COMMAND "${_tip_tar_command}" --version OUTPUT_VARIABLE _tip_tar_version ERROR_QUIET)
+  execute_process(
+    COMMAND "${_tip_tar_command}" --version
+    OUTPUT_VARIABLE _tip_tar_version
+    ERROR_QUIET)
   if(_tip_tar_version MATCHES "GNU tar")
     set(_tip_tar_force_local_arg --force-local)
   endif()
