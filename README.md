@@ -22,6 +22,7 @@ The producer call creates install rules, target exports, package config and vers
 - CMake 4.3+ for [Common Package Specification (CPS)](docs/cps.md)
 - CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for [SBOM](docs/sbom.md)
 - CMake 4.4+ for installable [source-only packages](docs/source-only-packages.md)
+- CMake 4.4+ to [install multiple components in one `cmake --install` invocation](docs/multi-component-install.md)
 
 See the [Compatibility Matrix](docs/compatibility.md) and [CMake Version Policy](docs/cmake-version-policy.md) for target type, platform, CPack, CPS, SBOM, source-package, and CMake-version support details.
 
@@ -487,10 +488,8 @@ install(TARGETS asset_converter
 # Install only runtime (engine + configs)
 cmake --install . --component Runtime
 
-# Install everything for developers (install each selected component explicitly)
-cmake --install . --component Runtime
-cmake --install . --component Development
-cmake --install . --component Tools
+# CMake 4.4+: install the selected developer components in one invocation
+cmake --install . --component Runtime Development Tools
 
 # Install full package without selecting components (installs every runtime + development file)
 cmake --install .
@@ -515,6 +514,8 @@ The component model uses predictable names:
 - **With `COMPONENT`**: runtime files go to the named component, such as `Core`; SDK files still go to `Development`.
 
 The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. Static, interface, and header-only targets are SDK-only and do not create empty runtime components. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components. CPack records those component relationships as metadata; archive packages do not enforce them. When `export_cpack()` generates component DEB/RPM packages, those relationships are translated to native DEB `Depends` and same-build RPM `Requires` metadata.
+
+CMake 4.4 accepts multiple names after `cmake --install <build> --component`, so a runtime and its SDK can be selected in one invocation. This is native CMake behavior and does not require another wrapper API. Direct installs still select exactly the names supplied: they do not follow component dependencies, duplicate names execute repeatedly, and unknown names do not fail the command. See [Multiple-Component Installs](docs/multi-component-install.md) for version-compatible commands and automation guidance.
 
 The detailed v7 component contract is captured in [Component Packaging Plan](docs/component-packaging-plan.md).
 
@@ -588,10 +589,8 @@ cmake --install . --component Development
 # Install all runtime + development files (no component filtering)
 cmake --install .
 
-# Install everything for developers
-cmake --install . --component Core
-cmake --install . --component Tools
-cmake --install . --component Development
+# CMake 4.4+: install the selected developer components together
+cmake --install . --component Core Tools Development
 
 # Install everything
 cmake --install .
@@ -854,16 +853,11 @@ install(FILES "configs/physics.json"
 # Minimal runtime (just core engine)
 cmake --install . --component Runtime
 
-# Graphics-enabled runtime
-cmake --install . --component Runtime
-cmake --install . --component Graphics
+# CMake 4.4+: graphics-enabled runtime
+cmake --install . --component Runtime Graphics
 
-# Full game development environment with all runtime components and the SDK
-cmake --install . --component Runtime
-cmake --install . --component Graphics
-cmake --install . --component Physics
-cmake --install . --component Tools
-cmake --install . --component Development
+# CMake 4.4+: full game development environment with all runtime components and the SDK
+cmake --install . --component Runtime Graphics Physics Tools Development
 
 # Development files for the complete game_engine export
 cmake --install . --component Development

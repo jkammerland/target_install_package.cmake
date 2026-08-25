@@ -11,6 +11,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Core utilities and examples | 3.25 | Required by the project. |
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
 | `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
+| Multiple components in one `cmake --install` invocation | 4.4 | Native CLI feature; generated install rules and one-component invocations remain compatible with CMake 3.25+. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
@@ -54,6 +55,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | `COMPONENT Core` on a shared library or executable | Runtime files use `Core`; SDK files still use `Development`. |
 | `COMPONENT Core` on a static or interface library | No empty `Core` runtime package is created unless another target contributes runtime payload to `Core`. |
 | Manual `install(... COMPONENT Docs)` rules | Raw `cmake --install --component Docs` works; `export_cpack()` only sees that component if listed explicitly with `COMPONENTS`. |
+| Multiple raw install components | CMake 4.4+ accepts `--component Runtime Development`; list every required component because dependencies are not followed. |
 | Component archive packages | Archives are payload slices and do not install dependency archives automatically. |
 | Component DEB/RPM packages | Native dependency metadata is emitted when configured by `export_cpack()`. |
 
@@ -65,6 +67,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 - CPS exports do not support CMake 4.4 `SOURCES` file sets: CMake 4.4.2 `install(PACKAGE_INFO)` omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
 - Container generation builds minimal runtime images. It is not a general Dockerfile authoring system.
+- Multiple-component selection is a native direct-install CLI feature, not an `export_cpack()` API. See [Multiple-Component Installs](multi-component-install.md) for exact duplicate, unknown-name, dependency, and packaging semantics.
 
 ## Local Validation Commands
 
