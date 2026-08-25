@@ -67,6 +67,7 @@ The `cmake-sarif` job runs CMake 4.4.2 on Ubuntu and writes `build/sarif/cmake-c
 
 ```sh
 bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --fmt
+export PATH="${HOME}/.local/bin:${PATH}"
 bash ci/run.sh sarif \
   --build-dir build/ci-sarif \
   --output build/sarif/cmake-configure.sarif
