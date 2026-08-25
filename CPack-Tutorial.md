@@ -357,7 +357,7 @@ export_cpack(
 )
 ```
 
-`ARCHIVE_UID` and `ARCHIVE_GID` accept nonnegative decimal integers and require CMake 4.3 or newer. Set both for deterministic archive ownership. If one is omitted, CPack defaults it to `0`; if both are omitted, `export_cpack()` leaves CPack's existing ownership behavior unchanged. These controls apply to every CPack Archive format and the Cygwin/FreeBSD archive derivatives. The selected format and extraction tool determine how numeric ownership is encoded and whether it is restored; non-archive package generators ignore these controls.
+`ARCHIVE_UID` and `ARCHIVE_GID` accept decimal integers from `0` through `2147483647` and require CMake 4.3 or newer. Set both for deterministic archive ownership. If one is omitted, CPack defaults it to `0`; if both are omitted, `export_cpack()` leaves CPack's existing ownership behavior unchanged. These controls apply to every CPack Archive format and the Cygwin/FreeBSD archive derivatives. The selected format and extraction tool determine how numeric ownership is encoded and whether it is restored; non-archive package generators ignore these controls.
 
 ### Example 4: Package with Full Signing
 

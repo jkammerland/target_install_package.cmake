@@ -39,7 +39,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 | Feature | Supported | Requirements |
 |---------|-----------|--------------|
-| Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. CMake 4.3+ can set nonnegative numeric ownership with `ARCHIVE_UID` and `ARCHIVE_GID`; tar-based formats store inspectable UID/GID fields. |
+| Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. CMake 4.3+ can set numeric ownership from 0 through 2147483647 with `ARCHIVE_UID` and `ARCHIVE_GID`; tar-based formats store inspectable UID/GID fields. |
 | Native Linux packages | Yes | Debian/RPM packaging tools on the build host. |
 | Signed packages | Yes | GPG for detached signatures; RPM signing tools for embedded RPM signatures. |
 | Checksums | Yes | `CHECKSUMS` accepts CMake's MD5, SHA1, SHA2, and SHA3 algorithms. `GENERATE_CHECKSUMS ON` remains an alias for SHA256 and SHA512. |

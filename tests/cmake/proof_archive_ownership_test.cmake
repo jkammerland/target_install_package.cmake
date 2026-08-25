@@ -80,7 +80,18 @@ set(_tip_both_cpack_config "${_tip_both_build_dir}/CPackConfig.cmake")
 _tip_proof_assert_file_contains("${_tip_both_cpack_config}" "set(CPACK_ARCHIVE_UID \"17321\")")
 _tip_proof_assert_file_contains("${_tip_both_cpack_config}" "set(CPACK_ARCHIVE_GID \"17322\")")
 
+_tip_configure_ownership_case("maximum" "ARCHIVE_UID 2147483647 ARCHIVE_GID 2147483647" _tip_maximum_build_dir)
+_tip_proof_assert_file_contains("${_tip_maximum_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_UID \"2147483647\")")
+_tip_proof_assert_file_contains("${_tip_maximum_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"2147483647\")")
+
 find_program(_tip_tar_command NAMES tar bsdtar)
+set(_tip_tar_force_local_arg "")
+if(_tip_tar_command)
+  execute_process(COMMAND "${_tip_tar_command}" --version OUTPUT_VARIABLE _tip_tar_version ERROR_QUIET)
+  if(_tip_tar_version MATCHES "GNU tar")
+    set(_tip_tar_force_local_arg --force-local)
+  endif()
+endif()
 function(_tip_package_and_assert_ownership name build_dir expected_uid expected_gid out_archive)
   set(_tip_package_dir "${_tip_case_root}/${name}-packages")
   file(MAKE_DIRECTORY "${_tip_package_dir}")
@@ -104,7 +115,7 @@ function(_tip_package_and_assert_ownership name build_dir expected_uid expected_
 
   if(_tip_tar_command)
     execute_process(
-      COMMAND "${CMAKE_COMMAND}" -E env "LC_ALL=C" "${_tip_tar_command}" --numeric-owner -tvf "${_tip_archive}"
+      COMMAND "${CMAKE_COMMAND}" -E env "LC_ALL=C" "${_tip_tar_command}" ${_tip_tar_force_local_arg} --numeric-owner -tvf "${_tip_archive}"
       RESULT_VARIABLE _tip_tar_result
       OUTPUT_VARIABLE _tip_tar_output
       ERROR_VARIABLE _tip_tar_error)
@@ -166,6 +177,8 @@ endfunction()
 
 _tip_expect_invalid_ownership("archive-uid-nonnumeric" "ARCHIVE_UID owner" "got: 'owner'")
 _tip_expect_invalid_ownership("archive-gid-negative" "ARCHIVE_GID -1" "got: '-1'")
+_tip_expect_invalid_ownership("archive-uid-overflow" "ARCHIVE_UID 2147483648" "got: '2147483648'")
+_tip_expect_invalid_ownership("archive-gid-huge" "ARCHIVE_GID 999999999999999999999999999999999999" "got: '999999999999999999999999999999999999'")
 _tip_expect_invalid_ownership("archive-uid-missing" "ARCHIVE_UID ARCHIVE_GID 0" "ARCHIVE_UID requires")
 
 message(STATUS "[proof] Deterministic archive ownership proof passed: ${_tip_both_archive}")
