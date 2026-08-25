@@ -47,9 +47,9 @@ endfunction()
 
 _tip_configure_compression_fixture(
   "archive"
-  "export_cpack(PACKAGE_NAME ProofArchiveCompression PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 1 ARCHIVE_COMPRESSION_LEVEL 9 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_COMPRESSION_LEVEL 8)")
+  "export_cpack(PACKAGE_NAME ProofArchiveCompression PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 9 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_COMPRESSION_LEVEL 8)")
 set(_tip_archive_config "${_tip_case_root}/archive-build/CPackConfig.cmake")
-_tip_proof_assert_file_contains("${_tip_archive_config}" "set(CPACK_COMPRESSION_LEVEL \"1\")")
+_tip_proof_assert_file_contains("${_tip_archive_config}" "set(CPACK_COMPRESSION_LEVEL \"19\")")
 _tip_proof_assert_file_contains("${_tip_archive_config}" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL \"8\")")
 
 set(_tip_archive_package_dir "${_tip_case_root}/archive-packages")
@@ -72,10 +72,57 @@ endif()
 
 _tip_configure_compression_fixture(
   "zstd-archive"
-  "export_cpack(PACKAGE_NAME ProofZstdArchive PACKAGE_VERSION 1.0.0 GENERATORS TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 19)")
+  "export_cpack(PACKAGE_NAME ProofZstdArchive PACKAGE_VERSION 1.0.0 GENERATORS TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)")
 set(_tip_zstd_archive_config "${_tip_case_root}/zstd-archive-build/CPackConfig.cmake")
 _tip_proof_assert_file_contains("${_tip_zstd_archive_config}" "set(CPACK_COMPRESSION_LEVEL \"19\")")
 _tip_proof_assert_file_contains("${_tip_zstd_archive_config}" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL \"19\")")
+set(_tip_zstd_source_config "${_tip_case_root}/zstd-archive-build/CPackSourceConfig.cmake")
+_tip_proof_assert_file_contains("${_tip_zstd_source_config}" "set(CPACK_SOURCE_GENERATOR \"TZST\")")
+_tip_proof_assert_file_contains("${_tip_zstd_source_config}" "set(CPACK_COMPRESSION_LEVEL \"19\")")
+_tip_proof_assert_file_contains("${_tip_zstd_source_config}" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL \"19\")")
+
+set(_tip_zstd_archive_package_dir "${_tip_case_root}/zstd-archive-packages")
+_tip_proof_run_step(
+  NAME
+  "package-zstd-archive"
+  COMMAND
+  "${CMAKE_CPACK_COMMAND}"
+  -G
+  TZST
+  --config
+  "${_tip_zstd_archive_config}"
+  -B
+  "${_tip_zstd_archive_package_dir}")
+file(GLOB _tip_zstd_archive_packages "${_tip_zstd_archive_package_dir}/*.tar.zst")
+list(LENGTH _tip_zstd_archive_packages _tip_zstd_archive_package_count)
+if(_tip_zstd_archive_package_count EQUAL 0)
+  _tip_proof_fail("Expected at least one binary TZST package")
+endif()
+
+set(_tip_zstd_source_package_dir "${_tip_case_root}/zstd-source-packages")
+_tip_proof_run_step(
+  NAME
+  "package-zstd-source"
+  COMMAND
+  "${CMAKE_CPACK_COMMAND}"
+  -G
+  TZST
+  --config
+  "${_tip_zstd_source_config}"
+  -B
+  "${_tip_zstd_source_package_dir}")
+file(GLOB _tip_zstd_source_packages "${_tip_zstd_source_package_dir}/*.tar.zst")
+list(LENGTH _tip_zstd_source_packages _tip_zstd_source_package_count)
+if(_tip_zstd_source_package_count EQUAL 0)
+  _tip_proof_fail("Expected at least one source TZST package")
+endif()
+
+_tip_configure_compression_fixture(
+  "stgz"
+  "export_cpack(PACKAGE_NAME ProofStgzCompression PACKAGE_VERSION 1.0.0 GENERATORS STGZ NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 9)")
+set(_tip_stgz_config "${_tip_case_root}/stgz-build/CPackConfig.cmake")
+_tip_proof_assert_file_contains("${_tip_stgz_config}" "set(CPACK_GENERATOR \"STGZ\")")
+_tip_proof_assert_file_contains("${_tip_stgz_config}" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL \"9\")")
 
 _tip_configure_compression_fixture(
   "defaults"
@@ -83,6 +130,13 @@ _tip_configure_compression_fixture(
 set(_tip_defaults_config "${_tip_case_root}/defaults-build/CPackConfig.cmake")
 _tip_proof_assert_file_not_contains("${_tip_defaults_config}" "CPACK_ARCHIVE_COMPRESSION_LEVEL")
 _tip_proof_assert_file_not_contains("${_tip_defaults_config}" "CPACK_DEBIAN_COMPRESSION_LEVEL")
+
+_tip_configure_compression_fixture(
+  "additional-keyword-value"
+  "export_cpack(PACKAGE_NAME ProofAdditionalKeywordValue PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS ADDITIONAL_CPACK_VARS CPACK_PACKAGE_DESCRIPTION COMPRESSION_LEVEL PACKAGE_VENDOR KeywordValueVendor)")
+set(_tip_additional_keyword_config "${_tip_case_root}/additional-keyword-value-build/CPackConfig.cmake")
+_tip_proof_assert_file_contains("${_tip_additional_keyword_config}" "set(CPACK_PACKAGE_DESCRIPTION \"COMPRESSION_LEVEL\")")
+_tip_proof_assert_file_contains("${_tip_additional_keyword_config}" "set(CPACK_PACKAGE_VENDOR \"KeywordValueVendor\")")
 
 if(TIP_TEST_DEB)
   _tip_configure_compression_fixture(
@@ -156,8 +210,12 @@ endfunction()
 _tip_expect_invalid_compression("non-integer" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL fast)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("negative" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL -1)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("generic-range" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
+_tip_expect_invalid_compression("source-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19)" "must be an integer from 0 to 9")
+_tip_expect_invalid_compression("mixed-archive-range" "export_cpack(GENERATORS TGZ TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("zip-zstd-range" "export_cpack(GENERATORS ZIP_ZSTD NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
-_tip_expect_invalid_compression("zstd-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 20)" "must be an integer from 0 to 19")
+_tip_expect_invalid_compression("zstd-source-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
+_tip_expect_invalid_compression("zstd-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 20 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)" "must be an integer from 0 to 19")
+_tip_expect_invalid_compression("huge-level" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 999999999999999999999999999999999999)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("archive-generator" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 1)" "requires an archive generator")
 _tip_expect_invalid_compression("debian-generator" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_LEVEL 1)" "requires the DEB generator")
 _tip_expect_invalid_compression("debian-algorithm" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE brotli)" "Unsupported DEBIAN_COMPRESSION_TYPE 'brotli'")
