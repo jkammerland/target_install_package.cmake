@@ -1,0 +1,2 @@
+cmake==3.25.0 \
+    --hash=sha256:9b7fd744a90e4d804ff77ac50d3570009911fbfdad29c59fc93d2a82faaeb371

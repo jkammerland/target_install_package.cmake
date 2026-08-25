@@ -104,7 +104,12 @@ jobs:
           set -euxo pipefail
           old_cmake_dir="$PWD/build/cpack/cmake-3.25.0"
           python3 -m venv "$old_cmake_dir"
-          "$old_cmake_dir/bin/python" -m pip install --disable-pip-version-check "cmake==3.25.0"
+          "$old_cmake_dir/bin/python" -m pip install \
+            --disable-pip-version-check \
+            --require-hashes \
+            --only-binary=:all: \
+            --no-deps \
+            --requirement ci/requirements/cmake-3.25.0-linux-x86_64.txt
           old_cmake_command="$old_cmake_dir/bin/cmake"
           [[ "$("$old_cmake_command" --version | awk 'NR == 1 { print $3 }')" == 3.25.0 ]]
           echo "TIP_OLD_CMAKE_COMMAND=$old_cmake_command" >> "$GITHUB_ENV"
@@ -169,7 +174,12 @@ jobs:
           set -euxo pipefail
           ctest --test-dir build/cpack/appimage-proof \
             --output-on-failure \
-            -R '^proof_cpack_appimage_'
+            --no-tests=error \
+            -R '^proof_cpack_appimage_(real|validation)$'
+          ctest --test-dir build/cpack/appimage-proof \
+            --output-on-failure \
+            --no-tests=error \
+            -R '^proof_cpack_appimage_old_cmake_guard$'
 
       - name: Archive verified AppImage
         shell: bash
