@@ -8,6 +8,7 @@ This repository’s GitHub Actions workflows are intentionally thin wrappers aro
 graph TD
   CI[.github/workflows/ci.yml] --> B[build (matrix)]
   CI --> FL[CMake feature floors and latest]
+  CI --> SARIF[CMake configure diagnostics (SARIF)]
   CI --> WCL[Windows Ninja + clang-cl modules]
   B -->|needs| INT[test-integration]
   CI --> EX[test-examples (matrix)]
@@ -35,6 +36,7 @@ graph TD
 ## Workflow → script mapping
 
 - `ci.yml`
+  - `cmake-sarif`: one exact CMake `4.4.2` Ubuntu configure/generate lane, with a retained SARIF artifact and code-scanning upload when the workflow token permits it
   - `cmake-feature-lanes`: exact CMake `3.25.0`, `3.28.4`, and `4.4.2` core, module, and latest-feature proofs
   - `windows-clang-cl-modules`: CMake `4.4.2` with Ninja and `clang-cl`
   - `build`: `ci/run.sh bootstrap` → `ci/run.sh main` → `ci/run.sh consumer`
@@ -54,9 +56,28 @@ graph TD
 - Examples: `bash ci/run.sh examples --suite single --build-type Release --use-fetchcontent`
 - Packaging: `bash ci/run.sh packaging-tests`
 - CPack: `bash ci/run.sh cpack --suite regression`
+- CMake configure diagnostics: `bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --fmt && bash ci/run.sh sarif`
 - Latest-feature preset: `cmake -S . --presets-file cmake/presets/CMakePresets-4.4.json --preset ci-modern -Werror=install-absolute-destination`
 - Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
 - Release tag verification: `bash ci/run.sh release verify-tag --tag v7.2.0 --trusted-ref refs/remotes/origin/master`
+
+## CMake configure diagnostics
+
+The `cmake-sarif` job runs once on Ubuntu rather than across a matrix. It uses exact CMake `4.4.2` and writes `build/sarif/cmake-configure.sarif`. Reproduce the lane locally from the repository root with:
+
+```sh
+export PATH="${HOME}/.local/bin:${PATH}"
+bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --fmt
+test "$(cmake --version | awk 'NR == 1 { print $3 }')" = 4.4.2
+bash ci/run.sh sarif \
+  --build-dir build/ci-sarif \
+  --output build/sarif/cmake-configure.sarif
+python3 -m json.tool build/sarif/cmake-configure.sarif >/dev/null
+```
+
+The runner truncates stale output before configuration and validates CMake's output after configuration. If CMake produces no content or malformed SARIF, the runner preserves malformed bytes as a neighboring `.invalid` file when applicable and writes a valid empty SARIF 2.1.0 document at the requested output path. It then returns CMake's original status. Configure/generate failures therefore remain blocking; uploaded diagnostics and code-scanning findings are informational.
+
+The SARIF workflow artifact is retained after both successful and failed configure attempts. GitHub downgrades write permissions for fork and Dependabot pull requests, so those events skip the code-scanning upload without failing the job and use the retained artifact instead. All other events upload the single SARIF file with the `cmake-configure` category.
 
 ## Tagged releases
 

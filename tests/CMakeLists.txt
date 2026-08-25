@@ -463,6 +463,15 @@ if(target_install_package_BUILD_PROOF_TESTS)
   endif()
 
   if(_tip_shell_proofs_supported)
+    find_program(_tip_python_for_sarif_proof NAMES python3 python)
+    if(_tip_python_for_sarif_proof)
+      add_test(NAME proof_cmake_sarif_runner COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_cmake_sarif_runner.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/cmake-sarif-runner"
+                                                     "${_tip_python_for_sarif_proof}")
+      set_tests_properties(proof_cmake_sarif_runner PROPERTIES LABELS "proof;review;ci;sarif")
+    else()
+      message(STATUS "Skipping proof_cmake_sarif_runner: python is required")
+    endif()
+
     add_test(NAME proof_build_minimal_container COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_build_minimal_container.sh" "${_tip_repo_root}"
                                                         "${_tip_proof_test_root}/build-minimal-container")
     set_tests_properties(proof_build_minimal_container PROPERTIES LABELS "proof;review;container")
