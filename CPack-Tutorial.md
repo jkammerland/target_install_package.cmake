@@ -370,23 +370,9 @@ export_cpack(
 )
 ```
 
-Level `0` selects the compression backend's default. Levels `1` through `9` work with the supported compressed archive formats and Debian algorithms. Zstandard supports levels through `19`, except for CPack's `ZIP_ZSTD` format. `DEBIAN_COMPRESSION_TYPE` accepts `gzip`, `bzip2`, `xz`, `lzma`, or `zstd` and requires `DEB` in either the binary or source generators. Archive-specific levels require a selected binary archive generator; this includes `STGZ` as well as the standard archive generators.
+Level `0` keeps the backend default. Levels `1` through `9` are portable; Zstandard supports up to `19` except with `ZIP_ZSTD`. Generator-specific levels override `COMPRESSION_LEVEL`, and final values in `ADDITIONAL_CPACK_VARS` override matching arguments. `DEBIAN_COMPRESSION_TYPE` accepts `gzip`, `bzip2`, `xz`, `lzma`, or `zstd`.
 
-Generator-specific levels intentionally take precedence over `COMPRESSION_LEVEL`, so different values are not a conflict. An empty, `NOTFOUND`, or `*-NOTFOUND` `CPACK_ARCHIVE_COMPRESSION_LEVEL` is treated as unset, allowing the generic level to apply; CPack's Debian generator instead treats any defined `CPACK_DEBIAN_COMPRESSION_LEVEL` as dedicated input. When a setting is omitted, CPack keeps its native default. `ADDITIONAL_CPACK_VARS` remains the escape hatch: the final value supplied there overrides the same explicit `CPACK_*` variable and bypasses wrapper validation. For example, `CPACK_ARCHIVE_COMPRESSION_LEVEL` in `ADDITIONAL_CPACK_VARS` overrides `ARCHIVE_COMPRESSION_LEVEL`. A final `CPACK_GENERATOR` or `CPACK_SOURCE_GENERATOR` value determines which compression ranges apply; when it is empty, the native `CPACK_BINARY_*` or `CPACK_SOURCE_*` selectors determine the effective generators.
-
-The wrapper rejects levels outside the range shared by every affected binary and source generator. CPack writes generic and archive-specific compression variables to both `CPackConfig.cmake` and `CPackSourceConfig.cmake`; the default compressed source generators therefore usually constrain these settings to `0` through `9`. `TAR` and `TZ` do not consume a configurable compression level and therefore do not constrain the range, while `7Z_STORE` and `ZIP_STORE` retain CPack's `0` through `9` limit. Levels `10` through `19` are accepted only when every compression consumer is deterministically Zstandard-based, or when a generator-specific level overrides the generic level for the non-Zstandard consumers. To use a high Zstandard level for both configs, select a Zstandard source generator explicitly:
-
-```cmake
-export_cpack(
-    GENERATORS TZST
-    NO_DEFAULT_GENERATORS
-    COMPRESSION_LEVEL 19
-    ARCHIVE_COMPRESSION_LEVEL 19
-    ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST
-)
-```
-
-The three level arguments require CMake 4.3 or newer; `DEBIAN_COMPRESSION_TYPE` is available on every CMake version supported by this project.
+The level arguments require CMake 4.3 or newer. `DEBIAN_COMPRESSION_TYPE` works on every supported CMake version.
 
 ### Example 4: Package with Full Signing
 
