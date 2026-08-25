@@ -348,11 +348,16 @@ export_cpack(
     PACKAGE_HOMEPAGE_URL "https://techcorp.com/advancedlib"
     PACKAGE_LICENSE "MIT"
     LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/custom-license.txt"
+    GENERATORS "TGZ;TXZ"
+    ARCHIVE_UID 0  # CMake 4.3+: fixed numeric ownership
+    ARCHIVE_GID 0
     ADDITIONAL_CPACK_VARS
         "CPACK_PACKAGE_EXECUTABLES" "mytool;MyTool"
         "CPACK_CREATE_DESKTOP_LINKS" "mytool"
 )
 ```
+
+`ARCHIVE_UID` and `ARCHIVE_GID` accept nonnegative decimal integers and require CMake 4.3 or newer. Set both for deterministic archive ownership. If one is omitted, CPack defaults it to `0`; if both are omitted, `export_cpack()` leaves CPack's existing ownership behavior unchanged. These controls apply to every CPack Archive format and the Cygwin/FreeBSD archive derivatives. The selected format and extraction tool determine how numeric ownership is encoded and whether it is restored; non-archive package generators ignore these controls.
 
 ### Example 4: Package with Full Signing
 

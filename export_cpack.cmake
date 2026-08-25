@@ -72,6 +72,8 @@ endif()
 #     [DEFAULT_COMPONENTS <component1> <component2> ...]
 #     [ENABLE_COMPONENT_INSTALL]
 #     [ARCHIVE_FORMAT <format>]
+#     [ARCHIVE_UID <uid>]
+#     [ARCHIVE_GID <gid>]
 #     [NO_DEFAULT_GENERATORS]
 #     [GPG_SIGNING_KEY <fingerprint_or_key_id>]
 #     [GPG_PASSPHRASE_FILE <path>]
@@ -105,6 +107,8 @@ endif()
 #                             Defaults to detected runtime-payload components, or Development when no runtime payload exists.
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
+#   ARCHIVE_UID             - Nonnegative numeric UID stored in archive entries (requires CMake 4.3+)
+#   ARCHIVE_GID             - Nonnegative numeric GID stored in archive entries (requires CMake 4.3+)
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
 #   CHECKSUMS               - Package checksum algorithms. Supports MD5, SHA1, SHA2, and SHA3 variants accepted by CMake.
 #   GENERATE_CHECKSUMS      - Compatibility alias: ON selects SHA256 and SHA512; OFF selects none. Cannot be combined with CHECKSUMS.
@@ -149,6 +153,13 @@ endif()
 #     GENERATORS "ZIP"
 #     COMPONENTS "Development;Tools;Documentation"
 #     COMPONENT_GROUPS
+#   )
+#
+#   # Store deterministic numeric ownership in supported archive generators
+#   export_cpack(
+#     GENERATORS "TGZ"
+#     ARCHIVE_UID 0
+#     ARCHIVE_GID 0
 #   )
 #
 #   # Override architecture detection for special cases
@@ -876,6 +887,8 @@ function(_execute_deferred_cpack_config)
       DEFAULT_COMPONENTS
       ENABLE_COMPONENT_INSTALL
       ARCHIVE_FORMAT
+      ARCHIVE_UID
+      ARCHIVE_GID
       NO_DEFAULT_GENERATORS
       GPG_SIGNING_KEY
       GPG_PASSPHRASE_FILE
@@ -949,6 +962,14 @@ function(_execute_deferred_cpack_config)
   if("GENERATE_CHECKSUMS" IN_LIST _tip_cpack_parse_args)
     set(_tip_legacy_checksums_explicit TRUE)
   endif()
+  set(_tip_archive_uid_explicit FALSE)
+  set(_tip_archive_gid_explicit FALSE)
+  if("ARCHIVE_UID" IN_LIST _tip_cpack_parse_args)
+    set(_tip_archive_uid_explicit TRUE)
+  endif()
+  if("ARCHIVE_GID" IN_LIST _tip_cpack_parse_args)
+    set(_tip_archive_gid_explicit TRUE)
+  endif()
   if(_tip_checksums_explicit AND _tip_legacy_checksums_explicit)
     project_log(FATAL_ERROR "CHECKSUMS and GENERATE_CHECKSUMS cannot be used together. Use CHECKSUMS for an explicit algorithm list.")
   endif()
@@ -964,6 +985,8 @@ function(_execute_deferred_cpack_config)
       PACKAGE_LICENSE
       LICENSE_FILE
       ARCHIVE_FORMAT
+      ARCHIVE_UID
+      ARCHIVE_GID
       GPG_SIGNING_KEY
       GPG_PASSPHRASE_FILE
       SIGNING_METHOD
@@ -981,6 +1004,26 @@ function(_execute_deferred_cpack_config)
   endif()
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
+  endif()
+
+  if((_tip_archive_uid_explicit OR _tip_archive_gid_explicit) AND CMAKE_VERSION VERSION_LESS "4.3")
+    project_log(FATAL_ERROR "ARCHIVE_UID and ARCHIVE_GID require CMake 4.3 or newer because older CPack versions cannot control archive ownership.")
+  endif()
+  if(_tip_archive_uid_explicit)
+    if("ARCHIVE_UID" IN_LIST ARG_KEYWORDS_MISSING_VALUES OR NOT DEFINED ARG_ARCHIVE_UID)
+      project_log(FATAL_ERROR "ARCHIVE_UID requires a nonnegative integer value.")
+    endif()
+    if(NOT ARG_ARCHIVE_UID MATCHES "^[0-9]+$")
+      project_log(FATAL_ERROR "ARCHIVE_UID must be a nonnegative integer, got: '${ARG_ARCHIVE_UID}'")
+    endif()
+  endif()
+  if(_tip_archive_gid_explicit)
+    if("ARCHIVE_GID" IN_LIST ARG_KEYWORDS_MISSING_VALUES OR NOT DEFINED ARG_ARCHIVE_GID)
+      project_log(FATAL_ERROR "ARCHIVE_GID requires a nonnegative integer value.")
+    endif()
+    if(NOT ARG_ARCHIVE_GID MATCHES "^[0-9]+$")
+      project_log(FATAL_ERROR "ARCHIVE_GID must be a nonnegative integer, got: '${ARG_ARCHIVE_GID}'")
+    endif()
   endif()
 
   set(_tip_supported_checksum_algorithms
@@ -1151,6 +1194,13 @@ function(_execute_deferred_cpack_config)
     else()
       set(ARG_ARCHIVE_FORMAT "TGZ")
     endif()
+  endif()
+
+  if(_tip_archive_uid_explicit)
+    _tip_store_cpack_var(CPACK_ARCHIVE_UID "${ARG_ARCHIVE_UID}")
+  endif()
+  if(_tip_archive_gid_explicit)
+    _tip_store_cpack_var(CPACK_ARCHIVE_GID "${ARG_ARCHIVE_GID}")
   endif()
 
   # Configure basic CPack variables using GLOBAL properties
