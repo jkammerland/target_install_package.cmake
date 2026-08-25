@@ -211,6 +211,8 @@ _tip_expect_invalid_compression("non-integer" "export_cpack(GENERATORS TGZ NO_DE
 _tip_expect_invalid_compression("negative" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL -1)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("generic-range" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("source-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19)" "must be an integer from 0 to 9")
+_tip_expect_invalid_compression("debian-source-range" "export_cpack(GENERATORS RPM NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR DEB)"
+                                "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("mixed-archive-range" "export_cpack(GENERATORS TGZ TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("zip-zstd-range" "export_cpack(GENERATORS ZIP_ZSTD NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("zstd-source-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
