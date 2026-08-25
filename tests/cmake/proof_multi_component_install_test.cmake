@@ -17,6 +17,7 @@ SET(_tip_duplicate_prefix "${_tip_case_root}/duplicate-prefix")
 SET(_tip_unknown_prefix "${_tip_case_root}/unknown-prefix")
 SET(_tip_unknown_only_prefix "${_tip_case_root}/unknown-only-prefix")
 SET(_tip_single_prefix "${_tip_case_root}/single-prefix")
+SET(_tip_status_prefix "${_tip_case_root}/status-prefix")
 SET(_tip_full_prefix "${_tip_case_root}/full-prefix")
 
 FILE(REMOVE_RECURSE "${_tip_case_root}")
@@ -57,6 +58,13 @@ INSTALL(
   DESTINATION share/MultiComponentPkg
   COMPONENT Documentation)
 
+FILE(WRITE "${CMAKE_CURRENT_BINARY_DIR}/excluded.txt" "excluded from full installs\n")
+INSTALL(
+  FILES "${CMAKE_CURRENT_BINARY_DIR}/excluded.txt"
+  DESTINATION share/MultiComponentPkg
+  COMPONENT ExplicitOnly
+  EXCLUDE_FROM_ALL)
+
 # The proof uses this side effect to expose how duplicate component names execute.
 INSTALL(
   CODE [==[
@@ -64,6 +72,24 @@ FILE(MAKE_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPk
 FILE(APPEND "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg/runtime-marker.txt" "installed\n")
 ]==]
   COMPONENT Runtime)
+
+# CMake 4.4.0 through 4.4.2 overwrite this exit status when the later component
+# succeeds. Keep these rules out of the otherwise successful full-install case.
+INSTALL(
+  CODE [==[
+FILE(MAKE_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg")
+FILE(WRITE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg/status-failure-started.txt" "started\n")
+CMAKE_LANGUAGE(EXIT 23)
+]==]
+  COMPONENT StatusFailure
+  EXCLUDE_FROM_ALL)
+INSTALL(
+  CODE [==[
+FILE(MAKE_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg")
+FILE(WRITE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg/status-later-succeeded.txt" "succeeded\n")
+]==]
+  COMPONENT StatusLaterSuccess
+  EXCLUDE_FROM_ALL)
 
 export_cpack(
   PACKAGE_NAME MultiComponentProof
@@ -147,6 +173,15 @@ FUNCTION(_tip_assert_documentation prefix expected)
     _tip_proof_assert_exists("${_tip_documentation_path}")
   ELSE()
     _tip_proof_assert_not_exists("${_tip_documentation_path}")
+  ENDIF()
+ENDFUNCTION()
+
+FUNCTION(_tip_assert_explicit_only prefix expected)
+  SET(_tip_explicit_only_path "${prefix}/share/MultiComponentPkg/excluded.txt")
+  IF(expected)
+    _tip_proof_assert_exists("${_tip_explicit_only_path}")
+  ELSE()
+    _tip_proof_assert_not_exists("${_tip_explicit_only_path}")
   ENDIF()
 ENDFUNCTION()
 
@@ -248,6 +283,33 @@ _tip_assert_runtime("${_tip_single_prefix}" FALSE)
 _tip_assert_development("${_tip_single_prefix}" TRUE)
 _tip_assert_documentation("${_tip_single_prefix}" FALSE)
 
+# Released CMake 4.4.0 through 4.4.2 mask an earlier serial component failure
+# when a later component succeeds. Future releases may contain the upstream fix,
+# so only known affected versions are required to reproduce the bad exit status.
+EXECUTE_PROCESS(
+  COMMAND
+    "${CMAKE_COMMAND}" --install "${_tip_build_dir}" --config Release --component StatusFailure StatusLaterSuccess --prefix "${_tip_status_prefix}"
+  RESULT_VARIABLE _tip_status_result
+  OUTPUT_VARIABLE _tip_status_stdout
+  ERROR_VARIABLE _tip_status_stderr)
+SET(_tip_status_failure_marker "${_tip_status_prefix}/share/MultiComponentPkg/status-failure-started.txt")
+SET(_tip_status_later_marker "${_tip_status_prefix}/share/MultiComponentPkg/status-later-succeeded.txt")
+_tip_proof_assert_exists("${_tip_status_failure_marker}")
+IF(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4.0" AND CMAKE_VERSION VERSION_LESS_EQUAL "4.4.2")
+  IF(NOT "${_tip_status_result}" STREQUAL "0")
+    MESSAGE(STATUS "[proof][stdout]\n${_tip_status_stdout}")
+    MESSAGE(STATUS "[proof][stderr]\n${_tip_status_stderr}")
+    _tip_proof_fail("Expected released CMake ${CMAKE_VERSION} to mask the earlier component failure, got exit code ${_tip_status_result}")
+  ENDIF()
+  _tip_proof_assert_exists("${_tip_status_later_marker}")
+  MESSAGE(STATUS "[proof] Confirmed CMake ${CMAKE_VERSION} masks the earlier serial component failure.")
+ELSEIF("${_tip_status_result}" STREQUAL "0")
+  _tip_proof_assert_exists("${_tip_status_later_marker}")
+  MESSAGE(STATUS "[proof] CMake ${CMAKE_VERSION} still masks the earlier serial component failure.")
+ELSE()
+  MESSAGE(STATUS "[proof] CMake ${CMAKE_VERSION} propagates the earlier serial component failure.")
+ENDIF()
+
 # Omitting --component retains the existing full-install path.
 _tip_proof_run_step(
   NAME
@@ -263,5 +325,8 @@ _tip_proof_run_step(
 _tip_assert_runtime("${_tip_full_prefix}" TRUE)
 _tip_assert_development("${_tip_full_prefix}" TRUE)
 _tip_assert_documentation("${_tip_full_prefix}" TRUE)
+_tip_assert_explicit_only("${_tip_full_prefix}" FALSE)
+_tip_proof_assert_not_exists("${_tip_full_prefix}/share/MultiComponentPkg/status-failure-started.txt")
+_tip_proof_assert_not_exists("${_tip_full_prefix}/share/MultiComponentPkg/status-later-succeeded.txt")
 
 MESSAGE(STATUS "[proof] CMake 4.4 multi-component install proof passed.")
