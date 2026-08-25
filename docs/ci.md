@@ -56,7 +56,7 @@ graph TD
 - CPack: `bash ci/run.sh cpack --suite regression`
 - Latest-feature preset: `cmake -S . --presets-file cmake/presets/CMakePresets-4.4.json --preset ci-modern -Werror=install-absolute-destination`
 - Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
-- Release tag verification: `bash ci/run.sh release verify-tag --tag v7.1.0 --trusted-ref refs/remotes/origin/master`
+- Release tag verification: `bash ci/run.sh release verify-tag --tag v7.2.0 --trusted-ref refs/remotes/origin/master`
 
 ## Tagged releases
 
