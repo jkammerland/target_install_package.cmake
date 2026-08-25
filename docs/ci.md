@@ -63,35 +63,16 @@ graph TD
 
 ## CMake configure diagnostics
 
-The `cmake-sarif` job runs once on Ubuntu rather than across a matrix. It uses exact CMake `4.4.2` and writes `build/sarif/cmake-configure.sarif`. Reproduce the lane locally from the repository root with:
+The `cmake-sarif` job runs CMake 4.4.2 on Ubuntu and writes `build/sarif/cmake-configure.sarif`. Reproduce it with:
 
 ```sh
-export PATH="${HOME}/.local/bin:${PATH}"
 bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --fmt
-test "$(cmake --version | awk 'NR == 1 { print $3 }')" = 4.4.2
 bash ci/run.sh sarif \
   --build-dir build/ci-sarif \
   --output build/sarif/cmake-configure.sarif
-python3 -m json.tool build/sarif/cmake-configure.sarif >/dev/null
 ```
 
-To reproduce a blocking configure failure while verifying that the diagnostic artifact remains valid JSON:
-
-```sh
-set +e
-bash ci/run.sh sarif \
-  --build-dir build/ci-sarif-failure \
-  --output build/sarif/cmake-configure-failure.sarif \
-  --cmake-arg -DCMAKE_CXX_COMPILER=/definitely/missing/cxx
-status=$?
-set -e
-test "${status}" -ne 0
-python3 -m json.tool build/sarif/cmake-configure-failure.sarif >/dev/null
-```
-
-The runner truncates stale output before configuration and validates CMake's output after configuration, including strict JSON syntax and the tool, rules, artifacts, results, locations, and diagnostic messages required by the upload. It exposes `source_sarif_valid=true` through `GITHUB_OUTPUT` only when CMake's original document passes that validation. This output reports source integrity; it does not authorize publication from a failed configure. If CMake produces missing, malformed, or semantically invalid SARIF, the runner preserves nonempty invalid bytes as a neighboring `.invalid` file and writes a valid empty SARIF 2.1.0 document at the requested output path. A successful configure with invalid output fails the runner; when configure already failed, its original nonzero status is preserved. Configure/generate and SARIF integrity failures therefore remain blocking, while uploaded diagnostics and code-scanning findings are informational.
-
-The SARIF workflow artifact is retained after successful configure attempts, ordinary configure failures, and normalization fallbacks, but artifact and code-scanning steps do not run after cancellation. Normalized fallbacks and valid documents from failed configures are diagnostic evidence only and are never uploaded as authoritative code-scanning analysis; an incomplete failed analysis could otherwise clear existing findings in the stable `cmake-configure` category. GitHub [always permits code-scanning uploads triggered by `pull_request`](https://docs.github.com/en/code-security/reference/code-scanning/troubleshoot-analysis-errors/resource-not-accessible), including fork and Dependabot pull requests, so successful valid analyses on those events upload normally. Non-pull-request runs skip code scanning when Dependabot triggered the run or authored the pushed head commit, including a Dependabot pull request squash-merged to the default branch, because those runs can have read-only tokens. Other successful, valid, and permitted events upload the single SARIF file with the `cmake-configure` category.
+Only valid SARIF from a successful configure is uploaded to code scanning. Failed or normalized output remains available as a workflow artifact without replacing existing findings.
 
 ## Tagged releases
 
