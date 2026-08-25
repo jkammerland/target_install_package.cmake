@@ -101,25 +101,40 @@ _tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfi
 _tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"ARCHIVE_UID\")")
 _tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_CONTACT \"ownership@example.com\")")
 
-set(_tip_ignored_generator_source_dir "${_tip_case_root}/ignored-generators-src")
-set(_tip_ignored_generator_build_dir "${_tip_case_root}/ignored-generators-build")
-file(MAKE_DIRECTORY "${_tip_ignored_generator_source_dir}")
-file(WRITE "${_tip_ignored_generator_source_dir}/CMakeLists.txt"
-     "cmake_minimum_required(VERSION 3.25)\n" "project(proof_archive_ownership_ignored_generators VERSION 1.0.0 LANGUAGES NONE)\n"
-     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "export_cpack(GENERATORS 7Z FreeBSD NO_DEFAULT_GENERATORS ARCHIVE_UID 0 ARCHIVE_GID 0)\n")
-execute_process(
-  COMMAND "${CMAKE_COMMAND}" -S "${_tip_ignored_generator_source_dir}" -B "${_tip_ignored_generator_build_dir}" ${_tip_toolchain_args}
-  RESULT_VARIABLE _tip_ignored_generator_result
-  OUTPUT_VARIABLE _tip_ignored_generator_stdout
-  ERROR_VARIABLE _tip_ignored_generator_stderr)
-if(NOT _tip_ignored_generator_result EQUAL 0)
-  _tip_proof_fail("Ignored-generator ownership warning fixture failed:\n${_tip_ignored_generator_stdout}\n${_tip_ignored_generator_stderr}")
-endif()
-set(_tip_ignored_generator_output "${_tip_ignored_generator_stdout}\n${_tip_ignored_generator_stderr}")
-string(FIND "${_tip_ignored_generator_output}" "do not affect CPack generator(s): 7Z, FreeBSD." _tip_ignored_generator_warning_index)
-if(_tip_ignored_generator_warning_index EQUAL -1)
-  _tip_proof_fail("Expected ignored-generator ownership warning:\n${_tip_ignored_generator_output}")
-endif()
+function(_tip_check_ownership_generator_warning name setup export_args expected_generators expected_warning_generators)
+  set(_tip_source_dir "${_tip_case_root}/${name}-src")
+  set(_tip_build_dir "${_tip_case_root}/${name}-build")
+  file(MAKE_DIRECTORY "${_tip_source_dir}")
+  file(WRITE "${_tip_source_dir}/CMakeLists.txt" "cmake_minimum_required(VERSION 3.25)\n" "project(proof_${name} VERSION 1.0.0 LANGUAGES NONE)\n"
+                                                 "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "${setup}\n" "export_cpack(${export_args})\n")
+  execute_process(
+    COMMAND "${CMAKE_COMMAND}" -S "${_tip_source_dir}" -B "${_tip_build_dir}" ${_tip_toolchain_args}
+    RESULT_VARIABLE _tip_result
+    OUTPUT_VARIABLE _tip_stdout
+    ERROR_VARIABLE _tip_stderr)
+  if(NOT _tip_result EQUAL 0)
+    _tip_proof_fail("Ownership generator warning fixture '${name}' failed:\n${_tip_stdout}\n${_tip_stderr}")
+  endif()
+
+  _tip_proof_assert_file_contains("${_tip_build_dir}/CPackConfig.cmake" "set(CPACK_GENERATOR \"${expected_generators}\")")
+  set(_tip_output "${_tip_stdout}\n${_tip_stderr}")
+  string(REGEX REPLACE "[ \t\r\n]+" " " _tip_output_normalized "${_tip_output}")
+  string(FIND "${_tip_output_normalized}" "do not affect CPack generator(s):" _tip_warning_index)
+  if(NOT "${expected_warning_generators}" STREQUAL "")
+    string(FIND "${_tip_output_normalized}" "do not affect CPack generator(s): ${expected_warning_generators}." _tip_expected_warning_index)
+    if(_tip_expected_warning_index EQUAL -1)
+      _tip_proof_fail("Expected ownership generator warning for '${name}':\n${_tip_output}")
+    endif()
+  elseif(NOT _tip_warning_index EQUAL -1)
+    _tip_proof_fail("Unexpected ownership generator warning for '${name}':\n${_tip_output}")
+  endif()
+endfunction()
+
+_tip_check_ownership_generator_warning("ignored-generators" "" "GENERATORS 7Z FreeBSD NO_DEFAULT_GENERATORS ARCHIVE_UID 0 ARCHIVE_GID 0" "7Z;FreeBSD" "7Z, FreeBSD")
+_tip_check_ownership_generator_warning("additional-selects-ignored" "" "GENERATORS TGZ NO_DEFAULT_GENERATORS ARCHIVE_UID 0 ADDITIONAL_CPACK_VARS CPACK_GENERATOR TGZ CPACK_GENERATOR 7Z" "7Z" "7Z")
+_tip_check_ownership_generator_warning("additional-selects-supported" "" "GENERATORS 7Z NO_DEFAULT_GENERATORS ARCHIVE_UID 0 ADDITIONAL_CPACK_VARS CPACK_GENERATOR 7Z CPACK_GENERATOR TGZ" "TGZ" "")
+_tip_check_ownership_generator_warning("ambient-selects-ignored" "set(CPACK_GENERATOR 7Z)" "NO_DEFAULT_GENERATORS ARCHIVE_GID 0" "7Z" "7Z")
+_tip_check_ownership_generator_warning("wrapper-overrides-ambient" "set(CPACK_GENERATOR 7Z)" "GENERATORS TGZ NO_DEFAULT_GENERATORS ARCHIVE_GID 0" "TGZ" "")
 
 find_program(_tip_tar_command NAMES tar bsdtar)
 set(_tip_tar_force_local_arg "")
@@ -221,5 +236,7 @@ _tip_expect_invalid_ownership("archive-gid-negative" "ARCHIVE_GID -1" "got: '-1'
 _tip_expect_invalid_ownership("archive-uid-overflow" "ARCHIVE_UID 2147483648" "got: '2147483648'")
 _tip_expect_invalid_ownership("archive-gid-huge" "ARCHIVE_GID 999999999999999999999999999999999999" "got: '999999999999999999999999999999999999'")
 _tip_expect_invalid_ownership("archive-uid-missing" "ARCHIVE_UID ARCHIVE_GID 0" "ARCHIVE_UID requires")
+_tip_expect_invalid_ownership("archive-uid-missing-overridden" "ARCHIVE_UID ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_UID 0" "ARCHIVE_UID requires")
+_tip_expect_invalid_ownership("archive-gid-missing-overridden" "ARCHIVE_GID ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_GID 0" "ARCHIVE_GID requires")
 
 message(STATUS "[proof] Deterministic archive ownership proof passed: ${_tip_both_archive}")
