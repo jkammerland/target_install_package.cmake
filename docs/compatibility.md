@@ -11,7 +11,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Core utilities and examples | 3.25 | Required by the project. |
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
 | `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
-| Multiple components in one `cmake --install` invocation | 4.4 | Native CLI feature; generated install rules and one-component invocations remain compatible with CMake 3.25+. Released 4.4.0 through 4.4.2 have an exit-status aggregation bug. |
+| Multiple components in one `cmake --install` invocation | 4.4 | CMake 4.4.0 through 4.4.2 can mask component failures. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
@@ -67,8 +67,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 - CPS exports do not support CMake 4.4 `SOURCES` file sets: CMake 4.4.2 `install(PACKAGE_INFO)` omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
 - Container generation builds minimal runtime images. It is not a general Dockerfile authoring system.
-- Multiple-component selection is a native direct-install CLI feature, not an `export_cpack()` API. See [Multiple-Component Installs](multi-component-install.md) for exact duplicate, unknown-name, dependency, and packaging semantics.
-- Released CMake 4.4.0 through 4.4.2 can mask failures in multi-component and parallel direct installs. Use separate serial component invocations for status-sensitive automation until a release contains the upstream fix linked in [Multiple-Component Installs](multi-component-install.md).
+- Multiple-component selection is a direct-install CLI feature, not an `export_cpack()` API. CMake 4.4.0 through 4.4.2 can mask failures; see [Multiple-Component Installs](multi-component-install.md).
 
 ## Local Validation Commands
 
