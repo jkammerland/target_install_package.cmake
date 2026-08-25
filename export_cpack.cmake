@@ -72,6 +72,10 @@ endif()
 #     [DEFAULT_COMPONENTS <component1> <component2> ...]
 #     [ENABLE_COMPONENT_INSTALL]
 #     [ARCHIVE_FORMAT <format>]
+#     [COMPRESSION_LEVEL <0-19>]
+#     [ARCHIVE_COMPRESSION_LEVEL <0-19>]
+#     [DEBIAN_COMPRESSION_TYPE <gzip|bzip2|xz|lzma|zstd>]
+#     [DEBIAN_COMPRESSION_LEVEL <0-19>]
 #     [NO_DEFAULT_GENERATORS]
 #     [GPG_SIGNING_KEY <fingerprint_or_key_id>]
 #     [GPG_PASSPHRASE_FILE <path>]
@@ -105,6 +109,10 @@ endif()
 #                             Defaults to detected runtime-payload components, or Development when no runtime payload exists.
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
+#   COMPRESSION_LEVEL       - Generic CPack compression level. Requires CMake 4.3+; 0 selects the backend default.
+#   ARCHIVE_COMPRESSION_LEVEL - Archive-specific compression level. Requires an archive generator and CMake 4.3+.
+#   DEBIAN_COMPRESSION_TYPE - Debian compression algorithm (gzip, bzip2, xz, lzma, or zstd). Requires the DEB generator.
+#   DEBIAN_COMPRESSION_LEVEL - Debian-specific compression level. Requires the DEB generator and CMake 4.3+.
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
 #   CHECKSUMS               - Package checksum algorithms. Supports MD5, SHA1, SHA2, and SHA3 variants accepted by CMake.
 #   GENERATE_CHECKSUMS      - Compatibility alias: ON selects SHA256 and SHA512; OFF selects none. Cannot be combined with CHECKSUMS.
@@ -116,7 +124,7 @@ endif()
 #   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS)
 #   CONTAINER_ROOTFS_OVERLAYS - Directories whose contents are merged into the rootfs after components
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
-#                             Can override any auto-detected settings including architecture
+#                             Can override any auto-detected or explicit settings, including compression and architecture
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
@@ -195,6 +203,20 @@ function(_tip_finalize_registered_exports_for_cpack)
       _auto_finalize_single_export("${_tip_export_name}")
     endif()
   endforeach()
+endfunction()
+
+function(_tip_validate_cpack_compression_level argument_name value max_level)
+  if(NOT "${value}" MATCHES "^[0-9]+$")
+    project_log(FATAL_ERROR "${argument_name} must be an integer from 0 to ${max_level}, got: ${value}")
+  endif()
+
+  string(REGEX REPLACE "^0+" "" _tip_normalized_level "${value}")
+  if(_tip_normalized_level STREQUAL "")
+    set(_tip_normalized_level 0)
+  endif()
+  if(_tip_normalized_level GREATER max_level)
+    project_log(FATAL_ERROR "${argument_name} must be an integer from 0 to ${max_level}, got: ${value}")
+  endif()
 endfunction()
 
 function(export_cpack)
@@ -876,6 +898,10 @@ function(_execute_deferred_cpack_config)
       DEFAULT_COMPONENTS
       ENABLE_COMPONENT_INSTALL
       ARCHIVE_FORMAT
+      COMPRESSION_LEVEL
+      ARCHIVE_COMPRESSION_LEVEL
+      DEBIAN_COMPRESSION_TYPE
+      DEBIAN_COMPRESSION_LEVEL
       NO_DEFAULT_GENERATORS
       GPG_SIGNING_KEY
       GPG_PASSPHRASE_FILE
@@ -964,6 +990,10 @@ function(_execute_deferred_cpack_config)
       PACKAGE_LICENSE
       LICENSE_FILE
       ARCHIVE_FORMAT
+      COMPRESSION_LEVEL
+      ARCHIVE_COMPRESSION_LEVEL
+      DEBIAN_COMPRESSION_TYPE
+      DEBIAN_COMPRESSION_LEVEL
       GPG_SIGNING_KEY
       GPG_PASSPHRASE_FILE
       SIGNING_METHOD
@@ -982,6 +1012,21 @@ function(_execute_deferred_cpack_config)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+  set(_tip_compression_level_explicit FALSE)
+  set(_tip_archive_compression_level_explicit FALSE)
+  set(_tip_debian_compression_type_explicit FALSE)
+  set(_tip_debian_compression_level_explicit FALSE)
+  foreach(_tip_compression_argument COMPRESSION_LEVEL ARCHIVE_COMPRESSION_LEVEL DEBIAN_COMPRESSION_TYPE DEBIAN_COMPRESSION_LEVEL)
+    string(TOLOWER "${_tip_compression_argument}" _tip_compression_argument_lower)
+    if(_tip_compression_argument IN_LIST _tip_cpack_parse_args)
+      set("_tip_${_tip_compression_argument_lower}_explicit" TRUE)
+    endif()
+  endforeach()
+  foreach(_tip_compression_argument COMPRESSION_LEVEL ARCHIVE_COMPRESSION_LEVEL DEBIAN_COMPRESSION_TYPE DEBIAN_COMPRESSION_LEVEL)
+    if(_tip_compression_argument IN_LIST ARG_KEYWORDS_MISSING_VALUES)
+      project_log(FATAL_ERROR "${_tip_compression_argument} requires a value")
+    endif()
+  endforeach()
 
   set(_tip_supported_checksum_algorithms
       MD5
@@ -1137,6 +1182,105 @@ function(_execute_deferred_cpack_config)
       set(_tip_has_non_rpm_generator TRUE)
     endif()
   endforeach()
+
+  set(_tip_archive_generators
+      7Z
+      7Z_BZ2
+      7Z_DEFLATE
+      7Z_LZMA
+      7Z_LZMA2
+      7Z_PPMD
+      7Z_STORE
+      7Z_ZSTD
+      TAR
+      TBZ2
+      TGZ
+      TXZ
+      TZ
+      TZST
+      ZIP
+      ZIP_BZ2
+      ZIP_DEFLATE
+      ZIP_LZMA
+      ZIP_LZMA2
+      ZIP_STORE
+      ZIP_ZSTD
+      CYGWINBINARY
+      CYGWINSOURCE
+      FREEBSD)
+  set(_tip_archive_zstd_generators 7Z_ZSTD TZST)
+  set(_tip_has_archive_generator FALSE)
+  set(_tip_archive_max_compression_level 19)
+  foreach(_tip_generator_upper IN LISTS _tip_generators_upper)
+    if(_tip_generator_upper IN_LIST _tip_archive_generators)
+      set(_tip_has_archive_generator TRUE)
+      if(NOT _tip_generator_upper IN_LIST _tip_archive_zstd_generators)
+        set(_tip_archive_max_compression_level 9)
+      endif()
+    endif()
+  endforeach()
+
+  if(_tip_compression_level_explicit OR _tip_archive_compression_level_explicit OR _tip_debian_compression_level_explicit)
+    if(CMAKE_VERSION VERSION_LESS "4.3")
+      project_log(FATAL_ERROR "Compression level controls require CMake 4.3 or newer (running ${CMAKE_VERSION})")
+    endif()
+  endif()
+
+  if(_tip_debian_compression_type_explicit)
+    if(NOT _tip_has_deb_generator)
+      project_log(FATAL_ERROR "DEBIAN_COMPRESSION_TYPE requires the DEB generator")
+    endif()
+    string(TOLOWER "${ARG_DEBIAN_COMPRESSION_TYPE}" ARG_DEBIAN_COMPRESSION_TYPE)
+    set(_tip_debian_compression_types gzip bzip2 xz lzma zstd)
+    if(NOT ARG_DEBIAN_COMPRESSION_TYPE IN_LIST _tip_debian_compression_types)
+      project_log(FATAL_ERROR
+                  "Unsupported DEBIAN_COMPRESSION_TYPE '${ARG_DEBIAN_COMPRESSION_TYPE}'. Supported values: ${_tip_debian_compression_types}")
+    endif()
+  else()
+    set(ARG_DEBIAN_COMPRESSION_TYPE_FOR_VALIDATION gzip)
+  endif()
+
+  if(_tip_debian_compression_type_explicit)
+    set(ARG_DEBIAN_COMPRESSION_TYPE_FOR_VALIDATION "${ARG_DEBIAN_COMPRESSION_TYPE}")
+  endif()
+  if(ARG_DEBIAN_COMPRESSION_TYPE_FOR_VALIDATION STREQUAL "zstd")
+    set(_tip_debian_max_compression_level 19)
+  else()
+    set(_tip_debian_max_compression_level 9)
+  endif()
+
+  if(_tip_archive_compression_level_explicit)
+    if(NOT _tip_has_archive_generator)
+      project_log(FATAL_ERROR "ARCHIVE_COMPRESSION_LEVEL requires an archive generator")
+    endif()
+    _tip_validate_cpack_compression_level(ARCHIVE_COMPRESSION_LEVEL "${ARG_ARCHIVE_COMPRESSION_LEVEL}" "${_tip_archive_max_compression_level}")
+  endif()
+
+  if(_tip_debian_compression_level_explicit)
+    if(NOT _tip_has_deb_generator)
+      project_log(FATAL_ERROR "DEBIAN_COMPRESSION_LEVEL requires the DEB generator")
+    endif()
+    _tip_validate_cpack_compression_level(DEBIAN_COMPRESSION_LEVEL "${ARG_DEBIAN_COMPRESSION_LEVEL}" "${_tip_debian_max_compression_level}")
+  endif()
+
+  if(_tip_compression_level_explicit)
+    set(_tip_generic_max_compression_level 9)
+    set(_tip_generic_compression_is_zstd FALSE)
+    if(_tip_has_archive_generator AND _tip_archive_max_compression_level EQUAL 19)
+      set(_tip_generic_compression_is_zstd TRUE)
+    endif()
+    if(_tip_has_deb_generator)
+      if(_tip_generic_compression_is_zstd AND NOT _tip_debian_max_compression_level EQUAL 19)
+        set(_tip_generic_compression_is_zstd FALSE)
+      elseif(NOT _tip_has_archive_generator AND _tip_debian_max_compression_level EQUAL 19)
+        set(_tip_generic_compression_is_zstd TRUE)
+      endif()
+    endif()
+    if(_tip_generic_compression_is_zstd)
+      set(_tip_generic_max_compression_level 19)
+    endif()
+    _tip_validate_cpack_compression_level(COMPRESSION_LEVEL "${ARG_COMPRESSION_LEVEL}" "${_tip_generic_max_compression_level}")
+  endif()
 
   if(_tip_signing_key_for_validation AND ARG_SIGNING_METHOD STREQUAL "embedded")
     if(NOT _tip_has_rpm_generator OR _tip_has_non_rpm_generator)
@@ -1447,6 +1591,19 @@ function(_execute_deferred_cpack_config)
     # Set other RPM defaults
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_RELEASE "1")
+  endif()
+
+  if(_tip_compression_level_explicit)
+    _tip_store_cpack_var(CPACK_COMPRESSION_LEVEL "${ARG_COMPRESSION_LEVEL}")
+  endif()
+  if(_tip_archive_compression_level_explicit)
+    _tip_store_cpack_var(CPACK_ARCHIVE_COMPRESSION_LEVEL "${ARG_ARCHIVE_COMPRESSION_LEVEL}")
+  endif()
+  if(_tip_debian_compression_type_explicit)
+    _tip_store_cpack_var(CPACK_DEBIAN_COMPRESSION_TYPE "${ARG_DEBIAN_COMPRESSION_TYPE}")
+  endif()
+  if(_tip_debian_compression_level_explicit)
+    _tip_store_cpack_var(CPACK_DEBIAN_COMPRESSION_LEVEL "${ARG_DEBIAN_COMPRESSION_LEVEL}")
   endif()
 
   # Set additional variables if provided

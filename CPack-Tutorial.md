@@ -354,6 +354,28 @@ export_cpack(
 )
 ```
 
+### Compression Controls
+
+CMake 4.3 and newer can set generic and generator-specific compression levels directly:
+
+```cmake
+export_cpack(
+    PACKAGE_NAME "CompressedLib"
+    GENERATORS "TGZ;DEB"
+    NO_DEFAULT_GENERATORS
+    COMPRESSION_LEVEL 3
+    ARCHIVE_COMPRESSION_LEVEL 9
+    DEBIAN_COMPRESSION_TYPE xz
+    DEBIAN_COMPRESSION_LEVEL 7
+)
+```
+
+Level `0` selects the compression backend's default. Levels `1` through `9` work with the supported compressed archive formats and Debian algorithms. Zstandard supports levels through `19`, except for CPack's `ZIP_ZSTD` format. `DEBIAN_COMPRESSION_TYPE` accepts `gzip`, `bzip2`, `xz`, `lzma`, or `zstd` and requires the `DEB` generator. Archive-specific levels require an archive generator.
+
+Generator-specific levels intentionally take precedence over `COMPRESSION_LEVEL`, so different values are not a conflict. When a setting is omitted, CPack keeps its native default. `ADDITIONAL_CPACK_VARS` remains the escape hatch: a value supplied there overrides the same explicit `CPACK_*` variable and bypasses wrapper validation. For example, `CPACK_ARCHIVE_COMPRESSION_LEVEL` in `ADDITIONAL_CPACK_VARS` overrides `ARCHIVE_COMPRESSION_LEVEL`.
+
+The wrapper rejects levels outside the range shared by the selected generators. Levels `10` through `19` are accepted only when the affected generator and algorithm are deterministically Zstandard-based. The three level arguments require CMake 4.3 or newer; `DEBIAN_COMPRESSION_TYPE` is available on every CMake version supported by this project.
+
 ### Example 4: Package with Full Signing
 
 **In my opinion it should there should be a standard way to SECURELY consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID (or similar) integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities (like real name) can be protected.

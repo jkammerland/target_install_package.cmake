@@ -334,6 +334,26 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_cpack_checksums COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_checksums_test.cmake")
   set_tests_properties(proof_cpack_checksums PROPERTIES LABELS "proof;review;cpack;checksums")
 
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.3")
+    set(_tip_cpack_compression_args ${_tip_proof_common_args} -DTIP_TEST_DEB=OFF)
+    if(UNIX AND NOT APPLE)
+      list(REMOVE_ITEM _tip_cpack_compression_args -DTIP_TEST_DEB=OFF)
+      list(APPEND _tip_cpack_compression_args -DTIP_TEST_DEB=ON)
+    endif()
+    add_test(NAME proof_cpack_compression COMMAND ${CMAKE_COMMAND} ${_tip_cpack_compression_args} -P "${_tip_proof_script_dir}/proof_cpack_compression_test.cmake")
+    set_tests_properties(proof_cpack_compression PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
+
+    if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+      add_test(NAME proof_cpack_compression_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                                  "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
+      set_tests_properties(proof_cpack_compression_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
+    endif()
+  else()
+    add_test(NAME proof_cpack_compression_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P
+                                                                "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_cpack_compression_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
+  endif()
+
   if(CMAKE_VERSION VERSION_EQUAL "4.4.2")
     add_test(NAME proof_archive_reproducibility COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_archive_reproducibility_test.cmake")
     set_tests_properties(proof_archive_reproducibility PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.4")
