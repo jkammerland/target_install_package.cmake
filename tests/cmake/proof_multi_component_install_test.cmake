@@ -1,46 +1,46 @@
-cmake_minimum_required(VERSION 4.4)
+CMAKE_MINIMUM_REQUIRED(VERSION 4.4)
 
-include("${CMAKE_CURRENT_LIST_DIR}/proof_helpers.cmake")
+INCLUDE("${CMAKE_CURRENT_LIST_DIR}/proof_helpers.cmake")
 
-if(NOT DEFINED TIP_REPO_ROOT)
+IF(NOT DEFINED TIP_REPO_ROOT)
   _tip_proof_fail("TIP_REPO_ROOT is required")
-endif()
-if(NOT DEFINED TIP_PROOF_TEST_ROOT)
+ENDIF()
+IF(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
-endif()
+ENDIF()
 
-set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/multi-component-install")
-set(_tip_source_dir "${_tip_case_root}/fixture-src")
-set(_tip_build_dir "${_tip_case_root}/fixture-build")
-set(_tip_multi_prefix "${_tip_case_root}/custom-multi-prefix")
-set(_tip_duplicate_prefix "${_tip_case_root}/duplicate-prefix")
-set(_tip_unknown_prefix "${_tip_case_root}/unknown-prefix")
-set(_tip_unknown_only_prefix "${_tip_case_root}/unknown-only-prefix")
-set(_tip_single_prefix "${_tip_case_root}/single-prefix")
-set(_tip_full_prefix "${_tip_case_root}/full-prefix")
+SET(_tip_case_root "${TIP_PROOF_TEST_ROOT}/multi-component-install")
+SET(_tip_source_dir "${_tip_case_root}/fixture-src")
+SET(_tip_build_dir "${_tip_case_root}/fixture-build")
+SET(_tip_multi_prefix "${_tip_case_root}/custom-multi-prefix")
+SET(_tip_duplicate_prefix "${_tip_case_root}/duplicate-prefix")
+SET(_tip_unknown_prefix "${_tip_case_root}/unknown-prefix")
+SET(_tip_unknown_only_prefix "${_tip_case_root}/unknown-only-prefix")
+SET(_tip_single_prefix "${_tip_case_root}/single-prefix")
+SET(_tip_full_prefix "${_tip_case_root}/full-prefix")
 
-file(REMOVE_RECURSE "${_tip_case_root}")
-file(MAKE_DIRECTORY "${_tip_source_dir}/include/multi_component" "${_tip_source_dir}/src")
+FILE(REMOVE_RECURSE "${_tip_case_root}")
+FILE(MAKE_DIRECTORY "${_tip_source_dir}/include/multi_component" "${_tip_source_dir}/src")
 
-set(TIP_FIXTURE_REPO_ROOT "${TIP_REPO_ROOT}")
-set(_tip_fixture_cmakelists
+SET(TIP_FIXTURE_REPO_ROOT "${TIP_REPO_ROOT}")
+SET(_tip_fixture_cmakelists
     [=[
-cmake_minimum_required(VERSION 3.25)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.25)
 
-project(proof_multi_component_install VERSION 1.0.0 LANGUAGES CXX)
+PROJECT(proof_multi_component_install VERSION 1.0.0 LANGUAGES CXX)
 
-set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
-include("@TIP_FIXTURE_REPO_ROOT@/cmake/load_target_install_package.cmake")
+SET(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
+INCLUDE("@TIP_FIXTURE_REPO_ROOT@/cmake/load_target_install_package.cmake")
 
-add_executable(component_runtime src/main.cpp)
-target_compile_features(component_runtime PRIVATE cxx_std_17)
+ADD_EXECUTABLE(component_runtime src/main.cpp)
+TARGET_COMPILE_FEATURES(component_runtime PRIVATE cxx_std_17)
 target_install_package(
   component_runtime
   EXPORT_NAME MultiComponentPkg
   NAMESPACE MultiComponent::)
 
-add_library(component_sdk INTERFACE)
-target_sources(
+ADD_LIBRARY(component_sdk INTERFACE)
+TARGET_SOURCES(
   component_sdk
   INTERFACE
     FILE_SET HEADERS
@@ -51,17 +51,17 @@ target_install_package(
   EXPORT_NAME MultiComponentPkg
   NAMESPACE MultiComponent::)
 
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/unrelated.txt" "unrelated component\n")
-install(
+FILE(WRITE "${CMAKE_CURRENT_BINARY_DIR}/unrelated.txt" "unrelated component\n")
+INSTALL(
   FILES "${CMAKE_CURRENT_BINARY_DIR}/unrelated.txt"
   DESTINATION share/MultiComponentPkg
   COMPONENT Documentation)
 
 # The proof uses this side effect to expose how duplicate component names execute.
-install(
+INSTALL(
   CODE [==[
-file(MAKE_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg")
-file(APPEND "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg/runtime-marker.txt" "installed\n")
+FILE(MAKE_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg")
+FILE(APPEND "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg/runtime-marker.txt" "installed\n")
 ]==]
   COMPONENT Runtime)
 
@@ -72,10 +72,10 @@ export_cpack(
   COMPONENTS Runtime Development Documentation
   NO_DEFAULT_GENERATORS)
 ]=])
-string(CONFIGURE "${_tip_fixture_cmakelists}" _tip_fixture_cmakelists @ONLY)
-file(WRITE "${_tip_source_dir}/CMakeLists.txt" "${_tip_fixture_cmakelists}")
-file(WRITE "${_tip_source_dir}/src/main.cpp" "int main() { return 0; }\n")
-file(WRITE "${_tip_source_dir}/include/multi_component/sdk.hpp" "#pragma once\n\ninline constexpr int multi_component_value = 1;\n")
+STRING(CONFIGURE "${_tip_fixture_cmakelists}" _tip_fixture_cmakelists @ONLY)
+FILE(WRITE "${_tip_source_dir}/CMakeLists.txt" "${_tip_fixture_cmakelists}")
+FILE(WRITE "${_tip_source_dir}/src/main.cpp" "int main() { return 0; }\n")
+FILE(WRITE "${_tip_source_dir}/include/multi_component/sdk.hpp" "#pragma once\n\ninline constexpr int multi_component_value = 1;\n")
 
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 _tip_proof_run_step(
@@ -99,58 +99,58 @@ _tip_proof_run_step(
   --config
   Release)
 
-if(WIN32)
-  set(_tip_executable_suffix ".exe")
-else()
-  set(_tip_executable_suffix "")
-endif()
+IF(WIN32)
+  SET(_tip_executable_suffix ".exe")
+ELSE()
+  SET(_tip_executable_suffix "")
+ENDIF()
 
-function(_tip_assert_runtime prefix expected)
-  set(_tip_runtime_path "${prefix}/bin/component_runtime${_tip_executable_suffix}")
-  set(_tip_marker_path "${prefix}/share/MultiComponentPkg/runtime-marker.txt")
-  if(expected)
-    set(_tip_expected_marker_count 1)
-    if(ARGC GREATER 2)
-      set(_tip_expected_marker_count "${ARGV2}")
-    endif()
-    string(REPEAT "installed\n" "${_tip_expected_marker_count}" _tip_expected_marker_content)
+FUNCTION(_tip_assert_runtime prefix expected)
+  SET(_tip_runtime_path "${prefix}/bin/component_runtime${_tip_executable_suffix}")
+  SET(_tip_marker_path "${prefix}/share/MultiComponentPkg/runtime-marker.txt")
+  IF(expected)
+    SET(_tip_expected_marker_count 1)
+    IF(ARGC GREATER 2)
+      SET(_tip_expected_marker_count "${ARGV2}")
+    ENDIF()
+    STRING(REPEAT "installed\n" "${_tip_expected_marker_count}" _tip_expected_marker_content)
     _tip_proof_assert_exists("${_tip_runtime_path}")
     _tip_proof_assert_exists("${_tip_marker_path}")
-    file(READ "${_tip_marker_path}" _tip_marker_content)
-    if(NOT _tip_marker_content STREQUAL _tip_expected_marker_content)
+    FILE(READ "${_tip_marker_path}" _tip_marker_content)
+    IF(NOT _tip_marker_content STREQUAL _tip_expected_marker_content)
       _tip_proof_fail("Expected Runtime install marker ${_tip_expected_marker_count} time(s) in '${_tip_marker_path}', got '${_tip_marker_content}'")
-    endif()
-  else()
+    ENDIF()
+  ELSE()
     _tip_proof_assert_not_exists("${_tip_runtime_path}")
     _tip_proof_assert_not_exists("${_tip_marker_path}")
-  endif()
-endfunction()
+  ENDIF()
+ENDFUNCTION()
 
-function(_tip_assert_development prefix expected)
-  set(_tip_header_path "${prefix}/include/multi_component/sdk.hpp")
-  set(_tip_config_path "${prefix}/share/cmake/MultiComponentPkg/MultiComponentPkgConfig.cmake")
-  set(_tip_targets_path "${prefix}/share/cmake/MultiComponentPkg/MultiComponentPkgTargets.cmake")
-  if(expected)
+FUNCTION(_tip_assert_development prefix expected)
+  SET(_tip_header_path "${prefix}/include/multi_component/sdk.hpp")
+  SET(_tip_config_path "${prefix}/share/cmake/MultiComponentPkg/MultiComponentPkgConfig.cmake")
+  SET(_tip_targets_path "${prefix}/share/cmake/MultiComponentPkg/MultiComponentPkgTargets.cmake")
+  IF(expected)
     _tip_proof_assert_exists("${_tip_header_path}")
     _tip_proof_assert_exists("${_tip_config_path}")
     _tip_proof_assert_exists("${_tip_targets_path}")
-  else()
+  ELSE()
     _tip_proof_assert_not_exists("${_tip_header_path}")
     _tip_proof_assert_not_exists("${_tip_config_path}")
     _tip_proof_assert_not_exists("${_tip_targets_path}")
-  endif()
-endfunction()
+  ENDIF()
+ENDFUNCTION()
 
-function(_tip_assert_documentation prefix expected)
-  set(_tip_documentation_path "${prefix}/share/MultiComponentPkg/unrelated.txt")
-  if(expected)
+FUNCTION(_tip_assert_documentation prefix expected)
+  SET(_tip_documentation_path "${prefix}/share/MultiComponentPkg/unrelated.txt")
+  IF(expected)
     _tip_proof_assert_exists("${_tip_documentation_path}")
-  else()
+  ELSE()
     _tip_proof_assert_not_exists("${_tip_documentation_path}")
-  endif()
-endfunction()
+  ENDIF()
+ENDFUNCTION()
 
-set(_tip_cpack_config "${_tip_build_dir}/CPackConfig.cmake")
+SET(_tip_cpack_config "${_tip_build_dir}/CPackConfig.cmake")
 _tip_proof_assert_file_contains("${_tip_cpack_config}" "CPACK_COMPONENT_DEVELOPMENT_DEPENDS \"Runtime\"")
 
 # CMake 4.4 accepts multiple values after one --component option.
@@ -264,4 +264,4 @@ _tip_assert_runtime("${_tip_full_prefix}" TRUE)
 _tip_assert_development("${_tip_full_prefix}" TRUE)
 _tip_assert_documentation("${_tip_full_prefix}" TRUE)
 
-message(STATUS "[proof] CMake 4.4 multi-component install proof passed.")
+MESSAGE(STATUS "[proof] CMake 4.4 multi-component install proof passed.")
