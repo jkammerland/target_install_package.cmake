@@ -357,9 +357,7 @@ export_cpack(
 )
 ```
 
-`ARCHIVE_UID` and `ARCHIVE_GID` accept decimal integers from `0` through `2147483647` and require CMake 4.3 or newer. Set both for deterministic archive ownership. If one is omitted, CPack defaults it to `0`; if both are omitted, `export_cpack()` leaves CPack's existing ownership behavior unchanged. Tar-based formats, including Cygwin packages, store the IDs in tar headers. ZIP formats store them in Unix UID/GID extra fields, which some extraction tools ignore. CPack's 7Z writer cannot encode these IDs, and the FreeBSD generator delegates package creation to `libpkg` without consuming these variables. Other non-archive package generators also ignore the controls.
-
-A final `ADDITIONAL_CPACK_VARS` entry for `CPACK_ARCHIVE_UID` or `CPACK_ARCHIVE_GID` overrides the matching wrapper argument. Raw pass-through values are not validated, so prefer the wrapper arguments unless direct CPack behavior is intentional.
+`ARCHIVE_UID` and `ARCHIVE_GID` require CMake 4.3 and accept values from `0` through `2147483647`. Tar and ZIP store these IDs; 7Z, FreeBSD, and non-archive generators ignore them. Matching values in `ADDITIONAL_CPACK_VARS` take precedence without validation.
 
 ### Example 4: Package with Full Signing
 

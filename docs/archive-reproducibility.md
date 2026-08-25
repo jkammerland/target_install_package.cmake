@@ -25,12 +25,8 @@ cmake --build build
 cpack -G TGZ --config build/CPackConfig.cmake -B packages
 ```
 
-The proof fixes numeric ownership at `0/0` and `CPACK_ARCHIVE_THREADS=1`, includes source and configure-generated files, and compares the final compressed archive. Before the second clean build, it rewrites identical payload content after a time boundary and asserts that both source and generated-file mtimes differ. Matching archives therefore exercise timestamp normalization instead of relying on coincidentally equal input timestamps. A separate ownership proof inspects a generated TGZ and verifies the UID/GID on regular files, nested directories, and a symlink. A mismatch prints verbose archive metadata so timestamp, ordering, ownership, encoding, or compression drift is visible.
+The proof fixes ownership at `0/0` and `CPACK_ARCHIVE_THREADS=1`, then compares archives created from inputs with different timestamps.
 
-`ARCHIVE_UID` and `ARCHIVE_GID` require CMake 4.3 or newer and accept decimal integers from `0` through `2147483647`, the portable range consumed by CPack's archive generator. Set both for an explicit contract. If only one is set, CPack defaults the other to `0`. If both are omitted, `export_cpack()` does not set either variable; with this project's CMake 3.25 policy baseline, CMake 4.3 and 4.4 preserve the invoking user's ownership through CPack's `-1/-1` compatibility behavior.
+`ARCHIVE_UID` and `ARCHIVE_GID` require CMake 4.3 and accept values from `0` through `2147483647`. Tar and ZIP store these IDs; other generators may ignore them. Matching `ADDITIONAL_CPACK_VARS` entries override the validated arguments.
 
-CPack's Archive generator passes the controls to its archive writer. Tar-based formats, including Cygwin packages, store the IDs in tar headers. ZIP formats store them in Unix UID/GID extra fields, which some extraction tools ignore. The 7Z format does not encode POSIX UID/GID values, and CPack's FreeBSD generator bypasses the Archive writer and delegates package creation to `libpkg`; both therefore ignore these controls. Other generators, including DEB, RPM, WIX, DragNDrop, and External, also ignore them and need their own ownership policy.
-
-A final `ADDITIONAL_CPACK_VARS` pair for `CPACK_ARCHIVE_UID` or `CPACK_ARCHIVE_GID` replaces the corresponding wrapper value. This raw pass-through is intentionally not range-validated. Use it only when overriding CPack directly is required.
-
-This is a CPack 4.4.2 `TGZ` reproducibility proof only. Native package generators, ZIP, external archive tools, file modes, and other filesystem-specific metadata are outside this guarantee. The proof verifies numeric ownership on every TGZ entry, but extraction only restores it where the platform, tool, and privileges allow. Keep `SOURCE_DATE_EPOCH` fixed and use UTF-8 package inputs when reproducibility is required.
+This guarantee covers CPack 4.4.2 `TGZ` output only. Keep `SOURCE_DATE_EPOCH` fixed and use UTF-8 package inputs.

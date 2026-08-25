@@ -39,7 +39,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 | Feature | Supported | Requirements |
 |---------|-----------|--------------|
-| Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. CMake 4.3+ can set numeric ownership from 0 through 2147483647 with `ARCHIVE_UID` and `ARCHIVE_GID`; tar headers and ZIP Unix extra fields store the IDs. |
+| Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. CMake 4.3+ can set numeric ownership. |
 | Native Linux packages | Yes | Debian/RPM packaging tools on the build host. |
 | Signed packages | Yes | GPG for detached signatures; RPM signing tools for embedded RPM signatures. |
 | Checksums | Yes | `CHECKSUMS` accepts CMake's MD5, SHA1, SHA2, and SHA3 algorithms. `GENERATE_CHECKSUMS ON` remains an alias for SHA256 and SHA512. |
@@ -62,7 +62,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 - `target_install_package()` validates target names, package options, additional file paths, template placeholders, and conflicting export metadata at configure time.
 - `export_cpack()` can be called once per build tree because CPack has one package configuration per build directory.
-- Archive ownership controls are stored by tar and ZIP formats, including Cygwin tar packages. CPack's 7Z writer and FreeBSD generator ignore them, as do non-archive generators. Extraction and ownership restoration still depend on the tool, platform, and privileges.
+- Tar and ZIP store archive ownership controls; other generators may ignore them.
 - `CPS` and `SBOM` options are intentionally opt-in so projects on older CMake versions can keep using the core install path.
 - CPS exports do not support CMake 4.4 `SOURCES` file sets: CMake 4.4.2 `install(PACKAGE_INFO)` omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
