@@ -307,6 +307,7 @@ ELSEIF("${_tip_status_result}" STREQUAL "0")
   _tip_proof_assert_exists("${_tip_status_later_marker}")
   MESSAGE(STATUS "[proof] CMake ${CMAKE_VERSION} still masks the earlier serial component failure.")
 ELSE()
+  _tip_proof_assert_not_exists("${_tip_status_later_marker}")
   MESSAGE(STATUS "[proof] CMake ${CMAKE_VERSION} propagates the earlier serial component failure.")
 ENDIF()
 
