@@ -42,6 +42,9 @@ JSON
   non-sarif)
     printf '{"version":"2.0.0","runs":[]}\n' >"${output}"
     ;;
+  strict-json-nan)
+    printf '%s\n' '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Fake CMake","rules":[]}},"results":[],"properties":{"notJson":NaN}}]}' >"${output}"
+    ;;
   semantic-missing-message)
     printf '%s\n' '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Fake CMake","rules":[{"id":"Proof.Warning"}]}},"results":[{"message":{},"ruleId":"Proof.Warning","ruleIndex":0}]}]}' >"${output}"
     ;;
@@ -53,6 +56,15 @@ JSON
     ;;
   semantic-invalid-tool)
     printf '%s\n' '{"version":"2.1.0","runs":[{"tool":[],"results":[]}]}' >"${output}"
+    ;;
+  semantic-missing-results)
+    printf '%s\n' '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Fake CMake","rules":[]}}}]}' >"${output}"
+    ;;
+  semantic-invalid-artifacts)
+    printf '%s\n' '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Fake CMake","rules":[]}},"artifacts":{},"results":[]}]}' >"${output}"
+    ;;
+  semantic-invalid-locations)
+    printf '%s\n' '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Fake CMake","rules":[{"id":"Proof.Warning"}]}},"results":[{"message":{"text":"proof warning"},"locations":{},"ruleId":"Proof.Warning","ruleIndex":0}]}]}' >"${output}"
     ;;
   *) exit 96 ;;
 esac
@@ -90,10 +102,12 @@ for run in document["runs"]:
     assert isinstance(driver.get("rules", []), list)
     for rule in driver.get("rules", []):
         assert isinstance(rule.get("id"), str) and rule["id"]
-    assert isinstance(run.get("results", []), list)
-    for result in run.get("results", []):
+    assert isinstance(run.get("artifacts", []), list)
+    assert "results" in run and isinstance(run["results"], list)
+    for result in run["results"]:
         assert isinstance(result.get("message", {}).get("text"), str)
-assert len(document["runs"][0].get("results", [])) == int(sys.argv[3])
+        assert isinstance(result.get("locations", []), list)
+assert len(document["runs"][0]["results"]) == int(sys.argv[3])
 PY
 }
 
@@ -102,6 +116,7 @@ run_case() {
   local expected_status="${2:?}"
   local expected_tool="${3:?}"
   local expected_results="${4:?}"
+  local expected_source_valid="${5:?}"
   local case_root="${work_root}/${mode}"
   local output="${case_root}/out/cmake.sarif"
   local build_dir="${case_root}/build with spaces"
@@ -110,6 +125,7 @@ run_case() {
   set +e
   FAKE_CMAKE_MODE="${mode}" \
     FAKE_CMAKE_LOG="${case_root}/arguments.log" \
+    GITHUB_OUTPUT="${case_root}/github-output" \
     PATH="${work_root}/bin:${PATH}" \
     bash "${repo_root}/ci/run.sh" sarif \
       --build-dir "${build_dir}" \
@@ -124,27 +140,34 @@ run_case() {
     fail "${mode}: expected status ${expected_status}, got ${actual_status}"
   }
   validate_sarif "${output}" "${expected_tool}" "${expected_results}"
+  grep -Fx -- "source_sarif_valid=${expected_source_valid}" "${case_root}/github-output" >/dev/null || fail "${mode}: unexpected source SARIF validation output"
   grep -Fx -- "--sarif-output=${output}" "${case_root}/arguments.log" >/dev/null || fail "${mode}: SARIF output argument was not forwarded"
   grep -Fx -- "${build_dir}" "${case_root}/arguments.log" >/dev/null || fail "${mode}: build directory was not forwarded"
 }
 
-run_case valid 0 "Fake CMake" 1
-run_case valid-failure 23 "Fake CMake" 1
-run_case empty-success 1 CMake 0
-run_case empty-failure 42 CMake 0
-run_case malformed 1 CMake 0
-run_case malformed-failure 24 CMake 0
-run_case non-sarif 1 CMake 0
-run_case semantic-missing-message 1 CMake 0
-run_case semantic-non-string-message 1 CMake 0
-run_case semantic-invalid-rules 1 CMake 0
-run_case semantic-invalid-tool 1 CMake 0
+run_case valid 0 "Fake CMake" 1 true
+run_case valid-failure 23 "Fake CMake" 1 true
+run_case empty-success 1 CMake 0 false
+run_case empty-failure 42 CMake 0 false
+run_case malformed 1 CMake 0 false
+run_case malformed-failure 24 CMake 0 false
+run_case non-sarif 1 CMake 0 false
+run_case strict-json-nan 1 CMake 0 false
+run_case semantic-missing-message 1 CMake 0 false
+run_case semantic-non-string-message 1 CMake 0 false
+run_case semantic-invalid-rules 1 CMake 0 false
+run_case semantic-invalid-tool 1 CMake 0 false
+run_case semantic-missing-results 1 CMake 0 false
+run_case semantic-invalid-artifacts 1 CMake 0 false
+run_case semantic-invalid-locations 1 CMake 0 false
 
 [[ -s "${work_root}/malformed/out/cmake.sarif.invalid" ]] || fail "malformed: raw invalid output was not retained"
 grep -F '{not json' "${work_root}/malformed/out/cmake.sarif.invalid" >/dev/null || fail "malformed: retained raw output changed"
 [[ -s "${work_root}/malformed-failure/out/cmake.sarif.invalid" ]] || fail "malformed-failure: raw invalid output was not retained"
 [[ -s "${work_root}/non-sarif/out/cmake.sarif.invalid" ]] || fail "non-sarif: raw invalid output was not retained"
 grep -F '"version":"2.0.0"' "${work_root}/non-sarif/out/cmake.sarif.invalid" >/dev/null || fail "non-sarif: retained raw output changed"
+[[ -s "${work_root}/strict-json-nan/out/cmake.sarif.invalid" ]] || fail "strict-json-nan: raw invalid output was not retained"
+grep -F 'non-JSON numeric constant: NaN' "${work_root}/strict-json-nan/runner.log" >/dev/null || fail "strict-json-nan: NaN was not rejected"
 [[ -s "${work_root}/semantic-missing-message/out/cmake.sarif.invalid" ]] || fail "semantic-missing-message: raw invalid output was not retained"
 grep -F '"message":{}' "${work_root}/semantic-missing-message/out/cmake.sarif.invalid" >/dev/null || fail "semantic-missing-message: retained raw output changed"
 grep -F 'message.text must be a non-empty string' "${work_root}/semantic-missing-message/runner.log" >/dev/null || fail "semantic-missing-message: missing message.text was not rejected"
@@ -154,6 +177,12 @@ grep -F 'message.text must be a non-empty string' "${work_root}/semantic-non-str
 grep -F 'rules must be an array' "${work_root}/semantic-invalid-rules/runner.log" >/dev/null || fail "semantic-invalid-rules: invalid rules were not rejected"
 [[ -s "${work_root}/semantic-invalid-tool/out/cmake.sarif.invalid" ]] || fail "semantic-invalid-tool: raw invalid output was not retained"
 grep -F 'tool must be an object' "${work_root}/semantic-invalid-tool/runner.log" >/dev/null || fail "semantic-invalid-tool: invalid tool was not rejected"
+[[ -s "${work_root}/semantic-missing-results/out/cmake.sarif.invalid" ]] || fail "semantic-missing-results: raw invalid output was not retained"
+grep -F 'results must be an array' "${work_root}/semantic-missing-results/runner.log" >/dev/null || fail "semantic-missing-results: missing results were not rejected"
+[[ -s "${work_root}/semantic-invalid-artifacts/out/cmake.sarif.invalid" ]] || fail "semantic-invalid-artifacts: raw invalid output was not retained"
+grep -F 'artifacts must be an array' "${work_root}/semantic-invalid-artifacts/runner.log" >/dev/null || fail "semantic-invalid-artifacts: invalid artifacts were not rejected"
+[[ -s "${work_root}/semantic-invalid-locations/out/cmake.sarif.invalid" ]] || fail "semantic-invalid-locations: raw invalid output was not retained"
+grep -F 'locations must be an array' "${work_root}/semantic-invalid-locations/runner.log" >/dev/null || fail "semantic-invalid-locations: invalid locations were not rejected"
 [[ ! -e "${work_root}/empty-success/out/cmake.sarif.invalid" ]] || fail "empty-success: empty input should not create a raw sidecar"
 
 printf '%s\n' "[proof] CMake SARIF runner proof passed."

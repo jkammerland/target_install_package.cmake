@@ -109,13 +109,18 @@ sarif_path = Path(sys.argv[1])
 fallback_reason = ""
 contents = sarif_path.read_bytes() if sarif_path.is_file() else b""
 
+
+def reject_non_json_constant(value):
+    raise ValueError(f"non-JSON numeric constant: {value}")
+
+
 if not contents.strip():
     fallback_reason = "CMake produced no SARIF content"
     document = None
 else:
     try:
-        document = json.loads(contents)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        document = json.loads(contents, parse_constant=reject_non_json_constant)
+    except (UnicodeDecodeError, ValueError) as error:
         fallback_reason = f"CMake produced malformed SARIF: {error}"
         document = None
 
@@ -169,7 +174,14 @@ def sarif_21_error(value):
             if error:
                 return error
 
-        results = run.get("results", [])
+        artifacts = run.get("artifacts", [])
+        if not isinstance(artifacts, list):
+            return f"{run_path}.artifacts must be an array"
+        for artifact_index, artifact in enumerate(artifacts):
+            if not isinstance(artifact, dict):
+                return f"{run_path}.artifacts[{artifact_index}] must be an object"
+
+        results = run.get("results")
         if not isinstance(results, list):
             return f"{run_path}.results must be an array"
         rules = driver.get("rules", [])
@@ -182,6 +194,13 @@ def sarif_21_error(value):
                 return f"{result_path}.message must be an object"
             if not isinstance(message.get("text"), str) or not message["text"]:
                 return f"{result_path}.message.text must be a non-empty string"
+
+            locations = result.get("locations", [])
+            if not isinstance(locations, list):
+                return f"{result_path}.locations must be an array"
+            for location_index, location in enumerate(locations):
+                if not isinstance(location, dict):
+                    return f"{result_path}.locations[{location_index}] must be an object"
 
             rule_id = result.get("ruleId")
             if rule_id is not None and (not isinstance(rule_id, str) or not rule_id):
@@ -241,6 +260,18 @@ normalization_status=$?
 set -e
 ci_log "${normalization_summary}"
 
+source_sarif_valid=false
+if ((normalization_status == 0)); then
+  source_sarif_valid=true
+fi
+github_output_status=0
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  set +e
+  printf 'source_sarif_valid=%s\n' "${source_sarif_valid}" >>"${GITHUB_OUTPUT}"
+  github_output_status=$?
+  set -e
+fi
+
 if ((configure_status != 0)); then
   ci_warn "CMake configure/generate failed with status ${configure_status}; SARIF was retained at ${sarif_file}"
   exit "${configure_status}"
@@ -249,4 +280,9 @@ fi
 if ((normalization_status != 0)); then
   ci_warn "CMake configure/generate succeeded, but its SARIF output was invalid; failing after retaining diagnostics at ${sarif_file}"
   exit 1
+fi
+
+if ((github_output_status != 0)); then
+  ci_warn "Unable to expose SARIF validation state through GITHUB_OUTPUT"
+  exit "${github_output_status}"
 fi
