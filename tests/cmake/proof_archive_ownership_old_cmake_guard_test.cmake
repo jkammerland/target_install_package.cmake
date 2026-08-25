@@ -61,5 +61,6 @@ endfunction()
 
 _tip_expect_old_cmake_ownership_guard("archive-uid-old-cmake" "ARCHIVE_UID 0")
 _tip_expect_old_cmake_ownership_guard("archive-gid-old-cmake" "ARCHIVE_GID 0")
+_tip_expect_old_cmake_ownership_guard("archive-uid-overridden-old-cmake" "ARCHIVE_UID discarded ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_UID 0")
 
 message(STATUS "[proof] Archive ownership old-CMake guard proof passed.")

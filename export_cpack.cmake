@@ -107,8 +107,10 @@ endif()
 #                             Defaults to detected runtime-payload components, or Development when no runtime payload exists.
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
-#   ARCHIVE_UID             - Numeric UID from 0 to 2147483647 stored in archive entries (requires CMake 4.3+)
-#   ARCHIVE_GID             - Numeric GID from 0 to 2147483647 stored in archive entries (requires CMake 4.3+)
+#   ARCHIVE_UID             - Numeric UID from 0 to 2147483647 passed to CPack's Archive generator (requires CMake 4.3+). Tar and ZIP formats store it;
+#                             7Z formats and CPack's FreeBSD generator ignore it.
+#   ARCHIVE_GID             - Numeric GID from 0 to 2147483647 passed to CPack's Archive generator (requires CMake 4.3+). Tar and ZIP formats store it;
+#                             7Z formats and CPack's FreeBSD generator ignore it.
 #   NO_DEFAULT_GENERATORS   - Don't set default generators based on platform
 #   CHECKSUMS               - Package checksum algorithms. Supports MD5, SHA1, SHA2, and SHA3 variants accepted by CMake.
 #   GENERATE_CHECKSUMS      - Compatibility alias: ON selects SHA256 and SHA512; OFF selects none. Cannot be combined with CHECKSUMS.
@@ -155,7 +157,7 @@ endif()
 #     COMPONENT_GROUPS
 #   )
 #
-#   # Store deterministic numeric ownership in supported archive generators
+#   # Store deterministic numeric ownership in tar or ZIP archive entries
 #   export_cpack(
 #     GENERATORS "TGZ"
 #     ARCHIVE_UID 0
@@ -1027,16 +1029,41 @@ function(_execute_deferred_cpack_config)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
 
+  set(_tip_archive_uid_overridden FALSE)
+  set(_tip_archive_gid_overridden FALSE)
+  if(_tip_additional_cpack_vars_seen)
+    list(LENGTH ARG_ADDITIONAL_CPACK_VARS _tip_additional_cpack_vars_length)
+    math(EXPR _tip_additional_cpack_vars_pair_count "${_tip_additional_cpack_vars_length} / 2")
+    math(EXPR _tip_additional_cpack_vars_remainder "${_tip_additional_cpack_vars_length} % 2")
+    if(_tip_additional_cpack_vars_length EQUAL 0)
+      project_log(FATAL_ERROR "ADDITIONAL_CPACK_VARS must contain key/value pairs, got no arguments.")
+    endif()
+    if(NOT _tip_additional_cpack_vars_remainder EQUAL 0)
+      project_log(FATAL_ERROR "ADDITIONAL_CPACK_VARS must contain key/value pairs, got an odd number of arguments.")
+    endif()
+
+    math(EXPR _tip_additional_cpack_vars_max_index "${_tip_additional_cpack_vars_pair_count} - 1")
+    foreach(_tip_additional_cpack_var_index RANGE ${_tip_additional_cpack_vars_max_index})
+      math(EXPR _tip_additional_cpack_var_key_index "${_tip_additional_cpack_var_index} * 2")
+      list(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_additional_cpack_var_key_index} _tip_additional_cpack_var_name)
+      if(_tip_additional_cpack_var_name STREQUAL "CPACK_ARCHIVE_UID")
+        set(_tip_archive_uid_overridden TRUE)
+      elseif(_tip_additional_cpack_var_name STREQUAL "CPACK_ARCHIVE_GID")
+        set(_tip_archive_gid_overridden TRUE)
+      endif()
+    endforeach()
+  endif()
+
   if((_tip_archive_uid_explicit OR _tip_archive_gid_explicit) AND CMAKE_VERSION VERSION_LESS "4.3")
     project_log(FATAL_ERROR "ARCHIVE_UID and ARCHIVE_GID require CMake 4.3 or newer because older CPack versions cannot control archive ownership.")
   endif()
-  if(_tip_archive_uid_explicit)
+  if(_tip_archive_uid_explicit AND NOT _tip_archive_uid_overridden)
     if("ARCHIVE_UID" IN_LIST ARG_KEYWORDS_MISSING_VALUES OR NOT DEFINED ARG_ARCHIVE_UID)
       project_log(FATAL_ERROR "ARCHIVE_UID requires an integer value from 0 to 2147483647.")
     endif()
     _tip_validate_archive_owner_id(ARCHIVE_UID "${ARG_ARCHIVE_UID}")
   endif()
-  if(_tip_archive_gid_explicit)
+  if(_tip_archive_gid_explicit AND NOT _tip_archive_gid_overridden)
     if("ARCHIVE_GID" IN_LIST ARG_KEYWORDS_MISSING_VALUES OR NOT DEFINED ARG_ARCHIVE_GID)
       project_log(FATAL_ERROR "ARCHIVE_GID requires an integer value from 0 to 2147483647.")
     endif()
@@ -1176,6 +1203,22 @@ function(_execute_deferred_cpack_config)
     endif()
   endif()
 
+  if((_tip_archive_uid_explicit AND NOT _tip_archive_uid_overridden) OR (_tip_archive_gid_explicit AND NOT _tip_archive_gid_overridden))
+    set(_tip_ignored_archive_ownership_generators "")
+    foreach(_tip_generator IN LISTS ARG_GENERATORS)
+      string(TOUPPER "${_tip_generator}" _tip_generator_upper)
+      if(_tip_generator_upper MATCHES "^7Z($|_)" OR _tip_generator_upper STREQUAL "FREEBSD")
+        list(APPEND _tip_ignored_archive_ownership_generators "${_tip_generator}")
+      endif()
+    endforeach()
+    if(_tip_ignored_archive_ownership_generators)
+      list(REMOVE_DUPLICATES _tip_ignored_archive_ownership_generators)
+      string(JOIN ", " _tip_ignored_archive_ownership_generators_display ${_tip_ignored_archive_ownership_generators})
+      project_log(WARNING
+                  "ARCHIVE_UID and ARCHIVE_GID do not affect CPack generator(s): ${_tip_ignored_archive_ownership_generators_display}. Use a tar or ZIP archive generator to encode numeric ownership.")
+    endif()
+  endif()
+
   set(_tip_signing_key_for_validation "${ARG_GPG_SIGNING_KEY}")
   if(NOT _tip_signing_key_for_validation AND DEFINED ENV{GPG_SIGNING_KEY})
     set(_tip_signing_key_for_validation "$ENV{GPG_SIGNING_KEY}")
@@ -1213,10 +1256,10 @@ function(_execute_deferred_cpack_config)
     endif()
   endif()
 
-  if(_tip_archive_uid_explicit)
+  if(_tip_archive_uid_explicit AND NOT _tip_archive_uid_overridden)
     _tip_store_cpack_var(CPACK_ARCHIVE_UID "${ARG_ARCHIVE_UID}")
   endif()
-  if(_tip_archive_gid_explicit)
+  if(_tip_archive_gid_explicit AND NOT _tip_archive_gid_overridden)
     _tip_store_cpack_var(CPACK_ARCHIVE_GID "${ARG_ARCHIVE_GID}")
   endif()
 
@@ -1518,26 +1561,14 @@ function(_execute_deferred_cpack_config)
 
   # Set additional variables if provided
   if(_tip_additional_cpack_vars_seen)
-    list(LENGTH ARG_ADDITIONAL_CPACK_VARS vars_length)
-    math(EXPR pairs_count "${vars_length} / 2")
-    math(EXPR remainder "${vars_length} % 2")
-
-    if(vars_length EQUAL 0)
-      project_log(FATAL_ERROR "ADDITIONAL_CPACK_VARS must contain key/value pairs, got no arguments.")
-    endif()
-    if(NOT remainder EQUAL 0)
-      project_log(FATAL_ERROR "ADDITIONAL_CPACK_VARS must contain key/value pairs, got an odd number of arguments.")
-    else()
-      math(EXPR max_index "${pairs_count} - 1")
-      foreach(i RANGE ${max_index})
-        math(EXPR key_index "${i} * 2")
-        math(EXPR value_index "${key_index} + 1")
-        list(GET ARG_ADDITIONAL_CPACK_VARS ${key_index} var_name)
-        list(GET ARG_ADDITIONAL_CPACK_VARS ${value_index} var_value)
-        _tip_store_cpack_var("${var_name}" "${var_value}")
-        _tip_mark_user_cpack_var("${var_name}")
-      endforeach()
-    endif()
+    foreach(_tip_additional_cpack_var_index RANGE ${_tip_additional_cpack_vars_max_index})
+      math(EXPR _tip_additional_cpack_var_key_index "${_tip_additional_cpack_var_index} * 2")
+      math(EXPR _tip_additional_cpack_var_value_index "${_tip_additional_cpack_var_key_index} + 1")
+      list(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_additional_cpack_var_key_index} _tip_additional_cpack_var_name)
+      list(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_additional_cpack_var_value_index} _tip_additional_cpack_var_value)
+      _tip_store_cpack_var("${_tip_additional_cpack_var_name}" "${_tip_additional_cpack_var_value}")
+      _tip_mark_user_cpack_var("${_tip_additional_cpack_var_name}")
+    endforeach()
   endif()
 
   if(ARG_COMPONENTS)

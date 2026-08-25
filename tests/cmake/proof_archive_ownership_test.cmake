@@ -84,11 +84,42 @@ _tip_configure_ownership_case("maximum" "ARCHIVE_UID 2147483647 ARCHIVE_GID 2147
 _tip_proof_assert_file_contains("${_tip_maximum_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_UID \"2147483647\")")
 _tip_proof_assert_file_contains("${_tip_maximum_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"2147483647\")")
 
-_tip_configure_ownership_case("additional-keyword-values" "ADDITIONAL_CPACK_VARS CPACK_PACKAGE_DESCRIPTION ARCHIVE_UID CPACK_PACKAGE_VENDOR ARCHIVE_GID PACKAGE_CONTACT ownership@example.com"
-                              _tip_additional_keyword_build_dir)
+_tip_configure_ownership_case("additional-overrides-wrapper" "ARCHIVE_UID discarded ARCHIVE_GID -1 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_UID 17323 CPACK_ARCHIVE_GID 17324 CPACK_ARCHIVE_UID 17325"
+                              _tip_additional_override_build_dir)
+_tip_proof_assert_file_contains("${_tip_additional_override_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_UID \"17325\")")
+_tip_proof_assert_file_contains("${_tip_additional_override_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"17324\")")
+_tip_proof_assert_file_not_contains("${_tip_additional_override_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_UID \"discarded\")")
+_tip_proof_assert_file_not_contains("${_tip_additional_override_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"-1\")")
+
+_tip_configure_ownership_case(
+  "additional-keyword-values"
+  "ADDITIONAL_CPACK_VARS CPACK_PACKAGE_DESCRIPTION ARCHIVE_UID CPACK_PACKAGE_VENDOR ARCHIVE_GID CPACK_ARCHIVE_UID PACKAGE_CONTACT CPACK_ARCHIVE_GID ARCHIVE_UID PACKAGE_CONTACT ownership@example.com"
+  _tip_additional_keyword_build_dir)
 _tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_DESCRIPTION \"ARCHIVE_UID\")")
 _tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_VENDOR \"ARCHIVE_GID\")")
+_tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_UID \"PACKAGE_CONTACT\")")
+_tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_ARCHIVE_GID \"ARCHIVE_UID\")")
 _tip_proof_assert_file_contains("${_tip_additional_keyword_build_dir}/CPackConfig.cmake" "set(CPACK_PACKAGE_CONTACT \"ownership@example.com\")")
+
+set(_tip_ignored_generator_source_dir "${_tip_case_root}/ignored-generators-src")
+set(_tip_ignored_generator_build_dir "${_tip_case_root}/ignored-generators-build")
+file(MAKE_DIRECTORY "${_tip_ignored_generator_source_dir}")
+file(WRITE "${_tip_ignored_generator_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 3.25)\n" "project(proof_archive_ownership_ignored_generators VERSION 1.0.0 LANGUAGES NONE)\n"
+     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "export_cpack(GENERATORS 7Z FreeBSD NO_DEFAULT_GENERATORS ARCHIVE_UID 0 ARCHIVE_GID 0)\n")
+execute_process(
+  COMMAND "${CMAKE_COMMAND}" -S "${_tip_ignored_generator_source_dir}" -B "${_tip_ignored_generator_build_dir}" ${_tip_toolchain_args}
+  RESULT_VARIABLE _tip_ignored_generator_result
+  OUTPUT_VARIABLE _tip_ignored_generator_stdout
+  ERROR_VARIABLE _tip_ignored_generator_stderr)
+if(NOT _tip_ignored_generator_result EQUAL 0)
+  _tip_proof_fail("Ignored-generator ownership warning fixture failed:\n${_tip_ignored_generator_stdout}\n${_tip_ignored_generator_stderr}")
+endif()
+set(_tip_ignored_generator_output "${_tip_ignored_generator_stdout}\n${_tip_ignored_generator_stderr}")
+string(FIND "${_tip_ignored_generator_output}" "do not affect CPack generator(s): 7Z, FreeBSD." _tip_ignored_generator_warning_index)
+if(_tip_ignored_generator_warning_index EQUAL -1)
+  _tip_proof_fail("Expected ignored-generator ownership warning:\n${_tip_ignored_generator_output}")
+endif()
 
 find_program(_tip_tar_command NAMES tar bsdtar)
 set(_tip_tar_force_local_arg "")
@@ -163,6 +194,7 @@ endfunction()
 _tip_package_and_assert_ownership("uid-only" "${_tip_uid_only_build_dir}" 0 0 _tip_uid_only_archive)
 _tip_package_and_assert_ownership("gid-only" "${_tip_gid_only_build_dir}" 0 3456 _tip_gid_only_archive)
 _tip_package_and_assert_ownership("both" "${_tip_both_build_dir}" 17321 17322 _tip_both_archive)
+_tip_package_and_assert_ownership("maximum" "${_tip_maximum_build_dir}" 2147483647 2147483647 _tip_maximum_archive)
 
 function(_tip_expect_invalid_ownership name ownership_args expected)
   set(_tip_source_dir "${_tip_case_root}/${name}-src")
