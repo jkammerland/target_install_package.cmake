@@ -139,8 +139,28 @@ _tip_proof_assert_file_contains("${_tip_generator_override_config}" "set(CPACK_A
 
 _tip_configure_compression_fixture(
   "native-binary-selector"
-  "export_cpack(PACKAGE_NAME ProofNativeBinarySelector PACKAGE_VERSION 1.0.0 NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 9 ADDITIONAL_CPACK_VARS CPACK_GENERATOR \"\" CPACK_BINARY_STGZ OFF CPACK_BINARY_TGZ ON CPACK_BINARY_TZ OFF CPACK_SOURCE_GENERATOR TZST)"
-)
+  [=[
+set(CPACK_BINARY_7Z OFF)
+set(CPACK_BINARY_BUNDLE OFF)
+set(CPACK_BINARY_CYGWIN OFF)
+set(CPACK_BINARY_DEB OFF)
+set(CPACK_BINARY_DRAGNDROP OFF)
+set(CPACK_BINARY_FREEBSD OFF)
+set(CPACK_BINARY_IFW OFF)
+set(CPACK_BINARY_NSIS OFF)
+set(CPACK_BINARY_INNOSETUP OFF)
+set(CPACK_BINARY_NUGET OFF)
+set(CPACK_BINARY_PRODUCTBUILD OFF)
+set(CPACK_BINARY_RPM OFF)
+set(CPACK_BINARY_STGZ OFF)
+set(CPACK_BINARY_TBZ2 OFF)
+set(CPACK_BINARY_TGZ OFF)
+set(CPACK_BINARY_TXZ OFF)
+set(CPACK_BINARY_TZ OFF)
+set(CPACK_BINARY_WIX OFF)
+set(CPACK_BINARY_ZIP OFF)
+export_cpack(PACKAGE_NAME ProofNativeBinarySelector PACKAGE_VERSION 1.0.0 NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 9 ADDITIONAL_CPACK_VARS CPACK_GENERATOR "" CPACK_BINARY_TGZ OFF CPACK_BINARY_TGZ ON CPACK_SOURCE_GENERATOR TZST)
+]=])
 set(_tip_native_binary_selector_config "${_tip_case_root}/native-binary-selector-build/CPackConfig.cmake")
 _tip_proof_assert_file_contains("${_tip_native_binary_selector_config}" "set(CPACK_GENERATOR \"TGZ\")")
 set(_tip_native_binary_selector_package_dir "${_tip_case_root}/native-binary-selector-packages")
@@ -161,8 +181,17 @@ endif()
 
 _tip_configure_compression_fixture(
   "neutral-archives"
-  "set(CPACK_SOURCE_TBZ2 OFF)\nset(CPACK_SOURCE_TGZ ON)\nset(CPACK_SOURCE_TXZ OFF)\nset(CPACK_SOURCE_TZ ON)\nexport_cpack(PACKAGE_NAME ProofNeutralArchives PACKAGE_VERSION 1.0.0 GENERATORS TZST TAR TZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR \"\" CPACK_SOURCE_TGZ ON CPACK_SOURCE_TGZ OFF)"
-)
+  [=[
+set(CPACK_SOURCE_7Z OFF)
+set(CPACK_SOURCE_CYGWIN OFF)
+set(CPACK_SOURCE_RPM OFF)
+set(CPACK_SOURCE_TBZ2 OFF)
+set(CPACK_SOURCE_TGZ ON)
+set(CPACK_SOURCE_TXZ OFF)
+set(CPACK_SOURCE_TZ ON)
+set(CPACK_SOURCE_ZIP OFF)
+export_cpack(PACKAGE_NAME ProofNeutralArchives PACKAGE_VERSION 1.0.0 GENERATORS TZST TAR TZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR "" CPACK_SOURCE_TGZ ON CPACK_SOURCE_TGZ OFF)
+]=])
 set(_tip_neutral_archive_config "${_tip_case_root}/neutral-archives-build/CPackConfig.cmake")
 set(_tip_neutral_source_config "${_tip_case_root}/neutral-archives-build/CPackSourceConfig.cmake")
 _tip_proof_assert_file_contains("${_tip_neutral_archive_config}" "set(CPACK_GENERATOR \"TZST;TAR;TZ\")")
@@ -357,7 +386,8 @@ _tip_expect_invalid_compression(
   "set(CPACK_ARCHIVE_COMPRESSION_LEVEL archive-level-NOTFOUND)\nexport_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
   "must be an integer from 0 to 9")
 _tip_expect_invalid_compression(
-  "ambient-archive-exact-notfound" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL NOTFOUND)\nexport_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
+  "ambient-archive-exact-notfound"
+  "set(CPACK_ARCHIVE_COMPRESSION_LEVEL NOTFOUND)\nexport_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
   "must be an integer from 0 to 9")
 _tip_expect_invalid_compression(
   "repeated-archive-final-empty"
