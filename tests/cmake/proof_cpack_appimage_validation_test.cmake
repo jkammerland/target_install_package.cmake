@@ -46,6 +46,8 @@ FUNCTION(_tip_write_appimage_fixture name desktop_variant export_call)
     SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof-app.svg\nCategories=Development;\n")
   ELSEIF(desktop_variant STREQUAL "prefix-only-icon")
     SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof\nCategories=Development;\n")
+  ELSEIF(desktop_variant STREQUAL "multi-dot-icon")
+    SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nExec=proof-app\nIcon=proof.app\nCategories=Development;\n")
   ELSEIF(desktop_variant STREQUAL "missing-exec")
     SET(_tip_desktop_entry "[Desktop Entry]\nType=Application\nName=AppImage validation proof\nIcon=proof-app\nCategories=Development;\n")
   ENDIF()
@@ -55,6 +57,7 @@ FUNCTION(_tip_write_appimage_fixture name desktop_variant export_call)
   FILE(WRITE "${_tip_source_dir}/proof.txt" "not an icon\n")
   FILE(WRITE "${_tip_source_dir}/proof-app.svg" "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><rect width=\"16\" height=\"16\"/></svg>\n")
   FILE(WRITE "${_tip_source_dir}/proof-app.SVG" "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><rect width=\"16\" height=\"16\"/></svg>\n")
+  FILE(WRITE "${_tip_source_dir}/proof.app.svg" "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><rect width=\"16\" height=\"16\"/></svg>\n")
   FILE(WRITE "${_tip_source_dir}/payload.txt" "AppImage validation payload\n")
   FOREACH(_tip_fake_tool IN ITEMS appimagetool patchelf)
     FILE(WRITE "${_tip_source_dir}/fake-bin/${_tip_fake_tool}" "#!/bin/sh\nexit 0\n")
@@ -79,7 +82,7 @@ FUNCTION(_tip_write_appimage_fixture name desktop_variant export_call)
   SET(_tip_metadata_install "")
   IF(NOT ARG_OMIT_METADATA_INSTALL)
     SET(_tip_metadata_install
-        "INSTALL(FILES proof.desktop DESTINATION share/applications COMPONENT Runtime)\nINSTALL(FILES proof-app.svg DESTINATION share/icons/hicolor/scalable/apps COMPONENT Runtime)\n")
+        "INSTALL(FILES proof.desktop DESTINATION share/applications COMPONENT Runtime)\nINSTALL(FILES proof-app.svg proof.app.svg DESTINATION share/icons/hicolor/scalable/apps COMPONENT Runtime)\n")
   ENDIF()
 
   FILE(
@@ -186,6 +189,22 @@ _tip_proof_assert_file_contains("${_tip_valid_cpack_config}" "CPACK_APPIMAGE_DES
 _tip_proof_assert_file_contains("${_tip_valid_cpack_config}" "CPACK_PACKAGE_ICON \"proof-app.svg\"")
 _tip_proof_assert_file_contains("${_tip_valid_cpack_config}" "CPACK_APPIMAGE_TOOL_EXECUTABLE \"${_tip_fixture_source_dir}/fake-bin/appimagetool\"")
 _tip_proof_assert_file_contains("${_tip_valid_cpack_config}" "CPACK_APPIMAGE_PATCHELF_EXECUTABLE \"${_tip_fixture_source_dir}/fake-bin/patchelf\"")
+
+SET(_tip_multi_dot_export_call
+    "export_cpack(PACKAGE_NAME ProofMultiDotIcon GENERATORS AppImage APPIMAGE_DESKTOP_FILE proof.desktop APPIMAGE_ICON_FILE proof.app.svg APPIMAGE_TOOL_EXECUTABLE fake-bin/appimagetool APPIMAGE_PATCHELF_EXECUTABLE fake-bin/patchelf)"
+)
+_tip_write_appimage_fixture("multi-dot-icon" "multi-dot-icon" "${_tip_multi_dot_export_call}")
+_tip_proof_run_step(
+  NAME
+  "multi-dot-icon-configure"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  -S
+  "${_tip_fixture_source_dir}"
+  -B
+  "${_tip_fixture_build_dir}"
+  ${_tip_toolchain_args})
+_tip_proof_assert_file_contains("${_tip_fixture_build_dir}/CPackConfig.cmake" "CPACK_PACKAGE_ICON \"proof.app.svg\"")
 
 STRING(REGEX REPLACE "\\)$" " ADDITIONAL_CPACK_VARS CPACK_PACKAGE_DESCRIPTION APPIMAGE_ICON_FILE CPACK_PACKAGE_VENDOR KeywordValueVendor)" _tip_keyword_value_export_call "${_tip_valid_export_call}")
 _tip_write_appimage_fixture("additional-keyword-value" "valid" "${_tip_keyword_value_export_call}")

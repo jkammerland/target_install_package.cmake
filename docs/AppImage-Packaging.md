@@ -35,7 +35,7 @@ The metadata arguments do not add install rules. Relative paths are resolved fro
 
 - the desktop and icon source files exist;
 - the desktop file contains `[Desktop Entry]`, `Type=Application`, and non-empty `Name`, `Categories`, `Exec`, and `Icon` keys;
-- `Icon=` exactly matches the installed icon basename without its extension and contains neither a path nor an extension;
+- `Icon=` exactly matches the installed icon basename with only its final extension removed; it is not a path and does not include the icon format suffix;
 - the metadata extensions are case-sensitive: `.desktop` for the desktop file and `.png`, `.svg`, or `.xpm` for the icon; and
 - both required tools can be resolved and are executable.
 
