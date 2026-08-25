@@ -98,10 +98,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Bootstrap exact CMake and Ninja
+      - name: Bootstrap exact CMake versions and Ninja
         shell: bash
         run: |
           set -euxo pipefail
+          old_cmake_dir="$PWD/build/cpack/cmake-3.25.0"
+          python3 -m venv "$old_cmake_dir"
+          "$old_cmake_dir/bin/python" -m pip install --disable-pip-version-check "cmake==3.25.0"
+          old_cmake_command="$old_cmake_dir/bin/cmake"
+          [[ "$("$old_cmake_command" --version | awk 'NR == 1 { print $3 }')" == 3.25.0 ]]
+          echo "TIP_OLD_CMAKE_COMMAND=$old_cmake_command" >> "$GITHUB_ENV"
+
           bash ci/run.sh bootstrap --cmake-version 4.2.3 --ninja
 
       - name: Download and verify pinned AppImage tools
@@ -145,14 +152,13 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          old_cmake_version="$(/usr/bin/cmake --version | awk 'NR == 1 { print $3 }')"
-          [[ "$(printf '%s\n' "$old_cmake_version" 4.2 | sort -V | head -n 1)" == "$old_cmake_version" ]]
-          [[ "$old_cmake_version" != 4.2 ]]
+          [[ "$(cmake --version | awk 'NR == 1 { print $3 }')" == 4.2.3 ]]
+          [[ "$("$TIP_OLD_CMAKE_COMMAND" --version | awk 'NR == 1 { print $3 }')" == 3.25.0 ]]
 
           cmake -S . -B build/cpack/appimage-proof -G Ninja \
             -DTARGET_INSTALL_PACKAGE_DISABLE_INSTALL=ON \
             -Dtarget_install_package_BUILD_TESTS=ON \
-            -Dtarget_install_package_PROOF_OLD_CMAKE_COMMAND=/usr/bin/cmake \
+            -Dtarget_install_package_PROOF_OLD_CMAKE_COMMAND="$TIP_OLD_CMAKE_COMMAND" \
             -Dtarget_install_package_PROOF_APPIMAGE_TOOL_EXECUTABLE="$TIP_APPIMAGE_TOOL_EXECUTABLE" \
             -Dtarget_install_package_PROOF_APPIMAGE_PATCHELF_EXECUTABLE="$TIP_APPIMAGE_PATCHELF_EXECUTABLE" \
             -Dtarget_install_package_PROOF_APPIMAGE_RUNTIME_FILE="$TIP_APPIMAGE_RUNTIME_FILE"
