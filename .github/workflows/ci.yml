@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload CMake diagnostics to code scanning
         if: >-
-          ${{ !cancelled() && steps.configure.outcome != 'skipped' &&
+          ${{ !cancelled() && steps.configure.outcome == 'success' &&
               steps.configure.outputs.source_sarif_valid == 'true' &&
               (github.event_name == 'pull_request' ||
                (github.actor != 'dependabot[bot]' &&
@@ -59,9 +59,16 @@ jobs:
         shell: bash
         run: echo "Code scanning upload skipped because CMake's original SARIF was missing or invalid; use the retained normalized artifact instead."
 
+      - name: Note failed configure code scanning skip
+        if: >-
+          ${{ !cancelled() && steps.configure.outcome == 'failure' &&
+              steps.configure.outputs.source_sarif_valid == 'true' }}
+        shell: bash
+        run: echo "Code scanning upload skipped because CMake configure/generate failed; use the retained valid but incomplete SARIF artifact instead."
+
       - name: Note restricted-token code scanning skip
         if: >-
-          ${{ !cancelled() && steps.configure.outcome != 'skipped' &&
+          ${{ !cancelled() && steps.configure.outcome == 'success' &&
               steps.configure.outputs.source_sarif_valid == 'true' &&
               github.event_name != 'pull_request' &&
               (github.actor == 'dependabot[bot]' ||

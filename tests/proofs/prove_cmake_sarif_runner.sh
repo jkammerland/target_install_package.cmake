@@ -185,4 +185,35 @@ grep -F 'artifacts must be an array' "${work_root}/semantic-invalid-artifacts/ru
 grep -F 'locations must be an array' "${work_root}/semantic-invalid-locations/runner.log" >/dev/null || fail "semantic-invalid-locations: invalid locations were not rejected"
 [[ ! -e "${work_root}/empty-success/out/cmake.sarif.invalid" ]] || fail "empty-success: empty input should not create a raw sidecar"
 
+"${python_bin}" - "${repo_root}/.github/workflows/ci.yml" <<'PY'
+import sys
+from pathlib import Path
+
+workflow = Path(sys.argv[1]).read_text(encoding="utf-8")
+
+
+def step_block(name):
+    marker = f"      - name: {name}\n"
+    start = workflow.index(marker)
+    end = workflow.find("\n      - ", start + len(marker))
+    return workflow[start:] if end == -1 else workflow[start:end]
+
+
+artifact = step_block("Retain CMake SARIF artifact")
+upload = step_block("Upload CMake diagnostics to code scanning")
+invalid_source = step_block("Note invalid source SARIF code scanning skip")
+failed_configure = step_block("Note failed configure code scanning skip")
+restricted_token = step_block("Note restricted-token code scanning skip")
+
+assert "steps.configure.outcome != 'skipped'" in artifact
+assert "source_sarif_valid" not in artifact
+assert "steps.configure.outcome == 'success'" in upload
+assert "steps.configure.outputs.source_sarif_valid == 'true'" in upload
+assert "steps.configure.outputs.source_sarif_valid != 'true'" in invalid_source
+assert "steps.configure.outcome == 'failure'" in failed_configure
+assert "steps.configure.outputs.source_sarif_valid == 'true'" in failed_configure
+assert "steps.configure.outcome == 'success'" in restricted_token
+assert "steps.configure.outputs.source_sarif_valid == 'true'" in restricted_token
+PY
+
 printf '%s\n' "[proof] CMake SARIF runner proof passed."
