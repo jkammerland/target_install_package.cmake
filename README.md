@@ -491,7 +491,7 @@ cmake --install . --component Runtime
 # CMake 4.4+: install the selected developer components in one invocation
 cmake --install . --component Runtime Development Tools
 
-# Install full package without selecting components (installs every runtime + development file)
+# Full install: every non-EXCLUDE_FROM_ALL install rule
 cmake --install .
 
 # Install documentation separately
@@ -515,7 +515,7 @@ The component model uses predictable names:
 
 The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. Static, interface, and header-only targets are SDK-only and do not create empty runtime components. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components. CPack records those component relationships as metadata; archive packages do not enforce them. When `export_cpack()` generates component DEB/RPM packages, those relationships are translated to native DEB `Depends` and same-build RPM `Requires` metadata.
 
-CMake 4.4 accepts multiple names after `cmake --install <build> --component`, so a runtime and its SDK can be selected in one invocation. This is native CMake behavior and does not require another wrapper API. Direct installs still select exactly the names supplied: they do not follow component dependencies, duplicate names execute repeatedly, and unknown names do not fail the command. See [Multiple-Component Installs](docs/multi-component-install.md) for version-compatible commands and automation guidance.
+CMake 4.4 accepts multiple names after `cmake --install <build> --component`, so a runtime and its SDK can be selected in one invocation. This is native CMake behavior and does not require another wrapper API. Direct installs still select exactly the names supplied: they do not follow component dependencies, duplicate names execute repeatedly, and unknown names do not fail the command. Released CMake 4.4.0 through 4.4.2 can also mask component-script failures; status-sensitive automation should use separate serial invocations until a fixed release is available. See [Multiple-Component Installs](docs/multi-component-install.md) for version-compatible commands, the upstream exit-status issue, and automation guidance.
 
 The detailed v7 component contract is captured in [Component Packaging Plan](docs/component-packaging-plan.md).
 
