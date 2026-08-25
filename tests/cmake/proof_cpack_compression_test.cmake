@@ -47,7 +47,7 @@ endfunction()
 
 _tip_configure_compression_fixture(
   "archive"
-  "export_cpack(PACKAGE_NAME ProofArchiveCompression PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 9 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_COMPRESSION_LEVEL 8)")
+  "export_cpack(PACKAGE_NAME ProofArchiveCompression PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_COMPRESSION_LEVEL 8)")
 set(_tip_archive_config "${_tip_case_root}/archive-build/CPackConfig.cmake")
 _tip_proof_assert_file_contains("${_tip_archive_config}" "set(CPACK_COMPRESSION_LEVEL \"19\")")
 _tip_proof_assert_file_contains("${_tip_archive_config}" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL \"8\")")
@@ -132,6 +132,19 @@ _tip_proof_assert_file_not_contains("${_tip_defaults_config}" "CPACK_ARCHIVE_COM
 _tip_proof_assert_file_not_contains("${_tip_defaults_config}" "CPACK_DEBIAN_COMPRESSION_LEVEL")
 
 _tip_configure_compression_fixture(
+  "generic-additional-override"
+  "export_cpack(PACKAGE_NAME ProofGenericOverride PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_COMPRESSION_LEVEL 8)")
+set(_tip_generic_override_config "${_tip_case_root}/generic-additional-override-build/CPackConfig.cmake")
+_tip_proof_assert_file_contains("${_tip_generic_override_config}" "set(CPACK_COMPRESSION_LEVEL \"8\")")
+
+_tip_configure_compression_fixture(
+  "generator-additional-override"
+  "export_cpack(PACKAGE_NAME ProofGeneratorOverride PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_GENERATOR TZST CPACK_SOURCE_GENERATOR TZST)")
+set(_tip_generator_override_config "${_tip_case_root}/generator-additional-override-build/CPackConfig.cmake")
+_tip_proof_assert_file_contains("${_tip_generator_override_config}" "set(CPACK_GENERATOR \"TZST\")")
+_tip_proof_assert_file_contains("${_tip_generator_override_config}" "set(CPACK_ARCHIVE_COMPRESSION_LEVEL \"19\")")
+
+_tip_configure_compression_fixture(
   "additional-keyword-value"
   "export_cpack(PACKAGE_NAME ProofAdditionalKeywordValue PACKAGE_VERSION 1.0.0 GENERATORS TGZ NO_DEFAULT_GENERATORS ADDITIONAL_CPACK_VARS CPACK_PACKAGE_DESCRIPTION COMPRESSION_LEVEL PACKAGE_VENDOR KeywordValueVendor)")
 set(_tip_additional_keyword_config "${_tip_case_root}/additional-keyword-value-build/CPackConfig.cmake")
@@ -181,6 +194,13 @@ if(TIP_TEST_DEB)
   _tip_configure_compression_fixture(
     "zstd-debian"
     "export_cpack(PACKAGE_NAME ProofZstdDebian PACKAGE_VERSION 1.0.0 GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE zstd DEBIAN_COMPRESSION_LEVEL 19)")
+
+  _tip_configure_compression_fixture(
+    "debian-additional-overrides"
+    "export_cpack(PACKAGE_NAME ProofDebianOverrides PACKAGE_VERSION 1.0.0 GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE brotli DEBIAN_COMPRESSION_LEVEL 20 ADDITIONAL_CPACK_VARS CPACK_DEBIAN_COMPRESSION_TYPE xz CPACK_DEBIAN_COMPRESSION_LEVEL 8)")
+  set(_tip_debian_overrides_config "${_tip_case_root}/debian-additional-overrides-build/CPackConfig.cmake")
+  _tip_proof_assert_file_contains("${_tip_debian_overrides_config}" "set(CPACK_DEBIAN_COMPRESSION_TYPE \"xz\")")
+  _tip_proof_assert_file_contains("${_tip_debian_overrides_config}" "set(CPACK_DEBIAN_COMPRESSION_LEVEL \"8\")")
 endif()
 
 function(_tip_expect_invalid_compression name invocation expected)
@@ -213,6 +233,9 @@ _tip_expect_invalid_compression("generic-range" "export_cpack(GENERATORS TGZ NO_
 _tip_expect_invalid_compression("source-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("debian-source-range" "export_cpack(GENERATORS RPM NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR DEB)"
                                 "must be an integer from 0 to 9")
+_tip_expect_invalid_compression(
+  "generator-override-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_GENERATOR TGZ CPACK_SOURCE_GENERATOR TZST)"
+  "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("mixed-archive-range" "export_cpack(GENERATORS TGZ TZST NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("zip-zstd-range" "export_cpack(GENERATORS ZIP_ZSTD NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("zstd-source-range" "export_cpack(GENERATORS TZST NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
@@ -222,6 +245,10 @@ _tip_expect_invalid_compression("archive-generator" "export_cpack(GENERATORS DEB
 _tip_expect_invalid_compression("debian-generator" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_LEVEL 1)" "requires the DEB generator")
 _tip_expect_invalid_compression("debian-algorithm" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE brotli)" "Unsupported DEBIAN_COMPRESSION_TYPE 'brotli'")
 _tip_expect_invalid_compression("debian-range" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_LEVEL 10)" "must be an integer from 0 to 9")
+_tip_expect_invalid_compression("debian-type-override-range" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_DEBIAN_COMPRESSION_TYPE gzip CPACK_SOURCE_GENERATOR DEB)"
+                                "must be an integer from 0 to 9")
+_tip_expect_invalid_compression("debian-generator-override" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_LEVEL 1 ADDITIONAL_CPACK_VARS CPACK_GENERATOR TGZ)"
+                                "requires the DEB generator")
 _tip_expect_invalid_compression("missing-level" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL)" "COMPRESSION_LEVEL requires a value")
 
 message(STATUS "[proof] CPack compression proof passed.")
