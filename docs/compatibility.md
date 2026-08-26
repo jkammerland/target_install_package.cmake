@@ -14,6 +14,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
+| Deterministic archive ownership | 4.3 | `export_cpack(ARCHIVE_UID ... ARCHIVE_GID ...)` maps to CPack's archive ownership controls. |
 
 ## Target Types
 
@@ -38,7 +39,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 | Feature | Supported | Requirements |
 |---------|-----------|--------------|
-| Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. |
+| Archive packages | Yes | CPack and selected archive generator, usually `TGZ` or `ZIP`. CMake 4.3+ can set numeric ownership. |
 | Native Linux packages | Yes | Debian/RPM packaging tools on the build host. |
 | Signed packages | Yes | GPG for detached signatures; RPM signing tools for embedded RPM signatures. |
 | Checksums | Yes | `CHECKSUMS` accepts CMake's MD5, SHA1, SHA2, and SHA3 algorithms. `GENERATE_CHECKSUMS ON` remains an alias for SHA256 and SHA512. |
@@ -61,6 +62,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 - `target_install_package()` validates target names, package options, additional file paths, template placeholders, and conflicting export metadata at configure time.
 - `export_cpack()` can be called once per build tree because CPack has one package configuration per build directory.
+- Tar and ZIP store archive ownership controls; other generators may ignore them.
 - `CPS` and `SBOM` options are intentionally opt-in so projects on older CMake versions can keep using the core install path.
 - CPS exports do not support CMake 4.4 `SOURCES` file sets: CMake 4.4.2 `install(PACKAGE_INFO)` omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
