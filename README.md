@@ -430,6 +430,8 @@ export_cpack(
 
 `PACKAGE_LICENSE` fills package-manager metadata such as the RPM `License:` field, while `LICENSE_FILE` sets CPack's license resource for generators that display or embed one. Relative `LICENSE_FILE` paths and automatic license discovery use the source directory that calls `export_cpack()`. Default package metadata likewise comes from that calling project's `PROJECT_*` values, including when it is a subproject. Install a license file explicitly, or use `ADDITIONAL_FILES`, when the license text must be present in the installed payload.
 
+On CMake 4.3 and newer, `COMPRESSION_LEVEL`, `ARCHIVE_COMPRESSION_LEVEL`, and `DEBIAN_COMPRESSION_LEVEL` expose CPack's native level controls. `DEBIAN_COMPRESSION_TYPE` selects `gzip`, `bzip2`, `xz`, `lzma`, or `zstd`. See the [CPack Integration Tutorial](CPack-Tutorial.md#compression-controls) for ranges, generator validation, and precedence.
+
 **Generate packages:**
 ```bash
 cmake --build .

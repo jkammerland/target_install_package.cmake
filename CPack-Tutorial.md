@@ -359,6 +359,26 @@ export_cpack(
 
 `ARCHIVE_UID` and `ARCHIVE_GID` require CMake 4.3 and accept values from `0` through `2147483647`. Tar and ZIP store these IDs; 7Z, FreeBSD, and non-archive generators ignore them. Matching values in `ADDITIONAL_CPACK_VARS` take precedence without validation.
 
+### Compression Controls
+
+CMake 4.3 and newer can set generic and generator-specific compression levels directly:
+
+```cmake
+export_cpack(
+    PACKAGE_NAME "CompressedLib"
+    GENERATORS "TGZ;DEB"
+    NO_DEFAULT_GENERATORS
+    COMPRESSION_LEVEL 3
+    ARCHIVE_COMPRESSION_LEVEL 9
+    DEBIAN_COMPRESSION_TYPE xz
+    DEBIAN_COMPRESSION_LEVEL 7
+)
+```
+
+Level `0` keeps the backend default. Levels `1` through `9` are portable; Zstandard supports up to `19` except with `ZIP_ZSTD`. Generator-specific levels override `COMPRESSION_LEVEL`, and final values in `ADDITIONAL_CPACK_VARS` override matching arguments. `DEBIAN_COMPRESSION_TYPE` accepts `gzip`, `bzip2`, `xz`, `lzma`, or `zstd`.
+
+The level arguments require CMake 4.3 or newer. `DEBIAN_COMPRESSION_TYPE` works on every supported CMake version.
+
 ### Example 4: Package with Full Signing
 
 **In my opinion it should there should be a standard way to SECURELY consume packages in CMake, e.g via 'find_package()', 'fetchContent()' and other package managers like vcpkg, conan, xrepo etc, so that I can only use packages I have trusted keys for.** This is not that, but it is a step towards automating some of my pains. Also gpg can be used cross-platform and is already widely used for exactly this purpose. My vision is that we will eventually have OpenID (or similar) integration with dev keys, multi-party signing after reviews, so that true identity is hard to forge and someone can always be held accountable, while identities (like real name) can be protected.
