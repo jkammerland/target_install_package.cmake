@@ -28,7 +28,7 @@ file(
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "file(WRITE \"\${CMAKE_CURRENT_BINARY_DIR}/generated.txt\" \"generated payload\\n\")\n"
   "install(FILES \"\${CMAKE_CURRENT_SOURCE_DIR}/payload/alpha/first.txt\" \"\${CMAKE_CURRENT_SOURCE_DIR}/payload/zulu/last.txt\" \"\${CMAKE_CURRENT_BINARY_DIR}/generated.txt\" DESTINATION share/proof COMPONENT Runtime)\n"
-  "export_cpack(PACKAGE_NAME ReproducibleArchive PACKAGE_VERSION 1.0.0 GENERATORS TGZ COMPONENTS Runtime DEFAULT_COMPONENTS Runtime NO_DEFAULT_GENERATORS ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_THREADS 1 CPACK_PACKAGE_FILE_NAME ReproducibleArchive-1.0.0)\n"
+  "export_cpack(PACKAGE_NAME ReproducibleArchive PACKAGE_VERSION 1.0.0 GENERATORS TGZ COMPONENTS Runtime DEFAULT_COMPONENTS Runtime NO_DEFAULT_GENERATORS ARCHIVE_UID 0 ARCHIVE_GID 0 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_THREADS 1 CPACK_PACKAGE_FILE_NAME ReproducibleArchive-1.0.0)\n"
 )
 
 execute_process(
@@ -92,6 +92,8 @@ function(_tip_create_reproducible_archive name out_var)
   set(_tip_generated_payload "${_tip_build_dir}/generated.txt")
   _tip_proof_assert_exists("${_tip_cpack_config}")
   _tip_proof_assert_exists("${_tip_generated_payload}")
+  _tip_proof_assert_file_contains("${_tip_cpack_config}" "set(CPACK_ARCHIVE_UID \"0\")")
+  _tip_proof_assert_file_contains("${_tip_cpack_config}" "set(CPACK_ARCHIVE_GID \"0\")")
   _tip_proof_assert_file_contains("${_tip_cpack_config}" "set(CPACK_ARCHIVE_THREADS \"1\")")
   file(TIMESTAMP "${_tip_source_dir}/payload/alpha/first.txt" _tip_source_mtime "%s" UTC)
   file(TIMESTAMP "${_tip_generated_payload}" _tip_generated_mtime "%s" UTC)
@@ -175,8 +177,9 @@ file(SHA256 "${_tip_second_archive}" _tip_second_digest)
 if(NOT _tip_first_digest STREQUAL _tip_second_digest)
   _tip_reproducibility_metadata(_tip_first_metadata "${_tip_first_archive}")
   _tip_reproducibility_metadata(_tip_second_metadata "${_tip_second_archive}")
-  _tip_proof_fail("Reproducibility failure for CMake/CPack 4.4.2 TGZ archives.\n" "SOURCE_DATE_EPOCH=${_tip_source_date_epoch}; TZ=UTC; LC_ALL=C; LANG=C; CPACK_ARCHIVE_THREADS=1.\n"
-                  "first SHA256: ${_tip_first_digest}\nsecond SHA256: ${_tip_second_digest}\n" "first archive metadata:\n${_tip_first_metadata}\n" "second archive metadata:\n${_tip_second_metadata}")
+  _tip_proof_fail(
+    "Reproducibility failure for CMake/CPack 4.4.2 TGZ archives.\n" "SOURCE_DATE_EPOCH=${_tip_source_date_epoch}; TZ=UTC; LC_ALL=C; LANG=C; ARCHIVE_UID=0; ARCHIVE_GID=0; CPACK_ARCHIVE_THREADS=1.\n"
+    "first SHA256: ${_tip_first_digest}\nsecond SHA256: ${_tip_second_digest}\n" "first archive metadata:\n${_tip_first_metadata}\n" "second archive metadata:\n${_tip_second_metadata}")
 endif()
 
 message(STATUS "[proof] Deterministic CPack TGZ archive proof passed: ${_tip_first_digest}")

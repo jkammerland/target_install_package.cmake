@@ -248,7 +248,7 @@ set(target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE
     CACHE STRING "Optional CMake experimental SBOM activation value used by SBOM proof tests")
 set(target_install_package_PROOF_OLD_CMAKE_COMMAND
     ""
-    CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake CPS/SBOM guard proofs from newer CMake test configurations")
+    CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake feature guard proofs from newer CMake test configurations")
 
 if(target_install_package_BUILD_PROOF_TESTS)
   set(_tip_proof_test_root "${CMAKE_CURRENT_BINARY_DIR}/proofs")
@@ -348,10 +348,21 @@ if(target_install_package_BUILD_PROOF_TESTS)
                                                                   "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
       set_tests_properties(proof_cpack_compression_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
     endif()
+
+    add_test(NAME proof_archive_ownership COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_archive_ownership_test.cmake")
+    set_tests_properties(proof_archive_ownership PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.3")
+
+    if(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+      add_test(NAME proof_archive_ownership_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                                    "${_tip_proof_script_dir}/proof_archive_ownership_old_cmake_guard_test.cmake")
+      set_tests_properties(proof_archive_ownership_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.3")
+    endif()
   else()
     add_test(NAME proof_cpack_compression_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P
                                                                 "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
     set_tests_properties(proof_cpack_compression_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
+    add_test(NAME proof_archive_ownership_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_archive_ownership_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_archive_ownership_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.3")
   endif()
 
   if(CMAKE_VERSION VERSION_EQUAL "4.4.2")
@@ -483,6 +494,15 @@ if(target_install_package_BUILD_PROOF_TESTS)
   endif()
 
   if(_tip_shell_proofs_supported)
+    find_program(_tip_python_for_sarif_proof NAMES python3 python)
+    if(_tip_python_for_sarif_proof)
+      add_test(NAME proof_cmake_sarif_runner COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_cmake_sarif_runner.sh" "${_tip_repo_root}" "${_tip_proof_test_root}/cmake-sarif-runner"
+                                                     "${_tip_python_for_sarif_proof}")
+      set_tests_properties(proof_cmake_sarif_runner PROPERTIES LABELS "proof;review;ci;sarif")
+    else()
+      message(STATUS "Skipping proof_cmake_sarif_runner: python is required")
+    endif()
+
     add_test(NAME proof_build_minimal_container COMMAND "${_tip_bash}" "${CMAKE_CURRENT_SOURCE_DIR}/proofs/prove_build_minimal_container.sh" "${_tip_repo_root}"
                                                         "${_tip_proof_test_root}/build-minimal-container")
     set_tests_properties(proof_build_minimal_container PROPERTIES LABELS "proof;review;container")

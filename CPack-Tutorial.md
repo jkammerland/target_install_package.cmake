@@ -348,11 +348,16 @@ export_cpack(
     PACKAGE_HOMEPAGE_URL "https://techcorp.com/advancedlib"
     PACKAGE_LICENSE "MIT"
     LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/custom-license.txt"
+    GENERATORS "TGZ;TXZ"
+    ARCHIVE_UID 0  # CMake 4.3+: fixed numeric ownership
+    ARCHIVE_GID 0
     ADDITIONAL_CPACK_VARS
         "CPACK_PACKAGE_EXECUTABLES" "mytool;MyTool"
         "CPACK_CREATE_DESKTOP_LINKS" "mytool"
 )
 ```
+
+`ARCHIVE_UID` and `ARCHIVE_GID` require CMake 4.3 and accept values from `0` through `2147483647`. Tar and ZIP store these IDs; 7Z, FreeBSD, and non-archive generators ignore them. Matching values in `ADDITIONAL_CPACK_VARS` take precedence without validation.
 
 ### Compression Controls
 

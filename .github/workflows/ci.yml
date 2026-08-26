@@ -8,6 +8,75 @@ on:
   workflow_dispatch:
 
 jobs:
+  cmake-sarif:
+    name: CMake 4.4.2 configure diagnostics (SARIF)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Bootstrap exact CMake, Ninja, and fmt
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --fmt
+
+      - name: Configure and generate SARIF
+        id: configure
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bash ci/run.sh sarif
+
+      - name: Retain CMake SARIF artifact
+        if: ${{ !cancelled() && steps.configure.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cmake-configure-sarif
+          path: build/sarif/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload CMake diagnostics to code scanning
+        if: >-
+          ${{ !cancelled() && steps.configure.outcome == 'success' &&
+              steps.configure.outputs.source_sarif_valid == 'true' &&
+              (github.event_name == 'pull_request' ||
+               (github.actor != 'dependabot[bot]' &&
+                (github.event_name != 'push' ||
+                 github.event.head_commit.author.username != 'dependabot[bot]'))) }}
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          sarif_file: build/sarif/cmake-configure.sarif
+          category: cmake-configure
+
+      - name: Note invalid source SARIF code scanning skip
+        if: >-
+          ${{ !cancelled() && steps.configure.outcome != 'skipped' &&
+              steps.configure.outputs.source_sarif_valid != 'true' }}
+        shell: bash
+        run: echo "Code scanning upload skipped because CMake's original SARIF was missing or invalid; use the retained normalized artifact instead."
+
+      - name: Note failed configure code scanning skip
+        if: >-
+          ${{ !cancelled() && steps.configure.outcome == 'failure' &&
+              steps.configure.outputs.source_sarif_valid == 'true' }}
+        shell: bash
+        run: echo "Code scanning upload skipped because CMake configure/generate failed; use the retained valid but incomplete SARIF artifact instead."
+
+      - name: Note restricted-token code scanning skip
+        if: >-
+          ${{ !cancelled() && steps.configure.outcome == 'success' &&
+              steps.configure.outputs.source_sarif_valid == 'true' &&
+              github.event_name != 'pull_request' &&
+              (github.actor == 'dependabot[bot]' ||
+               (github.event_name == 'push' &&
+                github.event.head_commit.author.username == 'dependabot[bot]')) }}
+        shell: bash
+        run: echo "Code scanning upload skipped because this non-pull-request run has a Dependabot read-only token; use the retained SARIF artifact instead."
+
   cmake-feature-lanes:
     name: CMake ${{ matrix.cmake-version }} (${{ matrix.feature }})
     runs-on: ubuntu-latest
