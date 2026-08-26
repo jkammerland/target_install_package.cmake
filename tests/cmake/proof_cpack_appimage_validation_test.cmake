@@ -171,6 +171,11 @@ _tip_expect_appimage_configure_failure("appimage-arguments-without-generator" "v
                                        "export_cpack(GENERATORS TGZ APPIMAGE_DESKTOP_FILE proof.desktop APPIMAGE_ICON_FILE proof-app.svg)")
 _tip_expect_appimage_configure_failure("appimage-additional-generator-bypass" "valid" "not ADDITIONAL_CPACK_VARS CPACK_GENERATOR"
                                        "export_cpack(NO_DEFAULT_GENERATORS ADDITIONAL_CPACK_VARS CPACK_GENERATOR AppImage)")
+FOREACH(_tip_appimage_managed_var IN ITEMS CPACK_APPIMAGE_DESKTOP_FILE CPACK_PACKAGE_ICON CPACK_APPIMAGE_TOOL_EXECUTABLE CPACK_APPIMAGE_PATCHELF_EXECUTABLE)
+  STRING(TOLOWER "${_tip_appimage_managed_var}" _tip_appimage_managed_case)
+  STRING(REGEX REPLACE "\\)$" " ADDITIONAL_CPACK_VARS ${_tip_appimage_managed_var} discarded)" _tip_appimage_managed_export_call "${_tip_valid_export_call}")
+  _tip_expect_appimage_configure_failure("managed-override-${_tip_appimage_managed_case}" "valid" "${_tip_appimage_managed_var}" "${_tip_appimage_managed_export_call}")
+ENDFOREACH()
 
 _tip_write_appimage_fixture("valid" "valid" "${_tip_valid_export_call}")
 _tip_proof_run_step(
