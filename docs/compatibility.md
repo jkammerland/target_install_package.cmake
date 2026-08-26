@@ -14,6 +14,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
+| AppImage packaging | 4.2 | Linux host only; requires `appimagetool`, `patchelf`, installed desktop metadata, and an installed icon. |
 | Deterministic archive ownership | 4.3 | `export_cpack(ARCHIVE_UID ... ARCHIVE_GID ...)` maps to CPack's archive ownership controls. |
 | CPack compression levels | 4.3 | Generic, archive-specific, and Debian-specific levels use CPack's native controls. |
 
@@ -32,7 +33,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 | Platform | Core Install/Find Package | Native Package Notes | Extra Notes |
 |----------|---------------------------|----------------------|-------------|
-| Linux | Supported | `TGZ`, `DEB`, and `RPM` are the primary CPack paths when packaging tools are available. | Automatic relative RPATH is enabled for relocatable non-system installs unless disabled. Container packaging is Linux-oriented. |
+| Linux | Supported | `TGZ`, `DEB`, and `RPM` are the default CPack paths when packaging tools are available. `AppImage` is explicit opt-in only. | Automatic relative RPATH is enabled for relocatable non-system installs unless disabled. Container and AppImage packaging are Linux-oriented. |
 | macOS | Supported | `TGZ` and `DragNDrop` are used by default CPack selection. | Homebrew LLVM and AppleClang are covered by CI examples. |
 | Windows | Supported | `TGZ`, `ZIP`, and `WIX` are supported when the required generator tooling is available. | DLLs install to `bin/`; import libraries install to `lib/`. |
 
@@ -46,6 +47,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Checksums | Yes | `CHECKSUMS` accepts CMake's MD5, SHA1, SHA2, and SHA3 algorithms. `GENERATE_CHECKSUMS ON` remains an alias for SHA256 and SHA512. |
 | Compression controls | Yes | Level arguments require CMake 4.3+. Validation covers affected binary and source generators. Generator-specific levels override the generic level; same-variable `ADDITIONAL_CPACK_VARS` values override explicit arguments. |
 | Container archives | Yes | Linux host plus `podman` or `docker`; uses the CPack External generator. |
+| AppImage | Yes | Linux host, CMake 4.2+, `appimagetool`, `patchelf`, desktop/icon metadata, and explicitly installed runtime dependencies. |
 | CPS metadata | Yes | CMake 4.3+ and compatible target set. |
 | SBOM metadata | Yes | CMake 4.3+ with the CMake SBOM experiment activated. |
 
@@ -59,6 +61,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Manual `install(... COMPONENT Docs)` rules | Raw `cmake --install --component Docs` works; `export_cpack()` only sees that component if listed explicitly with `COMPONENTS`. |
 | Component archive packages | Archives are payload slices and do not install dependency archives automatically. |
 | Component DEB/RPM packages | Native dependency metadata is emitted when configured by `export_cpack()`. |
+| AppImage with components | One monolithic AppImage contains the full install tree; component lists do not split or filter it. |
 
 ## Known Boundaries
 

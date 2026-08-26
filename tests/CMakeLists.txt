@@ -249,6 +249,15 @@ set(target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE
 set(target_install_package_PROOF_OLD_CMAKE_COMMAND
     ""
     CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake feature guard proofs from newer CMake test configurations")
+set(target_install_package_PROOF_APPIMAGE_TOOL_EXECUTABLE
+    ""
+    CACHE FILEPATH "Optional appimagetool executable used by the live AppImage proof")
+set(target_install_package_PROOF_APPIMAGE_PATCHELF_EXECUTABLE
+    ""
+    CACHE FILEPATH "Optional patchelf executable used by the live AppImage proof")
+set(target_install_package_PROOF_APPIMAGE_RUNTIME_FILE
+    ""
+    CACHE FILEPATH "Optional pinned AppImage runtime used by the live AppImage proof")
 
 if(target_install_package_BUILD_PROOF_TESTS)
   set(_tip_proof_test_root "${CMAKE_CURRENT_BINARY_DIR}/proofs")
@@ -333,6 +342,32 @@ if(target_install_package_BUILD_PROOF_TESTS)
 
   add_test(NAME proof_cpack_checksums COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_checksums_test.cmake")
   set_tests_properties(proof_cpack_checksums PROPERTIES LABELS "proof;review;cpack;checksums")
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.2" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    add_test(NAME proof_cpack_appimage_validation COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_appimage_validation_test.cmake")
+    set_tests_properties(proof_cpack_appimage_validation PROPERTIES LABELS "proof;review;cpack;appimage;cmake-4.2")
+
+    if(target_install_package_PROOF_APPIMAGE_TOOL_EXECUTABLE AND target_install_package_PROOF_APPIMAGE_PATCHELF_EXECUTABLE)
+      add_test(
+        NAME proof_cpack_appimage_real
+        COMMAND
+          ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_APPIMAGE_TOOL_EXECUTABLE=${target_install_package_PROOF_APPIMAGE_TOOL_EXECUTABLE}"
+          "-DTIP_APPIMAGE_PATCHELF_EXECUTABLE=${target_install_package_PROOF_APPIMAGE_PATCHELF_EXECUTABLE}" "-DTIP_APPIMAGE_RUNTIME_FILE=${target_install_package_PROOF_APPIMAGE_RUNTIME_FILE}" -P
+          "${_tip_proof_script_dir}/proof_cpack_appimage_test.cmake")
+      set_tests_properties(proof_cpack_appimage_real PROPERTIES LABELS "proof;review;cpack;appimage;cmake-4.2;live")
+    else()
+      message(STATUS "Skipping proof_cpack_appimage_real: set both AppImage proof executable paths to enable the live artifact proof")
+    endif()
+  endif()
+
+  if(CMAKE_VERSION VERSION_LESS "4.2")
+    add_test(NAME proof_cpack_appimage_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_appimage_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_cpack_appimage_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;appimage;cmake-4.2")
+  elseif(target_install_package_PROOF_OLD_CMAKE_COMMAND)
+    add_test(NAME proof_cpack_appimage_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
+                                                               "${_tip_proof_script_dir}/proof_cpack_appimage_old_cmake_guard_test.cmake")
+    set_tests_properties(proof_cpack_appimage_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;appimage;cmake-4.2")
+  endif()
 
   IF(CMAKE_VERSION VERSION_GREATER_EQUAL "4.3")
     SET(_tip_cpack_compression_args ${_tip_proof_common_args} -DTIP_TEST_DEB=OFF)

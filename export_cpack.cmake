@@ -67,6 +67,10 @@ endif()
 #     [PACKAGE_LICENSE <license-id>]
 #     [LICENSE_FILE <path>]
 #     [GENERATORS <generator1> <generator2> ...]
+#     [APPIMAGE_DESKTOP_FILE <path>]
+#     [APPIMAGE_ICON_FILE <path>]
+#     [APPIMAGE_TOOL_EXECUTABLE <path-or-program>]
+#     [APPIMAGE_PATCHELF_EXECUTABLE <path-or-program>]
 #     [COMPONENTS <component1> <component2> ...]
 #     [COMPONENT_GROUPS]
 #     [DEFAULT_COMPONENTS <component1> <component2> ...]
@@ -105,6 +109,10 @@ endif()
 #   PACKAGE_LICENSE         - Package license identifier for package metadata such as RPM License: (default: Unknown)
 #   LICENSE_FILE            - Path to CPack's license resource file; relative paths use the calling source directory (default: auto-detected there)
 #   GENERATORS              - Explicit list of CPack generators to use (TGZ, DEB, RPM, CONTAINER, etc.)
+#   APPIMAGE_DESKTOP_FILE   - Source path of the installed .desktop file used by the AppImage generator
+#   APPIMAGE_ICON_FILE      - Source path of the installed PNG, SVG, or XPM icon referenced by the desktop file
+#   APPIMAGE_TOOL_EXECUTABLE - Optional appimagetool executable override (default: appimagetool from PATH)
+#   APPIMAGE_PATCHELF_EXECUTABLE - Optional patchelf executable override (default: patchelf from PATH)
 #   COMPONENTS              - Explicit list of components to package (default: auto-detected)
 #   COMPONENT_GROUPS        - Enable component grouping (default: auto-detected from prefixes)
 #   DEFAULT_COMPONENTS      - Components selected by default in installers that honor CPack DISABLED metadata.
@@ -179,6 +187,14 @@ endif()
 #     ADDITIONAL_CPACK_VARS
 #       CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all"  # Architecture-independent package
 #       CPACK_RPM_PACKAGE_ARCHITECTURE "noarch"
+#   )
+#
+#   # AppImage is Linux-only, requires CMake 4.2+, and is never selected by default.
+#   # The desktop and icon source files must also be installed with install(FILES ...).
+#   export_cpack(
+#     GENERATORS AppImage
+#     APPIMAGE_DESKTOP_FILE packaging/com.example.app.desktop
+#     APPIMAGE_ICON_FILE packaging/com.example.app.svg
 #   )
 #
 #   # Generate container image alongside traditional packages
@@ -911,6 +927,146 @@ function(_tip_detect_package_architecture system_processor out_canonical out_deb
       PARENT_SCOPE)
 endfunction()
 
+function(_tip_resolve_appimage_program out_var argument_name configured_value default_name base_directory)
+  if("${configured_value}" STREQUAL "")
+    set(_tip_appimage_program_candidate "${default_name}")
+  else()
+    set(_tip_appimage_program_candidate "${configured_value}")
+  endif()
+
+  unset(_tip_appimage_program)
+  if(_tip_appimage_program_candidate MATCHES "[/\\\\]")
+    cmake_path(
+      ABSOLUTE_PATH
+      _tip_appimage_program_candidate
+      BASE_DIRECTORY
+      "${base_directory}"
+      NORMALIZE
+      OUTPUT_VARIABLE
+      _tip_appimage_program_candidate)
+    get_filename_component(_tip_appimage_program_directory "${_tip_appimage_program_candidate}" DIRECTORY)
+    get_filename_component(_tip_appimage_program_name "${_tip_appimage_program_candidate}" NAME)
+    find_program(
+      _tip_appimage_program
+      NAMES "${_tip_appimage_program_name}"
+      PATHS "${_tip_appimage_program_directory}"
+      NO_DEFAULT_PATH NO_CACHE)
+  else()
+    find_program(_tip_appimage_program NAMES "${_tip_appimage_program_candidate}" NO_CACHE)
+  endif()
+
+  if(NOT _tip_appimage_program)
+    project_log(FATAL_ERROR "${argument_name} '${_tip_appimage_program_candidate}' was not found or is not executable. Install ${default_name}, add it to PATH, or pass an executable override.")
+  endif()
+
+  set(${out_var}
+      "${_tip_appimage_program}"
+      PARENT_SCOPE)
+endfunction()
+
+function(
+  _tip_resolve_appimage_metadata_file
+  out_path
+  out_name
+  argument_name
+  configured_path
+  base_directory
+  kind)
+  cmake_path(
+    ABSOLUTE_PATH
+    configured_path
+    BASE_DIRECTORY
+    "${base_directory}"
+    NORMALIZE
+    OUTPUT_VARIABLE
+    _tip_appimage_metadata_path)
+  if(NOT EXISTS "${_tip_appimage_metadata_path}" OR IS_DIRECTORY "${_tip_appimage_metadata_path}")
+    project_log(FATAL_ERROR "${argument_name} must name an existing file, got: ${_tip_appimage_metadata_path}")
+  endif()
+
+  get_filename_component(_tip_appimage_metadata_name "${_tip_appimage_metadata_path}" NAME)
+  string(REGEX MATCH "\\.[^.]*$" _tip_appimage_metadata_extension "${_tip_appimage_metadata_name}")
+  if(kind STREQUAL "DESKTOP")
+    if(NOT _tip_appimage_metadata_extension STREQUAL ".desktop")
+      project_log(FATAL_ERROR "${argument_name} must have the case-sensitive .desktop extension, got: ${_tip_appimage_metadata_name}")
+    endif()
+  elseif(
+    NOT _tip_appimage_metadata_extension STREQUAL ".png"
+    AND NOT _tip_appimage_metadata_extension STREQUAL ".svg"
+    AND NOT _tip_appimage_metadata_extension STREQUAL ".xpm")
+    project_log(FATAL_ERROR "${argument_name} must have a case-sensitive .png, .svg, or .xpm extension, got: ${_tip_appimage_metadata_name}")
+  endif()
+
+  set(${out_path}
+      "${_tip_appimage_metadata_path}"
+      PARENT_SCOPE)
+  set(${out_name}
+      "${_tip_appimage_metadata_name}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_validate_appimage_desktop_file desktop_path icon_name)
+  file(STRINGS "${desktop_path}" _tip_appimage_desktop_lines ENCODING UTF-8)
+  set(_tip_appimage_in_desktop_entry FALSE)
+  set(_tip_appimage_has_desktop_entry FALSE)
+  set(_tip_appimage_desktop_type "")
+  set(_tip_appimage_desktop_name "")
+  set(_tip_appimage_desktop_categories "")
+  set(_tip_appimage_desktop_icon "")
+  set(_tip_appimage_desktop_exec "")
+  foreach(_tip_appimage_desktop_line IN LISTS _tip_appimage_desktop_lines)
+    string(STRIP "${_tip_appimage_desktop_line}" _tip_appimage_desktop_line)
+    if(_tip_appimage_desktop_line MATCHES "^\\[.*\\]$")
+      if(_tip_appimage_desktop_line STREQUAL "[Desktop Entry]")
+        set(_tip_appimage_in_desktop_entry TRUE)
+        set(_tip_appimage_has_desktop_entry TRUE)
+      else()
+        set(_tip_appimage_in_desktop_entry FALSE)
+      endif()
+    elseif(_tip_appimage_in_desktop_entry AND _tip_appimage_desktop_line MATCHES "^([^=]+)=(.*)$")
+      string(STRIP "${CMAKE_MATCH_1}" _tip_appimage_desktop_key)
+      string(STRIP "${CMAKE_MATCH_2}" _tip_appimage_desktop_value)
+      if(_tip_appimage_desktop_key STREQUAL "Type" AND "${_tip_appimage_desktop_type}" STREQUAL "")
+        set(_tip_appimage_desktop_type "${_tip_appimage_desktop_value}")
+      elseif(_tip_appimage_desktop_key STREQUAL "Name" AND "${_tip_appimage_desktop_name}" STREQUAL "")
+        set(_tip_appimage_desktop_name "${_tip_appimage_desktop_value}")
+      elseif(_tip_appimage_desktop_key STREQUAL "Categories" AND "${_tip_appimage_desktop_categories}" STREQUAL "")
+        set(_tip_appimage_desktop_categories "${_tip_appimage_desktop_value}")
+      elseif(_tip_appimage_desktop_key STREQUAL "Icon" AND "${_tip_appimage_desktop_icon}" STREQUAL "")
+        set(_tip_appimage_desktop_icon "${_tip_appimage_desktop_value}")
+      elseif(_tip_appimage_desktop_key STREQUAL "Exec" AND "${_tip_appimage_desktop_exec}" STREQUAL "")
+        set(_tip_appimage_desktop_exec "${_tip_appimage_desktop_value}")
+      endif()
+    endif()
+  endforeach()
+
+  if(NOT _tip_appimage_has_desktop_entry)
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE must contain a [Desktop Entry] section: ${desktop_path}")
+  endif()
+  if(NOT _tip_appimage_desktop_type STREQUAL "Application")
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE must set Type=Application in [Desktop Entry]: ${desktop_path}")
+  endif()
+  if("${_tip_appimage_desktop_name}" STREQUAL "")
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE must set a non-empty Name key in [Desktop Entry]: ${desktop_path}")
+  endif()
+  if("${_tip_appimage_desktop_categories}" STREQUAL "")
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE must set a non-empty Categories key in [Desktop Entry]: ${desktop_path}")
+  endif()
+  if("${_tip_appimage_desktop_icon}" STREQUAL "")
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE must set a non-empty Icon key in [Desktop Entry]: ${desktop_path}")
+  endif()
+  if(_tip_appimage_desktop_icon MATCHES "[/\\\\]")
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE Icon must be an installed icon name, not a path: ${_tip_appimage_desktop_icon}")
+  endif()
+  get_filename_component(_tip_appimage_icon_stem "${icon_name}" NAME_WLE)
+  if(NOT _tip_appimage_desktop_icon STREQUAL _tip_appimage_icon_stem)
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE Icon '${_tip_appimage_desktop_icon}' must exactly match APPIMAGE_ICON_FILE basename without its final extension '${_tip_appimage_icon_stem}'.")
+  endif()
+  if("${_tip_appimage_desktop_exec}" STREQUAL "")
+    project_log(FATAL_ERROR "APPIMAGE_DESKTOP_FILE must set a non-empty Exec key in [Desktop Entry]: ${desktop_path}")
+  endif()
+endfunction()
+
 # Internal function to execute the deferred CPack configuration
 function(_execute_deferred_cpack_config)
   get_property(args GLOBAL PROPERTY "_TIP_CPACK_CONFIG_ARGS")
@@ -937,6 +1093,10 @@ function(_execute_deferred_cpack_config)
       PACKAGE_LICENSE
       LICENSE_FILE
       GENERATORS
+      APPIMAGE_DESKTOP_FILE
+      APPIMAGE_ICON_FILE
+      APPIMAGE_TOOL_EXECUTABLE
+      APPIMAGE_PATCHELF_EXECUTABLE
       COMPONENTS
       COMPONENT_GROUPS
       DEFAULT_COMPONENTS
@@ -1050,6 +1210,10 @@ function(_execute_deferred_cpack_config)
       PACKAGE_LICENSE
       LICENSE_FILE
       ARCHIVE_FORMAT
+      APPIMAGE_DESKTOP_FILE
+      APPIMAGE_ICON_FILE
+      APPIMAGE_TOOL_EXECUTABLE
+      APPIMAGE_PATCHELF_EXECUTABLE
       COMPRESSION_LEVEL
       ARCHIVE_COMPRESSION_LEVEL
       DEBIAN_COMPRESSION_TYPE
@@ -1074,6 +1238,11 @@ function(_execute_deferred_cpack_config)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+  foreach(_tip_missing_cpack_keyword IN LISTS ARG_KEYWORDS_MISSING_VALUES)
+    if(_tip_missing_cpack_keyword MATCHES "^APPIMAGE_")
+      project_log(FATAL_ERROR "${_tip_missing_cpack_keyword} requires a value.")
+    endif()
+  endforeach()
   SET(_tip_compression_level_explicit FALSE)
   SET(_tip_archive_compression_level_explicit FALSE)
   SET(_tip_debian_compression_type_explicit FALSE)
@@ -1307,6 +1476,7 @@ function(_execute_deferred_cpack_config)
   set(_tip_generators_upper "")
   set(_tip_has_deb_generator FALSE)
   set(_tip_has_rpm_generator FALSE)
+  set(_tip_has_appimage_generator FALSE)
   set(_tip_has_non_rpm_generator FALSE)
   foreach(_tip_generator IN LISTS ARG_GENERATORS)
     string(TOUPPER "${_tip_generator}" _tip_generator_upper)
@@ -1316,11 +1486,78 @@ function(_execute_deferred_cpack_config)
       set(_tip_has_non_rpm_generator TRUE)
     elseif(_tip_generator_upper STREQUAL "RPM")
       set(_tip_has_rpm_generator TRUE)
+    elseif(_tip_generator_upper STREQUAL "APPIMAGE")
+      set(_tip_has_appimage_generator TRUE)
+      set(_tip_has_non_rpm_generator TRUE)
     else()
       set(_tip_has_non_rpm_generator TRUE)
     endif()
   endforeach()
 
+  SET(_tip_appimage_managed_cpack_vars CPACK_APPIMAGE_DESKTOP_FILE CPACK_PACKAGE_ICON CPACK_APPIMAGE_TOOL_EXECUTABLE CPACK_APPIMAGE_PATCHELF_EXECUTABLE)
+  if(_tip_additional_cpack_vars_seen)
+    list(LENGTH ARG_ADDITIONAL_CPACK_VARS _tip_appimage_additional_var_count)
+    math(EXPR _tip_appimage_additional_var_remainder "${_tip_appimage_additional_var_count} % 2")
+    if(_tip_appimage_additional_var_count GREATER 0 AND _tip_appimage_additional_var_remainder EQUAL 0)
+      math(EXPR _tip_appimage_additional_var_last_pair "${_tip_appimage_additional_var_count} / 2 - 1")
+      foreach(_tip_appimage_additional_var_pair RANGE ${_tip_appimage_additional_var_last_pair})
+        math(EXPR _tip_appimage_additional_var_key_index "${_tip_appimage_additional_var_pair} * 2")
+        math(EXPR _tip_appimage_additional_var_value_index "${_tip_appimage_additional_var_key_index} + 1")
+        list(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_appimage_additional_var_key_index} _tip_appimage_additional_var_name)
+        list(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_appimage_additional_var_value_index} _tip_appimage_additional_var_value)
+        IF(_tip_has_appimage_generator AND _tip_appimage_additional_var_name IN_LIST _tip_appimage_managed_cpack_vars)
+          project_log(FATAL_ERROR
+                      "ADDITIONAL_CPACK_VARS cannot override AppImage-managed variable '${_tip_appimage_additional_var_name}'. Use the corresponding APPIMAGE_* argument instead.")
+        ENDIF()
+        if(_tip_appimage_additional_var_name STREQUAL "CPACK_GENERATOR")
+          foreach(_tip_appimage_additional_generator IN LISTS _tip_appimage_additional_var_value)
+            string(TOUPPER "${_tip_appimage_additional_generator}" _tip_appimage_additional_generator_upper)
+            if(_tip_appimage_additional_generator_upper STREQUAL "APPIMAGE" AND NOT _tip_has_appimage_generator)
+              project_log(FATAL_ERROR "Select AppImage with export_cpack(GENERATORS AppImage), not ADDITIONAL_CPACK_VARS CPACK_GENERATOR. This enables AppImage prerequisite validation.")
+            endif()
+          endforeach()
+        endif()
+      endforeach()
+    endif()
+  endif()
+
+  set(_tip_appimage_arguments_requested FALSE)
+  foreach(_tip_appimage_argument IN ITEMS APPIMAGE_DESKTOP_FILE APPIMAGE_ICON_FILE APPIMAGE_TOOL_EXECUTABLE APPIMAGE_PATCHELF_EXECUTABLE)
+    if(NOT "${ARG_${_tip_appimage_argument}}" STREQUAL "")
+      set(_tip_appimage_arguments_requested TRUE)
+    endif()
+  endforeach()
+  if(_tip_appimage_arguments_requested AND NOT _tip_has_appimage_generator)
+    project_log(FATAL_ERROR "APPIMAGE_* arguments require explicit opt-in with export_cpack(GENERATORS AppImage). AppImage is never a default generator.")
+  endif()
+
+  if(_tip_has_appimage_generator)
+    if(CMAKE_VERSION VERSION_LESS "4.2")
+      project_log(FATAL_ERROR "The AppImage CPack generator requires CMake 4.2 or newer, got CMake ${CMAKE_VERSION}.")
+    endif()
+    if(NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+      project_log(FATAL_ERROR "The AppImage CPack generator requires a Linux host, got ${CMAKE_HOST_SYSTEM_NAME}.")
+    endif()
+    if(NOT ARG_APPIMAGE_DESKTOP_FILE)
+      project_log(FATAL_ERROR "GENERATORS AppImage requires APPIMAGE_DESKTOP_FILE pointing to the desktop file source that is installed by the project.")
+    endif()
+    if(NOT ARG_APPIMAGE_ICON_FILE)
+      project_log(FATAL_ERROR "GENERATORS AppImage requires APPIMAGE_ICON_FILE pointing to the icon source that is installed by the project.")
+    endif()
+
+    _tip_resolve_appimage_metadata_file(_tip_appimage_desktop_path _tip_appimage_desktop_name APPIMAGE_DESKTOP_FILE "${ARG_APPIMAGE_DESKTOP_FILE}" "${_tip_cpack_config_source_dir}" DESKTOP)
+    _tip_resolve_appimage_metadata_file(_tip_appimage_icon_path _tip_appimage_icon_name APPIMAGE_ICON_FILE "${ARG_APPIMAGE_ICON_FILE}" "${_tip_cpack_config_source_dir}" ICON)
+    _tip_validate_appimage_desktop_file("${_tip_appimage_desktop_path}" "${_tip_appimage_icon_name}")
+
+    _tip_resolve_appimage_program(_tip_appimage_tool APPIMAGE_TOOL_EXECUTABLE "${ARG_APPIMAGE_TOOL_EXECUTABLE}" appimagetool "${_tip_cpack_config_source_dir}")
+    _tip_resolve_appimage_program(_tip_appimage_patchelf APPIMAGE_PATCHELF_EXECUTABLE "${ARG_APPIMAGE_PATCHELF_EXECUTABLE}" patchelf "${_tip_cpack_config_source_dir}")
+
+    _tip_store_cpack_var(CPACK_APPIMAGE_DESKTOP_FILE "${_tip_appimage_desktop_name}")
+    _tip_store_cpack_var(CPACK_PACKAGE_ICON "${_tip_appimage_icon_name}")
+    _tip_store_cpack_var(CPACK_APPIMAGE_TOOL_EXECUTABLE "${_tip_appimage_tool}")
+    _tip_store_cpack_var(CPACK_APPIMAGE_PATCHELF_EXECUTABLE "${_tip_appimage_patchelf}")
+    project_log(VERBOSE "AppImage generation configured as one monolithic package; CPack does not split AppImages by component.")
+  endif()
   SET(_tip_compression_generators ${ARG_GENERATORS})
   IF(NOT _tip_compression_generators AND DEFINED CPACK_GENERATOR)
     SET(_tip_compression_generators ${CPACK_GENERATOR})
