@@ -15,6 +15,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
 | SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
 | Deterministic archive ownership | 4.3 | `export_cpack(ARCHIVE_UID ... ARCHIVE_GID ...)` maps to CPack's archive ownership controls. |
+| CPack compression levels | 4.3 | Generic, archive-specific, and Debian-specific levels use CPack's native controls. |
 
 ## Target Types
 
@@ -43,6 +44,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Native Linux packages | Yes | Debian/RPM packaging tools on the build host. |
 | Signed packages | Yes | GPG for detached signatures; RPM signing tools for embedded RPM signatures. |
 | Checksums | Yes | `CHECKSUMS` accepts CMake's MD5, SHA1, SHA2, and SHA3 algorithms. `GENERATE_CHECKSUMS ON` remains an alias for SHA256 and SHA512. |
+| Compression controls | Yes | Level arguments require CMake 4.3+. Validation covers affected binary and source generators. Generator-specific levels override the generic level; same-variable `ADDITIONAL_CPACK_VARS` values override explicit arguments. |
 | Container archives | Yes | Linux host plus `podman` or `docker`; uses the CPack External generator. |
 | CPS metadata | Yes | CMake 4.3+ and compatible target set. |
 | SBOM metadata | Yes | CMake 4.3+ with the CMake SBOM experiment activated. |

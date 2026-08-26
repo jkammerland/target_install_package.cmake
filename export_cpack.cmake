@@ -72,6 +72,10 @@ endif()
 #     [DEFAULT_COMPONENTS <component1> <component2> ...]
 #     [ENABLE_COMPONENT_INSTALL]
 #     [ARCHIVE_FORMAT <format>]
+#     [COMPRESSION_LEVEL <0-19>]
+#     [ARCHIVE_COMPRESSION_LEVEL <0-19>]
+#     [DEBIAN_COMPRESSION_TYPE <gzip|bzip2|xz|lzma|zstd>]
+#     [DEBIAN_COMPRESSION_LEVEL <0-19>]
 #     [ARCHIVE_UID <uid>]
 #     [ARCHIVE_GID <gid>]
 #     [NO_DEFAULT_GENERATORS]
@@ -107,6 +111,11 @@ endif()
 #                             Defaults to detected runtime-payload components, or Development when no runtime payload exists.
 #   ENABLE_COMPONENT_INSTALL - Force component-based installation
 #   ARCHIVE_FORMAT          - Format for archive generators (TGZ, ZIP, etc.)
+#   COMPRESSION_LEVEL       - Generic CPack compression level. Requires CMake 4.3+; 0 selects the backend default.
+#   ARCHIVE_COMPRESSION_LEVEL - Archive-specific compression level. Requires a selected binary archive generator and CMake 4.3+.
+#                               The level is validated against both binary and source archive generators because CPack writes it to both configs.
+#   DEBIAN_COMPRESSION_TYPE - Debian compression algorithm (gzip, bzip2, xz, lzma, or zstd). Requires a selected binary or source DEB generator.
+#   DEBIAN_COMPRESSION_LEVEL - Debian-specific compression level. Requires a selected binary or source DEB generator and CMake 4.3+.
 #   ARCHIVE_UID             - Numeric UID from 0 to 2147483647 passed to CPack's Archive generator (requires CMake 4.3+). Tar and ZIP formats store it;
 #                             7Z formats and CPack's FreeBSD generator ignore it.
 #   ARCHIVE_GID             - Numeric GID from 0 to 2147483647 passed to CPack's Archive generator (requires CMake 4.3+). Tar and ZIP formats store it;
@@ -122,7 +131,7 @@ endif()
 #   CONTAINER_COMPONENTS    - Components merged into the container rootfs (default: DEFAULT_COMPONENTS)
 #   CONTAINER_ROOTFS_OVERLAYS - Directories whose contents are merged into the rootfs after components
 #   ADDITIONAL_CPACK_VARS   - Additional CPack variables as key-value pairs
-#                             Can override any auto-detected settings including architecture
+#                             Can override any auto-detected or explicit settings, including compression and architecture
 #
 # Behavior:
 #   - Automatically detects components from previous target_install_package calls
@@ -209,6 +218,35 @@ function(_tip_finalize_registered_exports_for_cpack)
     endif()
   endforeach()
 endfunction()
+
+FUNCTION(_tip_validate_cpack_compression_level argument_name value max_level)
+  IF(NOT "${value}" MATCHES "^[0-9]+$")
+    project_log(FATAL_ERROR "${argument_name} must be an integer from 0 to ${max_level}, got: ${value}")
+  ENDIF()
+
+  STRING(REGEX REPLACE "^0+" "" _tip_normalized_level "${value}")
+  IF(_tip_normalized_level STREQUAL "")
+    SET(_tip_normalized_level 0)
+  ENDIF()
+  STRING(LENGTH "${_tip_normalized_level}" _tip_compression_level_length)
+  STRING(LENGTH "${max_level}" _tip_max_compression_level_length)
+  IF(_tip_compression_level_length GREATER _tip_max_compression_level_length
+     OR (_tip_compression_level_length EQUAL _tip_max_compression_level_length AND "${_tip_normalized_level}" STRGREATER "${max_level}"))
+    project_log(FATAL_ERROR "${argument_name} must be an integer from 0 to ${max_level}, got: ${value}")
+  ENDIF()
+ENDFUNCTION()
+
+FUNCTION(_tip_cpack_option_value_is_set out_var value)
+  IF(NOT "${value}" STREQUAL "" AND NOT "${value}" MATCHES "(^|-)NOTFOUND$")
+    SET(${out_var}
+        TRUE
+        PARENT_SCOPE)
+  ELSE()
+    SET(${out_var}
+        FALSE
+        PARENT_SCOPE)
+  ENDIF()
+ENDFUNCTION()
 
 function(_tip_validate_archive_owner_id argument_name value)
   if(NOT "${value}" MATCHES "^[0-9]+$")
@@ -904,6 +942,10 @@ function(_execute_deferred_cpack_config)
       DEFAULT_COMPONENTS
       ENABLE_COMPONENT_INSTALL
       ARCHIVE_FORMAT
+      COMPRESSION_LEVEL
+      ARCHIVE_COMPRESSION_LEVEL
+      DEBIAN_COMPRESSION_TYPE
+      DEBIAN_COMPRESSION_LEVEL
       ARCHIVE_UID
       ARCHIVE_GID
       NO_DEFAULT_GENERATORS
@@ -953,20 +995,20 @@ function(_execute_deferred_cpack_config)
       set(_tip_additional_cpack_vars_seen TRUE)
       math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 1")
       while(_tip_cpack_arg_index LESS _tip_cpack_arg_count)
-        list(GET args ${_tip_cpack_arg_index} _tip_cpack_additional_var_name)
-        if(_tip_cpack_additional_var_name IN_LIST _tip_cpack_keyword_names)
+        LIST(GET args ${_tip_cpack_arg_index} _tip_cpack_additional_var_name)
+        IF(_tip_cpack_additional_var_name IN_LIST _tip_cpack_keyword_names)
           break()
         endif()
 
-        string(REPLACE ";" "\\;" _tip_cpack_additional_var_name "${_tip_cpack_additional_var_name}")
-        list(APPEND _tip_additional_cpack_vars "${_tip_cpack_additional_var_name}")
+        STRING(REPLACE ";" "\\;" _tip_cpack_additional_var_name "${_tip_cpack_additional_var_name}")
+        LIST(APPEND _tip_additional_cpack_vars "${_tip_cpack_additional_var_name}")
         math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 1")
-        if(_tip_cpack_arg_index LESS _tip_cpack_arg_count)
-          list(GET args ${_tip_cpack_arg_index} _tip_cpack_additional_var_value)
-          string(REPLACE ";" "\\;" _tip_cpack_additional_var_value "${_tip_cpack_additional_var_value}")
-          list(APPEND _tip_additional_cpack_vars "${_tip_cpack_additional_var_value}")
-          math(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 1")
-        endif()
+        IF(_tip_cpack_arg_index LESS _tip_cpack_arg_count)
+          LIST(GET args ${_tip_cpack_arg_index} _tip_cpack_additional_var_value)
+          STRING(REPLACE ";" "\\;" _tip_cpack_additional_var_value "${_tip_cpack_additional_var_value}")
+          LIST(APPEND _tip_additional_cpack_vars "${_tip_cpack_additional_var_value}")
+          MATH(EXPR _tip_cpack_arg_index "${_tip_cpack_arg_index} + 1")
+        ENDIF()
       endwhile()
       continue()
     else()
@@ -1008,6 +1050,10 @@ function(_execute_deferred_cpack_config)
       PACKAGE_LICENSE
       LICENSE_FILE
       ARCHIVE_FORMAT
+      COMPRESSION_LEVEL
+      ARCHIVE_COMPRESSION_LEVEL
+      DEBIAN_COMPRESSION_TYPE
+      DEBIAN_COMPRESSION_LEVEL
       ARCHIVE_UID
       ARCHIVE_GID
       GPG_SIGNING_KEY
@@ -1028,6 +1074,21 @@ function(_execute_deferred_cpack_config)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for export_cpack(): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
+  SET(_tip_compression_level_explicit FALSE)
+  SET(_tip_archive_compression_level_explicit FALSE)
+  SET(_tip_debian_compression_type_explicit FALSE)
+  SET(_tip_debian_compression_level_explicit FALSE)
+  FOREACH(_tip_compression_argument COMPRESSION_LEVEL ARCHIVE_COMPRESSION_LEVEL DEBIAN_COMPRESSION_TYPE DEBIAN_COMPRESSION_LEVEL)
+    STRING(TOLOWER "${_tip_compression_argument}" _tip_compression_argument_lower)
+    IF(_tip_compression_argument IN_LIST _tip_cpack_parse_args)
+      SET("_tip_${_tip_compression_argument_lower}_explicit" TRUE)
+    ENDIF()
+  ENDFOREACH()
+  FOREACH(_tip_compression_argument COMPRESSION_LEVEL ARCHIVE_COMPRESSION_LEVEL DEBIAN_COMPRESSION_TYPE DEBIAN_COMPRESSION_LEVEL)
+    IF(_tip_compression_argument IN_LIST ARG_KEYWORDS_MISSING_VALUES)
+      project_log(FATAL_ERROR "${_tip_compression_argument} requires a value")
+    ENDIF()
+  ENDFOREACH()
 
   set(_tip_archive_uid_overridden FALSE)
   set(_tip_archive_gid_overridden FALSE)
@@ -1259,6 +1320,309 @@ function(_execute_deferred_cpack_config)
       set(_tip_has_non_rpm_generator TRUE)
     endif()
   endforeach()
+
+  SET(_tip_compression_generators ${ARG_GENERATORS})
+  IF(NOT _tip_compression_generators AND DEFINED CPACK_GENERATOR)
+    SET(_tip_compression_generators ${CPACK_GENERATOR})
+  ENDIF()
+
+  SET(_tip_binary_selector_suffixes
+      7Z
+      BUNDLE
+      CYGWIN
+      DEB
+      DRAGNDROP
+      FREEBSD
+      IFW
+      NSIS
+      INNOSETUP
+      NUGET
+      PRODUCTBUILD
+      RPM
+      STGZ
+      TBZ2
+      TGZ
+      TXZ
+      TZ
+      WIX
+      ZIP)
+  SET(_tip_source_selector_suffixes
+      7Z
+      CYGWIN
+      RPM
+      TBZ2
+      TGZ
+      TXZ
+      TZ
+      ZIP)
+  SET(_tip_binary_selector_var_names "")
+  FOREACH(_tip_selector_suffix IN LISTS _tip_binary_selector_suffixes)
+    LIST(APPEND _tip_binary_selector_var_names "CPACK_BINARY_${_tip_selector_suffix}")
+  ENDFOREACH()
+  SET(_tip_source_selector_var_names "")
+  FOREACH(_tip_selector_suffix IN LISTS _tip_source_selector_suffixes)
+    LIST(APPEND _tip_source_selector_var_names "CPACK_SOURCE_${_tip_selector_suffix}")
+  ENDFOREACH()
+  SET(_tip_default_binary_selector_generators "")
+  IF(CYGWIN)
+    SET(_tip_default_binary_selector_generators CYGWINBINARY)
+  ELSEIF(UNIX)
+    SET(_tip_default_binary_selector_generators STGZ TGZ)
+    IF(NOT APPLE)
+      LIST(APPEND _tip_default_binary_selector_generators TZ)
+    ENDIF()
+  ELSE()
+    SET(_tip_default_binary_selector_generators NSIS)
+  ENDIF()
+  SET(_tip_default_source_selector_generators "")
+  IF(CYGWIN)
+    SET(_tip_default_source_selector_generators CYGWINSOURCE)
+  ELSEIF(UNIX)
+    SET(_tip_default_source_selector_generators TBZ2 TGZ TXZ TZ)
+  ELSE()
+    SET(_tip_default_source_selector_generators 7Z ZIP)
+  ENDIF()
+
+  FOREACH(_tip_selector_suffix IN LISTS _tip_binary_selector_suffixes)
+    SET(_tip_selector_generator "${_tip_selector_suffix}")
+    IF(_tip_selector_suffix STREQUAL "CYGWIN")
+      SET(_tip_selector_generator CYGWINBINARY)
+    ENDIF()
+    SET(_tip_selector_var_name "CPACK_BINARY_${_tip_selector_suffix}")
+    IF(DEFINED ${_tip_selector_var_name})
+      SET("_tip_effective_${_tip_selector_var_name}" "${${_tip_selector_var_name}}")
+    ELSEIF(_tip_selector_generator IN_LIST _tip_default_binary_selector_generators)
+      SET("_tip_effective_${_tip_selector_var_name}" ON)
+    ELSE()
+      SET("_tip_effective_${_tip_selector_var_name}" OFF)
+    ENDIF()
+  ENDFOREACH()
+  FOREACH(_tip_selector_suffix IN LISTS _tip_source_selector_suffixes)
+    SET(_tip_selector_generator "${_tip_selector_suffix}")
+    IF(_tip_selector_suffix STREQUAL "CYGWIN")
+      SET(_tip_selector_generator CYGWINSOURCE)
+    ENDIF()
+    SET(_tip_selector_var_name "CPACK_SOURCE_${_tip_selector_suffix}")
+    IF(DEFINED ${_tip_selector_var_name})
+      SET("_tip_effective_${_tip_selector_var_name}" "${${_tip_selector_var_name}}")
+    ELSEIF(_tip_selector_generator IN_LIST _tip_default_source_selector_generators)
+      SET("_tip_effective_${_tip_selector_var_name}" ON)
+    ELSE()
+      SET("_tip_effective_${_tip_selector_var_name}" OFF)
+    ENDIF()
+  ENDFOREACH()
+
+  SET(_tip_compression_level_overridden FALSE)
+  SET(_tip_archive_compression_level_overridden FALSE)
+  SET(_tip_debian_compression_type_overridden FALSE)
+  SET(_tip_debian_compression_level_overridden FALSE)
+
+  SET(_tip_effective_archive_compression_level "")
+  IF(DEFINED CPACK_ARCHIVE_COMPRESSION_LEVEL)
+    SET(_tip_effective_archive_compression_level "${CPACK_ARCHIVE_COMPRESSION_LEVEL}")
+  ENDIF()
+  IF(_tip_archive_compression_level_explicit)
+    SET(_tip_effective_archive_compression_level "${ARG_ARCHIVE_COMPRESSION_LEVEL}")
+  ENDIF()
+  SET(_tip_effective_debian_compression_level "")
+  IF(DEFINED CPACK_DEBIAN_COMPRESSION_LEVEL)
+    SET(_tip_effective_debian_compression_level "${CPACK_DEBIAN_COMPRESSION_LEVEL}")
+  ENDIF()
+  IF(_tip_debian_compression_level_explicit)
+    SET(_tip_effective_debian_compression_level "${ARG_DEBIAN_COMPRESSION_LEVEL}")
+  ENDIF()
+  IF(DEFINED CPACK_DEBIAN_COMPRESSION_TYPE)
+    SET(_tip_effective_debian_compression_type "${CPACK_DEBIAN_COMPRESSION_TYPE}")
+  ELSE()
+    SET(_tip_effective_debian_compression_type gzip)
+  ENDIF()
+  IF(_tip_debian_compression_type_explicit)
+    SET(_tip_effective_debian_compression_type "${ARG_DEBIAN_COMPRESSION_TYPE}")
+  ENDIF()
+
+  SET(_tip_source_generators "")
+  IF(DEFINED CPACK_SOURCE_GENERATOR)
+    SET(_tip_source_generators ${CPACK_SOURCE_GENERATOR})
+  ENDIF()
+  IF(_tip_additional_cpack_vars_seen)
+    LIST(LENGTH ARG_ADDITIONAL_CPACK_VARS _tip_additional_cpack_var_count)
+    MATH(EXPR _tip_additional_cpack_var_remainder "${_tip_additional_cpack_var_count} % 2")
+    IF(_tip_additional_cpack_var_remainder EQUAL 0)
+      SET(_tip_additional_cpack_var_index 0)
+      WHILE(_tip_additional_cpack_var_index LESS _tip_additional_cpack_var_count)
+        LIST(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_additional_cpack_var_index} _tip_additional_cpack_var_name)
+        MATH(EXPR _tip_additional_cpack_var_value_index "${_tip_additional_cpack_var_index} + 1")
+        LIST(GET ARG_ADDITIONAL_CPACK_VARS ${_tip_additional_cpack_var_value_index} _tip_additional_cpack_var_value)
+        IF(_tip_additional_cpack_var_name STREQUAL "CPACK_GENERATOR")
+          SET(_tip_compression_generators ${_tip_additional_cpack_var_value})
+        ELSEIF(_tip_additional_cpack_var_name STREQUAL "CPACK_SOURCE_GENERATOR")
+          SET(_tip_source_generators ${_tip_additional_cpack_var_value})
+        ELSEIF(_tip_additional_cpack_var_name STREQUAL "CPACK_COMPRESSION_LEVEL")
+          SET(_tip_compression_level_overridden TRUE)
+        ELSEIF(_tip_additional_cpack_var_name STREQUAL "CPACK_ARCHIVE_COMPRESSION_LEVEL")
+          SET(_tip_archive_compression_level_overridden TRUE)
+          SET(_tip_effective_archive_compression_level "${_tip_additional_cpack_var_value}")
+        ELSEIF(_tip_additional_cpack_var_name STREQUAL "CPACK_DEBIAN_COMPRESSION_TYPE")
+          SET(_tip_debian_compression_type_overridden TRUE)
+          SET(_tip_effective_debian_compression_type "${_tip_additional_cpack_var_value}")
+        ELSEIF(_tip_additional_cpack_var_name STREQUAL "CPACK_DEBIAN_COMPRESSION_LEVEL")
+          SET(_tip_debian_compression_level_overridden TRUE)
+          SET(_tip_effective_debian_compression_level "${_tip_additional_cpack_var_value}")
+        ELSEIF(_tip_additional_cpack_var_name IN_LIST _tip_binary_selector_var_names OR _tip_additional_cpack_var_name IN_LIST _tip_source_selector_var_names)
+          SET("_tip_effective_${_tip_additional_cpack_var_name}" "${_tip_additional_cpack_var_value}")
+        ENDIF()
+        MATH(EXPR _tip_additional_cpack_var_index "${_tip_additional_cpack_var_index} + 2")
+      ENDWHILE()
+    ENDIF()
+  ENDIF()
+  IF(NOT _tip_compression_generators)
+    SET(_tip_compression_generators "")
+    FOREACH(_tip_selector_suffix IN LISTS _tip_binary_selector_suffixes)
+      SET(_tip_selector_generator "${_tip_selector_suffix}")
+      IF(_tip_selector_suffix STREQUAL "CYGWIN")
+        SET(_tip_selector_generator CYGWINBINARY)
+      ENDIF()
+      SET(_tip_selector_var_name "CPACK_BINARY_${_tip_selector_suffix}")
+      IF(_tip_effective_${_tip_selector_var_name})
+        LIST(APPEND _tip_compression_generators "${_tip_selector_generator}")
+      ENDIF()
+    ENDFOREACH()
+  ENDIF()
+  IF(NOT _tip_source_generators)
+    SET(_tip_source_generators "")
+    FOREACH(_tip_selector_suffix IN LISTS _tip_source_selector_suffixes)
+      SET(_tip_selector_generator "${_tip_selector_suffix}")
+      IF(_tip_selector_suffix STREQUAL "CYGWIN")
+        SET(_tip_selector_generator CYGWINSOURCE)
+      ENDIF()
+      SET(_tip_selector_var_name "CPACK_SOURCE_${_tip_selector_suffix}")
+      IF(_tip_effective_${_tip_selector_var_name})
+        LIST(APPEND _tip_source_generators "${_tip_selector_generator}")
+      ENDIF()
+    ENDFOREACH()
+  ENDIF()
+  _tip_cpack_option_value_is_set(_tip_effective_archive_compression_level_set "${_tip_effective_archive_compression_level}")
+  _tip_cpack_option_value_is_set(_tip_effective_debian_compression_level_set "${_tip_effective_debian_compression_level}")
+  SET(_tip_compression_generators_upper "")
+  SET(_tip_has_effective_binary_deb_generator FALSE)
+  FOREACH(_tip_compression_generator IN LISTS _tip_compression_generators)
+    STRING(TOUPPER "${_tip_compression_generator}" _tip_compression_generator_upper)
+    LIST(APPEND _tip_compression_generators_upper "${_tip_compression_generator_upper}")
+    IF(_tip_compression_generator_upper STREQUAL "DEB")
+      SET(_tip_has_effective_binary_deb_generator TRUE)
+    ENDIF()
+  ENDFOREACH()
+  SET(_tip_source_generators_upper "")
+  SET(_tip_has_effective_deb_generator ${_tip_has_effective_binary_deb_generator})
+  FOREACH(_tip_source_generator IN LISTS _tip_source_generators)
+    STRING(TOUPPER "${_tip_source_generator}" _tip_source_generator_upper)
+    LIST(APPEND _tip_source_generators_upper "${_tip_source_generator_upper}")
+    IF(_tip_source_generator_upper STREQUAL "DEB")
+      SET(_tip_has_effective_deb_generator TRUE)
+    ENDIF()
+  ENDFOREACH()
+
+  SET(_tip_archive_generators
+      7Z
+      7Z_BZ2
+      7Z_DEFLATE
+      7Z_LZMA
+      7Z_LZMA2
+      7Z_PPMD
+      7Z_STORE
+      7Z_ZSTD
+      TAR
+      TBZ2
+      TGZ
+      TXZ
+      TZ
+      TZST
+      STGZ
+      ZIP
+      ZIP_BZ2
+      ZIP_DEFLATE
+      ZIP_LZMA
+      ZIP_LZMA2
+      ZIP_STORE
+      ZIP_ZSTD
+      CYGWINBINARY
+      CYGWINSOURCE
+      FREEBSD)
+  SET(_tip_archive_zstd_generators 7Z_ZSTD TZST)
+  SET(_tip_archive_neutral_generators TAR TZ)
+  SET(_tip_has_binary_archive_generator FALSE)
+  FOREACH(_tip_generator_upper IN LISTS _tip_compression_generators_upper)
+    IF(_tip_generator_upper IN_LIST _tip_archive_generators)
+      SET(_tip_has_binary_archive_generator TRUE)
+    ENDIF()
+  ENDFOREACH()
+
+  SET(_tip_has_effective_archive_generator FALSE)
+  SET(_tip_archive_max_compression_level 19)
+  SET(_tip_all_generators_upper ${_tip_compression_generators_upper} ${_tip_source_generators_upper})
+  FOREACH(_tip_generator_upper IN LISTS _tip_all_generators_upper)
+    IF(_tip_generator_upper IN_LIST _tip_archive_generators)
+      SET(_tip_has_effective_archive_generator TRUE)
+      IF(NOT _tip_generator_upper IN_LIST _tip_archive_zstd_generators AND NOT _tip_generator_upper IN_LIST _tip_archive_neutral_generators)
+        SET(_tip_archive_max_compression_level 9)
+      ENDIF()
+    ENDIF()
+  ENDFOREACH()
+
+  IF(_tip_compression_level_explicit
+     OR _tip_archive_compression_level_explicit
+     OR _tip_debian_compression_level_explicit)
+    IF(CMAKE_VERSION VERSION_LESS "4.3")
+      project_log(FATAL_ERROR "Compression level controls require CMake 4.3 or newer (running ${CMAKE_VERSION})")
+    ENDIF()
+  ENDIF()
+
+  IF(_tip_debian_compression_type_explicit AND NOT _tip_debian_compression_type_overridden)
+    IF(NOT _tip_has_effective_deb_generator)
+      project_log(FATAL_ERROR "DEBIAN_COMPRESSION_TYPE requires the DEB generator")
+    ENDIF()
+    STRING(TOLOWER "${ARG_DEBIAN_COMPRESSION_TYPE}" ARG_DEBIAN_COMPRESSION_TYPE)
+    SET(_tip_debian_compression_types gzip bzip2 xz lzma zstd)
+    IF(NOT ARG_DEBIAN_COMPRESSION_TYPE IN_LIST _tip_debian_compression_types)
+      project_log(FATAL_ERROR "Unsupported DEBIAN_COMPRESSION_TYPE '${ARG_DEBIAN_COMPRESSION_TYPE}'. Supported values: ${_tip_debian_compression_types}")
+    ENDIF()
+  ENDIF()
+
+  STRING(TOLOWER "${_tip_effective_debian_compression_type}" _tip_effective_debian_compression_type)
+  IF(_tip_effective_debian_compression_type STREQUAL "zstd")
+    SET(_tip_debian_max_compression_level 19)
+  ELSE()
+    SET(_tip_debian_max_compression_level 9)
+  ENDIF()
+
+  IF(_tip_archive_compression_level_explicit AND NOT _tip_archive_compression_level_overridden)
+    IF(NOT _tip_has_binary_archive_generator)
+      project_log(FATAL_ERROR "ARCHIVE_COMPRESSION_LEVEL requires an archive generator")
+    ENDIF()
+    _tip_validate_cpack_compression_level(ARCHIVE_COMPRESSION_LEVEL "${ARG_ARCHIVE_COMPRESSION_LEVEL}" "${_tip_archive_max_compression_level}")
+  ENDIF()
+
+  IF(_tip_debian_compression_level_explicit AND NOT _tip_debian_compression_level_overridden)
+    IF(NOT _tip_has_effective_deb_generator)
+      project_log(FATAL_ERROR "DEBIAN_COMPRESSION_LEVEL requires the DEB generator")
+    ENDIF()
+    _tip_validate_cpack_compression_level(DEBIAN_COMPRESSION_LEVEL "${ARG_DEBIAN_COMPRESSION_LEVEL}" "${_tip_debian_max_compression_level}")
+  ENDIF()
+
+  IF(_tip_compression_level_explicit AND NOT _tip_compression_level_overridden)
+    SET(_tip_generic_max_compression_level 19)
+    IF(_tip_has_effective_archive_generator
+       AND NOT _tip_effective_archive_compression_level_set
+       AND _tip_archive_max_compression_level EQUAL 9)
+      SET(_tip_generic_max_compression_level 9)
+    ENDIF()
+    IF(_tip_has_effective_deb_generator
+       AND NOT _tip_effective_debian_compression_level_set
+       AND _tip_debian_max_compression_level EQUAL 9)
+      SET(_tip_generic_max_compression_level 9)
+    ENDIF()
+    _tip_validate_cpack_compression_level(COMPRESSION_LEVEL "${ARG_COMPRESSION_LEVEL}" "${_tip_generic_max_compression_level}")
+  ENDIF()
 
   if(_tip_signing_key_for_validation AND ARG_SIGNING_METHOD STREQUAL "embedded")
     if(NOT _tip_has_rpm_generator OR _tip_has_non_rpm_generator)
@@ -1577,6 +1941,19 @@ function(_execute_deferred_cpack_config)
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_GROUP "Development/Libraries")
     _tip_store_cpack_var(CPACK_RPM_PACKAGE_RELEASE "1")
   endif()
+
+  IF(_tip_compression_level_explicit)
+    _tip_store_cpack_var(CPACK_COMPRESSION_LEVEL "${ARG_COMPRESSION_LEVEL}")
+  ENDIF()
+  IF(_tip_archive_compression_level_explicit)
+    _tip_store_cpack_var(CPACK_ARCHIVE_COMPRESSION_LEVEL "${ARG_ARCHIVE_COMPRESSION_LEVEL}")
+  ENDIF()
+  IF(_tip_debian_compression_type_explicit)
+    _tip_store_cpack_var(CPACK_DEBIAN_COMPRESSION_TYPE "${ARG_DEBIAN_COMPRESSION_TYPE}")
+  ENDIF()
+  IF(_tip_debian_compression_level_explicit)
+    _tip_store_cpack_var(CPACK_DEBIAN_COMPRESSION_LEVEL "${ARG_DEBIAN_COMPRESSION_LEVEL}")
+  ENDIF()
 
   # Set additional variables if provided
   if(_tip_additional_cpack_vars_seen)
