@@ -284,13 +284,6 @@ IF(TIP_TEST_DEB)
                                      "export_cpack(PACKAGE_NAME ProofZstdDebian PACKAGE_VERSION 1.0.0 GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE zstd DEBIAN_COMPRESSION_LEVEL 19)")
 
   _tip_configure_compression_fixture(
-    "ambient-empty-debian-level"
-    "SET(CPACK_DEBIAN_COMPRESSION_LEVEL \"\")\nexport_cpack(PACKAGE_NAME ProofEmptyDebianLevel PACKAGE_VERSION 1.0.0 GENERATORS DEB NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 DEBIAN_COMPRESSION_TYPE gzip ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
-  )
-  SET(_tip_empty_debian_level_config "${_tip_case_root}/ambient-empty-debian-level-build/CPackConfig.cmake")
-  _tip_proof_assert_file_contains("${_tip_empty_debian_level_config}" "set(CPACK_DEBIAN_COMPRESSION_LEVEL \"\")")
-
-  _tip_configure_compression_fixture(
     "source-only-zstd-debian"
     "export_cpack(PACKAGE_NAME ProofSourceZstdDebian PACKAGE_VERSION 1.0.0 GENERATORS RPM NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE zstd DEBIAN_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR DEB)"
   )
@@ -331,7 +324,20 @@ IF(TIP_TEST_DEB)
 
   _tip_configure_compression_fixture(
     "debian-additional-overrides"
-    "export_cpack(PACKAGE_NAME ProofDebianOverrides PACKAGE_VERSION 1.0.0 GENERATORS DEB NO_DEFAULT_GENERATORS DEBIAN_COMPRESSION_TYPE brotli DEBIAN_COMPRESSION_LEVEL 20 ADDITIONAL_CPACK_VARS CPACK_DEBIAN_COMPRESSION_TYPE xz CPACK_DEBIAN_COMPRESSION_LEVEL 8)"
+    [=[
+export_cpack(
+  PACKAGE_NAME ProofDebianOverrides
+  PACKAGE_VERSION 1.0.0
+  GENERATORS DEB
+  NO_DEFAULT_GENERATORS
+  COMPRESSION_LEVEL 19
+  DEBIAN_COMPRESSION_TYPE brotli
+  DEBIAN_COMPRESSION_LEVEL 20
+  ADDITIONAL_CPACK_VARS
+    CPACK_DEBIAN_COMPRESSION_TYPE xz
+    CPACK_DEBIAN_COMPRESSION_LEVEL 8
+    CPACK_SOURCE_GENERATOR TZST)
+]=]
   )
   SET(_tip_debian_overrides_config "${_tip_case_root}/debian-additional-overrides-build/CPackConfig.cmake")
   _tip_proof_assert_file_contains("${_tip_debian_overrides_config}" "set(CPACK_DEBIAN_COMPRESSION_TYPE \"xz\")")
@@ -392,6 +398,48 @@ _tip_expect_invalid_compression(
 _tip_expect_invalid_compression(
   "repeated-archive-final-empty"
   "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 ARCHIVE_COMPRESSION_LEVEL 19 ADDITIONAL_CPACK_VARS CPACK_ARCHIVE_COMPRESSION_LEVEL 9 CPACK_ARCHIVE_COMPRESSION_LEVEL \"\" CPACK_SOURCE_GENERATOR TZST)"
+  "must be an integer from 0 to 9")
+_tip_expect_invalid_compression(
+  "ambient-debian-empty"
+  "SET(CPACK_DEBIAN_COMPRESSION_LEVEL \"\")\nexport_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 DEBIAN_COMPRESSION_TYPE gzip ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
+  "must be an integer from 0 to 9")
+_tip_expect_invalid_compression(
+  "ambient-debian-notfound"
+  "SET(CPACK_DEBIAN_COMPRESSION_LEVEL debian-level-NOTFOUND)\nexport_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 DEBIAN_COMPRESSION_TYPE gzip ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
+  "must be an integer from 0 to 9")
+_tip_expect_invalid_compression(
+  "ambient-debian-exact-notfound"
+  "SET(CPACK_DEBIAN_COMPRESSION_LEVEL NOTFOUND)\nexport_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 19 DEBIAN_COMPRESSION_TYPE gzip ADDITIONAL_CPACK_VARS CPACK_SOURCE_GENERATOR TZST)"
+  "must be an integer from 0 to 9")
+_tip_expect_invalid_compression(
+  "repeated-debian-final-empty"
+  [=[
+export_cpack(
+  GENERATORS DEB
+  NO_DEFAULT_GENERATORS
+  COMPRESSION_LEVEL 19
+  DEBIAN_COMPRESSION_TYPE gzip
+  DEBIAN_COMPRESSION_LEVEL 9
+  ADDITIONAL_CPACK_VARS
+    CPACK_DEBIAN_COMPRESSION_LEVEL 8
+    CPACK_DEBIAN_COMPRESSION_LEVEL ""
+    CPACK_SOURCE_GENERATOR TZST)
+]=]
+  "must be an integer from 0 to 9")
+_tip_expect_invalid_compression(
+  "repeated-debian-final-notfound"
+  [=[
+export_cpack(
+  GENERATORS DEB
+  NO_DEFAULT_GENERATORS
+  COMPRESSION_LEVEL 19
+  DEBIAN_COMPRESSION_TYPE gzip
+  DEBIAN_COMPRESSION_LEVEL 9
+  ADDITIONAL_CPACK_VARS
+    CPACK_DEBIAN_COMPRESSION_LEVEL 8
+    CPACK_DEBIAN_COMPRESSION_LEVEL debian-level-NOTFOUND
+    CPACK_SOURCE_GENERATOR TZST)
+]=]
   "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("huge-level" "export_cpack(GENERATORS TGZ NO_DEFAULT_GENERATORS COMPRESSION_LEVEL 999999999999999999999999999999999999)" "must be an integer from 0 to 9")
 _tip_expect_invalid_compression("archive-generator" "export_cpack(GENERATORS DEB NO_DEFAULT_GENERATORS ARCHIVE_COMPRESSION_LEVEL 1)" "requires an archive generator")
