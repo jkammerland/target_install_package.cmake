@@ -44,11 +44,16 @@ cmake --install . --component Tools
 # SDK files for consumers
 cmake --install . --component Development
 
-# Full developer install assembled from components
+# CMake 4.4+: full developer install assembled in one invocation
+cmake --install . --component Core Tools Development
+
+# CMake 3.25-4.3: select one component per invocation
 cmake --install . --component Core
 cmake --install . --component Tools
 cmake --install . --component Development
 ```
+
+The CMake 4.4 command can also repeat the option (`--component Core --component Development`), and `--prefix <path>` still applies one custom prefix to the whole invocation. Raw component installs do not resolve the `Development` dependency on `Core`; every required component must be named explicitly. See [Multiple-Component Installs](../../docs/multi-component-install.md) for duplicate, unknown-name, dependency, and CPack behavior.
 
 ## Installation Structure
 
