@@ -18,7 +18,7 @@ Notes:
 
 A relative `CONFIG_TEMPLATE` path is resolved from the source directory that registers it. Referenced caller variables such as `@PROJECT_NAME@` and `@MY_FEATURE@` are captured when the explicit template is registered, including function-local values. Undefined variables substitute an empty string. Later changes to those variables do not affect the package.
 
-Names beginning with `PACKAGE_`, `ARG_`, or `_tip_` are reserved for generated package content and helper internals. In particular, `@PACKAGE_INIT@`, `@ARG_EXPORT_NAME@`, and the dependency/include placeholders in the [generic template](../cmake/generic-config.cmake.in) are resolved during export finalization. Keep `${CMAKE_CURRENT_LIST_DIR}` in consumer-time code; template processing uses `@ONLY` and preserves `${...}` expressions.
+Names beginning with `ARG_` or `_tip_` are reserved for helper arguments and internals. Generated placeholders are also reserved: `PACKAGE_INIT`, `PACKAGE_CMAKE_INSTALL_PREFIX`, `PACKAGE_COMPONENT_DEPENDENCIES_CONTENT`, `PACKAGE_PUBLIC_DEPENDENCIES_CONTENT`, `PACKAGE_INCLUDE_ON_FIND_PACKAGE`, `PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT`, `PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT`, and `PACKAGE_COMPONENT_TARGET_MAP`. These and `@ARG_EXPORT_NAME@` resolve during export finalization; see the [generic template](../cmake/generic-config.cmake.in). Other names such as `@PACKAGE_VENDOR@` capture caller values. Captured values are substituted once, so an `@NAME@` sequence inside a value remains literal. Keep `${CMAKE_CURRENT_LIST_DIR}` in consumer-time code; template processing uses `@ONLY` and preserves `${...}` expressions.
 
 ```cmake
 set(MY_FEATURE "enabled")
