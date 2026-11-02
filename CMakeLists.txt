@@ -81,6 +81,7 @@ if(NOT TARGET_INSTALL_PACKAGE_DISABLE_INSTALL)
       ${CMAKE_CURRENT_LIST_DIR}/cmake/generic-config.cmake.in
       ${CMAKE_CURRENT_LIST_DIR}/cmake/sign_packages.cmake.in
       ${CMAKE_CURRENT_LIST_DIR}/cmake/external_container_package.cmake
+      ${CMAKE_CURRENT_LIST_DIR}/cmake/check_installed_consumer.cmake
       ADDITIONAL_FILES_DESTINATION
       ${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}
       INCLUDE_ON_FIND_PACKAGE
