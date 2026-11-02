@@ -199,7 +199,7 @@ endif()
 #   target_install_package(system_library
 #     DISABLE_RPATH)
 # ~~~
-function(target_install_package TARGET_NAME)
+function(target_install_package _tip_target_name)
   # Preserve empty arguments and literal semicolons through the public forwarding wrapper.
   set(_tip_forward_call "target_prepare_package(")
   math(EXPR _tip_last_argument "${ARGC} - 1")
@@ -221,23 +221,32 @@ function(target_install_package TARGET_NAME)
   # ~~~
 endfunction(target_install_package)
 
-function(_tip_capture_config_template_context EXPORT_PROPERTY_PREFIX TEMPLATE)
-  if(NOT EXISTS "${TEMPLATE}")
-    project_log(FATAL_ERROR "User-provided config template not found: ${TEMPLATE}")
+function(_tip_capture_config_template_context _tip_export_prefix _tip_template)
+  if(NOT EXISTS "${_tip_template}")
+    project_log(FATAL_ERROR "User-provided config template not found: ${_tip_template}")
   endif()
 
-  file(READ "${TEMPLATE}" _tip_template_content)
+  set(_tip_generated_placeholders
+      PACKAGE_INIT
+      PACKAGE_CMAKE_INSTALL_PREFIX
+      PACKAGE_COMPONENT_DEPENDENCIES_CONTENT
+      PACKAGE_PUBLIC_DEPENDENCIES_CONTENT
+      PACKAGE_INCLUDE_ON_FIND_PACKAGE
+      PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT
+      PACKAGE_CONSUMER_LOCAL_SOURCE_TARGETS_CONTENT
+      PACKAGE_COMPONENT_TARGET_MAP)
+  file(READ "${_tip_template}" _tip_template_content)
   string(REGEX MATCHALL "@[A-Za-z_][A-Za-z0-9_]*@" _tip_template_placeholders "${_tip_template_content}")
   list(REMOVE_DUPLICATES _tip_template_placeholders)
   foreach(_tip_placeholder IN LISTS _tip_template_placeholders)
     string(REGEX REPLACE "^@|@$" "" _tip_variable "${_tip_placeholder}")
 
     # Package-generated placeholders are supplied after every target has registered.
-    if(_tip_variable MATCHES "^(PACKAGE_|ARG_|_tip_)")
+    if(_tip_variable IN_LIST _tip_generated_placeholders OR _tip_variable MATCHES "^(ARG_|_tip_)")
       continue()
     endif()
 
-    set(_tip_context_property "${EXPORT_PROPERTY_PREFIX}_TEMPLATE_VARIABLE_${_tip_variable}")
+    set(_tip_context_property "${_tip_export_prefix}_TEMPLATE_VARIABLE_${_tip_variable}")
     get_property(
       _tip_context_set GLOBAL
       PROPERTY "${_tip_context_property}"
@@ -247,15 +256,30 @@ function(_tip_capture_config_template_context EXPORT_PROPERTY_PREFIX TEMPLATE)
       project_log(FATAL_ERROR "Conflicting CONFIG_TEMPLATE substitution '${_tip_variable}' for the same export: '${_tip_context_value}' vs '${${_tip_variable}}'.")
     endif()
     set_property(GLOBAL PROPERTY "${_tip_context_property}" "${${_tip_variable}}")
-    set_property(GLOBAL APPEND PROPERTY "${EXPORT_PROPERTY_PREFIX}_TEMPLATE_VARIABLES" "${_tip_variable}")
+    set_property(GLOBAL APPEND PROPERTY "${_tip_export_prefix}_TEMPLATE_VARIABLES" "${_tip_variable}")
   endforeach()
 endfunction()
 
 function(_tip_configure_package_template _tip_template _tip_output _tip_destination _tip_export_prefix)
   get_property(_tip_variables GLOBAL PROPERTY "${_tip_export_prefix}_TEMPLATE_VARIABLES")
-  foreach(_tip_variable IN LISTS _tip_variables)
-    get_property("${_tip_variable}" GLOBAL PROPERTY "${_tip_export_prefix}_TEMPLATE_VARIABLE_${_tip_variable}")
-  endforeach()
+  if(_tip_variables)
+    # Native package helpers also have locals such as options. Route caller substitutions
+    # through private names so those helpers cannot shadow them or expand their values twice.
+    file(READ "${_tip_template}" _tip_template_content)
+    foreach(_tip_variable IN LISTS _tip_variables)
+      string(SHA256 _tip_variable_hash "${_tip_variable}")
+      set(_tip_captured_name "_tip_captured_${_tip_variable_hash}")
+      get_property("${_tip_captured_name}" GLOBAL PROPERTY "${_tip_export_prefix}_TEMPLATE_VARIABLE_${_tip_variable}")
+      string(REPLACE "@${_tip_variable}@" "@${_tip_captured_name}@" _tip_template_content "${_tip_template_content}")
+    endforeach()
+
+    set_property(
+      DIRECTORY
+      APPEND
+      PROPERTY CMAKE_CONFIGURE_DEPENDS "${_tip_template}")
+    set(_tip_template "${_tip_output}.tip-template.in")
+    file(WRITE "${_tip_template}" "${_tip_template_content}")
+  endif()
 
   configure_package_config_file(
     "${_tip_template}" "${_tip_output}"
@@ -1231,7 +1255,33 @@ endfunction()
 # CONFIG_TEMPLATE resolution source of truth:
 # docs/template_resolution.md#source-of-truth
 # ~~~
-function(target_prepare_package TARGET_NAME)
+function(target_prepare_package _tip_target_name)
+  # Capture caller substitutions before nonreserved implementation locals shadow their names.
+  # Only inspect the two routing arguments here; the complete parser below validates them.
+  set(_tip_registration_export "${_tip_target_name}")
+  set(_tip_registration_template "")
+  set(_tip_registration_index 1)
+  while(_tip_registration_index LESS ARGC)
+    set(_tip_registration_keyword "${ARGV${_tip_registration_index}}")
+    math(EXPR _tip_registration_index "${_tip_registration_index} + 1")
+    if(_tip_registration_keyword STREQUAL "EXPORT_NAME")
+      set(_tip_registration_export "${ARGV${_tip_registration_index}}")
+    elseif(_tip_registration_keyword STREQUAL "CONFIG_TEMPLATE")
+      set(_tip_registration_template "${ARGV${_tip_registration_index}}")
+    endif()
+  endwhile()
+  if(NOT _tip_registration_export)
+    set(_tip_registration_export "${_tip_target_name}")
+  endif()
+  if(_tip_registration_template)
+    _tip_resolve_absolute_paths(_tip_registration_template "${CMAKE_CURRENT_SOURCE_DIR}" "${_tip_registration_template}")
+    if(EXISTS "${_tip_registration_template}")
+      _tip_capture_config_template_context("_CMAKE_PACKAGE_EXPORT_${_tip_registration_export}" "${_tip_registration_template}")
+    endif()
+  endif()
+
+  set(TARGET_NAME "${_tip_target_name}")
+
   # Check for deprecated parameters BEFORE parsing
   if("RUNTIME_COMPONENT" IN_LIST ARGN OR "DEVELOPMENT_COMPONENT" IN_LIST ARGN)
     message(FATAL_ERROR "RUNTIME_COMPONENT and DEVELOPMENT_COMPONENT parameters are deprecated. "
@@ -1646,7 +1696,9 @@ function(target_prepare_package TARGET_NAME)
   if(ARG_CONFIG_TEMPLATE)
     _tip_resolve_absolute_paths(ARG_CONFIG_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ARG_CONFIG_TEMPLATE}")
     list(GET ARG_CONFIG_TEMPLATE 0 ARG_CONFIG_TEMPLATE)
-    _tip_capture_config_template_context("${EXPORT_PROPERTY_PREFIX}" "${ARG_CONFIG_TEMPLATE}")
+    if(NOT EXISTS "${ARG_CONFIG_TEMPLATE}")
+      project_log(FATAL_ERROR "User-provided config template not found: ${ARG_CONFIG_TEMPLATE}")
+    endif()
   endif()
 
   if(ARG_INCLUDE_ON_FIND_PACKAGE)
