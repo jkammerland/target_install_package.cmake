@@ -48,13 +48,14 @@ elseif(TIP_CHECK_CASE MATCHES "^cross-" OR TIP_CHECK_CASE STREQUAL "bracket-valu
     file(APPEND "${_tip_settings}" "list(APPEND TIP_CHECK_CONSUMER_ARGS -DTIP_NO_TESTS=ON)\n")
   endif()
   if(TIP_CHECK_CASE STREQUAL "cross-rooted")
-    set(_tip_dependency_prefix "${_tip_case}/dependency-prefix")
+    # Rerooting repeats the full host prefix; short names also fit Ninja's Windows limit.
+    set(_tip_dependency_prefix "${_tip_case}/dep")
     cmake_path(GET _tip_dependency_prefix RELATIVE_PART _tip_dependency_relative)
-    set(_tip_rooted_dependency "${_tip_case}/sysroot/${_tip_dependency_relative}/share/cmake/tip_check_rooted")
+    set(_tip_rooted_dependency "${_tip_case}/r/${_tip_dependency_relative}/share/cmake/tip_check_rooted")
     file(MAKE_DIRECTORY "${_tip_rooted_dependency}" "${_tip_dependency_prefix}/share/cmake/tip_check_rooted")
     file(WRITE "${_tip_rooted_dependency}/tip_check_rootedConfig.cmake" "add_library(tip_check_rooted::value INTERFACE IMPORTED)\n")
     file(WRITE "${_tip_dependency_prefix}/share/cmake/tip_check_rooted/tip_check_rootedConfig.cmake" "message(FATAL_ERROR \"Host dependency must not satisfy a rooted dependency search\")\n")
-    file(WRITE "${_tip_case}/toolchain.cmake" "set(CMAKE_SYSTEM_NAME ${CMAKE_HOST_SYSTEM_NAME})\nset(CMAKE_FIND_ROOT_PATH [==[${_tip_case}/sysroot]==])\nset(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)\n")
+    file(WRITE "${_tip_case}/toolchain.cmake" "set(CMAKE_SYSTEM_NAME ${CMAKE_HOST_SYSTEM_NAME})\nset(CMAKE_FIND_ROOT_PATH [==[${_tip_case}/r]==])\nset(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)\n")
     file(APPEND "${_tip_settings}" "set(TIP_CHECK_TOOLCHAIN_FILE [==[${_tip_case}/toolchain.cmake]==])\n" "set(TIP_CHECK_PREFIX_PATH [==[${_tip_dependency_prefix}]==])\n"
                                    "list(APPEND TIP_CHECK_PRODUCER_ARGS -DTIP_REQUIRE_ROOTED_DEPENDENCY=ON [==[-DCMAKE_PREFIX_PATH=${_tip_dependency_prefix}]==])\n")
   endif()
