@@ -8,6 +8,8 @@ module;
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
+#include <vector>
 
 module math:internal;
 
