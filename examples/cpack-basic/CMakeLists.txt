@@ -42,8 +42,18 @@ target_install_package(cpack_lib_utils NAMESPACE cpack_lib::)
 
 target_install_package(mytool NAMESPACE cpack_lib:: COMPONENT "Tools")
 
-# Configure CPack with auto-detection Note: CPack is automatically included by export_cpack
+# Leave the portable archive default in place unless specific package formats are requested.
+set(CPACK_BASIC_GENERATORS
+    ""
+    CACHE STRING "Semicolon-separated CPack generators; empty uses the platform archive default")
+set(_cpack_basic_generator_args "")
+if(NOT CPACK_BASIC_GENERATORS STREQUAL "")
+  list(APPEND _cpack_basic_generator_args GENERATORS ${CPACK_BASIC_GENERATORS})
+endif()
+
+# CPack is automatically included by export_cpack after component registration.
 export_cpack(
+  ${_cpack_basic_generator_args}
   PACKAGE_NAME
   "MyLibrary"
   PACKAGE_VERSION
@@ -60,7 +70,7 @@ export_cpack(
   "MIT"
   LICENSE_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE"
-  # AUTO-DETECTED: Components (Runtime, Development, Tools) AUTO-DETECTED: Generators (platform-specific)
+  # AUTO-DETECTED: Components (Runtime, Development, Tools)
   DEFAULT_COMPONENTS
   "Runtime"
   COMPONENT_GROUPS)
