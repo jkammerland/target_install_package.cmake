@@ -411,6 +411,11 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_cpack_single_component_filter COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_single_component_filter_test.cmake")
   set_tests_properties(proof_cpack_single_component_filter PROPERTIES LABELS "proof;review;cpack")
 
+  foreach(_tip_cpack_proof defaults metadata_roundtrip argument_contract manual_components)
+    add_test(NAME proof_cpack_${_tip_cpack_proof} COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_${_tip_cpack_proof}_test.cmake")
+    set_tests_properties(proof_cpack_${_tip_cpack_proof} PROPERTIES LABELS "proof;review;cpack")
+  endforeach()
+
   add_test(NAME proof_cpack_call_site_context COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_call_site_context_test.cmake")
   set_tests_properties(proof_cpack_call_site_context PROPERTIES LABELS "proof;review;cpack")
 
