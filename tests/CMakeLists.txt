@@ -588,3 +588,8 @@ if(target_install_package_BUILD_PROOF_TESTS)
     set_tests_properties(proof_${_tip_registration_proof} PROPERTIES LABELS "proof;review;registration")
   endforeach()
 endif()
+
+if(target_install_package_BUILD_PROOF_TESTS AND UNIX)
+  add_test(NAME proof_registered_runtime_paths COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_registered_runtime_paths_test.cmake")
+  set_tests_properties(proof_registered_runtime_paths PROPERTIES LABELS "proof;review;registration;rpath")
+endif()

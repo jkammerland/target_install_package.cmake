@@ -1827,6 +1827,15 @@ function(target_prepare_package _tip_target_name)
       if(DEFINED ARG_DEBUG_POSTFIX)
         set_property(GLOBAL PROPERTY "${_tip_target_prefix}_DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}")
       endif()
+
+      # Target-local lookup lets runtime dependencies span independently finalized exports.
+      get_property(
+        _tip_target_exports
+        TARGET ${_tip_registered_target}
+        PROPERTY _TIP_INSTALL_EXPORT_PREFIXES)
+      list(APPEND _tip_target_exports "${EXPORT_PROPERTY_PREFIX}")
+      list(REMOVE_DUPLICATES _tip_target_exports)
+      set_property(TARGET ${_tip_registered_target} PROPERTY _TIP_INSTALL_EXPORT_PREFIXES "${_tip_target_exports}")
     endif()
   endforeach()
 
@@ -2271,10 +2280,167 @@ function(_build_component_args VAR_PREFIX COMPONENT_PREFIX COMPONENT_TYPE)
       PARENT_SCOPE)
 endfunction()
 
+# Resolve the same configuration prefix for artifact installation and runtime lookup.
+function(_tip_install_configuration_prefix OUT_VAR TARGET_NAME)
+  get_target_property(_tip_layout ${TARGET_NAME} TARGET_INSTALL_PACKAGE_LAYOUT)
+  if(NOT _tip_layout OR _tip_layout STREQUAL "fhs")
+    set(_tip_prefix "")
+  elseif(_tip_layout STREQUAL "split_debug")
+    set(_tip_prefix "$<$<CONFIG:Debug>:debug/>")
+  elseif(_tip_layout STREQUAL "split_all")
+    set(_tip_prefix "$<$<BOOL:$<CONFIG>>:$<LOWER_CASE:$<CONFIG>>/>")
+  else()
+    project_log(FATAL_ERROR "Invalid LAYOUT '${_tip_layout}'. Valid values: fhs, split_debug, split_all")
+  endif()
+  set(${OUT_VAR}
+      "${_tip_prefix}"
+      PARENT_SCOPE)
+endfunction()
+
+# Resolve literal target links and bounded configuration selectors without interpreting
+# arbitrary link flags or guessing names embedded in other generator expressions.
+function(_tip_link_target_for_configuration OUT_VAR UNRESOLVED_OUT LINK_ITEM CONFIGURATION)
+  set(_tip_link "${LINK_ITEM}")
+  set(${UNRESOLVED_OUT}
+      FALSE
+      PARENT_SCOPE)
+  string(TOUPPER "${CONFIGURATION}" _tip_configuration)
+  while(TRUE)
+    if(TARGET "${_tip_link}")
+      set(${OUT_VAR}
+          "${_tip_link}"
+          PARENT_SCOPE)
+      return()
+    elseif(_tip_link MATCHES "^\\$<(LINK_ONLY|BUILD_INTERFACE|TARGET_NAME_IF_EXISTS):(.*)>$")
+      set(_tip_link "${CMAKE_MATCH_2}")
+    else()
+      set(_tip_negated FALSE)
+      if(_tip_link MATCHES "^\\$<\\$<CONFIG:([^>]*)>:(.*)>$")
+        set(_tip_configurations "${CMAKE_MATCH_1}")
+        set(_tip_payload "${CMAKE_MATCH_2}")
+      elseif(_tip_link MATCHES "^\\$<\\$<NOT:\\$<CONFIG:([^>]*)>>:(.*)>$")
+        set(_tip_configurations "${CMAKE_MATCH_1}")
+        set(_tip_payload "${CMAKE_MATCH_2}")
+        set(_tip_negated TRUE)
+      else()
+        if(_tip_link MATCHES "\\$<" AND NOT _tip_link MATCHES "^\\$<INSTALL_INTERFACE:.*>$")
+          set(${UNRESOLVED_OUT}
+              TRUE
+              PARENT_SCOPE)
+        endif()
+        break()
+      endif()
+
+      string(TOUPPER "${_tip_configurations}" _tip_configurations)
+      string(REPLACE "," ";" _tip_configurations "${_tip_configurations}")
+      set(_tip_selected FALSE)
+      if(_tip_configuration IN_LIST _tip_configurations OR _tip_configuration STREQUAL _tip_configurations)
+        set(_tip_selected TRUE)
+      endif()
+      if((_tip_selected AND NOT _tip_negated) OR (NOT _tip_selected AND _tip_negated))
+        set(_tip_link "${_tip_payload}")
+      else()
+        break()
+      endif()
+    endif()
+  endwhile()
+  set(${OUT_VAR}
+      ""
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_append_linked_install_rpaths OUT_VAR TARGET_NAME FROM_DESTINATION LOADER_ORIGIN)
+  set(_tip_paths "${${OUT_VAR}}")
+  if(CMAKE_CONFIGURATION_TYPES)
+    foreach(_tip_configuration IN LISTS CMAKE_CONFIGURATION_TYPES)
+      set(_tip_config_paths "")
+      _tip_append_linked_install_rpaths_for_configuration(_tip_config_paths "${TARGET_NAME}" "${FROM_DESTINATION}" "${LOADER_ORIGIN}" "${_tip_configuration}")
+      foreach(_tip_path IN LISTS _tip_config_paths)
+        list(APPEND _tip_paths "$<$<CONFIG:${_tip_configuration}>:${_tip_path}>")
+      endforeach()
+    endforeach()
+  else()
+    _tip_append_linked_install_rpaths_for_configuration(_tip_paths "${TARGET_NAME}" "${FROM_DESTINATION}" "${LOADER_ORIGIN}" "${CMAKE_BUILD_TYPE}")
+  endif()
+  set(${OUT_VAR}
+      "${_tip_paths}"
+      PARENT_SCOPE)
+endfunction()
+
+# Append runtime paths for registered shared libraries reached through linked targets.
+# Follow aliases and interface/static intermediaries, independent of export finalization order.
+function(_tip_append_linked_install_rpaths_for_configuration OUT_VAR TARGET_NAME FROM_DESTINATION LOADER_ORIGIN CONFIGURATION)
+  set(_tip_pending "${TARGET_NAME}")
+  set(_tip_visited "")
+  set(_tip_paths "${${OUT_VAR}}")
+  while(NOT "${_tip_pending}" STREQUAL "")
+    list(POP_FRONT _tip_pending _tip_dependency)
+    if(NOT TARGET "${_tip_dependency}")
+      continue()
+    endif()
+    get_target_property(_tip_aliased_target "${_tip_dependency}" ALIASED_TARGET)
+    if(_tip_aliased_target)
+      set(_tip_dependency "${_tip_aliased_target}")
+    endif()
+    if(_tip_dependency IN_LIST _tip_visited)
+      continue()
+    endif()
+    list(APPEND _tip_visited "${_tip_dependency}")
+
+    get_target_property(_tip_dependency_type "${_tip_dependency}" TYPE)
+    if(_tip_dependency_type STREQUAL "SHARED_LIBRARY" AND NOT _tip_dependency STREQUAL TARGET_NAME)
+      get_property(
+        _tip_exports
+        TARGET "${_tip_dependency}"
+        PROPERTY _TIP_INSTALL_EXPORT_PREFIXES)
+      _tip_install_configuration_prefix(_tip_prefix "${_tip_dependency}")
+      foreach(_tip_export IN LISTS _tip_exports)
+        get_property(_tip_libdir GLOBAL PROPERTY "${_tip_export}_TARGET_${_tip_dependency}_CMAKE_INSTALL_LIBDIR")
+        _tip_compute_relative_install_path(_tip_relative "${FROM_DESTINATION}" "${_tip_prefix}${_tip_libdir}")
+        if(NOT "${_tip_relative}" STREQUAL "")
+          if(IS_ABSOLUTE "${_tip_relative}")
+            list(APPEND _tip_paths "${_tip_relative}")
+          elseif(_tip_relative STREQUAL ".")
+            list(APPEND _tip_paths "${LOADER_ORIGIN}")
+          else()
+            list(APPEND _tip_paths "${LOADER_ORIGIN}/${_tip_relative}")
+          endif()
+        endif()
+      endforeach()
+    endif()
+
+    foreach(_tip_link_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+      get_property(
+        _tip_links
+        TARGET "${_tip_dependency}"
+        PROPERTY ${_tip_link_property})
+      foreach(_tip_link IN LISTS _tip_links)
+        _tip_link_target_for_configuration(_tip_link_target _tip_unresolved_link "${_tip_link}" "${CONFIGURATION}")
+        if(_tip_unresolved_link)
+          string(SHA256 _tip_warning_key "${TARGET_NAME}:${_tip_dependency}:${_tip_link}")
+          get_property(_tip_warned GLOBAL PROPERTY "_TIP_RPATH_UNRESOLVED_${_tip_warning_key}")
+          if(NOT _tip_warned)
+            project_log(
+              WARNING
+              "Automatic RPATH cannot resolve link expression '${_tip_link}' on '${_tip_dependency}' for '${TARGET_NAME}'. Set INSTALL_RPATH explicitly if this dependency uses a custom install destination."
+            )
+            set_property(GLOBAL PROPERTY "_TIP_RPATH_UNRESOLVED_${_tip_warning_key}" TRUE)
+          endif()
+        endif()
+        if(TARGET "${_tip_link_target}")
+          list(APPEND _tip_pending "${_tip_link_target}")
+        endif()
+      endforeach()
+    endforeach()
+  endwhile()
+  set(${OUT_VAR}
+      "${_tip_paths}"
+      PARENT_SCOPE)
+endfunction()
+
 # ~~~
 # Compute the path from one install destination to another using a dummy prefix so
-# results stay generator-agnostic. Returns an empty string if either destination
-# contains generator expressions that cannot be resolved at configure time.
+# results remain relocatable. Resolve layout generator expressions at generation time.
 # ~~~
 function(_tip_compute_relative_install_path RESULT_VAR FROM_DESTINATION TO_DESTINATION)
   set(${RESULT_VAR}
@@ -2285,15 +2451,19 @@ function(_tip_compute_relative_install_path RESULT_VAR FROM_DESTINATION TO_DESTI
     return()
   endif()
 
-  if("${TO_DESTINATION}" MATCHES "\\$<" OR "${FROM_DESTINATION}" MATCHES "\\$<")
-    project_log(DEBUG "Skipping relative path computation for generator expression destinations: from='${FROM_DESTINATION}' to='${TO_DESTINATION}'")
-    return()
-  endif()
-
   cmake_path(IS_ABSOLUTE TO_DESTINATION TO_IS_ABSOLUTE)
   if(TO_IS_ABSOLUTE)
     set(${RESULT_VAR}
         "${TO_DESTINATION}"
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  if("${TO_DESTINATION}" MATCHES "\\$<" OR "${FROM_DESTINATION}" MATCHES "\\$<")
+    set(_tip_from "$<PATH:ABSOLUTE_PATH,NORMALIZE,${FROM_DESTINATION},/target_install_package_prefix>")
+    set(_tip_to "$<PATH:ABSOLUTE_PATH,NORMALIZE,${TO_DESTINATION},/target_install_package_prefix>")
+    set(${RESULT_VAR}
+        "$<PATH:RELATIVE_PATH,${_tip_to},${_tip_from}>"
         PARENT_SCOPE)
     return()
   endif()
@@ -2684,23 +2854,7 @@ function(finalize_package)
     # - ARCHIVE: Static libraries and Windows import libs → lib/
     #   (Import .lib files are development artifacts, not runtime)
     # ~~~
-    # Determine configuration subdirectory policy based on layout. Layout options: - fhs:           no config subdir (standard system layout) - split_debug:   Debug under debug/, others no subdir -
-    # split_all: all configs under lower-cased $<CONFIG>/ (guarded for empty)
-    get_target_property(_tip_target_layout ${TARGET_NAME} TARGET_INSTALL_PACKAGE_LAYOUT)
-    if(NOT _tip_target_layout)
-      set(_tip_target_layout "fhs")
-    endif()
-    set(_tip_cfgdir "")
-
-    if(_tip_target_layout STREQUAL "fhs")
-      set(_tip_cfgdir "")
-    elseif(_tip_target_layout STREQUAL "split_debug")
-      set(_tip_cfgdir "$<$<CONFIG:Debug>:debug/>")
-    elseif(_tip_target_layout STREQUAL "split_all")
-      set(_tip_cfgdir "$<$<BOOL:$<CONFIG>>:$<LOWER_CASE:$<CONFIG>>/>")
-    else()
-      project_log(FATAL_ERROR "Invalid LAYOUT '${_tip_target_layout}'. Valid values: fhs, split_debug, split_all")
-    endif()
+    _tip_install_configuration_prefix(_tip_cfgdir "${TARGET_NAME}")
 
     list(
       APPEND
@@ -2814,66 +2968,36 @@ function(finalize_package)
         if(NOT TARGET_RPATH AND NOT CMAKE_INSTALL_RPATH)
           set(DEFAULT_RPATHS)
 
-          set(_tip_runtime_destination "${CMAKE_INSTALL_BINDIR}")
-          if(NOT _tip_runtime_destination)
-            set(_tip_runtime_destination "bin")
-          endif()
-
-          set(_tip_library_destination "${CMAKE_INSTALL_LIBDIR}")
-          if(NOT _tip_library_destination)
-            set(_tip_library_destination "lib")
-          endif()
-
           if(APPLE)
             if(TARGET_TYPE STREQUAL "EXECUTABLE")
-              set(_tip_rel_path "")
-              _tip_compute_relative_install_path(_tip_rel_path "${_tip_runtime_destination}" "${_tip_library_destination}")
-
-              if(_tip_rel_path)
-                cmake_path(IS_ABSOLUTE _tip_rel_path _tip_rel_abs)
-                if(_tip_rel_abs)
-                  list(APPEND DEFAULT_RPATHS "${_tip_rel_path}")
-                elseif(_tip_rel_path STREQUAL "." OR _tip_rel_path STREQUAL "./")
-                  list(APPEND DEFAULT_RPATHS "@executable_path")
-                else()
-                  string(REGEX REPLACE "^\\./" "" _tip_rel_path_clean "${_tip_rel_path}")
-                  string(REPLACE "\\" "/" _tip_rel_path_clean "${_tip_rel_path_clean}")
-                  list(APPEND DEFAULT_RPATHS "@executable_path/${_tip_rel_path_clean}")
-                endif()
-              else()
-                list(APPEND DEFAULT_RPATHS "@executable_path/../lib" "@executable_path/../lib64")
-              endif()
-
-              # Always allow colocated runtime resolution for custom layouts
-              list(APPEND DEFAULT_RPATHS "@executable_path")
+              set(_tip_loader_origin "@executable_path")
             else()
-              list(APPEND DEFAULT_RPATHS "@loader_path")
+              set(_tip_loader_origin "@loader_path")
             endif()
-          else() # Linux/Unix
-            if(TARGET_TYPE STREQUAL "EXECUTABLE")
-              set(_tip_rel_path "")
-              _tip_compute_relative_install_path(_tip_rel_path "${_tip_runtime_destination}" "${_tip_library_destination}")
+          else()
+            set(_tip_loader_origin "\$ORIGIN")
+          endif()
 
-              if(_tip_rel_path)
-                cmake_path(IS_ABSOLUTE _tip_rel_path _tip_rel_abs)
-                if(_tip_rel_abs)
-                  list(APPEND DEFAULT_RPATHS "${_tip_rel_path}")
-                elseif(_tip_rel_path STREQUAL "." OR _tip_rel_path STREQUAL "./")
-                  list(APPEND DEFAULT_RPATHS "\$ORIGIN")
-                else()
-                  string(REGEX REPLACE "^\\./" "" _tip_rel_path_clean "${_tip_rel_path}")
-                  list(APPEND DEFAULT_RPATHS "\$ORIGIN/${_tip_rel_path_clean}")
-                endif()
-              else()
-                list(APPEND DEFAULT_RPATHS "\$ORIGIN/../lib" "\$ORIGIN/../lib64")
-              endif()
+          set(_tip_library_destination "${_tip_cfgdir}${CMAKE_INSTALL_LIBDIR}")
+          if(TARGET_TYPE STREQUAL "EXECUTABLE")
+            set(_tip_target_destination "${_tip_cfgdir}${CMAKE_INSTALL_BINDIR}")
+          else()
+            set(_tip_target_destination "${_tip_library_destination}")
+          endif()
+          _tip_append_linked_install_rpaths(DEFAULT_RPATHS "${TARGET_NAME}" "${_tip_target_destination}" "${_tip_loader_origin}")
 
-              # Allow executables to resolve libraries placed alongside them (plugins, tests, etc.)
-              list(APPEND DEFAULT_RPATHS "\$ORIGIN")
-            else()
-              list(APPEND DEFAULT_RPATHS "\$ORIGIN")
+          # Retain the directory-local defaults for unregistered runtime dependencies.
+          if(TARGET_TYPE STREQUAL "EXECUTABLE")
+            _tip_compute_relative_install_path(_tip_relative "${_tip_target_destination}" "${_tip_library_destination}")
+            if(IS_ABSOLUTE "${_tip_relative}")
+              list(APPEND DEFAULT_RPATHS "${_tip_relative}")
+            elseif(_tip_relative STREQUAL ".")
+              list(APPEND DEFAULT_RPATHS "${_tip_loader_origin}")
+            elseif(NOT "${_tip_relative}" STREQUAL "")
+              list(APPEND DEFAULT_RPATHS "${_tip_loader_origin}/${_tip_relative}")
             endif()
           endif()
+          list(APPEND DEFAULT_RPATHS "${_tip_loader_origin}")
 
           list(FILTER DEFAULT_RPATHS EXCLUDE REGEX "^$")
           list(REMOVE_DUPLICATES DEFAULT_RPATHS)
