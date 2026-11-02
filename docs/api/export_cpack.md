@@ -53,6 +53,8 @@ When wrapper targets and plain `install(... COMPONENT ...)` rules are mixed, lis
 
 ## Timing and values
 
+Repeated list arguments accumulate in encounter order, for example `COMPONENTS Runtime COMPONENTS Development` selects both components.
+
 The public call captures arguments and project metadata from its calling directory. CPack aggregation and configuration run at the end of root configuration so later target registrations contribute components. A second `export_cpack()` call in the same build tree is an error.
 
 Metadata is preserved through deferred execution and written with `CPACK_VERBATIM_VARIABLES`. Quote strings or use bracket arguments for ordinary prose:
