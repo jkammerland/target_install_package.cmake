@@ -1,16 +1,15 @@
 cmake_minimum_required(VERSION 3.25)
 include("${CMAKE_CURRENT_LIST_DIR}/proof_helpers.cmake")
 
-# Every invocation gets its own evidence directory, including parallel CTest runs.
+# Keep compiler scratch paths short while isolating parallel CTest invocations.
 string(
   RANDOM
   LENGTH 12
   ALPHABET 0123456789abcdef _tip_case_id)
-set(_tip_case "${TIP_CHECK_TEST_ROOT}/${TIP_CHECK_CASE}-${_tip_case_id}")
-set(_tip_work_root "${_tip_case}/runs")
+set(_tip_case "${TIP_CHECK_TEST_ROOT}/${_tip_case_id}")
+set(_tip_work_root "${_tip_case}")
 file(MAKE_DIRECTORY "${_tip_case}")
-file(MAKE_DIRECTORY "${_tip_case}/runs")
-file(WRITE "${_tip_case}/runs/keep.txt" "existing user data\n")
+file(WRITE "${_tip_case}/keep.txt" "existing user data\n")
 set(_tip_settings "${_tip_case}/settings.cmake")
 _tip_proof_append_toolchain_args(_tip_toolchain_args)
 file(
@@ -34,7 +33,10 @@ elseif(TIP_CHECK_CASE STREQUAL "no-tests")
   file(APPEND "${_tip_settings}" "list(APPEND TIP_CHECK_CONSUMER_ARGS -DTIP_NO_TESTS=ON)\nset(TIP_CHECK_RUN_TESTS ON)\n")
   set(_tip_expected_failure "installed-test failed;No tests were found")
 elseif(TIP_CHECK_CASE MATCHES "^cross-" OR TIP_CHECK_CASE STREQUAL "bracket-values")
-  file(APPEND "${_tip_settings}" "list(APPEND TIP_CHECK_PRODUCER_ARGS -DCMAKE_SYSTEM_NAME=Generic)\nlist(APPEND TIP_CHECK_CONSUMER_ARGS -DCMAKE_SYSTEM_NAME=Generic)\n")
+  # An explicit system name enables CMAKE_CROSSCOMPILING even for the host system.
+  # Retain the native platform's compiler rules so this policy test also runs with MSVC.
+  file(APPEND "${_tip_settings}"
+       "list(APPEND TIP_CHECK_PRODUCER_ARGS -DCMAKE_SYSTEM_NAME=${CMAKE_HOST_SYSTEM_NAME})\nlist(APPEND TIP_CHECK_CONSUMER_ARGS -DCMAKE_SYSTEM_NAME=${CMAKE_HOST_SYSTEM_NAME})\n")
   if(TIP_CHECK_CASE STREQUAL "cross-emulator" OR TIP_CHECK_CASE STREQUAL "bracket-values")
     file(APPEND "${_tip_settings}"
          "set(TIP_CHECK_EMULATOR [====[${CMAKE_COMMAND};-E;env;TIP_CHECK_EMULATED=1;TIP_CHECK_DELIMITERS=]=]-]==]-]===]]====])\nlist(APPEND TIP_CHECK_CONSUMER_ARGS -DTIP_EXPECT_EMULATOR=ON)\n")
@@ -47,11 +49,12 @@ elseif(TIP_CHECK_CASE MATCHES "^cross-" OR TIP_CHECK_CASE STREQUAL "bracket-valu
   endif()
   if(TIP_CHECK_CASE STREQUAL "cross-rooted")
     set(_tip_dependency_prefix "${_tip_case}/dependency-prefix")
-    set(_tip_rooted_dependency "${_tip_case}/sysroot${_tip_dependency_prefix}/share/cmake/tip_check_rooted")
+    cmake_path(GET _tip_dependency_prefix RELATIVE_PART _tip_dependency_relative)
+    set(_tip_rooted_dependency "${_tip_case}/sysroot/${_tip_dependency_relative}/share/cmake/tip_check_rooted")
     file(MAKE_DIRECTORY "${_tip_rooted_dependency}" "${_tip_dependency_prefix}/share/cmake/tip_check_rooted")
     file(WRITE "${_tip_rooted_dependency}/tip_check_rootedConfig.cmake" "add_library(tip_check_rooted::value INTERFACE IMPORTED)\n")
     file(WRITE "${_tip_dependency_prefix}/share/cmake/tip_check_rooted/tip_check_rootedConfig.cmake" "message(FATAL_ERROR \"Host dependency must not satisfy a rooted dependency search\")\n")
-    file(WRITE "${_tip_case}/toolchain.cmake" "set(CMAKE_SYSTEM_NAME Generic)\nset(CMAKE_FIND_ROOT_PATH [==[${_tip_case}/sysroot]==])\nset(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)\n")
+    file(WRITE "${_tip_case}/toolchain.cmake" "set(CMAKE_SYSTEM_NAME ${CMAKE_HOST_SYSTEM_NAME})\nset(CMAKE_FIND_ROOT_PATH [==[${_tip_case}/sysroot]==])\nset(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)\n")
     file(APPEND "${_tip_settings}" "set(TIP_CHECK_TOOLCHAIN_FILE [==[${_tip_case}/toolchain.cmake]==])\n" "set(TIP_CHECK_PREFIX_PATH [==[${_tip_dependency_prefix}]==])\n"
                                    "list(APPEND TIP_CHECK_PRODUCER_ARGS -DTIP_REQUIRE_ROOTED_DEPENDENCY=ON [==[-DCMAKE_PREFIX_PATH=${_tip_dependency_prefix}]==])\n")
   endif()
@@ -70,7 +73,7 @@ execute_process(
   OUTPUT_VARIABLE _tip_stdout
   ERROR_VARIABLE _tip_stderr)
 file(WRITE "${_tip_case}/check.log" "${_tip_stdout}\n${_tip_stderr}")
-_tip_proof_assert_file_contains("${_tip_case}/runs/keep.txt" "existing user data")
+_tip_proof_assert_file_contains("${_tip_case}/keep.txt" "existing user data")
 if(_tip_expected_failure)
   if("${_tip_result}" STREQUAL "0")
     _tip_proof_fail("${TIP_CHECK_CASE} unexpectedly succeeded: ${_tip_case}/check.log")

@@ -62,6 +62,9 @@ directory yourself when its evidence is no longer needed. Run producer projects
 whose install rules you trust: absolute install destinations can write outside
 the requested prefix.
 
+Choose a short work-root path with Windows toolchains so the nested compiler
+checks remain within the compiler's path-length limits.
+
 `TIP_CHECK_PACKAGE` is the exact name passed to the consumer's config-mode
 `find_package`. Its cached `<package>_DIR` must resolve inside the installation
 being checked; accidentally finding a system copy fails the check. Package
