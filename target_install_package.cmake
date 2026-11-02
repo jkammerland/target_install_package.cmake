@@ -2409,7 +2409,9 @@ function(_tip_append_linked_install_rpaths_for_configuration OUT_VAR TARGET_NAME
       endforeach()
     endif()
 
-    foreach(_tip_link_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+    # Direct-link injections are usage requirements too. Do not prune EXCLUDE targets:
+    # exclusion changes the direct link list, but a target may still be needed indirectly.
+    foreach(_tip_link_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES INTERFACE_LINK_LIBRARIES_DIRECT)
       get_property(
         _tip_links
         TARGET "${_tip_dependency}"

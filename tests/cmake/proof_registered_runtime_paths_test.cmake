@@ -39,6 +39,7 @@ include("@TIP_REPO_ROOT@/target_install_package.cmake")
 add_subdirectory(app)
 add_subdirectory(bridge)
 add_subdirectory(leaf)
+add_subdirectory(injected)
 ]=])
   string(CONFIGURE "${_tip_project}" _tip_project @ONLY)
   file(WRITE "${_tip_source}/CMakeLists.txt" "${_tip_project}")
@@ -48,6 +49,9 @@ add_subdirectory(leaf)
 set(CMAKE_INSTALL_BINDIR app/bin)
 set(CMAKE_INSTALL_LIBDIR app/lib)
 add_library(runtime_interface INTERFACE)
+# Native direct-link injection must also contribute registered runtime destinations.
+set_property(TARGET runtime_interface PROPERTY INTERFACE_LINK_LIBRARIES_DIRECT Injected::library Excluded::library)
+set_property(TARGET runtime_interface PROPERTY INTERFACE_LINK_LIBRARIES_DIRECT_EXCLUDE Excluded::library)
 target_link_libraries(runtime_interface INTERFACE
   "$<$<CONFIG:Debug>:$<LINK_ONLY:Bridge::library>>"
   "$<$<NOT:$<CONFIG:Debug>>:$<LINK_ONLY:Bridge::library>>")
@@ -74,7 +78,7 @@ file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/rpaths-$<CONFIG>.txt" CONTENT "explici
 ]=])
   string(CONFIGURE "${_tip_app}" _tip_app @ONLY)
   file(WRITE "${_tip_source}/app/CMakeLists.txt" "${_tip_app}")
-  file(WRITE "${_tip_source}/app/main.cpp" "int facade(); int main() { return facade() == 42 ? 0 : 1; }\n")
+  file(WRITE "${_tip_source}/app/main.cpp" "int facade(); int injected(); int main() { return facade() == 42 && injected() == 17 ? 0 : 1; }\n")
   file(WRITE "${_tip_source}/app/facade.cpp" "int bridge(); int facade() { return bridge() + 1; }\n")
 
   set(_tip_bridge
@@ -99,6 +103,23 @@ target_install_package(runtime_leaf EXPORT_NAME @_tip_leaf_export@ NAMESPACE Run
   string(CONFIGURE "${_tip_leaf}" _tip_leaf @ONLY)
   file(WRITE "${_tip_source}/leaf/CMakeLists.txt" "${_tip_leaf}")
   file(WRITE "${_tip_source}/leaf/leaf.cpp" "int leaf() { return 40; }\n")
+
+  set(_tip_injected
+      [=[
+set(CMAKE_INSTALL_LIBDIR injected/lib)
+add_library(runtime_injected SHARED injected.cpp)
+add_library(Injected::library ALIAS runtime_injected)
+target_install_package(runtime_injected EXPORT_NAME @_tip_leaf_export@ NAMESPACE Runtime:: CMAKE_CONFIG_DESTINATION common/cmake LAYOUT @_tip_leaf_layout@)
+
+set(CMAKE_INSTALL_LIBDIR excluded/lib)
+add_library(runtime_excluded SHARED excluded.cpp)
+add_library(Excluded::library ALIAS runtime_excluded)
+target_install_package(runtime_excluded EXPORT_NAME @_tip_leaf_export@ NAMESPACE Runtime:: CMAKE_CONFIG_DESTINATION common/cmake)
+]=])
+  string(CONFIGURE "${_tip_injected}" _tip_injected @ONLY)
+  file(WRITE "${_tip_source}/injected/CMakeLists.txt" "${_tip_injected}")
+  file(WRITE "${_tip_source}/injected/injected.cpp" "int injected() { return 17; }\n")
+  file(WRITE "${_tip_source}/injected/excluded.cpp" "int excluded() { return 99; }\n")
 
   _tip_proof_run_step(
     NAME
@@ -138,6 +159,8 @@ target_install_package(runtime_leaf EXPORT_NAME @_tip_leaf_export@ NAMESPACE Run
 
   # A real relocated process checks executable and shared-library dependency lookup without environment help.
   file(RENAME "${_tip_install}" "${_tip_relocated}")
+  # Native exclusion removes this direct dependency; an unused search directory is harmless.
+  file(REMOVE_RECURSE "${_tip_relocated}/excluded")
   _tip_proof_run_step(
     NAME
     "${_tip_case}-relocated-run"
