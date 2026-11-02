@@ -58,6 +58,15 @@ FUNCTION(_tip_check_run stage)
   ENDIF()
 ENDFUNCTION()
 
+# Cache values may contain CMake bracket delimiters, including in valid host paths.
+FUNCTION(_tip_check_cache_value path name type value)
+  SET(_tip_equals "=")
+  WHILE("${value}" MATCHES "\\]${_tip_equals}\\]")
+    STRING(APPEND _tip_equals "=")
+  ENDWHILE()
+  FILE(APPEND "${path}" "set(${name} [${_tip_equals}[${value}]${_tip_equals}] CACHE ${type} \"\" FORCE)\n")
+ENDFUNCTION()
+
 # Keep the generator, toolchain, and configuration consistent across all three builds.
 SET(_tip_common_args "-DCMAKE_BUILD_TYPE=${TIP_CHECK_CONFIG}")
 IF(TIP_CHECK_GENERATOR)
@@ -106,9 +115,14 @@ FUNCTION(_tip_check_consumer phase prefix)
   SET(_tip_build "${_tip_run}/${phase}-consumer")
 
   # An initial cache preserves list-valued dependency paths and emulator arguments.
-  FILE(WRITE "${_tip_run}/${phase}-cache.cmake" "set(CMAKE_PREFIX_PATH [==[${prefix};${TIP_CHECK_PREFIX_PATH}]==] CACHE STRING \"\" FORCE)\n")
+  SET(_tip_cache "${_tip_run}/${phase}-cache.cmake")
+  FILE(WRITE "${_tip_cache}" "")
+  _tip_check_cache_value("${_tip_cache}" CMAKE_PREFIX_PATH STRING "${prefix};${TIP_CHECK_PREFIX_PATH}")
+
+  # Staged host paths bypass sysroot rerooting without changing dependency search policy.
+  _tip_check_cache_value("${_tip_cache}" CMAKE_STAGING_PREFIX PATH "${prefix}")
   IF(TIP_CHECK_EMULATOR)
-    FILE(APPEND "${_tip_run}/${phase}-cache.cmake" "set(CMAKE_CROSSCOMPILING_EMULATOR [==[${TIP_CHECK_EMULATOR}]==] CACHE STRING \"\" FORCE)\n")
+    _tip_check_cache_value("${_tip_cache}" CMAKE_CROSSCOMPILING_EMULATOR STRING "${TIP_CHECK_EMULATOR}")
   ENDIF()
   _TIP_CHECK_RUN(
     ${phase}-configure
@@ -119,7 +133,7 @@ FUNCTION(_tip_check_consumer phase prefix)
     -B
     "${_tip_build}"
     -C
-    "${_tip_run}/${phase}-cache.cmake"
+    "${_tip_cache}"
     ${TIP_CHECK_CONSUMER_ARGS}
     ${_tip_common_args}
     "-DTIP_CHECK_PREFIX=${prefix}"

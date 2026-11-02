@@ -248,6 +248,8 @@ foreach(
         no-tests
         cross-build
         cross-emulator
+        cross-rooted
+        bracket-values
         outside-prefix)
   add_test(NAME "installed_consumer_check_${_tip_check_case}"
            COMMAND ${CMAKE_COMMAND} "-DTIP_CHECK_CASE=${_tip_check_case}" "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_CHECK_TEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/consumer-check"

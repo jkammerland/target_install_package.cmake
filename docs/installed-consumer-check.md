@@ -114,6 +114,11 @@ set(TIP_CHECK_TOOLCHAIN_FILE /path/to/aarch64-toolchain.cmake)
 set(TIP_CHECK_EMULATOR qemu-aarch64 -L /path/to/aarch64-sysroot)
 ```
 
+Each consumer uses the tested installation as its `CMAKE_STAGING_PREFIX`, so
+cross toolchains can find the staged package on the host. Dependency searches
+retain the toolchain's `CMAKE_FIND_ROOT_PATH_MODE_PACKAGE` policy. Keep the
+consumer staging prefix under the script's control.
+
 Use `add_test(NAME ... COMMAND consumer)` with the executable target name so
 CMake applies the emulator. If the toolchain already defines an emulator, or
 tests provide their own target runner, set `TIP_CHECK_RUN_TESTS ON` to explicitly
