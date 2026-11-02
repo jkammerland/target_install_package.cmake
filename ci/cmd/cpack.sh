@@ -26,6 +26,7 @@ Suites:
 Options:
   --suite <name>         Suite to run (default: basic)
   --build-type <type>    Build type (default: Release)
+  --generators <list>    Basic suite generators as a semicolon-separated list (default: platform package formats)
   --cc <path>            C compiler for configure
   --cxx <path>           C++ compiler for configure
   --artifacts-dir <dir>  For cross-platform suite (default: ./build/cpack/artifacts)
@@ -37,6 +38,7 @@ EOF
 
 suite="basic"
 build_type="Release"
+generators=""
 cc=""
 cxx=""
 artifacts_dir="${ci_root}/build/cpack/artifacts"
@@ -55,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --build-type)
       build_type="${2:?}"
+      shift 2
+      ;;
+    --generators)
+      generators="${2:?}"
       shift 2
       ;;
     --cc)
@@ -386,6 +392,19 @@ verify_native_component_dependencies() {
 }
 
 run_basic() {
+  # Request the suite's platform package formats and common TGZ content checks
+  # explicitly instead of inheriting the example's archive default.
+  local basic_generators="${generators}"
+  if [[ -z "${basic_generators}" ]]; then
+    if ci_is_windows; then
+      basic_generators="TGZ;ZIP"
+    elif ci_is_macos; then
+      basic_generators="TGZ;DragNDrop"
+    else
+      basic_generators="TGZ;DEB;RPM"
+    fi
+  fi
+
   ci_log "==> Generate test GPG key"
   mkdir -p "${ci_root}/build/ci-deps"
   generate_test_gpg_key
@@ -408,6 +427,7 @@ run_basic() {
     ${cxx:+-DCMAKE_CXX_COMPILER=${cxx}} \
     -DCMAKE_BUILD_TYPE="${build_type}" \
     -DCMAKE_INSTALL_PREFIX=/usr \
+    "-DCPACK_BASIC_GENERATORS=${basic_generators}" \
     -DPROJECT_LOG_COLORS=ON
 
   ci_log "==> Build cpack-basic"

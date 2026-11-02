@@ -55,6 +55,7 @@ jobs:
         run: |
           set -euxo pipefail
           bash ci/run.sh cpack --suite basic --build-type "${{ matrix.build_type }}" \
+            --generators "${{ matrix.expected_generators }}" \
             --cc "${{ matrix.c_compiler }}" --cxx "${{ matrix.cpp_compiler }}"
 
       - name: Upload CPack Artifacts with GPG Signatures
