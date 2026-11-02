@@ -580,3 +580,16 @@ if(target_install_package_BUILD_PROOF_TESTS)
     set_tests_properties(proof_container_flow PROPERTIES LABELS "proof;review;container")
   endif()
 endif()
+
+# Registration scope and argument semantics remain supported on the CMake 3.25 floor.
+if(target_install_package_BUILD_PROOF_TESTS)
+  foreach(_tip_registration_proof IN ITEMS registration_context debug_postfix missing_keyword_values)
+    add_test(NAME proof_${_tip_registration_proof} COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_${_tip_registration_proof}_test.cmake")
+    set_tests_properties(proof_${_tip_registration_proof} PROPERTIES LABELS "proof;review;registration")
+  endforeach()
+endif()
+
+if(target_install_package_BUILD_PROOF_TESTS AND UNIX)
+  add_test(NAME proof_registered_runtime_paths COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_registered_runtime_paths_test.cmake")
+  set_tests_properties(proof_registered_runtime_paths PROPERTIES LABELS "proof;review;registration;rpath")
+endif()
