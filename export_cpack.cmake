@@ -406,11 +406,23 @@ function(export_cpack)
       if(_tip_value STREQUAL "" AND NOT _tip_keyword STREQUAL "CHECKSUMS")
         project_log(FATAL_ERROR "${_tip_keyword} requires a value.")
       endif()
+
+      # Composed argument blocks may repeat a list keyword. Retain prior values
+      # in encounter order, while scalar keywords continue to use the last value.
+      get_property(_tip_previous_values GLOBAL PROPERTY "_TIP_CPACK_ARG_${_tip_keyword}")
+      if(NOT "${_tip_previous_values}" STREQUAL "")
+        if(_tip_value STREQUAL "")
+          set(_tip_value "${_tip_previous_values}")
+        else()
+          set(_tip_value "${_tip_previous_values};${_tip_value}")
+        endif()
+      endif()
     endif()
     set_property(GLOBAL PROPERTY "_TIP_CPACK_ARG_${_tip_keyword}" "${_tip_value}")
   endwhile()
 
   list(REMOVE_DUPLICATES _tip_explicit_keywords)
+  set_property(GLOBAL PROPERTY "_TIP_CPACK_KEYWORDS" "${_tip_keywords}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_EXPLICIT_KEYWORDS" "${_tip_explicit_keywords}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_ADDITIONAL_COUNT" "${_tip_additional_count}")
   set_property(GLOBAL PROPERTY "_TIP_CPACK_CONFIG_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -1184,6 +1196,13 @@ endfunction()
 
 # Internal function to execute the deferred CPack configuration
 function(_execute_deferred_cpack_config)
+  # Shadow every parsed name, including omitted options. Unsetting names would
+  # expose same-named cache entries; explicit-keyword membership records presence.
+  get_property(_tip_cpack_keywords GLOBAL PROPERTY "_TIP_CPACK_KEYWORDS")
+  foreach(_tip_keyword IN LISTS _tip_cpack_keywords)
+    set(ARG_${_tip_keyword} "")
+  endforeach()
+
   get_property(_tip_cpack_parse_args GLOBAL PROPERTY "_TIP_CPACK_EXPLICIT_KEYWORDS")
   foreach(_tip_keyword IN LISTS _tip_cpack_parse_args)
     get_property(ARG_${_tip_keyword} GLOBAL PROPERTY "_TIP_CPACK_ARG_${_tip_keyword}")
@@ -1295,29 +1314,29 @@ function(_execute_deferred_cpack_config)
   endif()
 
   # Set default package metadata from project properties
-  if(NOT DEFINED ARG_PACKAGE_NAME)
+  if(NOT "PACKAGE_NAME" IN_LIST _tip_cpack_parse_args)
     set(ARG_PACKAGE_NAME "${_tip_cpack_config_project_name}")
   endif()
 
-  if(NOT DEFINED ARG_PACKAGE_VERSION)
+  if(NOT "PACKAGE_VERSION" IN_LIST _tip_cpack_parse_args)
     set(ARG_PACKAGE_VERSION "${_tip_cpack_config_project_version}")
     if(NOT ARG_PACKAGE_VERSION)
       set(ARG_PACKAGE_VERSION "1.0.0")
     endif()
   endif()
 
-  if(NOT DEFINED ARG_PACKAGE_DESCRIPTION)
+  if(NOT "PACKAGE_DESCRIPTION" IN_LIST _tip_cpack_parse_args)
     set(ARG_PACKAGE_DESCRIPTION "${_tip_cpack_config_project_description}")
     if(NOT ARG_PACKAGE_DESCRIPTION)
       set(ARG_PACKAGE_DESCRIPTION "Package created with target_install_package")
     endif()
   endif()
 
-  if(NOT DEFINED ARG_PACKAGE_HOMEPAGE_URL)
+  if(NOT "PACKAGE_HOMEPAGE_URL" IN_LIST _tip_cpack_parse_args)
     set(ARG_PACKAGE_HOMEPAGE_URL "${_tip_cpack_config_project_homepage_url}")
   endif()
 
-  if(NOT DEFINED ARG_PACKAGE_VENDOR)
+  if(NOT "PACKAGE_VENDOR" IN_LIST _tip_cpack_parse_args)
     if(ARG_PACKAGE_HOMEPAGE_URL)
       # Extract domain from homepage URL as vendor
       string(REGEX REPLACE "^https?://([^/]+).*" "\\1" ARG_PACKAGE_VENDOR "${ARG_PACKAGE_HOMEPAGE_URL}")
@@ -1326,7 +1345,7 @@ function(_execute_deferred_cpack_config)
     endif()
   endif()
 
-  if(NOT DEFINED ARG_PACKAGE_CONTACT)
+  if(NOT "PACKAGE_CONTACT" IN_LIST _tip_cpack_parse_args)
     set(ARG_PACKAGE_CONTACT "maintainer@${ARG_PACKAGE_VENDOR}")
   endif()
 
@@ -1391,8 +1410,8 @@ function(_execute_deferred_cpack_config)
 
   # The default archive needs no native packaging tools. ARCHIVE_FORMAT is a
   # shorthand for selecting one archive; GENERATORS supplies the complete list.
-  if(DEFINED ARG_ARCHIVE_FORMAT)
-    if(DEFINED ARG_GENERATORS)
+  if("ARCHIVE_FORMAT" IN_LIST _tip_cpack_parse_args)
+    if("GENERATORS" IN_LIST _tip_cpack_parse_args)
       project_log(FATAL_ERROR "ARCHIVE_FORMAT and GENERATORS cannot be used together. Select archive formats in GENERATORS when specifying a generator list.")
     endif()
     if(NOT ARG_ARCHIVE_FORMAT MATCHES "^(7Z(_(BZ2|DEFLATE|LZMA|LZMA2|PPMD|STORE|ZSTD))?|STGZ|TAR|TBZ2|TGZ|TXZ|TZ|TZST|ZIP(_(BZ2|DEFLATE|LZMA|LZMA2|STORE|ZSTD))?)$")
@@ -2318,9 +2337,14 @@ function(_configure_gpg_signing)
       PACKAGE_VERSION
       PACKAGE_CONTACT)
   set(multiValueArgs CHECKSUMS)
-  cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
-  if(ARG_UNPARSED_ARGUMENTS)
-    project_log(FATAL_ERROR "Unknown arguments for GPG signing configuration: ${ARG_UNPARSED_ARGUMENTS}")
+  # Empty values are unset before CMP0174, so use a separate parse namespace
+  # before assigning every ARG_* variable consumed here and by the signing template.
+  cmake_parse_arguments(PARSE_ARGV 0 _tip_signing_arg "${options}" "${oneValueArgs}" "${multiValueArgs}")
+  foreach(_tip_signing_keyword IN LISTS options oneValueArgs multiValueArgs)
+    set(ARG_${_tip_signing_keyword} "${_tip_signing_arg_${_tip_signing_keyword}}")
+  endforeach()
+  if(_tip_signing_arg_UNPARSED_ARGUMENTS)
+    project_log(FATAL_ERROR "Unknown arguments for GPG signing configuration: ${_tip_signing_arg_UNPARSED_ARGUMENTS}")
   endif()
 
   # Set defaults with environment variable fallbacks
