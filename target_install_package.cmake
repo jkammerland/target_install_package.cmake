@@ -133,7 +133,7 @@ endif()
 #   CMAKE_CONFIG_DESTINATION     - Destination for CMake config files (default: `${CMAKE_INSTALL_DATADIR}/cmake/${EXPORT_NAME}`).
 #   COMPONENT                    - Optional runtime component name. Development files stay in the shared `Development` component.
 #                                  If omitted, uses default "Runtime" and "Development" components.
-#   DEBUG_POSTFIX                - Debug postfix for library names (default: "d").
+#   DEBUG_POSTFIX                - Per-target debug postfix, including an explicit empty string. Otherwise preserves the final target property, then defaults to "d".
 #   ADDITIONAL_FILES             - Additional files to install, relative to source dir.
 #   ADDITIONAL_FILES_DESTINATION - Destination for additional files (default: install prefix root).
 #   ADDITIONAL_FILES_COMPONENTS  - Optional install components for additional files. If omitted, files use the development component.
@@ -200,14 +200,19 @@ endif()
 #     DISABLE_RPATH)
 # ~~~
 function(target_install_package TARGET_NAME)
-  # Parse arguments to extract EXPORT_NAME and new multi-config parameters
-  set(options "")
-  set(oneValueArgs EXPORT_NAME DEBUG_POSTFIX)
-  set(multiValueArgs "")
-  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-  # Forward all arguments the implementation, target_prepare_package
-  target_prepare_package(${TARGET_NAME} ${ARGN})
+  # Preserve empty arguments and literal semicolons through the public forwarding wrapper.
+  set(_tip_forward_call "target_prepare_package(")
+  math(EXPR _tip_last_argument "${ARGC} - 1")
+  foreach(_tip_argument_index RANGE 0 ${_tip_last_argument})
+    set(_tip_argument "${ARGV${_tip_argument_index}}")
+    set(_tip_bracket_equals "=")
+    while("${_tip_argument}" MATCHES "\\]${_tip_bracket_equals}\\]")
+      string(APPEND _tip_bracket_equals "=")
+    endwhile()
+    string(APPEND _tip_forward_call " [${_tip_bracket_equals}[${_tip_argument}]${_tip_bracket_equals}]")
+  endforeach()
+  string(APPEND _tip_forward_call ")")
+  cmake_language(EVAL CODE "${_tip_forward_call}")
 
   # ~~~
   # Finalization is handled automatically via deferred calls.
@@ -215,6 +220,48 @@ function(target_install_package TARGET_NAME)
   # The actual finalization happens at the end of the configuration (CMAKE_SOURCE_DIR)
   # ~~~
 endfunction(target_install_package)
+
+function(_tip_capture_config_template_context EXPORT_PROPERTY_PREFIX TEMPLATE)
+  if(NOT EXISTS "${TEMPLATE}")
+    project_log(FATAL_ERROR "User-provided config template not found: ${TEMPLATE}")
+  endif()
+
+  file(READ "${TEMPLATE}" _tip_template_content)
+  string(REGEX MATCHALL "@[A-Za-z_][A-Za-z0-9_]*@" _tip_template_placeholders "${_tip_template_content}")
+  list(REMOVE_DUPLICATES _tip_template_placeholders)
+  foreach(_tip_placeholder IN LISTS _tip_template_placeholders)
+    string(REGEX REPLACE "^@|@$" "" _tip_variable "${_tip_placeholder}")
+
+    # Package-generated placeholders are supplied after every target has registered.
+    if(_tip_variable MATCHES "^(PACKAGE_|ARG_|_tip_)")
+      continue()
+    endif()
+
+    set(_tip_context_property "${EXPORT_PROPERTY_PREFIX}_TEMPLATE_VARIABLE_${_tip_variable}")
+    get_property(
+      _tip_context_set GLOBAL
+      PROPERTY "${_tip_context_property}"
+      SET)
+    get_property(_tip_context_value GLOBAL PROPERTY "${_tip_context_property}")
+    if(_tip_context_set AND NOT "${_tip_context_value}" STREQUAL "${${_tip_variable}}")
+      project_log(FATAL_ERROR "Conflicting CONFIG_TEMPLATE substitution '${_tip_variable}' for the same export: '${_tip_context_value}' vs '${${_tip_variable}}'.")
+    endif()
+    set_property(GLOBAL PROPERTY "${_tip_context_property}" "${${_tip_variable}}")
+    set_property(GLOBAL APPEND PROPERTY "${EXPORT_PROPERTY_PREFIX}_TEMPLATE_VARIABLES" "${_tip_variable}")
+  endforeach()
+endfunction()
+
+function(_tip_configure_package_template _tip_template _tip_output _tip_destination _tip_export_prefix)
+  get_property(_tip_variables GLOBAL PROPERTY "${_tip_export_prefix}_TEMPLATE_VARIABLES")
+  foreach(_tip_variable IN LISTS _tip_variables)
+    get_property("${_tip_variable}" GLOBAL PROPERTY "${_tip_export_prefix}_TEMPLATE_VARIABLE_${_tip_variable}")
+  endforeach()
+
+  configure_package_config_file(
+    "${_tip_template}" "${_tip_output}"
+    INSTALL_DESTINATION "${_tip_destination}"
+    PATH_VARS CMAKE_INSTALL_PREFIX)
+endfunction()
 
 function(_tip_find_target_install_package_resource_file file_name out_var)
   set(_tip_resource_candidates "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${file_name}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/cmake/${file_name}")
@@ -778,6 +825,19 @@ endfunction()
 function(_tip_store_export_property EXPORT_PROPERTY_PREFIX EXPORT_NAME PROPERTY_SUFFIX VALUE DESCRIPTION)
   get_property(_tip_existing GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}")
 
+  # An explicitly empty namespace is meaningful and must agree across the export.
+  if(PROPERTY_SUFFIX STREQUAL "NAMESPACE")
+    get_property(
+      _tip_namespace_set GLOBAL
+      PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}"
+      SET)
+    if(_tip_namespace_set AND NOT "${_tip_existing}" STREQUAL "${VALUE}")
+      project_log(FATAL_ERROR "Conflicting ${DESCRIPTION} for export '${EXPORT_NAME}': '${_tip_existing}' vs '${VALUE}'")
+    endif()
+    set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}" "${VALUE}")
+    return()
+  endif()
+
   if(NOT DEFINED _tip_existing OR "${_tip_existing}" STREQUAL "")
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_${PROPERTY_SUFFIX}" "${VALUE}")
     return()
@@ -1241,9 +1301,36 @@ function(target_prepare_package TARGET_NAME)
       CPS_DEFAULT_CONFIGURATIONS
       CPS_PERMISSIONS
       CPS_CONFIGURATIONS)
-  cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  if(POLICY CMP0174)
+    cmake_policy(SET CMP0174 NEW)
+  endif()
+  cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for target_install_package('${TARGET_NAME}'): ${ARG_UNPARSED_ARGUMENTS}")
+  endif()
+
+  # CMake 3.25 cannot distinguish an explicit empty one-value argument via PARSE_ARGV alone.
+  # Inspect the original arguments to reject missing values while preserving explicit empties.
+  set(_tip_keywords ${options} ${oneValueArgs} ${multiValueArgs})
+  set(_tip_argument_index 1)
+  while(_tip_argument_index LESS ARGC)
+    set(_tip_keyword "${ARGV${_tip_argument_index}}")
+    math(EXPR _tip_argument_index "${_tip_argument_index} + 1")
+    if(_tip_keyword IN_LIST oneValueArgs)
+      set(_tip_value "${ARGV${_tip_argument_index}}")
+      if(_tip_argument_index GREATER_EQUAL ARGC OR _tip_value IN_LIST _tip_keywords)
+        project_log(FATAL_ERROR "Keyword '${_tip_keyword}' requires a value for target_install_package('${TARGET_NAME}').")
+      endif()
+      if(_tip_keyword STREQUAL "VERSION" AND "${_tip_value}" STREQUAL "")
+        project_log(FATAL_ERROR "Keyword 'VERSION' requires a nonempty value for target_install_package('${TARGET_NAME}').")
+      endif()
+      set("ARG_${_tip_keyword}" "${_tip_value}")
+      list(REMOVE_ITEM ARG_KEYWORDS_MISSING_VALUES "${_tip_keyword}")
+      math(EXPR _tip_argument_index "${_tip_argument_index} + 1")
+    endif()
+  endwhile()
+  if(ARG_KEYWORDS_MISSING_VALUES)
+    project_log(FATAL_ERROR "Keywords require values for target_install_package('${TARGET_NAME}'): ${ARG_KEYWORDS_MISSING_VALUES}")
   endif()
 
   # Store DISABLE_RPATH as a target property for later use
@@ -1304,7 +1391,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
 
   # Handle VERSION specially since it has PROJECT_VERSION fallback logic
-  if(NOT ARG_VERSION)
+  if(NOT DEFINED ARG_VERSION)
     if(PROJECT_VERSION)
       set(ARG_VERSION "${PROJECT_VERSION}")
       project_log(DEBUG "  Version not provided, using PROJECT_VERSION: ${ARG_VERSION}")
@@ -1342,7 +1429,7 @@ function(target_prepare_package TARGET_NAME)
   endif()
 
   # NAMESPACE defaults to EXPORT_NAME::
-  if(NOT ARG_NAMESPACE)
+  if(NOT DEFINED ARG_NAMESPACE)
     set(ARG_NAMESPACE "${ARG_EXPORT_NAME}::")
     project_log(DEBUG "  Namespace not provided, using export name: ${ARG_NAMESPACE}")
   endif()
@@ -1377,12 +1464,6 @@ function(target_prepare_package TARGET_NAME)
       FATAL_ERROR
         "COMPONENT name '${ARG_COMPONENT}' is deprecated. " "The purpose of COMPONENT is to create meaningful component groups that differ from the default 'Runtime'/'Development'. "
         "Use COMPONENT with a descriptive name (e.g., 'Core', 'Graphics', 'Network') to separate components logically. " "If you want default behavior, simply omit the COMPONENT parameter entirely.")
-  endif()
-
-  # Handle DEBUG_POSTFIX default value
-  if(NOT ARG_DEBUG_POSTFIX)
-    set(ARG_DEBUG_POSTFIX "d")
-    project_log(DEBUG "  Debug postfix not provided, using default: ${ARG_DEBUG_POSTFIX}")
   endif()
 
   # Set default values using the helper function (skip NAMESPACE and EXPORT_NAME as they're already handled)
@@ -1565,6 +1646,7 @@ function(target_prepare_package TARGET_NAME)
   if(ARG_CONFIG_TEMPLATE)
     _tip_resolve_absolute_paths(ARG_CONFIG_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ARG_CONFIG_TEMPLATE}")
     list(GET ARG_CONFIG_TEMPLATE 0 ARG_CONFIG_TEMPLATE)
+    _tip_capture_config_template_context("${EXPORT_PROPERTY_PREFIX}" "${ARG_CONFIG_TEMPLATE}")
   endif()
 
   if(ARG_INCLUDE_ON_FIND_PACKAGE)
@@ -1675,6 +1757,27 @@ function(target_prepare_package TARGET_NAME)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT_EXPLICIT" FALSE)
   project_log(DEBUG "  DEVELOPMENT_COMPONENT_EXPLICIT for '${TARGET_NAME}': FALSE")
 
+  # Destinations belong to individual targets; grouped exports may span different child projects.
+  foreach(_tip_registered_target IN ITEMS ${TARGET_NAME} ${ARG_ADDITIONAL_TARGETS})
+    set(_tip_target_prefix "${EXPORT_PROPERTY_PREFIX}_TARGET_${_tip_registered_target}")
+    get_property(
+      _tip_context_registered GLOBAL
+      PROPERTY "${_tip_target_prefix}_SOURCE_DIR"
+      SET)
+    if(_tip_registered_target STREQUAL TARGET_NAME OR NOT _tip_context_registered)
+      set_property(GLOBAL PROPERTY "${_tip_target_prefix}_SOURCE_DIR" "${CMAKE_CURRENT_SOURCE_DIR}")
+      foreach(_tip_destination IN ITEMS INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION)
+        set_property(GLOBAL PROPERTY "${_tip_target_prefix}_${_tip_destination}" "${ARG_${_tip_destination}}")
+      endforeach()
+      foreach(_tip_install_variable IN ITEMS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_DATADIR CMAKE_INSTALL_RPATH CMAKE_SKIP_INSTALL_RPATH)
+        set_property(GLOBAL PROPERTY "${_tip_target_prefix}_${_tip_install_variable}" "${${_tip_install_variable}}")
+      endforeach()
+      if(DEFINED ARG_DEBUG_POSTFIX)
+        set_property(GLOBAL PROPERTY "${_tip_target_prefix}_DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}")
+      endif()
+    endif()
+  endforeach()
+
   # Store export-level configuration (shared settings)
   set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGETS" "${EXISTING_TARGETS}")
   if(_tip_version_explicit)
@@ -1685,11 +1788,7 @@ function(target_prepare_package TARGET_NAME)
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "COMPATIBILITY" "${ARG_COMPATIBILITY}" "compatibility")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "ARCH_INDEPENDENT" "${ARG_ARCH_INDEPENDENT}" "architecture independence")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CONFIG_TEMPLATE" "${ARG_CONFIG_TEMPLATE}" "config template")
-  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "INCLUDE_DESTINATION" "${ARG_INCLUDE_DESTINATION}" "include destination")
-  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "MODULE_DESTINATION" "${ARG_MODULE_DESTINATION}" "module destination")
-  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SOURCE_DESTINATION" "${ARG_SOURCE_DESTINATION}" "source destination")
   _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "CMAKE_CONFIG_DESTINATION" "${ARG_CMAKE_CONFIG_DESTINATION}" "CMake config destination")
-  _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "DEBUG_POSTFIX" "${ARG_DEBUG_POSTFIX}" "debug postfix")
 
   if(ARG_CPS)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS" TRUE)
@@ -2248,9 +2347,6 @@ function(finalize_package)
   get_property(COMPATIBILITY GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPATIBILITY")
   get_property(ARCH_INDEPENDENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_ARCH_INDEPENDENT")
   get_property(CONFIG_TEMPLATE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_TEMPLATE")
-  get_property(INCLUDE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_DESTINATION")
-  get_property(MODULE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_MODULE_DESTINATION")
-  get_property(SOURCE_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SOURCE_DESTINATION")
   get_property(CMAKE_CONFIG_DESTINATION GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CMAKE_CONFIG_DESTINATION")
   get_property(CONFIG_DEV_COMPONENT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CONFIG_DEVELOPMENT_COMPONENT")
   get_property(CURRENT_SOURCE_DIR GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CURRENT_SOURCE_DIR")
@@ -2258,7 +2354,6 @@ function(finalize_package)
   get_property(PUBLIC_DEPENDENCIES GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_PUBLIC_DEPENDENCIES")
   get_property(INCLUDE_ON_FIND_PACKAGE GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_INCLUDE_ON_FIND_PACKAGE")
   get_property(COMPONENT_DEPENDENCY_COMPONENTS GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_COMPONENT_DEPENDENCY_COMPONENTS")
-  get_property(DEBUG_POSTFIX GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_DEBUG_POSTFIX")
   get_property(CPS_ENABLED GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS")
   get_property(CPS_PACKAGE_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_PACKAGE_NAME")
   get_property(CPS_PROJECT GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_CPS_PROJECT")
@@ -2374,17 +2469,6 @@ function(finalize_package)
     endforeach()
   endif()
 
-  # Apply DEBUG_POSTFIX only to library targets if specified
-  if(DEBUG_POSTFIX)
-    foreach(TARGET_NAME ${TARGETS})
-      get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
-      if(TARGET_TYPE MATCHES "LIBRARY")
-        set_target_properties(${TARGET_NAME} PROPERTIES DEBUG_POSTFIX "${DEBUG_POSTFIX}")
-        project_log(DEBUG "  Set DEBUG_POSTFIX '${DEBUG_POSTFIX}' for library '${TARGET_NAME}'")
-      endif()
-    endforeach()
-  endif()
-
   set(_tip_cps_exported_target_names "")
   set(_tip_cps_default_target_names "")
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
@@ -2396,6 +2480,53 @@ function(finalize_package)
   # Install each target separately with its own components
   set(_tip_export_has_source_sets FALSE)
   foreach(TARGET_NAME ${TARGETS})
+    set(_tip_target_prefix "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}")
+    foreach(_tip_destination IN ITEMS INCLUDE_DESTINATION MODULE_DESTINATION SOURCE_DESTINATION)
+      get_property(${_tip_destination} GLOBAL PROPERTY "${_tip_target_prefix}_${_tip_destination}")
+    endforeach()
+    foreach(_tip_install_variable IN ITEMS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_DATADIR CMAKE_INSTALL_RPATH CMAKE_SKIP_INSTALL_RPATH)
+      get_property(${_tip_install_variable} GLOBAL PROPERTY "${_tip_target_prefix}_${_tip_install_variable}")
+    endforeach()
+
+    # Honor explicit wrapper choices, otherwise preserve the target's final property (including empty).
+    get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+    if(TARGET_TYPE MATCHES "LIBRARY")
+      get_property(
+        _tip_postfix_explicit GLOBAL
+        PROPERTY "${_tip_target_prefix}_DEBUG_POSTFIX"
+        SET)
+      get_property(
+        _tip_postfix_set
+        TARGET ${TARGET_NAME}
+        PROPERTY DEBUG_POSTFIX
+        SET)
+      if(_tip_postfix_explicit)
+        get_property(_tip_postfix GLOBAL PROPERTY "${_tip_target_prefix}_DEBUG_POSTFIX")
+        set_property(TARGET ${TARGET_NAME} PROPERTY DEBUG_POSTFIX "${_tip_postfix}")
+      elseif(NOT _tip_postfix_set)
+        set_property(TARGET ${TARGET_NAME} PROPERTY DEBUG_POSTFIX "d")
+      endif()
+    endif()
+
+    # Legacy file properties are interpreted relative to the registration directory, not the deferred root.
+    get_property(_tip_source_dir GLOBAL PROPERTY "${_tip_target_prefix}_SOURCE_DIR")
+    foreach(_tip_file_property IN ITEMS PUBLIC_HEADER PRIVATE_HEADER RESOURCE)
+      get_target_property(_tip_files ${TARGET_NAME} ${_tip_file_property})
+      if(NOT _tip_files OR _tip_files MATCHES "-NOTFOUND$")
+        continue()
+      endif()
+      set(_tip_absolute_files "")
+      foreach(_tip_file IN LISTS _tip_files)
+        if(_tip_file MATCHES "\\$<")
+          list(APPEND _tip_absolute_files "$<$<BOOL:${_tip_file}>:$<PATH:ABSOLUTE_PATH,NORMALIZE,${_tip_file},${_tip_source_dir}>>")
+        else()
+          _tip_resolve_absolute_paths(_tip_absolute_file "${_tip_source_dir}" "${_tip_file}")
+          list(APPEND _tip_absolute_files "${_tip_absolute_file}")
+        endif()
+      endforeach()
+      set_property(TARGET ${TARGET_NAME} PROPERTY ${_tip_file_property} "${_tip_absolute_files}")
+    endforeach()
+
     get_property(TARGET_RUNTIME_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_RUNTIME_COMPONENT")
     get_property(TARGET_DEV_COMP GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_DEVELOPMENT_COMPONENT")
     get_property(TARGET_ALIAS_NAME GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_TARGET_${TARGET_NAME}_ALIAS_NAME")
@@ -2555,6 +2686,15 @@ function(finalize_package)
 
     if(TARGET_PUBLIC_HEADERS)
       list(APPEND INSTALL_ARGS PUBLIC_HEADER DESTINATION ${INCLUDE_DESTINATION} ${TARGET_DEV_COMPONENT_ARGS})
+    endif()
+
+    get_target_property(TARGET_PRIVATE_HEADERS ${TARGET_NAME} PRIVATE_HEADER)
+    if(TARGET_PRIVATE_HEADERS)
+      list(APPEND INSTALL_ARGS PRIVATE_HEADER DESTINATION "${INCLUDE_DESTINATION}" ${TARGET_DEV_COMPONENT_ARGS})
+    endif()
+    get_target_property(TARGET_RESOURCES ${TARGET_NAME} RESOURCE)
+    if(TARGET_RESOURCES)
+      list(APPEND INSTALL_ARGS RESOURCE DESTINATION "${CMAKE_INSTALL_DATADIR}" ${TARGET_DEV_COMPONENT_ARGS})
     endif()
 
     # Handle installable source file sets. All public and interface file sets must be listed when the target is exported.
@@ -2774,7 +2914,7 @@ function(finalize_package)
     install(
       EXPORT ${ARG_EXPORT_NAME}
       FILE ${ARG_EXPORT_NAME}Targets.cmake
-      NAMESPACE ${NAMESPACE}
+      NAMESPACE "${NAMESPACE}"
       DESTINATION ${CMAKE_CONFIG_DESTINATION}
       COMPONENT "${_tip_config_component}")
   endforeach()
@@ -3085,10 +3225,7 @@ function(finalize_package)
   set(CONFIG_FILENAME "${ARG_EXPORT_NAME}Config.cmake")
 
   # Configure and generate package config file using correct filename
-  configure_package_config_file(
-    "${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}"
-    INSTALL_DESTINATION ${CMAKE_CONFIG_DESTINATION}
-    PATH_VARS CMAKE_INSTALL_PREFIX)
+  _tip_configure_package_template("${CONFIG_TEMPLATE_TO_USE}" "${CURRENT_BINARY_DIR}/${CONFIG_FILENAME}" "${CMAKE_CONFIG_DESTINATION}" "${EXPORT_PROPERTY_PREFIX}")
 
   # Install config files using correct filename with config component
   foreach(_tip_config_component IN LISTS CONFIG_COMPONENTS)

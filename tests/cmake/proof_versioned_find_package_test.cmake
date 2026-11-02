@@ -31,7 +31,7 @@ file(
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(proof_versioned_lib STATIC src/proof.cpp)\n"
   "target_compile_features(proof_versioned_lib PUBLIC cxx_std_17)\n"
-  "target_install_package(proof_versioned_lib EXPORT_NAME proof_versioned_pkg VERSION ${PROJECT_VERSION})\n")
+  "target_install_package(proof_versioned_lib EXPORT_NAME proof_versioned_pkg VERSION \${PROJECT_VERSION})\n")
 
 file(WRITE "${_tip_fixture_source_dir}/src/proof.cpp" "int proof_versioned_value() { return 42; }\n")
 
