@@ -31,6 +31,8 @@ Consumers use `find_package(Math CONFIG REQUIRED)` and link `Math::core`. The fi
 
 Executable/DLL and library destinations use the calling directory's `CMAKE_INSTALL_BINDIR` and `CMAKE_INSTALL_LIBDIR`. Keep destinations relative to the installation prefix for relocation. Public/interface header file sets preserve structure; legacy header properties install into the include destination.
 
+On Linux/macOS, automatic RPATH follows registered shared-library dependencies through direct target names, aliases, and static/interface targets, using their installation directories and layouts. It handles `LINK_ONLY`, `BUILD_INTERFACE`, `TARGET_NAME_IF_EXISTS`, and `CONFIG`/`NOT:CONFIG` conditions. Other link generator expressions produce a diagnostic; set the target's `INSTALL_RPATH` explicitly when those dependencies use custom installation directories. Explicit target or global install RPATH settings are preserved.
+
 ## Export settings
 
 Targets join one package by sharing `EXPORT_NAME`. Scalar export settings must agree across registrations. Dependencies and helper files aggregate across the export.
