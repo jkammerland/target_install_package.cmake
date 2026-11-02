@@ -29,9 +29,9 @@ See the [Compatibility Matrix](docs/compatibility.md) and [CMake Version Policy]
 
 | File/Function | Type | Description |
 |--------------|------|-------------|
-| [`target_install_package()`](target_install_package.cmake) | Function | Creates install rules and a `find_package()`-ready CMake package for a target. |
-| [`target_configure_sources()`](target_configure_sources.cmake) | Function | Configures template headers or sources and adds the generated files to a target file set. |
-| [`export_cpack()`](export_cpack.cmake) | Function | Configures CPack from installed targets and components, with optional signing, checksums, and container output. |
+| [`target_install_package()`](docs/api/target_install_package.md) | Function | Creates install rules and a `find_package()`-ready CMake package for a target. |
+| [`target_configure_sources()`](docs/api/target_configure_sources.md) | Function | Configures template headers or sources and adds the generated files to a target file set. |
+| [`export_cpack()`](docs/api/export_cpack.md) | Function | Configures CPack from installed targets and components, with optional signing, checksums, and container output. |
 | [`generic-config.cmake.in`](cmake/generic-config.cmake.in) | Template | Provides the default generated CMake package configuration. |
 | [`sign_packages.cmake.in`](cmake/sign_packages.cmake.in) | Template | Implements detached GPG signing for generated packages. |
 | [`project_log()`](cmake/project_log.cmake) | Function | Adds project context and optional color to standard CMake message levels. |
@@ -190,24 +190,24 @@ include(FetchContent)
 FetchContent_Declare(
   target_install_package
   GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-  GIT_TAG v7.3.0
+  GIT_TAG v7.4.0
 )
 FetchContent_MakeAvailable(target_install_package)
 
 # Now you can directly use target_install_package(...)
 ```
 
-Typically, you would want to wrap this in some if statement, e.g
+Enable installation by default for standalone builds and leave the choice to the parent when embedded:
 ```cmake
 # add_library(${PROJECT_NAME} ...)
 
-option(${PROJECT_NAME}_INSTALL "Install ${PROJECT_NAME} configuration" OFF)
+option(${PROJECT_NAME}_INSTALL "Install ${PROJECT_NAME} configuration" ${PROJECT_IS_TOP_LEVEL})
 if(${PROJECT_NAME}_INSTALL)
   include(FetchContent)
   FetchContent_Declare(
     target_install_package
     GIT_REPOSITORY https://github.com/jkammerland/target_install_package.cmake.git
-    GIT_TAG v7.3.0
+    GIT_TAG v7.4.0
     # Optional arg to first try find_package locally before fetching, see manual installation
     # NOTE: This must be called last, with 0 to N args following FIND_PACKAGE_ARGS
     # FIND_PACKAGE_ARGS
@@ -220,7 +220,7 @@ else()
   message(STATUS "Enable install of ${PROJECT_NAME} with -D${PROJECT_NAME}_INSTALL=ON")
 endif()
 ```
-To prevent your project from **unintentionally** being installed when used in another project!
+Create public build-tree aliases outside this condition so source consumers can always link the same names as installed consumers.
 
 ### Manual Installation
 
@@ -288,34 +288,62 @@ find_package(target_install_package REQUIRED)
 
 ### Basic Library Installation
 
-The simplest case - a library with headers that is also installable:
+Create the public alias independently of installation. This gives source and installed consumers the same target name:
 
 ```cmake
-# Create a library target
-add_library(math_utils STATIC)
-target_sources(math_utils PRIVATE src/matrix.cpp src/vector.cpp)
+cmake_minimum_required(VERSION 3.25)
+project(Math VERSION 1.0.0 LANGUAGES CXX)
 
-# Declare public headers using FILE_SET (BASE_DIRS automatically become include directories)
-target_sources(math_utils PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "include" 
-  FILES 
-    "include/math/matrix.h"
-    "include/math/vector.h"
-    "include/math/constants.h"
-)
+add_library(math_impl STATIC src/math.cpp)
+add_library(Math::core ALIAS math_impl)
+target_sources(math_impl PUBLIC
+  FILE_SET HEADERS BASE_DIRS include FILES include/math/calculator.h)
 
-# Install the package
-target_install_package(math_utils NAMESPACE Math::)
+option(MATH_INSTALL "Install Math" ${PROJECT_IS_TOP_LEVEL})
+if(MATH_INSTALL)
+  # Load the utilities using one of the Installation methods above.
+  find_package(target_install_package CONFIG REQUIRED)
+  target_install_package(math_impl
+    EXPORT_NAME Math
+    NAMESPACE Math::
+    ALIAS_NAME core)
+endif()
 ```
 
-This works with INTERFACE or SHARED library targets. Check the defaults in [target_install_package](target_install_package.cmake), which are printed when you use --log-level=DEBUG. 
+The names describe different parts of the package:
 
-**What this creates:**
-- Installs headers to `${CMAKE_INSTALL_INCLUDEDIR}` (defined by the cross-platform **GNUInstallDirs** module)
-- Installs library to `${CMAKE_INSTALL_LIBDIR}` (GNUInstallDirs)
-- Creates `math_utilsConfig.cmake` and `math_utilsConfigVersion.cmake`
-- Consumers can use: `find_package(math_utils REQUIRED)`
+| Concept | Input | Example |
+|---------|-------|---------|
+| Local build target | First argument | `math_impl` |
+| Package name and export group | `EXPORT_NAME` | `Math`, used by `find_package(Math)` |
+| Exported target name | `ALIAS_NAME` | `core` |
+| Exported namespace | `NAMESPACE` | `Math::`, producing `Math::core` |
+
+`ALIAS_NAME` sets native CMake's target `EXPORT_NAME` property. Create the build-tree `ALIAS` with `add_library()` as shown above. The package exports headers, the library, and `MathConfig.cmake`/`MathConfigVersion.cmake`; defaults and scope are in the [API reference](docs/api/target_install_package.md).
+
+An installed consumer uses:
+
+```cmake
+cmake_minimum_required(VERSION 3.25)
+project(math_app LANGUAGES CXX)
+find_package(Math CONFIG REQUIRED)
+add_executable(app main.cpp)
+target_link_libraries(app PRIVATE Math::core)
+```
+
+For source consumption, replace `find_package(Math CONFIG REQUIRED)` with `add_subdirectory(path/to/Math math-build)`. The link line stays the same. This also supports dependencies brought in through `FetchContent`, following [CMake's dependency guidance](https://cmake.org/cmake/help/latest/guide/using-dependencies/index.html#fetchcontent-and-find-package-integration).
+
+Build and install the producer, then build the consumer against that prefix:
+
+```bash
+cmake -S Math -B math-build -DCMAKE_BUILD_TYPE=Release
+cmake --build math-build --config Release
+cmake --install math-build --config Release --prefix "$PWD/math-prefix"
+cmake -S math-app -B app-build -DCMAKE_PREFIX_PATH="$PWD/math-prefix"
+cmake --build app-build --config Release
+```
+
+The runnable [basic static example](examples/basic-static/) includes both consumer modes. To verify actual headers and symbols after installation and relocation, use the [installed consumer check](docs/installed-consumer-check.md).
 
 ### Configuring Template Headers
 
@@ -351,38 +379,24 @@ Installed paths follow the `BASE_DIRS` you set for each file set. Relative `OUTP
 
 ### Libraries with Dependencies
 
-For libraries that depend on other packages:
+`PUBLIC_DEPENDENCIES` lists packages the installed config must load, independently of CMake link visibility. A static library can need a dependency at the final executable link even when its own source uses that dependency privately:
 
 ```cmake
-add_library(graphics_lib SHARED)
-target_sources(graphics_lib PRIVATE src/renderer.cpp src/shader.cpp)
+find_package(fmt CONFIG REQUIRED)
+add_library(my_library STATIC src/library.cpp)
+target_sources(my_library PUBLIC
+  FILE_SET HEADERS BASE_DIRS include FILES include/my_library/api.h)
+target_link_libraries(my_library PRIVATE fmt::fmt)
 
-# Collect headers using globbing
-file(GLOB_RECURSE GRAPHICS_HEADERS "include/graphics/*.h")
-target_sources(graphics_lib PUBLIC 
-  FILE_SET HEADERS 
-  BASE_DIRS "include" 
-  FILES ${GRAPHICS_HEADERS}
-)
-
-# Link to dependencies during build
-find_package(OpenGL REQUIRED)
-find_package(glfw3 REQUIRED)
-target_link_libraries(graphics_lib PUBLIC OpenGL::GL glfw)
-
-# Install with dependencies - consumers will automatically get OpenGL and glfw3
-target_install_package(graphics_lib
-  NAMESPACE Graphics::
-  PUBLIC_DEPENDENCIES "OpenGL REQUIRED" "glfw3 3.3 REQUIRED"
-)
+target_install_package(my_library
+  PUBLIC_DEPENDENCIES "fmt CONFIG")
 ```
 
-**Consumer usage:**
-```cmake
-find_package(graphics_lib REQUIRED)
-target_link_libraries(my_app PRIVATE Graphics::graphics_lib)
-# OpenGL and glfw3 are automatically found and linked
-```
+The consumer only needs `find_package(my_library CONFIG REQUIRED)` and a link to `my_library::my_library`. The generated config loads fmt before importing the library target. Declare package names explicitly; target names do not determine which `find_package()` call a dependency requires.
+
+Each quoted expression becomes a `find_dependency()` call. Usually omit `REQUIRED` and `QUIET` inside these expressions: [CMake forwards those flags](https://cmake.org/cmake/help/latest/module/CMakeFindDependencyMacro.html) from the consumer's `find_package()`. Forcing `REQUIRED` would make an optional `find_package(my_library QUIET)` fatal when a dependency is unavailable.
+
+Use `COMPONENT_DEPENDENCIES` for packages needed only by requested package components; see [Component-Dependent Dependencies](#component-dependent-dependencies).
 
 ### Common Package Specification (CPS)
 
@@ -421,7 +435,7 @@ export_cpack(
   PACKAGE_LICENSE "MIT"
   LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
   # AUTO-DETECTED: Components (Runtime, Development)
-  # AUTO-DETECTED: Generators (TGZ, DEB, RPM on Linux; TGZ, ZIP, WIX on Windows)
+  # DEFAULT: TGZ on Linux/macOS; ZIP on Windows
   # AUTO-DETECTED: Architecture (amd64, i386, arm64, etc.)
 )
 
@@ -441,6 +455,17 @@ cpack  # Generates: MyLibrary-1.0.0-Linux-Runtime.tar.gz, MyLibrary-1.0.0-Linux-
 **See [examples/cpack-basic](examples/cpack-basic/) for a complete working example.**
 
 For container packaging using CPack's External generator (scratch images, `podman` by default, explicit `docker` support), see [Container Packaging](docs/Container-Packaging.md).
+
+The literal `export_cpack()` call uses project metadata and generates `TGZ` on Linux/macOS or `ZIP` on Windows. Request native formats with `GENERATORS DEB RPM` (or the appropriate platform generator). `ARCHIVE_FORMAT ZIP` selects a single archive format when `GENERATORS` is omitted. See [export_cpack()](docs/api/export_cpack.md) for prerequisites and argument contracts.
+
+If a `Tools` component links a shared library in `Runtime`, declare the runtime relationship explicitly:
+
+```cmake
+export_cpack(
+  ADDITIONAL_CPACK_VARS CPACK_COMPONENT_TOOLS_DEPENDS Runtime)
+```
+
+This contributes component dependency metadata, including the helper's DEB/RPM mapping when those generators are selected. Archive extraction and raw `cmake --install --component Tools` do not install dependencies automatically.
 
 For native AppImage packaging with validated desktop/icon metadata and tool prerequisites, see [AppImage Packaging](docs/AppImage-Packaging.md) and the [complete example](examples/cpack-appimage/). AppImage is opt-in only and remains outside the default generator list.
 
@@ -504,7 +529,7 @@ cmake --install . --component Documentation
 ```
 
 Manual install components such as `Documentation` and the plain `install(TARGETS asset_converter ... COMPONENT Tools)` rule above are available to raw
-`cmake --install --component <name>`. They are not auto-discovered by `export_cpack()`. For CPack output, list manual-only components explicitly, for example
+`cmake --install --component <name>`. They are omitted by `export_cpack()` with a warning unless an explicit component filter is supplied. For CPack output, list manual-only components explicitly, for example
 `export_cpack(COMPONENTS Runtime Development Tools Documentation)`, or install tool targets through `target_install_package(... COMPONENT Tools)` when you want auto-detected
 components and package metadata.
 
@@ -650,14 +675,14 @@ target_install_package(myproject_core
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
   COMPONENT Core                             # Static target: SDK files go to Development
-  PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Shared by all targets
+  PUBLIC_DEPENDENCIES "fmt 11.1.4"  # Shared by all targets
 )
 
 target_install_package(myproject_utils
   EXPORT_NAME "myproject"
   NAMESPACE MyProject::
   COMPONENT Core                             # Static target: no empty Core runtime package
-  PUBLIC_DEPENDENCIES "spdlog 1.15.3 REQUIRED"  # Additional dependency
+  PUBLIC_DEPENDENCIES "spdlog 1.15.3"  # Additional dependency
 )
 
 target_install_package(myproject_cli
@@ -717,24 +742,24 @@ target_sources(engine_network PUBLIC
 target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"  # Always loaded
+  PUBLIC_DEPENDENCIES "fmt 11.1.4"  # Always loaded
   COMPONENT_DEPENDENCIES
-    "Graphics" "OpenGL 4.5 REQUIRED"  # Only when Graphics requested
-    "Graphics" "glfw3 3.3 REQUIRED"
+    "Graphics" "OpenGL 4.5"  # Only when Graphics requested
+    "Graphics" "glfw3 3.3"
 )
 
 target_install_package(engine_audio
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "Audio" "portaudio 19.7 REQUIRED"  # Only when Audio requested
+    "Audio" "portaudio 19.7"  # Only when Audio requested
 )
 
 target_install_package(engine_network
   EXPORT_NAME "game_engine" 
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "Networking" "Boost 1.79 REQUIRED COMPONENTS system network"
+    "Networking" "Boost 1.79 COMPONENTS system network"
 )
 ```
 
@@ -759,7 +784,7 @@ target_link_libraries(my_game PRIVATE
 ```
 
 Note:
-- Pass exact component/dependency pairs. Repeat the component key for multiple dependencies, for example `COMPONENT_DEPENDENCIES Graphics "OpenGL REQUIRED" Graphics "glfw3 REQUIRED"`.
+- Pass exact component/dependency pairs. Repeat the component key for multiple dependencies, for example `COMPONENT_DEPENDENCIES Graphics "OpenGL" Graphics "glfw3"`.
 - Component keys are case-sensitive CMake package component names. They may match install component names, but they only affect `find_package(... COMPONENTS ...)` dependency checks and found flags; they do not select installed files or hide exported targets.
 - Bare shorthand is allowed for one dependency per component, for example `COMPONENT_DEPENDENCIES Core fmt Gui glfw`. Quote dependency expressions when they include options. Ambiguous bare lists such as `COMPONENT_DEPENDENCIES Graphics OpenGL REQUIRED glfw3 REQUIRED` are rejected because CMake cannot distinguish dependency arguments from the next component key.
 - You may add `COMPONENT_DEPENDENCIES` across multiple `target_install_package()` calls that share the same `EXPORT_NAME`. Dependencies are merged and de-duplicated per component.
@@ -814,7 +839,7 @@ target_link_libraries(level_editor PRIVATE engine_core engine_graphics)
 target_install_package(engine_core
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
-  PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED"
+  PUBLIC_DEPENDENCIES "fmt 11.1.4"
   # Uses default Runtime and Development components
 )
 
@@ -822,8 +847,8 @@ target_install_package(engine_graphics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "Graphics" "OpenGL 4.5 REQUIRED"
-    "Graphics" "glfw3 3.3 REQUIRED"
+    "Graphics" "OpenGL 4.5"
+    "Graphics" "glfw3 3.3"
   COMPONENT "Graphics"  # Runtime files: Graphics; SDK files: Development
 )
 
@@ -831,7 +856,7 @@ target_install_package(engine_physics
   EXPORT_NAME "game_engine"
   NAMESPACE GameEngine::
   COMPONENT_DEPENDENCIES
-    "Physics" "Bullet3 3.24 REQUIRED"
+    "Physics" "Bullet3 3.24"
   COMPONENT "Physics"  # Runtime files: Physics; SDK files: Development
 )
 
@@ -986,7 +1011,7 @@ target_configure_sources(math_header_lib
 
 target_install_package(math_header_lib
   NAMESPACE MathLib::
-  PUBLIC_DEPENDENCIES "Eigen3 3.4 REQUIRED"
+  PUBLIC_DEPENDENCIES "Eigen3 3.4"
   # Additional CMake utilities for consumers
   INCLUDE_ON_FIND_PACKAGE 
     cmake/MathLibHelpers.cmake

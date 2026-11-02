@@ -458,6 +458,9 @@ if(target_install_package_BUILD_PROOF_TESTS)
   add_test(NAME proof_additional_files_components COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_additional_files_components_test.cmake")
   set_tests_properties(proof_additional_files_components PROPERTIES LABELS "proof;review")
 
+  add_test(NAME proof_basic_static_consumption COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_basic_static_consumption_test.cmake")
+  set_tests_properties(proof_basic_static_consumption PROPERTIES LABELS "proof;review;consumer")
+
   add_test(NAME proof_unknown_arguments COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_unknown_arguments_test.cmake")
   set_tests_properties(proof_unknown_arguments PROPERTIES LABELS "proof;review")
 

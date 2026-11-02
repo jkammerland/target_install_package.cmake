@@ -88,9 +88,9 @@ export_cpack(
   - `Tools` (from mytool executable)
 
 - **Generators**: Platform-specific defaults
-  - Linux: `TGZ`, `DEB`, `RPM`
-  - Windows: `TGZ`, `ZIP`, `WIX` (if available)
-  - macOS: `TGZ`, `DragNDrop`
+  - Linux: `TGZ`
+  - Windows: `ZIP`
+  - macOS: `TGZ`
 
 - **Component Relationships**: Recorded in CPack metadata
   - `Development` aggregates SDK/config payload from wrapped targets

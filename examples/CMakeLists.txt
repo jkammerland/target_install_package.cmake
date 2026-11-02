@@ -33,6 +33,9 @@ if(EXAMPLES_USE_FETCHCONTENT_DEPS)
     GIT_TAG v3.1.1
     OVERRIDE_FIND_PACKAGE)
 
+  # Share the pinned fmt implementation with spdlog instead of compiling its bundled copy.
+  set(SPDLOG_FMT_EXTERNAL ON)
+
   # Make dependencies available - find_package() calls will now use FetchContent automatically.
   FetchContent_MakeAvailable(fmt spdlog cxxopts)
 else()

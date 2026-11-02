@@ -54,7 +54,7 @@ target_install_package(
   NAMESPACE
   LibB::
   PUBLIC_DEPENDENCIES
-  "libA REQUIRED") # Declare dependency on libA
+  "libA") # Declare dependency on libA
 
 target_install_package(
   libB_tool
