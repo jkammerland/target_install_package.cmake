@@ -11,9 +11,9 @@ This example demonstrates dependency aggregation in multi-target exports - how m
 
 ```cmake
 # Each target declares its own PUBLIC_DEPENDENCIES
-target_install_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED")
-target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.15.3 REQUIRED")
-target_install_package(utils_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "cxxopts 3.1.1 REQUIRED")
+target_install_package(core_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "fmt 11.1.4")
+target_install_package(logging_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "spdlog 1.15.3")
+target_install_package(utils_lib EXPORT_NAME "mylib" PUBLIC_DEPENDENCIES "cxxopts 3.1.1")
 ```
 
 **Generated `mylibConfig.cmake` contains:**

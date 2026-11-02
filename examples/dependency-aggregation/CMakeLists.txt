@@ -37,7 +37,7 @@ target_install_package(
   NAMESPACE
   MyLib::
   PUBLIC_DEPENDENCIES
-  "fmt 11.1.4 REQUIRED")
+  "fmt 11.1.4")
 
 target_install_package(
   logging_lib
@@ -46,7 +46,7 @@ target_install_package(
   NAMESPACE
   MyLib::
   PUBLIC_DEPENDENCIES
-  "spdlog 1.15.3 REQUIRED")
+  "spdlog 1.15.3")
 
 target_install_package(
   utils_lib
@@ -55,7 +55,7 @@ target_install_package(
   NAMESPACE
   MyLib::
   PUBLIC_DEPENDENCIES
-  "cxxopts 3.1.1 REQUIRED")
+  "cxxopts 3.1.1")
 
 message(STATUS "✅ Dependency aggregation example configured successfully")
 message(STATUS "   - 3 targets will be packaged into 'mylib' export")

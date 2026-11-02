@@ -242,7 +242,7 @@ export_cpack(
     PACKAGE_LICENSE "MIT"
     # Everything else is auto-detected:
     # - Components: Runtime, Development, Tools
-    # - Generators: Platform-specific (TGZ/ZIP/DEB/RPM/WIX/DragNDrop)
+    # - Generators: TGZ on Linux/macOS, ZIP on Windows
     # - Version: From PROJECT_VERSION
     # - License file: Auto-detected (LICENSE, LICENSE.txt, etc.)
     # - Component relationships and descriptions
@@ -298,7 +298,7 @@ target_link_libraries(game_editor PRIVATE graphics_engine audio_engine)
 target_install_package(graphics_engine 
     NAMESPACE GameEngine::
     EXPORT_NAME "GameEngine"
-    PUBLIC_DEPENDENCIES "OpenGL REQUIRED" "glfw3 3.3 REQUIRED"
+    PUBLIC_DEPENDENCIES "OpenGL" "glfw3 3.3"
     COMPONENT "Graphics"
 )
 
@@ -756,30 +756,21 @@ export_cpack(
 
 ## Cross-Platform Package Generation
 
-Our function automatically selects appropriate generators per platform:
+`export_cpack()` defaults to `TGZ` on Linux/macOS and `ZIP` on Windows. These archives need no native installer toolchain:
 
-### Linux
 ```cmake
-export_cpack(PACKAGE_NAME "MyLib")
-# Auto-generates: TGZ, DEB, RPM
-# Output: MyLib-1.0.0-Linux.tar.gz, mylib_1.0.0_amd64.deb, mylib-1.0.0-1.x86_64.rpm
+export_cpack()
 ```
 
-AppImage is deliberately not part of this default. On a Linux host with CMake 4.2+, request it explicitly with `export_cpack(GENERATORS AppImage ...)` and provide installed desktop/icon metadata. See [AppImage Packaging](docs/AppImage-Packaging.md) for the complete tool, dependency, component, and naming contract.
+Select another archive using `ARCHIVE_FORMAT ZIP`, or choose one or more formats explicitly:
 
-### Windows  
 ```cmake
-export_cpack(PACKAGE_NAME "MyLib")
-# Auto-generates: TGZ, ZIP, WIX (if available)
-# Output: MyLib-1.0.0-Windows.tar.gz, MyLib-1.0.0-Windows.zip, MyLib-1.0.0-Windows.msi
+export_cpack(GENERATORS TGZ DEB RPM)
 ```
 
-### macOS
-```cmake
-export_cpack(PACKAGE_NAME "MyLib")
-# Auto-generates: TGZ, DragNDrop
-# Output: MyLib-1.0.0-Darwin.tar.gz, MyLib-1.0.0-Darwin.dmg
-```
+Explicit native generators require their tools (for example, RPM needs `rpmbuild`, and WIX needs WiX). Configure diagnostics identify missing prerequisites. `ARCHIVE_FORMAT` and `GENERATORS` are alternative ways to select formats; do not combine them. See the [API reference](docs/api/export_cpack.md).
+
+On Linux with CMake 4.2+, request `AppImage` explicitly and provide installed desktop/icon metadata. See [AppImage Packaging](docs/AppImage-Packaging.md) for its tool and dependency requirements.
 
 ### Component-Based Packages
 
@@ -803,46 +794,33 @@ AppImage is an exception: CPack produces one monolithic artifact from the full i
 
 ---
 
-## Migration Guide
+## Component and Signing Reference
 
 ### Component Dependencies
 
-Version 7 uses exact `COMPONENT_DEPENDENCIES` pairs. If one component has multiple dependencies, repeat the component name:
+Use exact `COMPONENT_DEPENDENCIES` pairs. If one component needs multiple packages, repeat its name:
 
 ```cmake
-# Before
-COMPONENT_DEPENDENCIES Graphics "OpenGL REQUIRED;glfw3 REQUIRED"
-
-# After
 COMPONENT_DEPENDENCIES
-    Graphics "OpenGL REQUIRED"
-    Graphics "glfw3 REQUIRED"
+    Graphics "OpenGL"
+    Graphics "glfw3 3.3"
 ```
 
-Bare one-to-one pairs still work:
-
-```cmake
-COMPONENT_DEPENDENCIES Core fmt Gui glfw
-```
-
-Option-bearing dependency expressions must be quoted. Ambiguous lists such as `COMPONENT_DEPENDENCIES Core OpenGL REQUIRED glfw3` now fail at configure time.
+Quote option-bearing dependency expressions. Omit `REQUIRED` so dependency discovery inherits the consumer's requirement; see [package dependencies](README.md#libraries-with-dependencies).
 
 ### Component Packaging
 
-Version 7 uses one shared SDK component per export:
+Each export has one shared `Development` component for SDK files. Static, interface, and header-only targets contribute SDK payload only. A runtime component exists when executables, shared/module libraries, Windows DLLs, or manual install rules contribute payload.
 
-- Replace `<Component>_Development` install or package names with `Development`.
-- Do not list static/interface/header-only component names in `DEFAULT_COMPONENTS`; SDK-only targets install to `Development`.
-- A named runtime component is emitted only when an executable, shared library, module library, Windows DLL, or manual install rule contributes payload to that component.
-- Raw component installs and archive packages remain payload selections; install or extract the matching runtime components when consuming shared-library SDK files.
+Raw component installs and archives are payload selections. Install or extract the matching runtime components when consuming shared-library SDK files. See [component relationships](README.md#cpack-package-generation) for extra runtime dependencies such as a tool that links a shared library.
 
 ### Signing
 
 `SIGNING_METHOD embedded` is RPM-only and fails for mixed or non-RPM generator lists. Use `SIGNING_METHOD both` when you want detached signatures for all packages plus embedded signatures for RPM packages.
 
-Explicit `SIGNING_METHOD` values now require `GPG_SIGNING_KEY` or the `GPG_SIGNING_KEY` environment variable. If a development build should be unsigned, omit `SIGNING_METHOD` or guard the signing arguments behind a release/CI option.
+Explicit `SIGNING_METHOD` values require `GPG_SIGNING_KEY` or the `GPG_SIGNING_KEY` environment variable. If a development build should be unsigned, omit `SIGNING_METHOD` or guard the signing arguments behind a release/CI option.
 
-`GPG_PASSPHRASE_FILE` still applies to detached signatures. Embedded RPM signing relies on `rpmsign` and the configured GPG agent.
+`GPG_PASSPHRASE_FILE` applies to detached signatures. Embedded RPM signing relies on `rpmsign` and the configured GPG agent.
 
 ### Checksums
 

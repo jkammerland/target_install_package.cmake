@@ -33,9 +33,9 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 
 | Platform | Core Install/Find Package | Native Package Notes | Extra Notes |
 |----------|---------------------------|----------------------|-------------|
-| Linux | Supported | `TGZ`, `DEB`, and `RPM` are the default CPack paths when packaging tools are available. `AppImage` is explicit opt-in only. | Automatic relative RPATH is enabled for relocatable non-system installs unless disabled. Container and AppImage packaging are Linux-oriented. |
-| macOS | Supported | `TGZ` and `DragNDrop` are used by default CPack selection. | Homebrew LLVM and AppleClang are covered by CI examples. |
-| Windows | Supported | `TGZ`, `ZIP`, and `WIX` are supported when the required generator tooling is available. | DLLs install to `bin/`; import libraries install to `lib/`. |
+| Linux | Supported | `TGZ` is the default; request `DEB` or `RPM` explicitly with the required packaging tools. `AppImage` is explicit opt-in only. | Automatic relative RPATH is enabled for relocatable non-system installs unless disabled. Container and AppImage packaging are Linux-oriented. |
+| macOS | Supported | `TGZ` is the default; request `DragNDrop` explicitly. | Homebrew LLVM and AppleClang are covered by CI examples. |
+| Windows | Supported | `ZIP` is the default; request `WIX` explicitly with WiX installed. | DLLs install to `bin/`; import libraries install to `lib/`. |
 
 ## Packaging Features
 
