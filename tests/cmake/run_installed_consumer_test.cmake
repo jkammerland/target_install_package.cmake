@@ -36,9 +36,69 @@ list(APPEND _tip_main_install_command --prefix "${_tip_install_prefix}" --compon
 _tip_proof_run_step(NAME "install-target-install-package" COMMAND ${_tip_main_install_command})
 
 set(_tip_installed_helper_dir "${_tip_install_prefix}/share/cmake/target_install_package")
-foreach(_tip_installed_helper IN ITEMS generic-config.cmake.in sign_packages.cmake.in external_container_package.cmake collect_runtime_deps.sh build_minimal_container.sh container_to_quadlet.sh)
+foreach(
+  _tip_installed_helper IN
+  ITEMS generic-config.cmake.in
+        sign_packages.cmake.in
+        external_container_package.cmake
+        check_installed_consumer.cmake
+        collect_runtime_deps.sh
+        build_minimal_container.sh
+        container_to_quadlet.sh)
   _tip_proof_assert_exists("${_tip_installed_helper_dir}/${_tip_installed_helper}")
 endforeach()
+
+# Load the exported static package in a fresh project without preloading fmt.
+# Include dependency install components when fmt was built by the CPM fallback.
+set(_tip_static_install_command "${CMAKE_COMMAND}" --install "${TIP_MAIN_BUILD_DIR}" --prefix "${_tip_install_prefix}")
+if(NOT TIP_MAIN_INSTALL_CONFIG STREQUAL "")
+  list(APPEND _tip_static_install_command --config "${TIP_MAIN_INSTALL_CONFIG}")
+endif()
+_tip_proof_run_step(NAME "install-static-consumer-dependencies" COMMAND ${_tip_static_install_command})
+
+set(_tip_static_consumer_config "${TIP_MAIN_INSTALL_CONFIG}")
+if(_tip_static_consumer_config STREQUAL "")
+  set(_tip_static_consumer_config Release)
+endif()
+set(_tip_static_dependency_args "")
+if(TIP_FMT_DIR)
+  list(APPEND _tip_static_dependency_args "-Dfmt_DIR=${TIP_FMT_DIR}")
+endif()
+
+_tip_proof_run_step(
+  NAME
+  "static-consumer-configure"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  -S
+  "${TIP_REPO_ROOT}/tests/static-consumer"
+  -B
+  "${TIP_CONSUMER_TEST_ROOT}/static-consumer"
+  "-DCMAKE_PREFIX_PATH=${_tip_install_prefix}"
+  "-DCMAKE_BUILD_TYPE=${_tip_static_consumer_config}"
+  ${_tip_static_dependency_args}
+  ${_tip_toolchain_args})
+_tip_proof_run_step(
+  NAME
+  "static-consumer-build"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${TIP_CONSUMER_TEST_ROOT}/static-consumer"
+  --config
+  "${_tip_static_consumer_config}")
+_tip_proof_run_step(
+  NAME
+  "static-consumer-test"
+  COMMAND
+  "${CMAKE_CTEST_COMMAND}"
+  --test-dir
+  "${TIP_CONSUMER_TEST_ROOT}/static-consumer"
+  --build-config
+  "${_tip_static_consumer_config}"
+  --output-on-failure
+  --no-tests=error)
+
 _tip_proof_assert_not_exists("${_tip_installed_helper_dir}/cmake/generic-config.cmake.in")
 _tip_proof_assert_not_exists("${_tip_installed_helper_dir}/cmake/external_container_package.cmake")
 

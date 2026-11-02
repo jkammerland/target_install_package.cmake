@@ -84,12 +84,12 @@ target_sources(
           "include/tests/internal.h")
 
 # Link static2 to static1
-target_link_libraries(static1 PRIVATE static2 fmt)
+target_link_libraries(static1 PRIVATE static2 fmt::fmt)
 
 target_compile_features(static1 PUBLIC cxx_std_17)
 
 # target_install_package(static1 ADDITIONAL_TARGETS static2) UPDATED THIS TO TEST
-target_install_package(static1 EXPORT_NAME "my_static_package") # Same as static2
+target_install_package(static1 EXPORT_NAME "my_static_package" PUBLIC_DEPENDENCIES "fmt CONFIG") # Same export as static2
 
 add_library(shared1 SHARED)
 target_sources(shared1 PRIVATE src1.cpp)
@@ -104,13 +104,13 @@ target_sources(
          "include/tests/header.h")
 target_compile_definitions(shared1 PRIVATE "SHARED=1") # PRIVATE FOR TESTING
 set_target_properties(shared1 PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(shared1 PUBLIC fmt)
+target_link_libraries(shared1 PUBLIC fmt::fmt)
 # Windows-specific: ensure import library is generated
 if(WIN32)
   set_target_properties(shared1 PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-target_install_package(shared1 PUBLIC_DEPENDENCIES "fmt 11.1.4 REQUIRED")
+target_install_package(shared1 PUBLIC_DEPENDENCIES "fmt CONFIG")
 
 add_library(interface1 INTERFACE)
 target_include_directories(interface1 INTERFACE include)
@@ -236,8 +236,24 @@ endif()
 
 add_test(NAME installed_target_install_package_consumer
          COMMAND ${CMAKE_COMMAND} "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_MAIN_BUILD_DIR=${CMAKE_BINARY_DIR}" "-DTIP_MAIN_INSTALL_CONFIG=${_tip_installed_consumer_main_install_config}"
-                 "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
+                 "-DTIP_CONSUMER_TEST_ROOT=${_tip_installed_consumer_test_root}" "-DTIP_FMT_DIR=${fmt_DIR}" ${_tip_layout_test_common_args} -P "${_tip_installed_consumer_script}")
 set_tests_properties(installed_target_install_package_consumer PROPERTIES LABELS "consumer;install")
+
+# Exercise fresh consumers and the public check's failure diagnostics independently.
+foreach(
+  _tip_check_case IN
+  ITEMS success
+        missing-dependency
+        broken-relocation
+        no-tests
+        cross-build
+        cross-emulator
+        outside-prefix)
+  add_test(NAME "installed_consumer_check_${_tip_check_case}"
+           COMMAND ${CMAKE_COMMAND} "-DTIP_CHECK_CASE=${_tip_check_case}" "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_CHECK_TEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/consumer-check"
+                   ${_tip_layout_test_common_args} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_consumer_check_test.cmake")
+  set_tests_properties("installed_consumer_check_${_tip_check_case}" PROPERTIES LABELS "consumer;install")
+endforeach()
 
 option(target_install_package_BUILD_PROOF_TESTS "Enable proof tests for known review findings" ON)
 set(target_install_package_PROOF_CONTAINER_RUNTIME
