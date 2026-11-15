@@ -148,11 +148,30 @@ ci_add_path() {
     return 0
   fi
 
-  if [[ -n "${GITHUB_PATH:-}" ]]; then
-    printf '%s\n' "${p}" >>"${GITHUB_PATH}"
+  # GitHub prepends GITHUB_PATH entries to the native Windows PATH, while this shell needs POSIX paths.
+  local shell_path="${p}"
+  local github_path="${p}"
+  if ci_is_windows && ci_has_cmd cygpath; then
+    shell_path="$(cygpath -u "${p}")"
+    github_path="$(cygpath -w "${p}")"
   fi
 
-  export PATH="${p}:${PATH}"
+  if [[ -n "${GITHUB_PATH:-}" ]]; then
+    printf '%s\n' "${github_path}" >>"${GITHUB_PATH}"
+  fi
+
+  export PATH="${shell_path}:${PATH}"
+}
+
+ci_sha256_file() {
+  local file="$1"
+  if ci_has_cmd sha256sum; then
+    sha256sum "${file}" | awk '{ print $1 }'
+  elif ci_has_cmd shasum; then
+    shasum -a 256 "${file}" | awk '{ print $1 }'
+  else
+    ci_die "sha256sum or shasum is required to verify ${file}"
+  fi
 }
 
 ci_setup_ccache() {
