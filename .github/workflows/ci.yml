@@ -176,6 +176,9 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          # Bootstrap adds CMake through GITHUB_PATH; confirm later steps resolve that copy on Windows.
+          command -v cmake
+          [[ "$(cmake --version | awk 'NR == 1 { print $3 }')" == 4.5.0 ]]
           clang-cl --version
           cmake -S examples/cxx-modules -B build/clang-cl-modules -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
