@@ -129,8 +129,15 @@ file(
 set(_tip_configure_command "${CMAKE_COMMAND}" -E env "PATH=${_tip_fake_bin_dir}:$ENV{PATH}" "GPG_SIGNING_KEY=proof@example.invalid" "${CMAKE_COMMAND}" -S "${_tip_source_dir}" -B "${_tip_build_dir}"
                            "-DCMAKE_BUILD_TYPE=Release" "-DCMAKE_PROGRAM_PATH=${_tip_fake_bin_dir}" ${_tip_toolchain_args})
 
-_tip_proof_run_step(NAME "configure" COMMAND ${_tip_configure_command})
+_tip_proof_run_step(NAME "configure" COMMAND ${_tip_configure_command} OUTPUT_VARIABLE _tip_configure_output)
 _tip_assert_checksum_configuration("${_tip_build_dir}")
+
+# The fixture's minimum CMake version predates CMP0174, and export_cpack() forwards empty signing options.
+# Forwarding them must not emit CMP0174 author warnings in the caller's configure output.
+string(FIND "${_tip_configure_output}" "CMP0174" _tip_cmp0174_index)
+if(NOT _tip_cmp0174_index EQUAL -1)
+  _tip_proof_fail("export_cpack() signing configuration emitted a CMP0174 warning:\n${_tip_configure_output}")
+endif()
 
 set(_tip_tgz_package "${_tip_tgz_package_dir}/proof.tar.gz")
 file(WRITE "${_tip_tgz_package}" "tgz\n")

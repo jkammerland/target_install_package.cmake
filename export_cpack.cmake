@@ -2339,7 +2339,13 @@ function(_configure_gpg_signing)
   set(multiValueArgs CHECKSUMS)
   # Empty values are unset before CMP0174, so use a separate parse namespace
   # before assigning every ARG_* variable consumed here and by the signing template.
+  # The private policy scope keeps empty forwarded values without an author warning or leaking the policy to callers.
+  cmake_policy(PUSH)
+  if(POLICY CMP0174)
+    cmake_policy(SET CMP0174 NEW)
+  endif()
   cmake_parse_arguments(PARSE_ARGV 0 _tip_signing_arg "${options}" "${oneValueArgs}" "${multiValueArgs}")
+  cmake_policy(POP)
   foreach(_tip_signing_keyword IN LISTS options oneValueArgs multiValueArgs)
     set(ARG_${_tip_signing_keyword} "${_tip_signing_arg_${_tip_signing_keyword}}")
   endforeach()
