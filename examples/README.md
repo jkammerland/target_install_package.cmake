@@ -44,7 +44,7 @@ This directory contains comprehensive examples demonstrating the usage of `targe
 | [multi-cpack](multi-cpack/) | Multi-CPack | Multiple package configurations from one source tree |
 | [rpath-example](rpath-example/) | RPATH | Relocatable installs with automatic RPATH handling |
 
-The CPS and SBOM paths are covered by proof tests and focused docs rather than standalone example directories because they require CMake 4.3+ and, for SBOM, the CMake SBOM experiment activation value. See [CPS support](../docs/cps.md), [SBOM support](../docs/sbom.md), and the [Compatibility Matrix](../docs/compatibility.md).
+The CPS and SBOM paths are covered by proof tests and focused docs rather than standalone example directories because they require CMake 4.3+ and, for SBOM on CMake 4.3 and 4.4, the CMake SBOM experiment activation value. See [CPS support](../docs/cps.md), [SBOM support](../docs/sbom.md), and the [Compatibility Matrix](../docs/compatibility.md).
 
 ## 🚀 Quick Start
 

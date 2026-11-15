@@ -8,12 +8,11 @@ endif()
 if(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
 endif()
-if(NOT DEFINED TIP_SBOM_EXPERIMENTAL_VALUE OR TIP_SBOM_EXPERIMENTAL_VALUE STREQUAL "")
-  _tip_proof_fail("TIP_SBOM_EXPERIMENTAL_VALUE is required")
-endif()
 if(CMAKE_VERSION VERSION_LESS "4.3")
   _tip_proof_fail("proof_sbom_install requires CMake 4.3 or newer and should not be registered on older CMake versions")
 endif()
+_tip_proof_require_sbom_activation_value("proof_sbom_install")
+_tip_proof_sbom_activation_line(_tip_sbom_activation_line)
 
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/sbom-install")
 set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
@@ -30,6 +29,15 @@ set(_tip_cross_export_fixture "")
 set(_tip_package_url_argument "")
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
   set(_tip_package_url_argument " SBOM_PACKAGE_URL \"pkg:generic/proof-sbom@2.3.4\"")
+endif()
+
+# CMake 4.5 declares a default license for components without SPDX_LICENSE.
+set(_tip_default_license_argument "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+  set(_tip_default_license_argument " SBOM_DEFAULT_LICENSE \"BSD-2-Clause\"")
+endif()
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
   string(
     APPEND
     _tip_cross_export_fixture
@@ -37,14 +45,14 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
     "target_install_package(sbom_extra EXPORT_NAME proof_sbom_extra VERSION \${PROJECT_VERSION} "
     "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
     "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL \"https://example.invalid/proof-sbom\" "
-    "SBOM_PACKAGE_URL \"pkg:generic/proof-sbom@2.3.4\")\n")
+    "SBOM_PACKAGE_URL \"pkg:generic/proof-sbom@2.3.4\"${_tip_default_license_argument})\n")
 endif()
 
 file(
   WRITE "${_tip_fixture_source_dir}/CMakeLists.txt"
   "cmake_minimum_required(VERSION 3.25)\n"
   "project(proof_sbom_fixture VERSION 2.3.4 DESCRIPTION \"Proof SBOM package\" HOMEPAGE_URL \"https://example.invalid/proof-sbom\" LANGUAGES CXX)\n"
-  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+  "${_tip_sbom_activation_line}"
   "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(sbom_static STATIC src/static.cpp)\n"
@@ -54,7 +62,7 @@ file(
   "target_install_package(sbom_static EXPORT_NAME proof_sbom_pkg VERSION \${PROJECT_VERSION} "
   "SBOM SBOM_NAME ProofSbom SBOM_DESTINATION \"share/sbom/proofsbom\" SBOM_LICENSE \"MIT\" "
   "SBOM_DESCRIPTION \"Proof SBOM package\" SBOM_HOMEPAGE_URL "
-  "\"https://example.invalid/proof-sbom\"${_tip_package_url_argument})\n"
+  "\"https://example.invalid/proof-sbom\"${_tip_package_url_argument}${_tip_default_license_argument})\n"
   "add_library(sbom_shared SHARED src/shared.cpp)\n"
   "target_compile_features(sbom_shared PUBLIC cxx_std_17)\n"
   "target_sources(sbom_shared PUBLIC FILE_SET HEADERS BASE_DIRS \"\${CMAKE_CURRENT_SOURCE_DIR}/include\" FILES \"include/proof_sbom/shared.hpp\")\n"
@@ -106,12 +114,12 @@ list(LENGTH _tip_sbom_files _tip_sbom_file_count)
 if(NOT _tip_sbom_file_count EQUAL 1)
   _tip_proof_fail("Expected one installed SBOM file, got ${_tip_sbom_file_count}")
 endif()
-list(GET _tip_sbom_files 0 _tip_sbom_file)
+_tip_proof_sbom_file(_tip_sbom_file "${_tip_install_prefix}/share/sbom/proofsbom" "ProofSbom" "Release")
 _tip_proof_assert_exists("${_tip_sbom_file}")
 
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "https://spdx.org/rdf/3.0.1/spdx-context.jsonld" "@context")
 _tip_proof_find_spdx_document("${_tip_sbom_file}" "ProofSbom" _tip_document_index)
-_tip_proof_assert_json_path_string("${_tip_sbom_file}" "MIT" "@graph" ${_tip_document_index} "dataLicense")
+_tip_proof_assert_spdx_data_license("${_tip_sbom_file}" "${_tip_document_index}" "MIT")
 _tip_proof_assert_json_path_string("${_tip_sbom_file}" "Proof SBOM package" "@graph" ${_tip_document_index} "description")
 set(_tip_expected_root_elements sbom_static sbom_shared sbom_iface)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
@@ -124,6 +132,40 @@ _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbo
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
   _tip_proof_assert_root_element_json_path_string("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "pkg:generic/proof-sbom@2.3.4" "software_downloadLocation")
   _tip_proof_assert_root_element("${_tip_sbom_file}" "${_tip_document_index}" "sbom_extra" "2.3.4" "https://example.invalid/proof-sbom")
+endif()
+
+# CMake 4.5 declares target SPDX_LICENSE values and falls back to SBOM_DEFAULT_LICENSE for the others.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+  _tip_proof_assert_spdx_declared_license("${_tip_sbom_file}" "${_tip_document_index}" "sbom_static" "Apache-2.0")
+  _tip_proof_assert_spdx_declared_license("${_tip_sbom_file}" "${_tip_document_index}" "sbom_shared" "BSD-2-Clause")
+  _tip_proof_assert_spdx_declared_license("${_tip_sbom_file}" "${_tip_document_index}" "sbom_iface" "BSD-2-Clause")
+  _tip_proof_assert_spdx_declared_license("${_tip_sbom_file}" "${_tip_document_index}" "sbom_extra" "BSD-2-Clause")
+else()
+  # CMake 4.3 and 4.4 install(SBOM) has no DEFAULT_LICENSE keyword, so the wrapper rejects it during configure.
+  set(_tip_default_license_source_dir "${_tip_case_root}/default-license-src")
+  file(MAKE_DIRECTORY "${_tip_default_license_source_dir}")
+  file(
+    WRITE "${_tip_default_license_source_dir}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 3.25)\n"
+    "project(proof_sbom_default_license VERSION 1.0.0 LANGUAGES CXX)\n"
+    "${_tip_sbom_activation_line}"
+    "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+    "add_library(default_license INTERFACE)\n"
+    "target_install_package(default_license VERSION 1.0.0 SBOM SBOM_DEFAULT_LICENSE \"MIT\")\n")
+  _tip_proof_expect_failure(
+    NAME
+    "default-license-requires-cmake-4.5"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    -S
+    "${_tip_default_license_source_dir}"
+    -B
+    "${_tip_case_root}/default-license-build"
+    ${_tip_toolchain_args}
+    EXPECT_CONTAINS
+    "SBOM_DEFAULT_LICENSE requires"
+    "CMake 4.5 or newer")
 endif()
 
 message(STATUS "[proof] SBOM install proof passed.")

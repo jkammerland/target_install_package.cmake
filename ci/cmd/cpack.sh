@@ -92,9 +92,25 @@ done
 
 ci_require_cmd cmake
 
+tip_cmake_version() {
+  cmake --version | awk 'NR == 1 { print $3 }'
+}
+
+# Succeeds when the cmake on PATH is at least <major>.<minor>.
+tip_cmake_version_at_least() {
+  local required_major="${1:?}"
+  local required_minor="${2:?}"
+  local cmake_version major minor
+  cmake_version="$(tip_cmake_version)"
+  IFS=. read -r major minor _ <<<"${cmake_version}"
+  [[ "${major}" =~ ^[0-9]+$ && "${minor}" =~ ^[0-9]+$ ]] || ci_die "Unable to parse CMake version ${cmake_version}"
+  (( major > required_major || (major == required_major && minor >= required_minor) ))
+}
+
+# Prints the SBOM experiment activation value; CMake 4.5+ provides install(SBOM) without one.
 tip_sbom_experimental_value() {
   local cmake_version
-  cmake_version="$(cmake --version | awk 'NR == 1 { print $3 }')"
+  cmake_version="$(tip_cmake_version)"
 
   case "${cmake_version}" in
     4.3.*)
@@ -104,7 +120,11 @@ tip_sbom_experimental_value() {
       printf '%s\n' "${tip_sbom_experimental_value_44}"
       ;;
     *)
-      ci_die "The self-release SBOM suite does not have an activation value for CMake ${cmake_version}"
+      if tip_cmake_version_at_least 4 5; then
+        printf '\n'
+      else
+        ci_die "The self-release SBOM suite requires CMake 4.3 or newer, found ${cmake_version}"
+      fi
       ;;
   esac
 }
@@ -152,7 +172,11 @@ if len(spdx_documents) != 1:
     raise SystemExit(f"expected one target_install_package SPDX document, got {len(spdx_documents)}")
 
 spdx_document = spdx_documents[0]
-if spdx_document.get("dataLicense") != "MIT":
+# CMake 4.3/4.4 write dataLicense as a string; CMake 4.5 writes a license expression object.
+data_license = spdx_document.get("dataLicense")
+if isinstance(data_license, dict):
+    data_license = data_license.get("simplelicensing_licenseExpression")
+if data_license != "MIT":
     raise SystemExit(f"expected SPDX dataLicense MIT, got {spdx_document.get('dataLicense')!r}")
 
 expected_roots = {
@@ -562,7 +586,7 @@ run_self_release() {
     -DTARGET_INSTALL_PACKAGE_ENABLE_INSTALL=ON \
     -DTARGET_INSTALL_PACKAGE_ENABLE_CPACK=ON \
     -DTARGET_INSTALL_PACKAGE_ENABLE_SBOM=ON \
-    -DCMAKE_EXPERIMENTAL_GENERATE_SBOM="${sbom_experimental_value}" \
+    ${sbom_experimental_value:+-DCMAKE_EXPERIMENTAL_GENERATE_SBOM=${sbom_experimental_value}} \
     -DTARGET_INSTALL_PACKAGE_REQUIRE_SIGNING=ON
 
   ci_log "==> Build root self-release package"
@@ -641,8 +665,9 @@ run_self_release() {
   package_stem="$(basename "${tgz_packages[0]}" .tar.gz)"
   sbom_sidecar="${package_dir}/${package_stem}.spdx.json"
   cmake -E copy "${packaged_sbom_files[0]}" "${sbom_sidecar}"
+  # The root project passes SBOM_PACKAGE_URL only on CMake 4.4+, where install(SBOM) accepts PACKAGE_URL.
   local require_package_url=false
-  if [[ "${sbom_experimental_value}" == "${tip_sbom_experimental_value_44}" ]]; then
+  if tip_cmake_version_at_least 4 4; then
     require_package_url=true
   fi
   validate_self_release_sbom "${sbom_sidecar}" "${require_package_url}"
