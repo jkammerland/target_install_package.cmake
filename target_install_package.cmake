@@ -145,7 +145,7 @@ endif()
 #   CPS                          - Generate Common Package Specification metadata for the whole export with CMake 4.3+.
 #   CPS_*                        - Options forwarded to install(PACKAGE_INFO ...). CPS version metadata defaults from VERSION unless CPS_PROJECT inherits it.
 #                                  If CPS_DEFAULT_TARGETS is omitted, only static, shared, and interface library aliases are default CPS targets.
-#                                  This wrapper rejects executables and CMake MODULE_LIBRARY targets for CPS exports.
+#                                  On CMake 4.3 and 4.4, this wrapper rejects executables and CMake MODULE_LIBRARY targets for CPS exports.
 #   SBOM                         - Generate a software bill of materials for the whole export with CMake 4.3+ install(SBOM).
 #   SBOM_*                       - Options used to configure install(SBOM ...). SBOM_NAME defaults to EXPORT_NAME. SBOM project metadata is resolved at
 #                                  target_install_package() call time and emitted explicitly with CMake project inheritance disabled.
@@ -2748,7 +2748,12 @@ function(finalize_package)
   set(_tip_cps_exported_target_names "")
   set(_tip_cps_default_target_names "")
   set(_tip_cps_default_target_types STATIC_LIBRARY SHARED_LIBRARY INTERFACE_LIBRARY)
-  set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
+  # CPS written by CMake 4.3 and 4.4 is readable by CMake 4.3 and 4.4 consumers, which cannot import executable or
+  # module components. CMake 4.5 writes a CPS version that only CMake 4.5+ consumers read, and they import both.
+  set(_tip_cps_unsupported_target_types "")
+  if(CMAKE_VERSION VERSION_LESS "4.5")
+    set(_tip_cps_unsupported_target_types EXECUTABLE MODULE_LIBRARY)
+  endif()
   set(_tip_exported_alias_names "")
   set(_tip_source_library_alias_names "")
   set(PACKAGE_SOURCE_FILE_SET_PROPERTIES_CONTENT "")
@@ -2848,7 +2853,7 @@ function(finalize_package)
     if(CPS_ENABLED AND _tip_cps_target_type IN_LIST _tip_cps_unsupported_target_types)
       project_log(
         FATAL_ERROR
-        "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support target '${TARGET_NAME}' of type '${_tip_cps_target_type}'. Put executables and module libraries in a separate non-CPS export."
+        "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support target '${TARGET_NAME}' of type '${_tip_cps_target_type}' on CMake ${CMAKE_VERSION}. CMake 4.3 and 4.4 CPS consumers cannot import executables or module libraries. Put them in a separate non-CPS export, or produce the package with CMake 4.5 or newer."
       )
     endif()
     if(_tip_cps_target_type IN_LIST _tip_cps_default_target_types)
@@ -2965,7 +2970,7 @@ function(finalize_package)
         if(CPS_ENABLED)
           project_log(
             FATAL_ERROR
-            "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support SOURCES file sets. CMake 4.4.2 install(PACKAGE_INFO) omits source-set metadata from CPS output. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export."
+            "CPS package metadata for export '${ARG_EXPORT_NAME}' does not support SOURCES file sets. CMake install(PACKAGE_INFO) omits source-set metadata from CPS output. Use the authoritative Config.cmake export or move source-only targets to a non-CPS export."
           )
         endif()
         foreach(CURRENT_SOURCE_SET_NAME IN LISTS TARGET_INTERFACE_SOURCE_SETS)
