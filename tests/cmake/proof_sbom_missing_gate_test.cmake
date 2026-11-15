@@ -25,11 +25,8 @@ _tip_proof_append_toolchain_args(_tip_toolchain_args)
 if(CMAKE_VERSION VERSION_LESS "4.5")
   file(
     WRITE "${_tip_source_dir}/CMakeLists.txt"
-    "cmake_minimum_required(VERSION 3.25)\n"
-    "project(proof_sbom_missing_gate VERSION 1.2.3 LANGUAGES CXX)\n"
-    "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-    "add_library(missing_gate_lib STATIC src/lib.cpp)\n"
+    "cmake_minimum_required(VERSION 3.25)\n" "project(proof_sbom_missing_gate VERSION 1.2.3 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(missing_gate_lib STATIC src/lib.cpp)\n"
     "target_install_package(missing_gate_lib EXPORT_NAME MissingGatePkg SBOM)\n")
   file(WRITE "${_tip_source_dir}/src/lib.cpp" "int missing_gate_value() { return 1; }\n")
 
@@ -54,23 +51,15 @@ endif()
 # CMake 4.5 provides install(SBOM) without an experiment. One export's directory keeps a CMake 4.4
 # activation value and the other has none; the aggregated SBOM must not treat that as conflicting metadata.
 file(MAKE_DIRECTORY "${_tip_source_dir}/gateless/src" "${_tip_source_dir}/stale-gate/src")
-file(
-  WRITE "${_tip_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_sbom_missing_gate VERSION 1.2.3 LANGUAGES CXX)\n"
-  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-  "add_subdirectory(gateless)\n"
-  "add_subdirectory(stale-gate)\n")
-file(
-  WRITE "${_tip_source_dir}/gateless/CMakeLists.txt"
-  "add_library(gateless_lib STATIC src/lib.cpp)\n"
-  "target_install_package(gateless_lib EXPORT_NAME GatelessExport VERSION 1.2.3 SBOM SBOM_NAME MissingGatePkg SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/missinggate\")\n")
-file(
-  WRITE "${_tip_source_dir}/stale-gate/CMakeLists.txt"
-  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"2d856d6d-53e8-488b-a17f-d486d2cac317\")\n"
-  "add_library(stale_gate_lib STATIC src/lib.cpp)\n"
-  "target_install_package(stale_gate_lib EXPORT_NAME StaleGateExport VERSION 1.2.3 SBOM SBOM_NAME MissingGatePkg SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/missinggate\")\n")
+file(WRITE "${_tip_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 3.25)\n" "project(proof_sbom_missing_gate VERSION 1.2.3 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_subdirectory(gateless)\n" "add_subdirectory(stale-gate)\n")
+file(WRITE "${_tip_source_dir}/gateless/CMakeLists.txt"
+     "add_library(gateless_lib STATIC src/lib.cpp)\n"
+     "target_install_package(gateless_lib EXPORT_NAME GatelessExport VERSION 1.2.3 SBOM SBOM_NAME MissingGatePkg SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/missinggate\")\n")
+file(WRITE "${_tip_source_dir}/stale-gate/CMakeLists.txt"
+     "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"2d856d6d-53e8-488b-a17f-d486d2cac317\")\n" "add_library(stale_gate_lib STATIC src/lib.cpp)\n"
+     "target_install_package(stale_gate_lib EXPORT_NAME StaleGateExport VERSION 1.2.3 SBOM SBOM_NAME MissingGatePkg SBOM_NO_PROJECT_METADATA SBOM_DESTINATION \"share/sbom/missinggate\")\n")
 file(WRITE "${_tip_source_dir}/gateless/src/lib.cpp" "int gateless_value() { return 1; }\n")
 file(WRITE "${_tip_source_dir}/stale-gate/src/lib.cpp" "int stale_gate_value() { return 2; }\n")
 

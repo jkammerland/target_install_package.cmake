@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 4.4)
 
-project(hybrid_sdk VERSION 1.0.0 LANGUAGES CXX)
+project(
+  hybrid_sdk
+  VERSION 1.0.0
+  LANGUAGES CXX)
 
 set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)
 if(DEFINED TARGET_INSTALL_PACKAGE_ROOT)
@@ -21,17 +24,23 @@ add_library(hybrid_runtime SHARED)
 target_sources(hybrid_runtime PRIVATE src/runtime.cpp)
 target_sources(hybrid_runtime PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/hybrid/runtime.hpp")
 target_compile_features(hybrid_runtime PUBLIC cxx_std_17)
-set_target_properties(
-  hybrid_runtime
-  PROPERTIES VERSION ${PROJECT_VERSION}
-             SOVERSION ${PROJECT_VERSION_MAJOR})
+set_target_properties(hybrid_runtime PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
 if(WIN32)
   set_target_properties(hybrid_runtime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
 add_library(hybrid_extension INTERFACE)
 target_sources(hybrid_extension INTERFACE FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" FILES "include/hybrid/extension.hpp")
-target_sources(hybrid_extension INTERFACE FILE_SET implementation TYPE SOURCES BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src" FILES "src/extension.cpp")
+target_sources(
+  hybrid_extension
+  INTERFACE FILE_SET
+            implementation
+            TYPE
+            SOURCES
+            BASE_DIRS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src"
+            FILES
+            "src/extension.cpp")
 target_link_libraries(hybrid_extension INTERFACE hybrid_runtime)
 target_compile_features(hybrid_extension INTERFACE cxx_std_17)
 

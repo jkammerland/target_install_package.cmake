@@ -30,17 +30,12 @@ file(
   WRITE "${_tip_fixture_source_dir}/CMakeLists.txt"
   "cmake_minimum_required(VERSION 3.25)\n"
   "project(TopProject VERSION 9.9.9 SPDX_LICENSE \"GPL-3.0-only\" DESCRIPTION \"Top-level SBOM metadata that must not leak\" HOMEPAGE_URL \"https://example.invalid/top-project-sbom\" LANGUAGES CXX)\n"
-  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-  "add_subdirectory(default-sub)\n"
-  "add_subdirectory(explicit-top-name)\n"
-  "add_subdirectory(project-sub)\n")
+  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n" "add_subdirectory(default-sub)\n" "add_subdirectory(explicit-top-name)\n" "add_subdirectory(project-sub)\n")
 
 file(
   WRITE "${_tip_fixture_source_dir}/default-sub/CMakeLists.txt"
   "project(DefaultSubSbom VERSION 4.5.6 SPDX_LICENSE \"BSD-3-Clause\" DESCRIPTION \"Default subdirectory SBOM package\" HOMEPAGE_URL \"https://example.invalid/default-sub-sbom\" LANGUAGES CXX)\n"
-  "${_tip_sbom_activation_line}"
-  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-  "add_library(default_sub_sbom STATIC src/default.cpp)\n"
+  "${_tip_sbom_activation_line}" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(default_sub_sbom STATIC src/default.cpp)\n"
   "target_install_package(default_sub_sbom EXPORT_NAME DefaultSubSbom SBOM SBOM_DESTINATION \"share/sbom/defaultsub\")\n")
 file(WRITE "${_tip_fixture_source_dir}/default-sub/src/default.cpp" "int default_sub_sbom_value() { return 4; }\n")
 

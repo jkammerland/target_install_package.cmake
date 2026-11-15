@@ -52,15 +52,10 @@ function(_tip_write_fake_package prefix package_name)
   set(_tip_package_dir "${prefix}/share/cmake/${package_name}")
   file(MAKE_DIRECTORY "${_tip_package_dir}")
 
-  file(
-    WRITE
-    "${_tip_package_dir}/${package_name}Config.cmake"
-    "set(${package_name}_FOUND TRUE)\nif(NOT TARGET ${package_name}::${package_name})\n  add_library(${package_name}::${package_name} INTERFACE IMPORTED)\nendif()\n")
+  file(WRITE "${_tip_package_dir}/${package_name}Config.cmake"
+       "set(${package_name}_FOUND TRUE)\nif(NOT TARGET ${package_name}::${package_name})\n  add_library(${package_name}::${package_name} INTERFACE IMPORTED)\nendif()\n")
 
-  file(
-    WRITE
-    "${_tip_package_dir}/${package_name}ConfigVersion.cmake"
-    "set(PACKAGE_VERSION \"1.0.0\")\nset(PACKAGE_VERSION_COMPATIBLE TRUE)\nset(PACKAGE_VERSION_EXACT TRUE)\n")
+  file(WRITE "${_tip_package_dir}/${package_name}ConfigVersion.cmake" "set(PACKAGE_VERSION \"1.0.0\")\nset(PACKAGE_VERSION_COMPATIBLE TRUE)\nset(PACKAGE_VERSION_EXACT TRUE)\n")
 endfunction()
 
 function(_tip_run_consumer_case)
@@ -100,18 +95,13 @@ function(_tip_run_consumer_case)
     string(APPEND _consumer_cmakelists "endif()\n")
   endforeach()
 
-  string(
-    APPEND
-    _consumer_cmakelists
-    "\nadd_executable(component_deps_consumer main.cpp)\n"
-    "target_compile_features(component_deps_consumer PRIVATE cxx_std_17)\n"
-    "target_link_libraries(component_deps_consumer PRIVATE ComponentDeps::component_base ComponentDeps::component_tools)\n")
+  string(APPEND _consumer_cmakelists "\nadd_executable(component_deps_consumer main.cpp)\n" "target_compile_features(component_deps_consumer PRIVATE cxx_std_17)\n"
+         "target_link_libraries(component_deps_consumer PRIVATE ComponentDeps::component_base ComponentDeps::component_tools)\n")
 
   file(WRITE "${_case_dir}/CMakeLists.txt" "${_consumer_cmakelists}")
 
   file(
-    WRITE
-    "${_case_dir}/main.cpp"
+    WRITE "${_case_dir}/main.cpp"
     [=[
 int component_base_value();
 int component_tools_value();
@@ -121,17 +111,8 @@ int main() {
 }
 ]=])
 
-  set(_consumer_configure_command
-      "${CMAKE_COMMAND}"
-      -S
-      "${_case_dir}"
-      -B
-      "${_case_build_dir}"
-      "-DCMAKE_PREFIX_PATH=${_install_prefix}"
-      "-DDepA_DIR=${_deps_prefix}/share/cmake/DepA"
-      "-DDepB_DIR=${_deps_prefix}/share/cmake/DepB"
-      "-DDepC_DIR=${_deps_prefix}/share/cmake/DepC"
-      "-DDepD_DIR=${_deps_prefix}/share/cmake/DepD")
+  set(_consumer_configure_command "${CMAKE_COMMAND}" -S "${_case_dir}" -B "${_case_build_dir}" "-DCMAKE_PREFIX_PATH=${_install_prefix}" "-DDepA_DIR=${_deps_prefix}/share/cmake/DepA"
+                                  "-DDepB_DIR=${_deps_prefix}/share/cmake/DepB" "-DDepC_DIR=${_deps_prefix}/share/cmake/DepC" "-DDepD_DIR=${_deps_prefix}/share/cmake/DepD")
 
   if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
     list(APPEND _consumer_configure_command -G "${TIP_CMAKE_GENERATOR}")
@@ -170,10 +151,8 @@ int main() {
     "${TIP_COMPONENT_TEST_CONFIG}")
 
   set(_consumer_executable_candidates
-      "${_case_build_dir}/component_deps_consumer${_tip_executable_suffix}"
-      "${_case_build_dir}/${TIP_COMPONENT_TEST_CONFIG}/component_deps_consumer${_tip_executable_suffix}"
-      "${_case_build_dir}/component_deps_consumer"
-      "${_case_build_dir}/${TIP_COMPONENT_TEST_CONFIG}/component_deps_consumer")
+      "${_case_build_dir}/component_deps_consumer${_tip_executable_suffix}" "${_case_build_dir}/${TIP_COMPONENT_TEST_CONFIG}/component_deps_consumer${_tip_executable_suffix}"
+      "${_case_build_dir}/component_deps_consumer" "${_case_build_dir}/${TIP_COMPONENT_TEST_CONFIG}/component_deps_consumer")
   _tip_find_existing_path(_consumer_executable ${_consumer_executable_candidates})
   _tip_run_step(NAME "consumer-run-${ARG_NAME}" COMMAND "${_consumer_executable}")
 endfunction()
@@ -206,14 +185,7 @@ set(_consumer_root "${_case_root}/consumer")
 file(REMOVE_RECURSE "${_case_root}")
 file(MAKE_DIRECTORY "${_case_root}")
 
-set(_configure_command
-    "${CMAKE_COMMAND}"
-    -S
-    "${_fixture_source_dir}"
-    -B
-    "${_build_dir}"
-    "-DTIP_REPO_ROOT=${TIP_REPO_ROOT}"
-    "-DCMAKE_BUILD_TYPE=${TIP_COMPONENT_TEST_CONFIG}")
+set(_configure_command "${CMAKE_COMMAND}" -S "${_fixture_source_dir}" -B "${_build_dir}" "-DTIP_REPO_ROOT=${TIP_REPO_ROOT}" "-DCMAKE_BUILD_TYPE=${TIP_COMPONENT_TEST_CONFIG}")
 
 if(DEFINED TIP_CMAKE_GENERATOR AND NOT TIP_CMAKE_GENERATOR STREQUAL "")
   list(APPEND _configure_command -G "${TIP_CMAKE_GENERATOR}")
@@ -269,8 +241,38 @@ _tip_write_fake_package("${_deps_prefix}" "DepD")
 
 file(MAKE_DIRECTORY "${_consumer_root}")
 
-_tip_run_consumer_case(NAME graphics COMPONENTS graphics EXPECTED_DEPS DepA DepB UNEXPECTED_DEPS DepC DepD)
-_tip_run_consumer_case(NAME ui_dash COMPONENTS ui-core EXPECTED_DEPS DepC UNEXPECTED_DEPS DepA DepB DepD)
-_tip_run_consumer_case(NAME ui_underscore COMPONENTS ui_core EXPECTED_DEPS DepD UNEXPECTED_DEPS DepA DepB DepC)
+_tip_run_consumer_case(
+  NAME
+  graphics
+  COMPONENTS
+  graphics
+  EXPECTED_DEPS
+  DepA
+  DepB
+  UNEXPECTED_DEPS
+  DepC
+  DepD)
+_tip_run_consumer_case(
+  NAME
+  ui_dash
+  COMPONENTS
+  ui-core
+  EXPECTED_DEPS
+  DepC
+  UNEXPECTED_DEPS
+  DepA
+  DepB
+  DepD)
+_tip_run_consumer_case(
+  NAME
+  ui_underscore
+  COMPONENTS
+  ui_core
+  EXPECTED_DEPS
+  DepD
+  UNEXPECTED_DEPS
+  DepA
+  DepB
+  DepC)
 
 message(STATUS "[component-deps] Component dependency assertions passed.")

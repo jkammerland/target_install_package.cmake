@@ -10,7 +10,14 @@ if(NOT DEFINED TIP_PROOF_TEST_ROOT)
 endif()
 
 function(_tip_file_api_get json out_var)
-  string(JSON _tip_value ERROR_VARIABLE _tip_error GET "${json}" ${ARGN})
+  string(
+    JSON
+    _tip_value
+    ERROR_VARIABLE
+    _tip_error
+    GET
+    "${json}"
+    ${ARGN})
   if(_tip_error)
     _tip_proof_fail("Missing File API JSON path '${ARGN}': ${_tip_error}")
   endif()
@@ -28,12 +35,26 @@ function(_tip_file_api_find_target codemodel reply_dir target_name out_var)
 
     math(EXPR _tip_last_target_index "${_tip_target_count} - 1")
     foreach(_tip_target_index RANGE 0 ${_tip_last_target_index})
-      _tip_file_api_get("${codemodel}" _tip_name configurations 0 ${_tip_target_group} ${_tip_target_index} name)
+      _tip_file_api_get(
+        "${codemodel}"
+        _tip_name
+        configurations
+        0
+        ${_tip_target_group}
+        ${_tip_target_index}
+        name)
       if(NOT "${_tip_name}" STREQUAL "${target_name}")
         continue()
       endif()
 
-      _tip_file_api_get("${codemodel}" _tip_target_json_file configurations 0 ${_tip_target_group} ${_tip_target_index} jsonFile)
+      _tip_file_api_get(
+        "${codemodel}"
+        _tip_target_json_file
+        configurations
+        0
+        ${_tip_target_group}
+        ${_tip_target_index}
+        jsonFile)
       file(READ "${reply_dir}/${_tip_target_json_file}" _tip_target_json)
       set(${out_var}
           "${_tip_target_json}"
@@ -67,7 +88,16 @@ function(_tip_file_api_assert_target_edge target_json member expected_id target_
 
   math(EXPR _tip_last_edge_index "${_tip_edge_count} - 1")
   foreach(_tip_edge_index RANGE 0 ${_tip_last_edge_index})
-    string(JSON _tip_edge_id ERROR_VARIABLE _tip_edge_id_error GET "${target_json}" ${member} ${_tip_edge_index} id)
+    string(
+      JSON
+      _tip_edge_id
+      ERROR_VARIABLE
+      _tip_edge_id_error
+      GET
+      "${target_json}"
+      ${member}
+      ${_tip_edge_index}
+      id)
     if(NOT _tip_edge_id_error AND "${_tip_edge_id}" STREQUAL "${expected_id}")
       return()
     endif()
@@ -194,7 +224,15 @@ _tip_proof_run_step(
   "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
   ${_tip_toolchain_args})
 include("${_tip_fixture_build_dir}/modules-supported.cmake")
-_tip_proof_run_step(NAME "fixture-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_fixture_build_dir}" --config "${_tip_build_config}")
+_tip_proof_run_step(
+  NAME
+  "fixture-build"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${_tip_fixture_build_dir}"
+  --config
+  "${_tip_build_config}")
 _tip_proof_run_step(
   NAME
   "fixture-install"
@@ -210,13 +248,9 @@ _tip_proof_run_step(
 file(REMOVE_RECURSE "${_tip_fixture_source_dir}" "${_tip_fixture_build_dir}")
 file(MAKE_DIRECTORY "${_tip_consumer_source_dir}" "${_tip_consumer_build_dir}/.cmake/api/v1/query/client-target-install-package")
 file(WRITE "${_tip_consumer_build_dir}/.cmake/api/v1/query/client-target-install-package/codemodel-v2" "")
-file(
-  WRITE "${_tip_consumer_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 4.4)\n"
-  "project(proof_file_api_consumer LANGUAGES CXX)\n"
-  "find_package(file_api_pkg 1.0 CONFIG REQUIRED PATHS \"${_tip_install_prefix}\" NO_DEFAULT_PATH)\n"
-  "add_executable(file_api_consumer main.cpp)\n"
-  "target_link_libraries(file_api_consumer PRIVATE FileApi::file_api_source)\n")
+file(WRITE "${_tip_consumer_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 4.4)\n" "project(proof_file_api_consumer LANGUAGES CXX)\n" "find_package(file_api_pkg 1.0 CONFIG REQUIRED PATHS \"${_tip_install_prefix}\" NO_DEFAULT_PATH)\n"
+     "add_executable(file_api_consumer main.cpp)\n" "target_link_libraries(file_api_consumer PRIVATE FileApi::file_api_source)\n")
 file(WRITE "${_tip_consumer_source_dir}/main.cpp" "#include <file_api/api.hpp>\nint main() { return file_api_value() == 42 ? 0 : 1; }\n")
 
 _tip_proof_run_step(
@@ -232,7 +266,10 @@ _tip_proof_run_step(
   ${_tip_toolchain_args})
 
 set(_tip_reply_dir "${_tip_consumer_build_dir}/.cmake/api/v1/reply")
-file(GLOB _tip_reply_indexes LIST_DIRECTORIES FALSE "${_tip_reply_dir}/index-*.json")
+file(
+  GLOB _tip_reply_indexes
+  LIST_DIRECTORIES FALSE
+  "${_tip_reply_dir}/index-*.json")
 list(SORT _tip_reply_indexes)
 list(LENGTH _tip_reply_indexes _tip_reply_index_count)
 if(NOT _tip_reply_index_count EQUAL 1)
@@ -277,7 +314,10 @@ else()
   message(STATUS "[proof] Skipping File API C++ module metadata proof because this toolchain does not support C++20 modules.")
 endif()
 
-file(GLOB _tip_reply_files LIST_DIRECTORIES FALSE "${_tip_reply_dir}/*.json")
+file(
+  GLOB _tip_reply_files
+  LIST_DIRECTORIES FALSE
+  "${_tip_reply_dir}/*.json")
 foreach(_tip_reply_file IN LISTS _tip_reply_files)
   file(READ "${_tip_reply_file}" _tip_reply_content)
   string(FIND "${_tip_reply_content}" "${_tip_fixture_source_dir}" _tip_source_leak_index)
@@ -287,7 +327,15 @@ foreach(_tip_reply_file IN LISTS _tip_reply_files)
   endif()
 endforeach()
 
-_tip_proof_run_step(NAME "consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config "${_tip_build_config}")
+_tip_proof_run_step(
+  NAME
+  "consumer-build"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${_tip_consumer_build_dir}"
+  --config
+  "${_tip_build_config}")
 _tip_file_api_executable_path("${_tip_consumer_build_dir}" "${_tip_build_config}" "file_api_consumer${_tip_executable_suffix}" _tip_consumer_executable)
 _tip_proof_run_step(NAME "consumer-run" COMMAND "${_tip_consumer_executable}")
 
