@@ -10,7 +10,7 @@ Core CMake entry points live at the root: `target_install_package.cmake`, `targe
 - `cmake --install build --prefix build/install` publishes install rules for inspection under `build/install/share/cmake/target_install_package`.
 
 ## Coding Style & Naming Conventions
-Format CMake lists with two-space indentation, uppercase commands, and lowercase target names. Prefer descriptive snake_case for functions (`target_install_package`) and align related option blocks. Run `cmake-format -c .cmake-format.py <file>` before committing; the configuration enforces 200-character lines and preserves comments.
+Format CMake lists with two-space indentation, lowercase builtin commands, and lowercase target names; module commands keep their documented spelling (`FetchContent_Declare`). Prefer descriptive snake_case for functions (`target_install_package`) and align related option blocks. Run `cmake-format -i <file> -c .cmake-format.py` before committing (pass files before `-c`, which accepts several config files); the configuration enforces 200-character lines, canonical command case, and preserves comments.
 
 ## Testing Guidelines
 Expand the coverage in `tests/` when adding new install behaviors. Mirror existing naming patterns (`static1`, `component-devel`) and add assertions in `tests/main.cpp` for observable runtime effects. Always reconfigure with `-Dtarget_install_package_BUILD_TESTS=ON`, rebuild, run `ctest`, and, when relevant, re-run `cmake --install` to verify generated package metadata.
