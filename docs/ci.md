@@ -38,14 +38,14 @@ graph TD
 
 - `ci.yml`
   - `cmake-sarif`: one exact CMake `4.4.2` Ubuntu configure/generate lane, with a retained SARIF artifact and code-scanning upload when the workflow token permits it
-  - `cmake-feature-lanes`: exact CMake `3.25.0`, `3.28.4`, and `4.4.2` core, module, and latest-feature proofs
-  - `windows-clang-cl-modules`: CMake `4.4.2` with Ninja and `clang-cl`
+  - `cmake-feature-lanes`: exact CMake `3.25.0`, `3.28.4`, `4.4.2`, and `4.5.0` core, module, CMake 4.4 feature, and latest-feature proofs
+  - `windows-clang-cl-modules`: CMake `4.5.0` with Ninja and `clang-cl`
   - `build`: `ci/run.sh bootstrap` → `ci/run.sh main` → `ci/run.sh consumer`
   - `test-integration`: `ci/run.sh consumer --suite integration`
   - `test-examples`: `ci/run.sh examples --suite {single|multi} --use-fetchcontent`
   - `*-consume`: `ci/run.sh examples --suite consume-*`
 - `packaging-tests.yml`: `ci/run.sh bootstrap --packaging-tools` → `ci/run.sh packaging-tests`
-- `cpack.yml`: package integration plus exact CMake `3.25.0` fallback checksums, `4.2.3` native checksums and AppImage build/extraction/runtime proof, and `4.3.4`/`4.4.2` SBOM syntax proofs; the executable AppImage is retained inside a tar artifact
+- `cpack.yml`: package integration plus exact CMake `3.25.0` fallback checksums, `4.2.3` native checksums and AppImage build/extraction/runtime proof, `4.3.4`/`4.4.2`/`4.5.0` SBOM syntax proofs, and self-release packages with CMake `4.4.2` and `4.5.0`; the executable AppImage is retained inside a tar artifact
 - `release.yml`: when dispatched from the default branch, verifies an existing annotated tag with the pinned public key and confirms that its commit belongs to `master`; after release-environment approval, imports the private key, runs `ci/run.sh cpack --suite self-release --require-signing`, and publishes the signed archives, SPDX SBOM, signatures, checksums, and public verification key
 - `sign-release-tag.yml`: validates a new version against the exact default-branch commit, signs an annotated tag with the protected release key, verifies its fingerprint, and uploads a Git bundle for an administrator to verify and push through the protected tag ruleset
 
@@ -61,6 +61,17 @@ graph TD
 - Latest-feature preset: `cmake -S . --presets-file cmake/presets/CMakePresets-4.4.json --preset ci-modern -Werror=install-absolute-destination`
 - Self-release package dry run: `bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg && bash ci/run.sh cpack --suite self-release`
 - Release tag verification: `bash ci/run.sh release verify-tag --tag v7.4.0 --trusted-ref refs/remotes/origin/master`
+
+## Exact CMake versions
+
+`ci/run.sh bootstrap --cmake-version <version>` installs the requested CMake when `cmake` on `PATH` reports a different version:
+
+- If `ci/requirements/cmake-release-sha256.txt` lists the Kitware release archive for the current platform, bootstrap downloads it from the Kitware GitHub release, verifies its SHA-256 before extraction, and installs it under `build/ci-deps/cmake-<version>-<platform>`.
+- Otherwise it runs `pip install --user cmake==<version>` and adds pip's user scripts directory to `PATH`.
+
+Bootstrap fails if `cmake` on `PATH` still reports another version afterwards. In GitHub Actions the directory is added through `GITHUB_PATH`; locally, prepend the `cmake:` directory that bootstrap prints.
+
+To pin another release, verify Kitware's `cmake-<version>-SHA-256.txt.asc` signature for `cmake-<version>-SHA-256.txt`, then copy the `linux-x86_64`, `linux-aarch64`, `macos-universal`, `windows-x86_64`, and `windows-arm64` archive lines into `ci/requirements/cmake-release-sha256.txt`.
 
 ## CMake configure diagnostics
 

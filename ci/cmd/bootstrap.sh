@@ -13,7 +13,7 @@ Usage: ci/run.sh bootstrap [options]
 
 Options:
   --ninja                 Ensure Ninja is installed
-  --cmake-version <ver>   Ensure an exact CMake version using Python's user install if needed
+  --cmake-version <ver>   Ensure an exact CMake version from a pinned Kitware archive, or else Python's user install
   --fmt                   Build+install fmt to a prefix
   --fmt-prefix <dir>      fmt install prefix (default: ./build/ci-deps/fmt-install)
   --fmt-ref <git-ref>     fmt git ref/sha (default: pinned commit)
@@ -98,20 +98,140 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+cmake_release_checksums="${ci_dir}/requirements/cmake-release-sha256.txt"
+
+# Kitware names release archives by platform; Windows reports the native architecture even from x64 emulation.
+cmake_release_platform() {
+  local arch=""
+  if ci_is_linux; then
+    arch="$(uname -m)"
+    case "${arch}" in
+      x86_64|amd64) printf '%s\n' "linux-x86_64" ;;
+      aarch64|arm64) printf '%s\n' "linux-aarch64" ;;
+      *) return 1 ;;
+    esac
+  elif ci_is_macos; then
+    printf '%s\n' "macos-universal"
+  elif ci_is_windows; then
+    arch="${PROCESSOR_ARCHITEW6432:-${PROCESSOR_ARCHITECTURE:-}}"
+    case "${arch}" in
+      AMD64|x86_64) printf '%s\n' "windows-x86_64" ;;
+      ARM64) printf '%s\n' "windows-arm64" ;;
+      *) return 1 ;;
+    esac
+  else
+    return 1
+  fi
+}
+
+cmake_release_archive_name() {
+  local version="$1"
+  local platform="$2"
+  local extension="tar.gz"
+  if [[ "${platform}" == windows-* ]]; then
+    extension="zip"
+  fi
+  printf 'cmake-%s-%s.%s\n' "${version}" "${platform}" "${extension}"
+}
+
+cmake_release_pinned_sha256() {
+  local archive_name="$1"
+  [[ -f "${cmake_release_checksums}" ]] || return 1
+  awk -v name="${archive_name}" '$2 == name { print $1; found = 1 } END { exit !found }' "${cmake_release_checksums}"
+}
+
+# Install a pinned Kitware archive under build/ci-deps and verify it before extraction.
+install_cmake_release_archive() {
+  local version="$1"
+  local platform="$2"
+  local archive_name="$3"
+  local expected_sha256="$4"
+
+  local deps_dir="${ci_root}/build/ci-deps"
+  local install_dir="${deps_dir}/cmake-${version}-${platform}"
+  local archive_path="${deps_dir}/downloads/${archive_name}"
+  local url="https://github.com/Kitware/CMake/releases/download/v${version}/${archive_name}"
+  local bin_dir="${install_dir}/cmake-${version}-${platform}/bin"
+  if [[ "${platform}" == macos-* ]]; then
+    bin_dir="${install_dir}/cmake-${version}-${platform}/CMake.app/Contents/bin"
+  fi
+
+  if [[ ! -f "${bin_dir}/cmake" && ! -f "${bin_dir}/cmake.exe" ]]; then
+    ci_require_cmd curl
+    mkdir -p "$(dirname "${archive_path}")"
+    ci_log "Downloading CMake ${version} from ${url}"
+    curl --fail --location --silent --show-error --retry 3 --output "${archive_path}.partial" "${url}"
+
+    local actual_sha256
+    actual_sha256="$(ci_sha256_file "${archive_path}.partial")"
+    if [[ "${actual_sha256}" != "${expected_sha256}" ]]; then
+      rm -f "${archive_path}.partial"
+      ci_die "SHA-256 mismatch for ${archive_name}: expected ${expected_sha256}, found ${actual_sha256}"
+    fi
+    mv "${archive_path}.partial" "${archive_path}"
+
+    # Extract into a staging directory so an interrupted run never leaves a partial install that looks complete.
+    rm -rf "${install_dir}" "${install_dir}.partial"
+    mkdir -p "${install_dir}.partial"
+    if [[ "${archive_name}" == *.zip ]]; then
+      local ci_python_bin
+      ci_python_bin="$(ci_python)" || ci_die "python is required to extract ${archive_name}"
+      "${ci_python_bin}" -m zipfile -e "${archive_path}" "${install_dir}.partial"
+    else
+      tar -xzf "${archive_path}" -C "${install_dir}.partial"
+    fi
+    mv "${install_dir}.partial" "${install_dir}"
+  fi
+
+  ci_add_path "${bin_dir}"
+}
+
+# pip's user scheme differs by platform, for example ~/.local/bin on Linux and %APPDATA%\Python\PythonXY\Scripts on Windows.
+install_cmake_python_wheel() {
+  local version="$1"
+  local ci_python_bin
+  ci_python_bin="$(ci_python)" || ci_die "python is required to install CMake ${version}"
+  "${ci_python_bin}" -m pip install --user "cmake==${version}"
+
+  local scripts_dir
+  scripts_dir="$("${ci_python_bin}" -c 'import os, sysconfig
+get_scheme = getattr(sysconfig, "get_preferred_scheme", None)
+print(sysconfig.get_path("scripts", get_scheme("user") if get_scheme else os.name + "_user"))')"
+  ci_add_path "${scripts_dir}"
+}
+
 if [[ -n "${ensure_cmake_version}" ]]; then
   current_cmake_version=""
   if ci_has_cmd cmake; then
     current_cmake_version="$(cmake --version | awk 'NR == 1 { print $3 }')"
   fi
   if [[ "${current_cmake_version}" != "${ensure_cmake_version}" ]]; then
-    ci_python_bin="$(ci_python)" || ci_die "python is required to install CMake ${ensure_cmake_version}"
     ci_log "Installing CMake ${ensure_cmake_version}..."
-    "${ci_python_bin}" -m pip install --user "cmake==${ensure_cmake_version}"
-    ci_add_path "${HOME}/.local/bin"
+
+    # Prefer a pinned Kitware archive, which exists before PyPI publishes a matching wheel.
+    cmake_platform=""
+    cmake_archive_name=""
+    cmake_archive_sha256=""
+    if cmake_platform="$(cmake_release_platform)"; then
+      cmake_archive_name="$(cmake_release_archive_name "${ensure_cmake_version}" "${cmake_platform}")"
+      cmake_archive_sha256="$(cmake_release_pinned_sha256 "${cmake_archive_name}")" || cmake_archive_sha256=""
+    fi
+    if [[ -n "${cmake_archive_sha256}" ]]; then
+      install_cmake_release_archive "${ensure_cmake_version}" "${cmake_platform}" "${cmake_archive_name}" "${cmake_archive_sha256}"
+    else
+      install_cmake_python_wheel "${ensure_cmake_version}"
+    fi
+  fi
+
+  # Fail here instead of letting later steps silently use a runner-provided CMake.
+  resolved_cmake_version="$(cmake --version | awk 'NR == 1 { print $3 }')"
+  if [[ "${resolved_cmake_version}" != "${ensure_cmake_version}" ]]; then
+    ci_die "Requested CMake ${ensure_cmake_version}, but PATH resolves $(command -v cmake) as CMake ${resolved_cmake_version}"
   fi
 fi
 
 ci_require_cmd cmake
+ci_log "cmake: $(command -v cmake)"
 cmake --version | head -n 1
 
 if [[ "${ensure_ninja}" == "true" ]]; then

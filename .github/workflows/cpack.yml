@@ -248,6 +248,8 @@ jobs:
             activation-value: ca494ed3-b261-4205-a01f-603c95e4cae0
           - cmake-version: 4.4.2
             activation-value: 2d856d6d-53e8-488b-a17f-d486d2cac317
+          - cmake-version: 4.5.0
+            activation-value: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -277,8 +279,13 @@ jobs:
             -R '^proof_sbom_'
 
   cpack-self-release:
-    name: Self Release Package
+    name: Self Release Package (CMake ${{ matrix.cmake-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 4.4.2 matches release.yml; 4.5.0 covers the stable install(SBOM) output.
+        cmake-version: [4.4.2, 4.5.0]
     steps:
       - uses: actions/checkout@v4
 
@@ -286,7 +293,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          bash ci/run.sh bootstrap --cmake-version 4.4.2 --ninja --gpg
+          bash ci/run.sh bootstrap --cmake-version "${{ matrix.cmake-version }}" --ninja --gpg
 
       - name: Build signed self-release package
         shell: bash
@@ -297,7 +304,7 @@ jobs:
       - name: Upload self-release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: target-install-package-self-release
+          name: target-install-package-self-release-cmake-${{ matrix.cmake-version }}
           path: |
             build/cpack/self-release/packages/*.tar.gz
             build/cpack/self-release/packages/*.zip
