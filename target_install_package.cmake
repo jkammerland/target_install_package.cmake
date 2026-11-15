@@ -1388,10 +1388,13 @@ function(target_prepare_package _tip_target_name)
       CPS_DEFAULT_CONFIGURATIONS
       CPS_PERMISSIONS
       CPS_CONFIGURATIONS)
+  # Function calls share the caller's policy scope, so keep CMP0174 NEW private to this parse.
+  cmake_policy(PUSH)
   if(POLICY CMP0174)
     cmake_policy(SET CMP0174 NEW)
   endif()
   cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+  cmake_policy(POP)
   if(ARG_UNPARSED_ARGUMENTS)
     project_log(FATAL_ERROR "Unknown arguments for target_install_package('${TARGET_NAME}'): ${ARG_UNPARSED_ARGUMENTS}")
   endif()
