@@ -252,8 +252,8 @@ foreach(
         bracket-values
         outside-prefix)
   add_test(NAME "installed_consumer_check_${_tip_check_case}"
-           COMMAND ${CMAKE_COMMAND} "-DTIP_CHECK_CASE=${_tip_check_case}" "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_CHECK_TEST_ROOT=${CMAKE_BINARY_DIR}/cc"
-                   ${_tip_layout_test_common_args} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_consumer_check_test.cmake")
+           COMMAND ${CMAKE_COMMAND} "-DTIP_CHECK_CASE=${_tip_check_case}" "-DTIP_REPO_ROOT=${_tip_repo_root}" "-DTIP_CHECK_TEST_ROOT=${CMAKE_BINARY_DIR}/cc" ${_tip_layout_test_common_args} -P
+                   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_consumer_check_test.cmake")
   set_tests_properties("installed_consumer_check_${_tip_check_case}" PROPERTIES LABELS "consumer;install")
 endforeach()
 
@@ -401,7 +401,7 @@ if(target_install_package_BUILD_PROOF_TESTS)
 
     IF(target_install_package_PROOF_OLD_CMAKE_COMMAND)
       ADD_TEST(NAME proof_cpack_compression_old_cmake_guard COMMAND "${target_install_package_PROOF_OLD_CMAKE_COMMAND}" ${_tip_proof_common_args} -P
-                                                                  "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
+                                                                    "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
       SET_TESTS_PROPERTIES(proof_cpack_compression_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
     ENDIF()
 
@@ -414,8 +414,7 @@ if(target_install_package_BUILD_PROOF_TESTS)
       set_tests_properties(proof_archive_ownership_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.3")
     endif()
   ELSE()
-    ADD_TEST(NAME proof_cpack_compression_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P
-                                                                "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
+    ADD_TEST(NAME proof_cpack_compression_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cpack_compression_old_cmake_guard_test.cmake")
     SET_TESTS_PROPERTIES(proof_cpack_compression_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;compression;cmake-4.3")
     add_test(NAME proof_archive_ownership_old_cmake_guard COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_archive_ownership_old_cmake_guard_test.cmake")
     set_tests_properties(proof_archive_ownership_old_cmake_guard PROPERTIES LABELS "proof;review;cpack;reproducibility;cmake-4.3")

@@ -35,20 +35,22 @@ function(_tip_hybrid_sdk_run_case name source_destination expected_source_destin
   file(COPY "${TIP_REPO_ROOT}/examples/hybrid-sdk" DESTINATION "${_tip_producer_root}")
 
   _tip_proof_append_toolchain_args(_tip_toolchain_args)
-  set(_tip_producer_configure_command
-      "${CMAKE_COMMAND}"
-      -S
-      "${_tip_producer_source_dir}"
-      -B
-      "${_tip_producer_build_dir}"
-      "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
-      "-DTARGET_INSTALL_PACKAGE_ROOT=${TIP_REPO_ROOT}")
+  set(_tip_producer_configure_command "${CMAKE_COMMAND}" -S "${_tip_producer_source_dir}" -B "${_tip_producer_build_dir}" "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
+                                      "-DTARGET_INSTALL_PACKAGE_ROOT=${TIP_REPO_ROOT}")
   if(NOT "${source_destination}" STREQUAL "")
     list(APPEND _tip_producer_configure_command "-DHYBRID_SDK_SOURCE_DESTINATION=${source_destination}")
   endif()
   list(APPEND _tip_producer_configure_command ${_tip_toolchain_args})
   _tip_proof_run_step(NAME "${name}-producer-configure" COMMAND ${_tip_producer_configure_command})
-  _tip_proof_run_step(NAME "${name}-producer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_producer_build_dir}" --config "${_tip_build_config}")
+  _tip_proof_run_step(
+    NAME
+    "${name}-producer-build"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    --build
+    "${_tip_producer_build_dir}"
+    --config
+    "${_tip_build_config}")
   _tip_proof_run_step(
     NAME
     "${name}-producer-install"
@@ -122,7 +124,15 @@ function(_tip_hybrid_sdk_run_case name source_destination expected_source_destin
     "${_tip_consumer_build_dir}"
     "-DCMAKE_BUILD_TYPE=${_tip_build_config}"
     ${_tip_toolchain_args})
-  _tip_proof_run_step(NAME "${name}-consumer-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_consumer_build_dir}" --config "${_tip_build_config}")
+  _tip_proof_run_step(
+    NAME
+    "${name}-consumer-build"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    --build
+    "${_tip_consumer_build_dir}"
+    --config
+    "${_tip_build_config}")
   _tip_hybrid_sdk_executable_path("${_tip_consumer_build_dir}" "${_tip_build_config}" _tip_consumer_executable)
   _tip_proof_run_step(NAME "${name}-consumer-run" COMMAND "${_tip_consumer_executable}")
 endfunction()

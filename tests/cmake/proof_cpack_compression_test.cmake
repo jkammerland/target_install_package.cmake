@@ -337,8 +337,7 @@ export_cpack(
     CPACK_DEBIAN_COMPRESSION_TYPE xz
     CPACK_DEBIAN_COMPRESSION_LEVEL 8
     CPACK_SOURCE_GENERATOR TZST)
-]=]
-  )
+]=])
   SET(_tip_debian_overrides_config "${_tip_case_root}/debian-additional-overrides-build/CPackConfig.cmake")
   _tip_proof_assert_file_contains("${_tip_debian_overrides_config}" "set(CPACK_DEBIAN_COMPRESSION_TYPE \"xz\")")
   _tip_proof_assert_file_contains("${_tip_debian_overrides_config}" "set(CPACK_DEBIAN_COMPRESSION_LEVEL \"8\")")

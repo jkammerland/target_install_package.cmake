@@ -34,8 +34,26 @@ file(WRITE "${_tip_source_dir}/src/space.cpp" "int proof_space_source_dir_value(
 set(_tip_configure_command "${CMAKE_COMMAND}" -S "${_tip_source_dir}" -B "${_tip_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
 
 _tip_proof_run_step(NAME "configure-space-source-dir" COMMAND ${_tip_configure_command})
-_tip_proof_run_step(NAME "build-space-source-dir" COMMAND "${CMAKE_COMMAND}" --build "${_tip_build_dir}" --config Release)
-_tip_proof_run_step(NAME "install-space-source-dir" COMMAND "${CMAKE_COMMAND}" --install "${_tip_build_dir}" --config Release --prefix "${_tip_install_prefix}")
+_tip_proof_run_step(
+  NAME
+  "build-space-source-dir"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --build
+  "${_tip_build_dir}"
+  --config
+  Release)
+_tip_proof_run_step(
+  NAME
+  "install-space-source-dir"
+  COMMAND
+  "${CMAKE_COMMAND}"
+  --install
+  "${_tip_build_dir}"
+  --config
+  Release
+  --prefix
+  "${_tip_install_prefix}")
 _tip_proof_assert_exists("${_tip_install_prefix}/share/cmake/space_lib/space_libConfig.cmake")
 
 message(STATUS "[proof] Space source directory proof passed.")

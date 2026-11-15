@@ -288,8 +288,7 @@ _tip_assert_documentation("${_tip_single_prefix}" FALSE)
 # returns it. A later 4.4 patch release may backport the fix, so only those
 # versions accept either outcome.
 EXECUTE_PROCESS(
-  COMMAND
-    "${CMAKE_COMMAND}" --install "${_tip_build_dir}" --config Release --component StatusFailure StatusLaterSuccess --prefix "${_tip_status_prefix}"
+  COMMAND "${CMAKE_COMMAND}" --install "${_tip_build_dir}" --config Release --component StatusFailure StatusLaterSuccess --prefix "${_tip_status_prefix}"
   RESULT_VARIABLE _tip_status_result
   OUTPUT_VARIABLE _tip_status_stdout
   ERROR_VARIABLE _tip_status_stderr)

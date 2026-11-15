@@ -66,9 +66,7 @@ _tip_proof_append_toolchain_args(_tip_toolchain_args)
 
 file(
   WRITE "${_tip_collision_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_configure_source_collision LANGUAGES CXX)\n"
-  "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_configure_source_collision LANGUAGES CXX)\n" "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
   "add_library(proof_collision INTERFACE)\n"
   "target_configure_sources(proof_collision INTERFACE OUTPUT_DIR \"\${CMAKE_CURRENT_BINARY_DIR}/generated\" FILES include/foo/config.h.in include/bar/config.h.in)\n")
 file(WRITE "${_tip_collision_source_dir}/include/foo/config.h.in" "#define PROOF_COLLISION 1\n")
@@ -93,11 +91,8 @@ _tip_proof_expect_failure(NAME "configured-source-output-cross-call-collision" C
 
 file(
   WRITE "${_tip_equivalent_output_collision_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_configure_source_equivalent_output_collision LANGUAGES CXX)\n"
-  "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
-  "add_library(proof_equivalent_output_collision INTERFACE)\n"
-  "target_configure_sources(proof_equivalent_output_collision INTERFACE OUTPUT_DIR generated FILES include/foo/config.h.in)\n"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_configure_source_equivalent_output_collision LANGUAGES CXX)\n" "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
+  "add_library(proof_equivalent_output_collision INTERFACE)\n" "target_configure_sources(proof_equivalent_output_collision INTERFACE OUTPUT_DIR generated FILES include/foo/config.h.in)\n"
   "target_configure_sources(proof_equivalent_output_collision INTERFACE OUTPUT_DIR \"\${CMAKE_CURRENT_BINARY_DIR}/generated\" FILES include/bar/config.h.in)\n")
 file(WRITE "${_tip_equivalent_output_collision_source_dir}/include/foo/config.h.in" "#define PROOF_EQUIVALENT_OUTPUT_COLLISION 1\n")
 file(WRITE "${_tip_equivalent_output_collision_source_dir}/include/bar/config.h.in" "#define PROOF_EQUIVALENT_OUTPUT_COLLISION 2\n")
@@ -153,35 +148,22 @@ _tip_proof_expect_failure(NAME "configured-source-notfound-source-cross-call" CO
 
 file(
   WRITE "${_tip_notfound_output_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_configure_source_notfound_output LANGUAGES CXX)\n"
-  "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
-  "add_executable(proof_notfound_output src/main.cpp)\n"
-  "set(PROOF_VALUE 7)\n"
-  "target_configure_sources(proof_notfound_output PRIVATE OUTPUT_DIR generated FILES include/proof/config-NOTFOUND.in)\n")
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_configure_source_notfound_output LANGUAGES CXX)\n" "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
+  "add_executable(proof_notfound_output src/main.cpp)\n" "set(PROOF_VALUE 7)\n" "target_configure_sources(proof_notfound_output PRIVATE OUTPUT_DIR generated FILES include/proof/config-NOTFOUND.in)\n")
 file(WRITE "${_tip_notfound_output_source_dir}/include/proof/config-NOTFOUND.in" "#define PROOF_NOTFOUND_VALUE @PROOF_VALUE@\n")
-file(
-  WRITE "${_tip_notfound_output_source_dir}/src/main.cpp"
-  "#include \"config-NOTFOUND\"\n"
-  "int main() { return PROOF_NOTFOUND_VALUE == 7 ? 0 : 1; }\n")
+file(WRITE "${_tip_notfound_output_source_dir}/src/main.cpp" "#include \"config-NOTFOUND\"\n" "int main() { return PROOF_NOTFOUND_VALUE == 7 ? 0 : 1; }\n")
 
 set(_tip_notfound_output_configure_command "${CMAKE_COMMAND}" -S "${_tip_notfound_output_source_dir}" -B "${_tip_notfound_output_build_dir}" ${_tip_toolchain_args})
 _tip_proof_run_step(NAME "configured-source-notfound-output-configure" COMMAND ${_tip_notfound_output_configure_command})
 _tip_proof_assert_exists("${_tip_notfound_output_build_dir}/generated/config-NOTFOUND")
 _tip_proof_run_step(NAME "configured-source-notfound-output-build" COMMAND "${CMAKE_COMMAND}" --build "${_tip_notfound_output_build_dir}")
 
-file(
-  WRITE "${_tip_relative_output_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_configure_source_relative_output LANGUAGES CXX)\n"
-  "add_subdirectory(a)\n"
-  "add_subdirectory(b)\n")
+file(WRITE "${_tip_relative_output_source_dir}/CMakeLists.txt" "cmake_minimum_required(VERSION 3.25)\n" "project(proof_configure_source_relative_output LANGUAGES CXX)\n" "add_subdirectory(a)\n"
+                                                               "add_subdirectory(b)\n")
 foreach(_tip_relative_subdir IN ITEMS a b)
-  file(
-    WRITE "${_tip_relative_output_source_dir}/${_tip_relative_subdir}/CMakeLists.txt"
-    "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
-    "add_library(proof_relative_${_tip_relative_subdir} INTERFACE)\n"
-    "target_configure_sources(proof_relative_${_tip_relative_subdir} INTERFACE OUTPUT_DIR generated FILES include/proof/config.h.in)\n")
+  file(WRITE "${_tip_relative_output_source_dir}/${_tip_relative_subdir}/CMakeLists.txt"
+       "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n" "add_library(proof_relative_${_tip_relative_subdir} INTERFACE)\n"
+       "target_configure_sources(proof_relative_${_tip_relative_subdir} INTERFACE OUTPUT_DIR generated FILES include/proof/config.h.in)\n")
   file(WRITE "${_tip_relative_output_source_dir}/${_tip_relative_subdir}/include/proof/config.h.in" "#define PROOF_RELATIVE_${_tip_relative_subdir} 1\n")
 endforeach()
 
@@ -190,50 +172,37 @@ _tip_proof_run_step(NAME "configured-source-relative-output-subdirs" COMMAND ${_
 _tip_proof_assert_exists("${_tip_relative_output_build_dir}/a/generated/config.h")
 _tip_proof_assert_exists("${_tip_relative_output_build_dir}/b/generated/config.h")
 
-file(
-  WRITE "${_tip_duplicate_source_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_configure_source_duplicate_source LANGUAGES CXX)\n"
-  "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
-  "add_library(proof_duplicate_source INTERFACE)\n"
-  "target_configure_sources(proof_duplicate_source INTERFACE FILES include/proof/config.h.in include/proof/../proof/config.h.in)\n")
+file(WRITE "${_tip_duplicate_source_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 3.25)\n" "project(proof_configure_source_duplicate_source LANGUAGES CXX)\n" "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
+     "add_library(proof_duplicate_source INTERFACE)\n" "target_configure_sources(proof_duplicate_source INTERFACE FILES include/proof/config.h.in include/proof/../proof/config.h.in)\n")
 file(WRITE "${_tip_duplicate_source_source_dir}/include/proof/config.h.in" "#define PROOF_DUPLICATE_SOURCE 1\n")
 
 set(_tip_duplicate_source_configure_command "${CMAKE_COMMAND}" -S "${_tip_duplicate_source_source_dir}" -B "${_tip_duplicate_source_build_dir}" ${_tip_toolchain_args})
 _tip_proof_run_step(NAME "configured-source-normalized-duplicate-source" COMMAND ${_tip_duplicate_source_configure_command})
 _tip_proof_assert_exists("${_tip_duplicate_source_build_dir}/configured/proof_duplicate_source/config.h")
 
-file(
-  WRITE "${_tip_missing_template_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_missing_template LANGUAGES CXX)\n"
-  "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
-  "add_library(proof_missing_template INTERFACE)\n"
-  "target_configure_sources(proof_missing_template INTERFACE FILES include/missing.h.in)\n")
+file(WRITE "${_tip_missing_template_source_dir}/CMakeLists.txt"
+     "cmake_minimum_required(VERSION 3.25)\n" "project(proof_missing_template LANGUAGES CXX)\n" "include(\"${TIP_REPO_ROOT}/target_configure_sources.cmake\")\n"
+     "add_library(proof_missing_template INTERFACE)\n" "target_configure_sources(proof_missing_template INTERFACE FILES include/missing.h.in)\n")
 
 set(_tip_missing_template_configure_command "${CMAKE_COMMAND}" -S "${_tip_missing_template_source_dir}" -B "${_tip_missing_template_build_dir}" ${_tip_toolchain_args})
 _tip_proof_expect_failure(NAME "missing-configured-source-template" COMMAND ${_tip_missing_template_configure_command} EXPECT_CONTAINS "Template file not found")
 
 file(
   WRITE "${_tip_missing_additional_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_missing_additional VERSION 1.0.0 LANGUAGES CXX)\n"
-  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-  "add_library(proof_missing_additional STATIC src/proof.cpp)\n"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_missing_additional VERSION 1.0.0 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(proof_missing_additional STATIC src/proof.cpp)\n"
   "target_install_package(proof_missing_additional ADDITIONAL_FILES NOTICE.txt)\n")
 file(WRITE "${_tip_missing_additional_source_dir}/src/proof.cpp" "int proof_missing_additional_value() { return 0; }\n")
 
-set(_tip_missing_additional_configure_command "${CMAKE_COMMAND}" -S "${_tip_missing_additional_source_dir}" -B "${_tip_missing_additional_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+set(_tip_missing_additional_configure_command "${CMAKE_COMMAND}" -S "${_tip_missing_additional_source_dir}" -B "${_tip_missing_additional_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
+                                              ${_tip_toolchain_args})
 _tip_proof_expect_failure(NAME "missing-additional-file" COMMAND ${_tip_missing_additional_configure_command} EXPECT_CONTAINS "Additional file to install")
 
 file(
   WRITE "${_tip_component_only_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n"
-  "project(proof_component_only VERSION 1.0.0 LANGUAGES CXX)\n"
-  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-  "add_library(proof_component_only STATIC src/proof.cpp)\n"
+  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_component_only VERSION 1.0.0 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(proof_component_only STATIC src/proof.cpp)\n"
   "target_install_package(proof_component_only ADDITIONAL_FILES_COMPONENTS OptionalDocs)\n")
 file(WRITE "${_tip_component_only_source_dir}/src/proof.cpp" "int proof_component_only_value() { return 0; }\n")
 
@@ -269,7 +238,14 @@ file(
 file(WRITE "${_tip_odd_cpack_source_dir}/src/proof.cpp" "int proof_odd_cpack_value() { return 0; }\n")
 
 set(_tip_odd_cpack_configure_command "${CMAKE_COMMAND}" -S "${_tip_odd_cpack_source_dir}" -B "${_tip_odd_cpack_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
-_tip_proof_expect_failure(NAME "odd-additional-cpack-vars" COMMAND ${_tip_odd_cpack_configure_command} EXPECT_CONTAINS "key/value pairs" "odd number")
+_tip_proof_expect_failure(
+  NAME
+  "odd-additional-cpack-vars"
+  COMMAND
+  ${_tip_odd_cpack_configure_command}
+  EXPECT_CONTAINS
+  "key/value pairs"
+  "odd number")
 
 file(
   WRITE "${_tip_empty_cpack_source_dir}/CMakeLists.txt"
@@ -283,7 +259,14 @@ file(
 file(WRITE "${_tip_empty_cpack_source_dir}/src/proof.cpp" "int proof_empty_cpack_value() { return 0; }\n")
 
 set(_tip_empty_cpack_configure_command "${CMAKE_COMMAND}" -S "${_tip_empty_cpack_source_dir}" -B "${_tip_empty_cpack_build_dir}" "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
-_tip_proof_expect_failure(NAME "empty-additional-cpack-vars" COMMAND ${_tip_empty_cpack_configure_command} EXPECT_CONTAINS "key/value pairs" "no arguments")
+_tip_proof_expect_failure(
+  NAME
+  "empty-additional-cpack-vars"
+  COMMAND
+  ${_tip_empty_cpack_configure_command}
+  EXPECT_CONTAINS
+  "key/value pairs"
+  "no arguments")
 
 file(
   WRITE "${_tip_list_cpack_source_dir}/CMakeLists.txt"

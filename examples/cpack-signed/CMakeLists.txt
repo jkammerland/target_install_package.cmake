@@ -49,7 +49,9 @@ set(GPG_KEYSERVER
 option(ENABLE_SIGNED_PACKAGES "Require GPG signing for this example package" OFF)
 
 set(_cpack_signing_args GENERATE_CHECKSUMS)
-if(ENABLE_SIGNED_PACKAGES OR GPG_SIGNING_KEY OR DEFINED ENV{GPG_SIGNING_KEY})
+if(ENABLE_SIGNED_PACKAGES
+   OR GPG_SIGNING_KEY
+   OR DEFINED ENV{GPG_SIGNING_KEY})
   list(
     APPEND
     _cpack_signing_args

@@ -150,14 +150,7 @@ function(_tip_proof_assert_json_path_length path expected)
   endif()
 
   _tip_proof_read_json("${path}" _tip_json_content)
-  string(
-    JSON
-    _tip_json_length
-    ERROR_VARIABLE
-    _tip_json_error
-    LENGTH
-    "${_tip_json_content}"
-    ${_tip_json_path})
+  string(JSON _tip_json_length ERROR_VARIABLE _tip_json_error LENGTH "${_tip_json_content}" ${_tip_json_path})
   if(_tip_json_error)
     _tip_proof_fail("Expected JSON array/object path '${_tip_json_path}' in '${path}': ${_tip_json_error}")
   endif()

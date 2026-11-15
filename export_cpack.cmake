@@ -248,8 +248,8 @@ FUNCTION(_tip_validate_cpack_compression_level argument_name value max_level)
   ENDIF()
   STRING(LENGTH "${_tip_normalized_level}" _tip_compression_level_length)
   STRING(LENGTH "${max_level}" _tip_max_compression_level_length)
-  IF(_tip_compression_level_length GREATER _tip_max_compression_level_length
-     OR (_tip_compression_level_length EQUAL _tip_max_compression_level_length AND "${_tip_normalized_level}" STRGREATER "${max_level}"))
+  IF(_tip_compression_level_length GREATER _tip_max_compression_level_length OR (_tip_compression_level_length EQUAL _tip_max_compression_level_length AND "${_tip_normalized_level}" STRGREATER
+                                                                                                                                                           "${max_level}"))
     project_log(FATAL_ERROR "${argument_name} must be an integer from 0 to ${max_level}, got: ${value}")
   ENDIF()
 ENDFUNCTION()
