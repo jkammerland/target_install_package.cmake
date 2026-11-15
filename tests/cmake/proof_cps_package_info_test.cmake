@@ -126,6 +126,9 @@ set(_tip_existing_export_name_consumer_source_dir "${_tip_case_root}/existing-ex
 set(_tip_existing_export_name_consumer_build_dir "${_tip_case_root}/existing-export-name-consumer-build")
 set(_tip_unsupported_executable_source_dir "${_tip_case_root}/unsupported-executable-src")
 set(_tip_unsupported_executable_build_dir "${_tip_case_root}/unsupported-executable-build")
+set(_tip_runtime_components_install_prefix "${_tip_case_root}/runtime-components-install")
+set(_tip_runtime_components_consumer_source_dir "${_tip_case_root}/runtime-components-consumer-src")
+set(_tip_runtime_components_consumer_build_dir "${_tip_case_root}/runtime-components-consumer-build")
 set(_tip_repeat_target_source_dir "${_tip_case_root}/repeat-target-src")
 set(_tip_repeat_target_build_dir "${_tip_case_root}/repeat-target-build")
 set(_tip_repeat_target_install_prefix "${_tip_case_root}/repeat-target-install")
@@ -482,15 +485,111 @@ _tip_proof_run_step(
   Release
   --output-on-failure)
 
-file(
-  WRITE "${_tip_unsupported_executable_source_dir}/CMakeLists.txt"
-  "cmake_minimum_required(VERSION 3.25)\n" "project(proof_cps_unsupported_executable VERSION 1.0.0 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
-  "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_executable(cps_tool src/tool.cpp)\n"
-  "target_install_package(cps_tool EXPORT_NAME ToolPkg CPS CPS_PACKAGE_NAME ToolPkg CPS_DESTINATION \"share/cps/toolpkg\" CPS_LOWER_CASE_FILE)\n")
-file(WRITE "${_tip_unsupported_executable_source_dir}/src/tool.cpp" "int main() { return 0; }\n")
-set(_tip_unsupported_executable_configure_command "${CMAKE_COMMAND}" -S "${_tip_unsupported_executable_source_dir}" -B "${_tip_unsupported_executable_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
-                                                  ${_tip_toolchain_args})
-_tip_proof_expect_failure(NAME "unsupported-executable-configure" COMMAND ${_tip_unsupported_executable_configure_command} EXPECT_CONTAINS "does not support target 'cps_tool' of type 'EXECUTABLE'")
+# CMake 4.3 and 4.4 CPS consumers cannot import executable or module components, so the wrapper rejects them there.
+# CMake 4.5 writes CPS that only CMake 4.5+ consumers read, so the same targets must export and import as CPS components.
+if(CMAKE_VERSION VERSION_LESS "4.5")
+  file(
+    WRITE "${_tip_unsupported_executable_source_dir}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 3.25)\n" "project(proof_cps_unsupported_executable VERSION 1.0.0 LANGUAGES CXX)\n" "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_executable(cps_tool src/tool.cpp)\n"
+    "target_install_package(cps_tool EXPORT_NAME ToolPkg CPS CPS_PACKAGE_NAME ToolPkg CPS_DESTINATION \"share/cps/toolpkg\" CPS_LOWER_CASE_FILE)\n")
+  file(WRITE "${_tip_unsupported_executable_source_dir}/src/tool.cpp" "int main() { return 0; }\n")
+  set(_tip_unsupported_executable_configure_command "${CMAKE_COMMAND}" -S "${_tip_unsupported_executable_source_dir}" -B "${_tip_unsupported_executable_build_dir}" "-DCMAKE_BUILD_TYPE=Release"
+                                                    ${_tip_toolchain_args})
+  _tip_proof_expect_failure(NAME "unsupported-executable-configure" COMMAND ${_tip_unsupported_executable_configure_command} EXPECT_CONTAINS "does not support target 'cps_tool' of type 'EXECUTABLE'")
+else()
+  file(MAKE_DIRECTORY "${_tip_runtime_components_consumer_source_dir}")
+  file(
+    WRITE "${_tip_unsupported_executable_source_dir}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 3.25)\n"
+    "project(proof_cps_runtime_components VERSION 1.0.0 LANGUAGES CXX)\n"
+    "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
+    "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
+    "add_library(tool_core STATIC src/core.cpp)\n"
+    "target_install_package(tool_core EXPORT_NAME ToolPkg ALIAS_NAME core CPS CPS_PACKAGE_NAME ToolPkg CPS_DESTINATION \"share/cps/toolpkg\" CPS_LOWER_CASE_FILE)\n"
+    "add_executable(cps_tool src/tool.cpp)\n"
+    "target_link_libraries(cps_tool PRIVATE tool_core)\n"
+    "target_install_package(cps_tool EXPORT_NAME ToolPkg ALIAS_NAME tool)\n"
+    "add_library(cps_plugin MODULE src/plugin.cpp)\n"
+    "target_install_package(cps_plugin EXPORT_NAME ToolPkg ALIAS_NAME plugin)\n")
+  file(WRITE "${_tip_unsupported_executable_source_dir}/src/core.cpp" "int tool_core_value() { return 5; }\n")
+  file(WRITE "${_tip_unsupported_executable_source_dir}/src/tool.cpp" "int tool_core_value();\nint main() { return tool_core_value() == 5 ? 0 : 1; }\n")
+  file(WRITE "${_tip_unsupported_executable_source_dir}/src/plugin.cpp" "extern \"C\" int tool_plugin_value() { return 6; }\n")
+  _tip_proof_run_step(
+    NAME
+    "runtime-components-configure"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    -S
+    "${_tip_unsupported_executable_source_dir}"
+    -B
+    "${_tip_unsupported_executable_build_dir}"
+    "-DCMAKE_BUILD_TYPE=Release"
+    ${_tip_toolchain_args})
+  _tip_proof_run_step(
+    NAME
+    "runtime-components-build"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    --build
+    "${_tip_unsupported_executable_build_dir}"
+    --config
+    Release)
+  _tip_proof_run_step(
+    NAME
+    "runtime-components-install"
+    COMMAND
+    "${CMAKE_COMMAND}"
+    --install
+    "${_tip_unsupported_executable_build_dir}"
+    --config
+    Release
+    --prefix
+    "${_tip_runtime_components_install_prefix}")
+
+  # Executables and module libraries are CPS components, but only libraries become default components.
+  set(_tip_runtime_components_cps_file "${_tip_runtime_components_install_prefix}/share/cps/toolpkg/toolpkg.cps")
+  _tip_proof_assert_json_path_string("${_tip_runtime_components_cps_file}" "archive" components core type)
+  _tip_proof_assert_json_path_string("${_tip_runtime_components_cps_file}" "executable" components tool type)
+  _tip_proof_assert_json_path_string("${_tip_runtime_components_cps_file}" "module" components plugin type)
+  _tip_proof_assert_json_array("${_tip_runtime_components_cps_file}" "default_components" core)
+
+  file(
+    WRITE "${_tip_runtime_components_consumer_source_dir}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 4.5)\n"
+    "project(proof_cps_runtime_components_consumer LANGUAGES CXX)\n"
+    "find_package(ToolPkg CONFIG REQUIRED COMPONENTS tool plugin PATHS \"${_tip_runtime_components_install_prefix}\" NO_DEFAULT_PATH)\n"
+    "if(NOT ToolPkg_CONFIG MATCHES \"/cps/\")\n"
+    "  message(FATAL_ERROR \"Expected CPS package file, got: \${ToolPkg_CONFIG}\")\n"
+    "endif()\n"
+    "get_target_property(_tip_tool_type ToolPkg::tool TYPE)\n"
+    "if(NOT _tip_tool_type STREQUAL \"EXECUTABLE\")\n"
+    "  message(FATAL_ERROR \"Expected ToolPkg::tool to be an imported executable, got: \${_tip_tool_type}\")\n"
+    "endif()\n"
+    "get_target_property(_tip_plugin_type ToolPkg::plugin TYPE)\n"
+    "if(NOT _tip_plugin_type STREQUAL \"MODULE_LIBRARY\")\n"
+    "  message(FATAL_ERROR \"Expected ToolPkg::plugin to be an imported module library, got: \${_tip_plugin_type}\")\n"
+    "endif()\n"
+    "get_target_property(_tip_plugin_location ToolPkg::plugin IMPORTED_LOCATION_RELEASE)\n"
+    "if(NOT EXISTS \"\${_tip_plugin_location}\")\n"
+    "  message(FATAL_ERROR \"Imported module library location does not exist: \${_tip_plugin_location}\")\n"
+    "endif()\n"
+    "enable_testing()\n"
+    "add_test(NAME proof_cps_imported_tool_runs COMMAND ToolPkg::tool)\n")
+  set(_tip_runtime_components_consumer_configure_command "${CMAKE_COMMAND}" -S "${_tip_runtime_components_consumer_source_dir}" -B "${_tip_runtime_components_consumer_build_dir}"
+                                                         "-DCMAKE_BUILD_TYPE=Release" ${_tip_toolchain_args})
+  _tip_proof_run_step(NAME "runtime-components-consumer-configure" COMMAND ${_tip_runtime_components_consumer_configure_command})
+  _tip_proof_run_step(
+    NAME
+    "runtime-components-consumer-test"
+    COMMAND
+    "${CMAKE_CTEST_COMMAND}"
+    --test-dir
+    "${_tip_runtime_components_consumer_build_dir}"
+    -C
+    Release
+    --output-on-failure)
+endif()
 
 file(
   WRITE "${_tip_repeat_target_source_dir}/CMakeLists.txt"

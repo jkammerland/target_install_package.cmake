@@ -12,7 +12,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
 | `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
-| Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
+| Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. CPS written by CMake 4.5+ requires CMake 4.5+ consumers; older consumers use the CMake config package. |
 | SPDX SBOM (`SBOM`) | 4.3 | CMake 4.3 and 4.4 also require `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. CMake 4.5+ needs no activation value. |
 | AppImage packaging | 4.2 | Linux host only; requires `appimagetool`, `patchelf`, installed desktop metadata, and an installed icon. |
 | Deterministic archive ownership | 4.3 | `export_cpack(ARCHIVE_UID ... ARCHIVE_GID ...)` maps to CPack's archive ownership controls. |
@@ -25,8 +25,8 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | `STATIC` library | Yes | Development payload | Archives, headers, config files, and exports install to `Development` by default. |
 | `SHARED` library | Yes | Runtime plus Development | Shared objects/DLLs install to runtime components; headers, import libs, namelinks, and config files install to `Development`. |
 | `INTERFACE` library | Yes | Development payload | Useful for header-only libraries and SDK umbrella targets. |
-| `EXECUTABLE` | Yes | Runtime payload | Can be installed and exported with package metadata where supported by CMake. |
-| `MODULE` library | Installable | Runtime payload | Rejected for CPS exports because CMake's CPS package metadata is library-target focused. |
+| `EXECUTABLE` | Yes | Runtime payload | Can be installed and exported with package metadata. Exported as a CPS `executable` component by CMake 4.5+ producers; rejected for CPS exports on CMake 4.3 and 4.4. |
+| `MODULE` library | Installable | Runtime payload | Exported as a CPS `module` component by CMake 4.5+ producers; rejected for CPS exports on CMake 4.3 and 4.4. |
 | C++20 module file sets | Yes, for libraries | Development payload | Requires CMake 3.28+ and toolchain support. |
 
 ## Platforms
@@ -69,7 +69,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 - `export_cpack()` can be called once per build tree because CPack has one package configuration per build directory.
 - Tar and ZIP store archive ownership controls; other generators may ignore them.
 - `CPS` and `SBOM` options are intentionally opt-in so projects on older CMake versions can keep using the core install path.
-- CPS exports do not support CMake 4.4 `SOURCES` file sets: CMake 4.4.2 `install(PACKAGE_INFO)` omits that metadata. Use the CMake config package for source-only or hybrid source packages.
+- CPS exports do not support CMake 4.4 `SOURCES` file sets: `install(PACKAGE_INFO)` in CMake 4.4 and 4.5 omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
 - Container generation builds minimal runtime images. It is not a general Dockerfile authoring system.
 
