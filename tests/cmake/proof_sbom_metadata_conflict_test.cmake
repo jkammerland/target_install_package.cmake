@@ -8,12 +8,11 @@ endif()
 if(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
 endif()
-if(NOT DEFINED TIP_SBOM_EXPERIMENTAL_VALUE OR TIP_SBOM_EXPERIMENTAL_VALUE STREQUAL "")
-  _tip_proof_fail("TIP_SBOM_EXPERIMENTAL_VALUE is required")
-endif()
 if(CMAKE_VERSION VERSION_LESS "4.3")
   _tip_proof_fail("proof_sbom_metadata_conflict requires CMake 4.3 or newer and should not be registered on older CMake versions")
 endif()
+_tip_proof_require_sbom_activation_value("proof_sbom_metadata_conflict")
+_tip_proof_sbom_activation_line(_tip_sbom_activation_line)
 
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/sbom-metadata-conflict")
 
@@ -40,18 +39,14 @@ function(_tip_proof_write_conflict_fixture case_name first_install second_instal
   file(WRITE "${_tip_source_dir}/CMakeLists.txt" "cmake_minimum_required(VERSION 3.25)\n" "project(proof_sbom_metadata_conflict_root VERSION 1.2.3 LANGUAGES CXX)\n"
                                                  "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n" "add_subdirectory(first)\n" "add_subdirectory(second)\n")
 
-  file(
-    WRITE "${_tip_source_dir}/first/CMakeLists.txt"
-    "project(${_tip_first_project} VERSION 1.2.3 SPDX_LICENSE \"MIT\" DESCRIPTION \"First project metadata\" HOMEPAGE_URL \"https://example.invalid/first\" LANGUAGES CXX)\n"
-    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-    "add_library(first_lib STATIC src/first.cpp)\n" "${first_install}\n")
+  file(WRITE "${_tip_source_dir}/first/CMakeLists.txt"
+       "project(${_tip_first_project} VERSION 1.2.3 SPDX_LICENSE \"MIT\" DESCRIPTION \"First project metadata\" HOMEPAGE_URL \"https://example.invalid/first\" LANGUAGES CXX)\n"
+       "${_tip_sbom_activation_line}" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(first_lib STATIC src/first.cpp)\n" "${first_install}\n")
   file(WRITE "${_tip_source_dir}/first/src/first.cpp" "int first_lib_value() { return 1; }\n")
 
-  file(
-    WRITE "${_tip_source_dir}/second/CMakeLists.txt"
-    "project(${_tip_second_project} VERSION 1.2.3 SPDX_LICENSE \"Apache-2.0\" DESCRIPTION \"Second project metadata\" HOMEPAGE_URL \"https://example.invalid/second\" LANGUAGES CXX)\n"
-    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
-    "add_library(second_lib STATIC src/second.cpp)\n" "${second_install}\n")
+  file(WRITE "${_tip_source_dir}/second/CMakeLists.txt"
+       "project(${_tip_second_project} VERSION 1.2.3 SPDX_LICENSE \"Apache-2.0\" DESCRIPTION \"Second project metadata\" HOMEPAGE_URL \"https://example.invalid/second\" LANGUAGES CXX)\n"
+       "${_tip_sbom_activation_line}" "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n" "add_library(second_lib STATIC src/second.cpp)\n" "${second_install}\n")
   file(WRITE "${_tip_source_dir}/second/src/second.cpp" "int second_lib_value() { return 2; }\n")
 
   _tip_proof_expect_failure(
@@ -86,7 +81,7 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
     WRITE "${_tip_cross_export_source_dir}/CMakeLists.txt"
     "cmake_minimum_required(VERSION 4.4)\n"
     "project(proof_sbom_cross_export_conflict VERSION 1.2.3 LANGUAGES CXX)\n"
-    "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+    "${_tip_sbom_activation_line}"
     "set(TARGET_INSTALL_PACKAGE_DISABLE_INSTALL ON)\n"
     "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
     "add_library(first INTERFACE)\n"

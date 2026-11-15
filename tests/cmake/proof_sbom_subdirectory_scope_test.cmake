@@ -8,12 +8,11 @@ endif()
 if(NOT DEFINED TIP_PROOF_TEST_ROOT)
   _tip_proof_fail("TIP_PROOF_TEST_ROOT is required")
 endif()
-if(NOT DEFINED TIP_SBOM_EXPERIMENTAL_VALUE OR TIP_SBOM_EXPERIMENTAL_VALUE STREQUAL "")
-  _tip_proof_fail("TIP_SBOM_EXPERIMENTAL_VALUE is required")
-endif()
 if(CMAKE_VERSION VERSION_LESS "4.3")
   _tip_proof_fail("proof_sbom_subdirectory_scope requires CMake 4.3 or newer and should not be registered on older CMake versions")
 endif()
+_tip_proof_require_sbom_activation_value("proof_sbom_subdirectory_scope")
+_tip_proof_sbom_activation_line(_tip_sbom_activation_line)
 
 set(_tip_case_root "${TIP_PROOF_TEST_ROOT}/sbom-subdirectory-scope")
 set(_tip_fixture_source_dir "${_tip_case_root}/fixture-src")
@@ -39,7 +38,7 @@ file(
 file(
   WRITE "${_tip_fixture_source_dir}/default-sub/CMakeLists.txt"
   "project(DefaultSubSbom VERSION 4.5.6 SPDX_LICENSE \"BSD-3-Clause\" DESCRIPTION \"Default subdirectory SBOM package\" HOMEPAGE_URL \"https://example.invalid/default-sub-sbom\" LANGUAGES CXX)\n"
-  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+  "${_tip_sbom_activation_line}"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(default_sub_sbom STATIC src/default.cpp)\n"
   "target_install_package(default_sub_sbom EXPORT_NAME DefaultSubSbom SBOM SBOM_DESTINATION \"share/sbom/defaultsub\")\n")
@@ -49,7 +48,7 @@ file(
   WRITE "${_tip_fixture_source_dir}/explicit-top-name/CMakeLists.txt"
   "project(ExplicitTopNameSub VERSION 7.8.9 SPDX_LICENSE \"0BSD\" "
   "DESCRIPTION \"Explicit subdirectory metadata that should not be inherited\" HOMEPAGE_URL \"https://example.invalid/explicit-top-name-sub\" LANGUAGES CXX)\n"
-  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+  "${_tip_sbom_activation_line}"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(explicit_top_sbom STATIC src/explicit.cpp)\n"
   "target_install_package(explicit_top_sbom EXPORT_NAME TopProject SBOM SBOM_NAME TopProject SBOM_DESTINATION \"share/sbom/explicittop\")\n")
@@ -59,7 +58,7 @@ file(
   WRITE "${_tip_fixture_source_dir}/project-sub/CMakeLists.txt"
   "project(ProjectSubSbom VERSION 5.6.7 SPDX_LICENSE \"Apache-2.0\" "
   "DESCRIPTION \"Explicit project subdirectory SBOM package\" HOMEPAGE_URL \"https://example.invalid/project-sub-sbom\" LANGUAGES CXX)\n"
-  "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n"
+  "${_tip_sbom_activation_line}"
   "include(\"${TIP_REPO_ROOT}/cmake/load_target_install_package.cmake\")\n"
   "add_library(project_sub_sbom STATIC src/project.cpp)\n"
   "target_install_package(project_sub_sbom EXPORT_NAME ProjectSubSbomExport SBOM SBOM_NAME ProjectNamedSbom SBOM_PROJECT ProjectSubSbom SBOM_DESTINATION \"share/sbom/projectsub\")\n")
@@ -89,14 +88,14 @@ _tip_proof_run_step(
   --prefix
   "${_tip_install_prefix}")
 
-set(_tip_default_sbom "${_tip_install_prefix}/share/sbom/defaultsub/DefaultSubSbom.spdx.json")
+_tip_proof_sbom_file(_tip_default_sbom "${_tip_install_prefix}/share/sbom/defaultsub" "DefaultSubSbom" "Release")
 _tip_proof_find_spdx_document("${_tip_default_sbom}" "DefaultSubSbom" _tip_default_document_index)
-_tip_proof_assert_json_path_string("${_tip_default_sbom}" "BSD-3-Clause" "@graph" ${_tip_default_document_index} "dataLicense")
+_tip_proof_assert_spdx_data_license("${_tip_default_sbom}" "${_tip_default_document_index}" "BSD-3-Clause")
 _tip_proof_assert_json_path_string("${_tip_default_sbom}" "Default subdirectory SBOM package" "@graph" ${_tip_default_document_index} "description")
 _tip_proof_assert_root_element_names("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom")
 _tip_proof_assert_root_element("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom" "4.5.6" "https://example.invalid/default-sub-sbom")
 
-set(_tip_explicit_top_sbom "${_tip_install_prefix}/share/sbom/explicittop/TopProject.spdx.json")
+_tip_proof_sbom_file(_tip_explicit_top_sbom "${_tip_install_prefix}/share/sbom/explicittop" "TopProject" "Release")
 _tip_proof_find_spdx_document("${_tip_explicit_top_sbom}" "TopProject" _tip_explicit_top_document_index)
 _tip_proof_assert_root_element_names("${_tip_explicit_top_sbom}" "${_tip_explicit_top_document_index}" "explicit_top_sbom")
 _tip_proof_assert_root_element_json_path_string("${_tip_explicit_top_sbom}" "${_tip_explicit_top_document_index}" "explicit_top_sbom" "7.8.9" "software_packageVersion")
@@ -108,11 +107,18 @@ _tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "0BSD")
 _tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "Explicit subdirectory metadata that should not be inherited")
 _tip_proof_assert_file_not_contains("${_tip_explicit_top_sbom}" "https://example.invalid/explicit-top-name-sub")
 
-set(_tip_project_sbom "${_tip_install_prefix}/share/sbom/projectsub/ProjectNamedSbom.spdx.json")
+_tip_proof_sbom_file(_tip_project_sbom "${_tip_install_prefix}/share/sbom/projectsub" "ProjectNamedSbom" "Release")
 _tip_proof_find_spdx_document("${_tip_project_sbom}" "ProjectNamedSbom" _tip_project_document_index)
-_tip_proof_assert_json_path_string("${_tip_project_sbom}" "Apache-2.0" "@graph" ${_tip_project_document_index} "dataLicense")
+_tip_proof_assert_spdx_data_license("${_tip_project_sbom}" "${_tip_project_document_index}" "Apache-2.0")
 _tip_proof_assert_json_path_string("${_tip_project_sbom}" "Explicit project subdirectory SBOM package" "@graph" ${_tip_project_document_index} "description")
 _tip_proof_assert_root_element_names("${_tip_project_sbom}" "${_tip_project_document_index}" "project_sub_sbom")
 _tip_proof_assert_root_element("${_tip_project_sbom}" "${_tip_project_document_index}" "project_sub_sbom" "5.6.7" "https://example.invalid/project-sub-sbom")
+
+# CMake 4.5 also declares the inherited project license on targets without SPDX_LICENSE.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+  _tip_proof_assert_spdx_declared_license("${_tip_default_sbom}" "${_tip_default_document_index}" "default_sub_sbom" "BSD-3-Clause")
+  _tip_proof_assert_spdx_declared_license("${_tip_project_sbom}" "${_tip_project_document_index}" "project_sub_sbom" "Apache-2.0")
+  _tip_proof_assert_spdx_declared_license("${_tip_explicit_top_sbom}" "${_tip_explicit_top_document_index}" "explicit_top_sbom" "")
+endif()
 
 message(STATUS "[proof] SBOM subdirectory scope proof passed.")

@@ -372,6 +372,126 @@ function(_tip_proof_assert_root_element path document_index root_name expected_v
   _tip_proof_fail("Expected root element '${root_name}' in '${path}'")
 endfunction()
 
+# CMake 4.3 and 4.4 gate install(SBOM) behind an activation value; CMake 4.5+ needs none.
+function(_tip_proof_require_sbom_activation_value proof_name)
+  if(CMAKE_VERSION VERSION_LESS "4.5" AND (NOT DEFINED TIP_SBOM_EXPERIMENTAL_VALUE OR TIP_SBOM_EXPERIMENTAL_VALUE STREQUAL ""))
+    _tip_proof_fail("${proof_name} requires TIP_SBOM_EXPERIMENTAL_VALUE on CMake ${CMAKE_VERSION}")
+  endif()
+endfunction()
+
+# Fixture line that activates the SBOM experiment, or nothing when no activation value is supplied.
+function(_tip_proof_sbom_activation_line out_var)
+  set(_tip_line "")
+  if(DEFINED TIP_SBOM_EXPERIMENTAL_VALUE AND NOT TIP_SBOM_EXPERIMENTAL_VALUE STREQUAL "")
+    set(_tip_line "set(CMAKE_EXPERIMENTAL_GENERATE_SBOM \"${TIP_SBOM_EXPERIMENTAL_VALUE}\")\n")
+  endif()
+  set(${out_var}
+      "${_tip_line}"
+      PARENT_SCOPE)
+endfunction()
+
+# CMake 4.5 writes one SBOM per configuration; CMake 4.3 and 4.4 write a single document.
+function(_tip_proof_sbom_file out_var directory sbom_name config)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+    set(_tip_file "${directory}/${sbom_name}-${config}.spdx.json")
+  else()
+    set(_tip_file "${directory}/${sbom_name}.spdx.json")
+  endif()
+  set(${out_var}
+      "${_tip_file}"
+      PARENT_SCOPE)
+endfunction()
+
+# CMake 4.5 emits dataLicense as an SPDX license-expression object instead of a plain string.
+function(_tip_proof_assert_spdx_data_license path document_index expected)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+    _tip_proof_assert_json_path_string("${path}" "${expected}" "@graph" ${document_index} "dataLicense" "simplelicensing_licenseExpression")
+  else()
+    _tip_proof_assert_json_path_string("${path}" "${expected}" "@graph" ${document_index} "dataLicense")
+  endif()
+endfunction()
+
+# Return the license expressions declared for one root element, or an empty list when none are declared.
+function(_tip_proof_get_spdx_declared_licenses path document_index root_name out_var)
+  _tip_proof_find_root_element("${path}" "${document_index}" "${root_name}" _tip_root_index)
+  _tip_proof_read_json("${path}" _tip_json_content)
+  string(
+    JSON
+    _tip_root_id
+    GET
+    "${_tip_json_content}"
+    "@graph"
+    ${document_index}
+    "rootElement"
+    ${_tip_root_index}
+    "spdxId")
+  string(JSON _tip_graph_length LENGTH "${_tip_json_content}" "@graph")
+
+  set(_tip_licenses "")
+  math(EXPR _tip_last_index "${_tip_graph_length} - 1")
+  foreach(_tip_index RANGE 0 ${_tip_last_index})
+    string(
+      JSON
+      _tip_type
+      ERROR_VARIABLE
+      _tip_error
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${_tip_index}
+      "type")
+    if(_tip_error OR NOT _tip_type STREQUAL "Relationship")
+      continue()
+    endif()
+    string(
+      JSON
+      _tip_relationship
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${_tip_index}
+      "relationshipType")
+    string(
+      JSON
+      _tip_from
+      GET
+      "${_tip_json_content}"
+      "@graph"
+      ${_tip_index}
+      "from")
+    if(NOT _tip_relationship STREQUAL "hasDeclaredLicense" OR NOT _tip_from STREQUAL _tip_root_id)
+      continue()
+    endif()
+
+    string(JSON _tip_to_length LENGTH "${_tip_json_content}" "@graph" ${_tip_index} "to")
+    math(EXPR _tip_last_to "${_tip_to_length} - 1")
+    foreach(_tip_to_index RANGE 0 ${_tip_last_to})
+      string(
+        JSON
+        _tip_license
+        GET
+        "${_tip_json_content}"
+        "@graph"
+        ${_tip_index}
+        "to"
+        ${_tip_to_index}
+        "simplelicensing_licenseExpression")
+      list(APPEND _tip_licenses "${_tip_license}")
+    endforeach()
+  endforeach()
+
+  set(${out_var}
+      "${_tip_licenses}"
+      PARENT_SCOPE)
+endfunction()
+
+function(_tip_proof_assert_spdx_declared_license path document_index root_name expected)
+  _tip_proof_get_spdx_declared_licenses("${path}" "${document_index}" "${root_name}" _tip_actual)
+  if(NOT "${_tip_actual}" STREQUAL "${expected}")
+    _tip_proof_fail("Expected declared license '${expected}' for '${root_name}' in '${path}', got '${_tip_actual}'")
+  endif()
+endfunction()
+
 function(_tip_proof_append_toolchain_args out_var)
   set(_tip_args "")
 

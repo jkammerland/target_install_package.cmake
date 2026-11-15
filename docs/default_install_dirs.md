@@ -36,7 +36,7 @@ Notes:
 - CPS metadata is generated only when `target_install_package(... CPS ...)` is used with CMake 4.3+.
   When `CPS_DESTINATION` is omitted, CMake chooses a platform-specific default, commonly under a `cps/<package>` search path such as `lib*/cps/<package>` on Unix-like systems.
   If you set `CPS_DESTINATION`, keep it under a path containing `/cps/` such as `share/cps/<package>`; CMake does not search normal `share/cmake/<package>` locations for `.cps` files.
-- SBOM metadata is generated only when `target_install_package(... SBOM ...)` is used with CMake 4.3+ and `CMAKE_EXPERIMENTAL_GENERATE_SBOM` is set to that CMake version's activation value.
+- SBOM metadata is generated only when `target_install_package(... SBOM ...)` is used with CMake 4.3+. CMake 4.3 and 4.4 also require `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to that CMake version's activation value.
   When `SBOM_DESTINATION` is omitted, CMake chooses a platform-specific default.
 
 ## Platform-Specific Behavior

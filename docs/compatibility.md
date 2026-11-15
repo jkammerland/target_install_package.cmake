@@ -13,7 +13,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. |
-| SPDX SBOM (`SBOM`) | 4.3 | Also requires `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. |
+| SPDX SBOM (`SBOM`) | 4.3 | CMake 4.3 and 4.4 also require `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. CMake 4.5+ needs no activation value. |
 | AppImage packaging | 4.2 | Linux host only; requires `appimagetool`, `patchelf`, installed desktop metadata, and an installed icon. |
 | Deterministic archive ownership | 4.3 | `export_cpack(ARCHIVE_UID ... ARCHIVE_GID ...)` maps to CPack's archive ownership controls. |
 | CPack compression levels | 4.3 | Generic, archive-specific, and Debian-specific levels use CPack's native controls. |

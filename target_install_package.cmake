@@ -100,13 +100,14 @@ endif()
 #     SBOM_DESTINATION <destination>
 #     SBOM_VERSION <version>
 #     SBOM_LICENSE <license>
+#     SBOM_DEFAULT_LICENSE <license>
 #     SBOM_DESCRIPTION <description>
 #     SBOM_HOMEPAGE_URL <url>
 #     SBOM_PACKAGE_URL <url>
 #     SBOM_FORMAT <format>
 #     DISABLE_RPATH)
 #
-#   SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM.
+#   SBOM on CMake 4.3 and 4.4 requires CMAKE_EXPERIMENTAL_GENERATE_SBOM.
 #
 # Parameters:
 #   TARGET_NAME                  - Name of the target to install.
@@ -145,13 +146,16 @@ endif()
 #   CPS_*                        - Options forwarded to install(PACKAGE_INFO ...). CPS version metadata defaults from VERSION unless CPS_PROJECT inherits it.
 #                                  If CPS_DEFAULT_TARGETS is omitted, only static, shared, and interface library aliases are default CPS targets.
 #                                  This wrapper rejects executables and CMake MODULE_LIBRARY targets for CPS exports.
-#   SBOM                         - Generate a software bill of materials for the whole export with CMake 4.3+ experimental install(SBOM).
+#   SBOM                         - Generate a software bill of materials for the whole export with CMake 4.3+ install(SBOM).
 #   SBOM_*                       - Options used to configure install(SBOM ...). SBOM_NAME defaults to EXPORT_NAME. SBOM project metadata is resolved at
 #                                  target_install_package() call time and emitted explicitly with CMake project inheritance disabled.
 #                                  All SBOM calls for the same export must use the same metadata inheritance mode.
 #                                  SBOM version metadata defaults from explicit SBOM_VERSION, then explicit wrapper VERSION, then selected
 #                                  call-time project VERSION. Wrapper effective VERSION fallback only applies when SBOM_PROJECT was not explicit.
-#                                  CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to this CMake version's non-boolean activation value.
+#                                  SBOM_LICENSE sets the SPDX document data license. SBOM_DEFAULT_LICENSE (CMake 4.5+) sets the declared
+#                                  license of targets without SPDX_LICENSE. On CMake 4.5+, an inherited project SPDX_LICENSE fills both.
+#                                  On CMake 4.3 and 4.4, CMAKE_EXPERIMENTAL_GENERATE_SBOM must be set to that version's non-boolean
+#                                  activation value. CMake 4.5+ provides install(SBOM) without an experiment gate.
 #                                  Exports sharing one SBOM_NAME are aggregated with CMake 4.4+ and must use identical metadata.
 #   DISABLE_RPATH                - Disable automatic RPATH configuration for Unix/Linux/macOS (default: OFF).
 #
@@ -950,6 +954,11 @@ function(_tip_validate_sbom_activation EXPORT_NAME)
     project_log(FATAL_ERROR "SBOM metadata requires CMake 4.3 or newer because it uses install(SBOM).")
   endif()
 
+  # CMake 4.5 provides install(SBOM) as a stable command; only 4.3 and 4.4 gate it behind an experiment.
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+    return()
+  endif()
+
   if(NOT DEFINED CMAKE_EXPERIMENTAL_GENERATE_SBOM OR "${CMAKE_EXPERIMENTAL_GENERATE_SBOM}" STREQUAL "")
     project_log(FATAL_ERROR "SBOM metadata for export '${EXPORT_NAME}' requires CMAKE_EXPERIMENTAL_GENERATE_SBOM to be set to the activation value for this CMake version.")
   endif()
@@ -974,6 +983,7 @@ function(_tip_resolve_sbom_export_metadata EXPORT_NAME OUT_PREFIX)
           SBOM_VERSION_EXPLICIT
           SBOM_INHERITED_VERSION
           SBOM_LICENSE
+          SBOM_DEFAULT_LICENSE
           SBOM_INHERITED_LICENSE
           SBOM_DESCRIPTION
           SBOM_INHERITED_DESCRIPTION
@@ -1006,6 +1016,13 @@ function(_tip_resolve_sbom_export_metadata EXPORT_NAME OUT_PREFIX)
     set(_tip_effective_license "${_tip_SBOM_INHERITED_LICENSE}")
   endif()
 
+  # CMake 4.5 project inheritance uses the project SPDX_LICENSE for both the document data license
+  # and the declared license of targets without SPDX_LICENSE. Mirror that for the explicit snapshot.
+  set(_tip_effective_default_license "${_tip_SBOM_DEFAULT_LICENSE}")
+  if("${_tip_effective_default_license}" STREQUAL "" AND CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+    set(_tip_effective_default_license "${_tip_SBOM_INHERITED_LICENSE}")
+  endif()
+
   set(_tip_effective_description "${_tip_SBOM_DESCRIPTION}")
   if("${_tip_effective_description}" STREQUAL "")
     set(_tip_effective_description "${_tip_SBOM_INHERITED_DESCRIPTION}")
@@ -1027,6 +1044,9 @@ function(_tip_resolve_sbom_export_metadata EXPORT_NAME OUT_PREFIX)
       PARENT_SCOPE)
   set(${OUT_PREFIX}_LICENSE
       "${_tip_effective_license}"
+      PARENT_SCOPE)
+  set(${OUT_PREFIX}_DEFAULT_LICENSE
+      "${_tip_effective_default_license}"
       PARENT_SCOPE)
   set(${OUT_PREFIX}_DESCRIPTION
       "${_tip_effective_description}"
@@ -1078,6 +1098,7 @@ function(_tip_finalize_all_sboms)
               DESTINATION
               VERSION
               LICENSE
+              DEFAULT_LICENSE
               DESCRIPTION
               HOMEPAGE_URL
               PACKAGE_URL
@@ -1095,7 +1116,10 @@ function(_tip_finalize_all_sboms)
       endforeach()
     endforeach()
 
-    set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${_tip_reference_EXPERIMENTAL_VALUE}")
+    # Restore the call-time activation value for the experimental CMake 4.3 and 4.4 command.
+    if(CMAKE_VERSION VERSION_LESS "4.5")
+      set(CMAKE_EXPERIMENTAL_GENERATE_SBOM "${_tip_reference_EXPERIMENTAL_VALUE}")
+    endif()
     _tip_validate_sbom_activation("${_tip_reference_export}")
 
     if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4")
@@ -1106,17 +1130,28 @@ function(_tip_finalize_all_sboms)
     endif()
     list(APPEND _tip_sbom_args NO_PROJECT_METADATA)
 
+    # CMake 4.5 names the document license DATA_LICENSE; CMake 4.3 and 4.4 call the same field LICENSE.
+    set(_tip_sbom_license_keyword LICENSE)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+      set(_tip_sbom_license_keyword DATA_LICENSE)
+    endif()
+
     foreach(
       _tip_field IN
       ITEMS DESTINATION
             VERSION
             LICENSE
+            DEFAULT_LICENSE
             DESCRIPTION
             HOMEPAGE_URL
             PACKAGE_URL
             FORMAT)
+      set(_tip_keyword "${_tip_field}")
+      if(_tip_field STREQUAL "LICENSE")
+        set(_tip_keyword "${_tip_sbom_license_keyword}")
+      endif()
       if(NOT "${_tip_reference_${_tip_field}}" STREQUAL "")
-        list(APPEND _tip_sbom_args "${_tip_field}" "${_tip_reference_${_tip_field}}")
+        list(APPEND _tip_sbom_args "${_tip_keyword}" "${_tip_reference_${_tip_field}}")
       endif()
     endforeach()
 
@@ -1244,12 +1279,13 @@ endfunction()
 #     SBOM_DESTINATION <destination>
 #     SBOM_VERSION <version>
 #     SBOM_LICENSE <license>
+#     SBOM_DEFAULT_LICENSE <license>
 #     SBOM_DESCRIPTION <description>
 #     SBOM_HOMEPAGE_URL <url>
 #     SBOM_PACKAGE_URL <url>
 #     SBOM_FORMAT <format>)
 #
-# SBOM requires CMAKE_EXPERIMENTAL_GENERATE_SBOM.
+# SBOM on CMake 4.3 and 4.4 requires CMAKE_EXPERIMENTAL_GENERATE_SBOM.
 #
 # See target_install_package() for parameter descriptions.
 # CONFIG_TEMPLATE resolution source of truth:
@@ -1334,6 +1370,7 @@ function(target_prepare_package _tip_target_name)
       SBOM_DESTINATION
       SBOM_VERSION
       SBOM_LICENSE
+      SBOM_DEFAULT_LICENSE
       SBOM_DESCRIPTION
       SBOM_HOMEPAGE_URL
       SBOM_PACKAGE_URL
@@ -1626,6 +1663,7 @@ function(target_prepare_package _tip_target_name)
           ARG_SBOM_DESTINATION
           ARG_SBOM_VERSION
           ARG_SBOM_LICENSE
+          ARG_SBOM_DEFAULT_LICENSE
           ARG_SBOM_DESCRIPTION
           ARG_SBOM_HOMEPAGE_URL
           ARG_SBOM_PACKAGE_URL
@@ -1647,6 +1685,9 @@ function(target_prepare_package _tip_target_name)
 
     if(NOT "${ARG_SBOM_PACKAGE_URL}" STREQUAL "" AND CMAKE_VERSION VERSION_LESS "4.4")
       project_log(FATAL_ERROR "SBOM_PACKAGE_URL requires CMake 4.4 or newer because CMake 4.3 does not accept PACKAGE_URL in install(SBOM).")
+    endif()
+    if(NOT "${ARG_SBOM_DEFAULT_LICENSE}" STREQUAL "" AND CMAKE_VERSION VERSION_LESS "4.5")
+      project_log(FATAL_ERROR "SBOM_DEFAULT_LICENSE requires CMake 4.5 or newer because CMake 4.3 and 4.4 do not accept DEFAULT_LICENSE in install(SBOM).")
     endif()
 
     set(_tip_effective_sbom_name "${ARG_SBOM_NAME}")
@@ -1901,7 +1942,10 @@ function(target_prepare_package _tip_target_name)
   if(ARG_SBOM)
     set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM" TRUE)
     _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SBOM_METADATA_MODE" "${_tip_sbom_metadata_mode}" "SBOM metadata inheritance mode")
-    _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SBOM_EXPERIMENTAL_VALUE" "${CMAKE_EXPERIMENTAL_GENERATE_SBOM}" "SBOM experimental activation value")
+    # The activation value only exists for CMake 4.3 and 4.4; a leftover value on 4.5+ must not create conflicts.
+    if(CMAKE_VERSION VERSION_LESS "4.5")
+      _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SBOM_EXPERIMENTAL_VALUE" "${CMAKE_EXPERIMENTAL_GENERATE_SBOM}" "SBOM experimental activation value")
+    endif()
     if(_tip_sbom_version_explicit)
       set_property(GLOBAL PROPERTY "${EXPORT_PROPERTY_PREFIX}_SBOM_VERSION_EXPLICIT" TRUE)
     endif()
@@ -1913,6 +1957,7 @@ function(target_prepare_package _tip_target_name)
             SBOM_DESTINATION
             SBOM_VERSION
             SBOM_LICENSE
+            SBOM_DEFAULT_LICENSE
             SBOM_DESCRIPTION
             SBOM_HOMEPAGE_URL
             SBOM_PACKAGE_URL
@@ -1940,8 +1985,15 @@ function(target_prepare_package _tip_target_name)
         _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SBOM_INHERITED_VERSION" "${${_tip_sbom_project_version_var}}" "SBOM inherited project version")
       endif()
 
+      # The project license fills the data license and, on CMake 4.5+, the default declared license.
+      set(_tip_sbom_inherited_license_used FALSE)
+      if("${ARG_SBOM_LICENSE}" STREQUAL "")
+        set(_tip_sbom_inherited_license_used TRUE)
+      elseif(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5" AND "${ARG_SBOM_DEFAULT_LICENSE}" STREQUAL "")
+        set(_tip_sbom_inherited_license_used TRUE)
+      endif()
       set(_tip_sbom_project_license_var "${_tip_sbom_metadata_project}_SPDX_LICENSE")
-      if("${ARG_SBOM_LICENSE}" STREQUAL ""
+      if(_tip_sbom_inherited_license_used
          AND DEFINED ${_tip_sbom_project_license_var}
          AND NOT "${${_tip_sbom_project_license_var}}" STREQUAL "")
         _tip_store_export_property("${EXPORT_PROPERTY_PREFIX}" "${ARG_EXPORT_NAME}" "SBOM_INHERITED_LICENSE" "${${_tip_sbom_project_license_var}}" "SBOM inherited project license")

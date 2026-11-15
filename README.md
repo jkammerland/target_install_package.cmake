@@ -20,7 +20,7 @@ The producer call creates install rules, target exports, package config and vers
 - CMake 3.25+ for core utilities and examples
 - CMake 3.28+ for C++20 modules examples
 - CMake 4.3+ for [Common Package Specification (CPS)](docs/cps.md)
-- CMake 4.3+ with `CMAKE_EXPERIMENTAL_GENERATE_SBOM` for [SBOM](docs/sbom.md)
+- CMake 4.3+ for [SBOM](docs/sbom.md); CMake 4.3 and 4.4 also need `CMAKE_EXPERIMENTAL_GENERATE_SBOM`
 - CMake 4.4+ for installable [source-only packages](docs/source-only-packages.md)
 
 See the [Compatibility Matrix](docs/compatibility.md) and [CMake Version Policy](docs/cmake-version-policy.md) for target type, platform, CPack, CPS, SBOM, source-package, and CMake-version support details.
@@ -76,7 +76,7 @@ Use raw CMake install rules instead when you only ship a private application, ne
 - Integrated container image generation through CPack's External generator and `export_cpack(GENERATORS "CONTAINER")`
 - GPG signing and checksum generation for CPack outputs
 - Opt-in [Common Package Specification (CPS)](docs/cps.md) metadata generation on CMake 4.3+
-- Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ with explicit experimental activation
+- Opt-in [SPDX SBOM](docs/sbom.md) generation on CMake 4.3+ (experimental activation required on CMake 4.3 and 4.4)
 
 ## Important Defaults
 

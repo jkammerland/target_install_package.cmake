@@ -263,7 +263,7 @@ set(target_install_package_PROOF_CONTAINER_RUNTIME
     CACHE STRING "Container runtime used by container proof tests")
 set(target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE
     ""
-    CACHE STRING "Optional CMake experimental SBOM activation value used by SBOM proof tests")
+    CACHE STRING "CMake 4.3/4.4 experimental SBOM activation value used by SBOM proof tests (unused on CMake 4.5+)")
 set(target_install_package_PROOF_OLD_CMAKE_COMMAND
     ""
     CACHE FILEPATH "Optional CMake 3.25-4.2 executable used to run old-CMake feature guard proofs from newer CMake test configurations")
@@ -492,7 +492,8 @@ if(target_install_package_BUILD_PROOF_TESTS)
     add_test(NAME proof_cps_package_info COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_cps_package_info_test.cmake")
     set_tests_properties(proof_cps_package_info PROPERTIES LABELS "proof;cps")
 
-    if(NOT "${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" STREQUAL "")
+    # CMake 4.5 provides install(SBOM) without an experiment; CMake 4.3 and 4.4 need the activation value.
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5" OR NOT "${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" STREQUAL "")
       add_test(NAME proof_sbom_install COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} "-DTIP_SBOM_EXPERIMENTAL_VALUE=${target_install_package_PROOF_SBOM_EXPERIMENTAL_VALUE}" -P
                                                "${_tip_proof_script_dir}/proof_sbom_install_test.cmake")
       set_tests_properties(proof_sbom_install PROPERTIES LABELS "proof;sbom")

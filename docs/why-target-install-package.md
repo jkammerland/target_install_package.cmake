@@ -84,7 +84,7 @@ Other important constraints:
 - `PUBLIC_DEPENDENCIES` and `COMPONENT_DEPENDENCIES` generate CMake config-package dependency loading. They are not translated into CPS metadata.
 - Component install names describe payload slices. They do not hide exported targets from consumers.
 - Static and interface libraries are SDK-only unless another target contributes runtime payload to the same component.
-- CPS and SBOM generation require CMake 4.3+. SBOM generation also requires CMake's version-specific `CMAKE_EXPERIMENTAL_GENERATE_SBOM` activation value.
+- CPS and SBOM generation require CMake 4.3+. On CMake 4.3 and 4.4, SBOM generation also requires CMake's version-specific `CMAKE_EXPERIMENTAL_GENERATE_SBOM` activation value.
 
 ## Comparison Summary
 

@@ -17,7 +17,7 @@ consumer of ordinary CMake config packages.
 | Core install/config package | 3.25 | 3.25 |
 | C++ module file sets | 3.28 and a supported toolchain/generator | 3.28 and a compatible toolchain/generator |
 | CPS metadata | 4.3 | 4.3 when discovering the `.cps` file |
-| SPDX SBOM metadata | 4.3 plus its active experiment value | Not required to consume the CMake config package |
+| SPDX SBOM metadata | 4.3; 4.3 and 4.4 also need their experiment value | Not required to consume the CMake config package |
 | `SOURCES` file sets | 4.4 | 4.4; generated config packages enforce this |
 
 The published feature documentation must state a higher consumer requirement
