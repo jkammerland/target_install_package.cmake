@@ -4,9 +4,10 @@ function(_tip_proof_fail text)
   message(FATAL_ERROR "[proof] ${text}")
 endfunction()
 
+# Runs a required proof step. OUTPUT_VARIABLE optionally receives the combined stdout and stderr.
 function(_tip_proof_run_step)
   set(options "")
-  set(oneValueArgs NAME)
+  set(oneValueArgs NAME OUTPUT_VARIABLE)
   set(multiValueArgs COMMAND)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -32,6 +33,12 @@ function(_tip_proof_run_step)
       message(STATUS "[proof][stderr]\n${_tip_stderr}")
     endif()
     _tip_proof_fail("Step '${ARG_NAME}' exited with code ${_tip_result}")
+  endif()
+
+  if(ARG_OUTPUT_VARIABLE)
+    set(${ARG_OUTPUT_VARIABLE}
+        "${_tip_stdout}\n${_tip_stderr}"
+        PARENT_SCOPE)
   endif()
 endfunction()
 

@@ -616,6 +616,12 @@ if(target_install_package_BUILD_PROOF_TESTS)
   endforeach()
 endif()
 
+# CMP0174 and CMP0177 exist from CMake 3.31; registration and CPack configuration must not change them for callers.
+if(target_install_package_BUILD_PROOF_TESTS AND POLICY CMP0174)
+  add_test(NAME proof_policy_scope COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_policy_scope_test.cmake")
+  set_tests_properties(proof_policy_scope PROPERTIES LABELS "proof;review;registration")
+endif()
+
 if(target_install_package_BUILD_PROOF_TESTS AND UNIX)
   add_test(NAME proof_registered_runtime_paths COMMAND ${CMAKE_COMMAND} ${_tip_proof_common_args} -P "${_tip_proof_script_dir}/proof_registered_runtime_paths_test.cmake")
   set_tests_properties(proof_registered_runtime_paths PROPERTIES LABELS "proof;review;registration;rpath")
