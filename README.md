@@ -544,7 +544,7 @@ The component model uses predictable names:
 
 The `Development` component is intentionally shared by the export. It contains the SDK surface for `find_package()`: headers, static/import libraries, shared-library namelinks, CMake config/export files, include-on-find helpers, and CPS metadata by default. Static, interface, and header-only targets are SDK-only and do not create empty runtime components. For shared libraries, a raw `cmake --install --component Development` install also needs the matching runtime components. CPack records those component relationships as metadata; archive packages do not enforce them. When `export_cpack()` generates component DEB/RPM packages, those relationships are translated to native DEB `Depends` and same-build RPM `Requires` metadata.
 
-CMake 4.4 accepts multiple names after `cmake --install <build> --component`. Released CMake 4.4.0 through 4.4.2 can mask component failures; see [Multiple-Component Installs](docs/multi-component-install.md).
+CMake 4.4 accepts multiple names after `cmake --install <build> --component`. CMake 4.4.0 through 4.4.5 can mask component failures, and CMake 4.5.0+ reports them; see [Multiple-Component Installs](docs/multi-component-install.md).
 
 The detailed v7 component contract is captured in [Component Packaging Plan](docs/component-packaging-plan.md).
 

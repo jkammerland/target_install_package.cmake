@@ -73,7 +73,7 @@ FILE(APPEND "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/share/MultiComponentPkg/runtim
 ]==]
   COMPONENT Runtime)
 
-# CMake 4.4.0 through 4.4.2 overwrite this exit status when the later component
+# CMake 4.4 releases overwrite this exit status when the later component
 # succeeds. Keep these rules out of the otherwise successful full-install case.
 INSTALL(
   CODE [==[
@@ -283,9 +283,10 @@ _tip_assert_runtime("${_tip_single_prefix}" FALSE)
 _tip_assert_development("${_tip_single_prefix}" TRUE)
 _tip_assert_documentation("${_tip_single_prefix}" FALSE)
 
-# Released CMake 4.4.0 through 4.4.2 mask an earlier serial component failure
-# when a later component succeeds. Future releases may contain the upstream fix,
-# so only known affected versions are required to reproduce the bad exit status.
+# CMake 4.4.0 through 4.4.5 mask an earlier serial component failure when a later
+# component succeeds (CMake issue 27906). CMake 4.5 stops at the first failure and
+# returns it. A later 4.4 patch release may backport the fix, so only those
+# versions accept either outcome.
 EXECUTE_PROCESS(
   COMMAND
     "${CMAKE_COMMAND}" --install "${_tip_build_dir}" --config Release --component StatusFailure StatusLaterSuccess --prefix "${_tip_status_prefix}"
@@ -295,7 +296,15 @@ EXECUTE_PROCESS(
 SET(_tip_status_failure_marker "${_tip_status_prefix}/share/MultiComponentPkg/status-failure-started.txt")
 SET(_tip_status_later_marker "${_tip_status_prefix}/share/MultiComponentPkg/status-later-succeeded.txt")
 _tip_proof_assert_exists("${_tip_status_failure_marker}")
-IF(CMAKE_VERSION VERSION_GREATER_EQUAL "4.4.0" AND CMAKE_VERSION VERSION_LESS_EQUAL "4.4.2")
+IF(CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+  IF("${_tip_status_result}" STREQUAL "0")
+    MESSAGE(STATUS "[proof][stdout]\n${_tip_status_stdout}")
+    MESSAGE(STATUS "[proof][stderr]\n${_tip_status_stderr}")
+    _tip_proof_fail("Expected CMake ${CMAKE_VERSION} to return the earlier component failure, got exit code 0")
+  ENDIF()
+  _tip_proof_assert_not_exists("${_tip_status_later_marker}")
+  MESSAGE(STATUS "[proof] Confirmed CMake ${CMAKE_VERSION} stops at the earlier serial component failure.")
+ELSEIF(CMAKE_VERSION VERSION_LESS_EQUAL "4.4.5")
   IF(NOT "${_tip_status_result}" STREQUAL "0")
     MESSAGE(STATUS "[proof][stdout]\n${_tip_status_stdout}")
     MESSAGE(STATUS "[proof][stderr]\n${_tip_status_stderr}")

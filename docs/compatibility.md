@@ -11,7 +11,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 | Core utilities and examples | 3.25 | Required by the project. |
 | `FILE_SET` header install flow | 3.25 | Public and interface header file sets are the preferred path. |
 | `SOURCES` file-set install flow | 4.4 | Produces source-only packages whose consumers also require CMake 4.4+. |
-| Multiple components in one `cmake --install` invocation | 4.4 | CMake 4.4.0 through 4.4.2 can mask component failures. |
+| Multiple components in one `cmake --install` invocation | 4.4 | CMake 4.4.0 through 4.4.5 can mask component failures; CMake 4.5.0+ reports them. |
 | C++20 module file-set examples | 3.28 | Requires CMake module support and a compatible compiler/generator. |
 | Common Package Specification (`CPS`) | 4.3 | Uses CMake `install(PACKAGE_INFO)`. CPS written by CMake 4.5+ requires CMake 4.5+ consumers; older consumers use the CMake config package. |
 | SPDX SBOM (`SBOM`) | 4.3 | CMake 4.3 and 4.4 also require `CMAKE_EXPERIMENTAL_GENERATE_SBOM` set to the activation value for the active CMake version. CMake 4.5+ needs no activation value. |
@@ -74,7 +74,7 @@ See the [CMake Version Policy](cmake-version-policy.md) for the global-floor mig
 - CPS exports do not support CMake 4.4 `SOURCES` file sets: `install(PACKAGE_INFO)` in CMake 4.4 and 4.5 omits that metadata. Use the CMake config package for source-only or hybrid source packages.
 - `PUBLIC_DEPENDENCIES`, `COMPONENT_DEPENDENCIES`, `CONFIG_TEMPLATE`, and `INCLUDE_ON_FIND_PACKAGE` are CMake-config features. They are not emitted as CPS metadata.
 - Container generation builds minimal runtime images. It is not a general Dockerfile authoring system.
-- Multiple-component selection is a direct-install CLI feature, not an `export_cpack()` API. CMake 4.4.0 through 4.4.2 can mask failures; see [Multiple-Component Installs](multi-component-install.md).
+- Multiple-component selection is a direct-install CLI feature, not an `export_cpack()` API. CMake 4.4.0 through 4.4.5 can mask failures; see [Multiple-Component Installs](multi-component-install.md).
 
 ## Local Validation Commands
 
